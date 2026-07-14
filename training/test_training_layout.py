@@ -16,6 +16,7 @@ class TrainingLayoutTest(unittest.TestCase):
             ROOT / "scripts" / "train_rubert_tiny2.py",
             ROOT / "scripts" / "export_onnx.py",
             ROOT / "scripts" / "evaluate_nlu.py",
+            ROOT / "rubert" / "ci_export_smoke.py",
             ROOT / "README.md",
         ]
 

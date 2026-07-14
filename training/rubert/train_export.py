@@ -85,9 +85,13 @@ class IntentDataset(Dataset):
 
 
 class JointIntentSlotModel(torch.nn.Module):
-    def __init__(self, base_model_name):
+    def __init__(self, base_model_name=None, *, encoder=None):
         super().__init__()
-        self.encoder = AutoModel.from_pretrained(base_model_name)
+        if encoder is None:
+            if base_model_name is None:
+                raise ValueError("base_model_name or encoder is required")
+            encoder = AutoModel.from_pretrained(base_model_name)
+        self.encoder = encoder
         hidden_size = self.encoder.config.hidden_size
         self.dropout = torch.nn.Dropout(0.1)
         self.intent_classifier = torch.nn.Linear(hidden_size, len(INTENTS))
@@ -280,8 +284,6 @@ def export_bundle(model, tokenizer, args):
     (output_dir / "intent_labels.txt").write_text("\n".join(INTENTS) + "\n", encoding="utf-8")
     (output_dir / "slot_labels.txt").write_text("\n".join(SLOT_LABELS) + "\n", encoding="utf-8")
 
-    model.eval()
-    wrapper = JointOnnxWrapper(model).eval()
     sample = tokenizer(
         "Поставь таймер на 5 минут",
         max_length=args.max_length,
@@ -290,6 +292,14 @@ def export_bundle(model, tokenizer, args):
         return_tensors="pt",
     )
     onnx_path = output_dir / "rubert-tiny2-intent-slots.onnx"
+    export_joint_onnx(model, sample, onnx_path)
+    verify_onnx(onnx_path, sample, tokenizer, args.max_length)
+    print(f"exported={output_dir}")
+
+
+def export_joint_onnx(model, sample, onnx_path):
+    model.eval()
+    wrapper = JointOnnxWrapper(model).eval()
     torch.onnx.export(
         wrapper,
         (
@@ -311,22 +321,43 @@ def export_bundle(model, tokenizer, args):
         dynamo=False,
     )
     onnx.checker.check_model(str(onnx_path))
-    verify_onnx(onnx_path, sample, tokenizer, args.max_length)
-    print(f"exported={output_dir}")
+
+
+def create_onnx_session(onnx_path):
+    session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    input_names = [value.name for value in session.get_inputs()]
+    output_names = [value.name for value in session.get_outputs()]
+    if input_names != ["input_ids", "attention_mask", "token_type_ids"]:
+        raise RuntimeError(f"Unexpected ONNX inputs: {input_names}")
+    if output_names != ["intent_logits", "slot_logits"]:
+        raise RuntimeError(f"Unexpected ONNX outputs: {output_names}")
+    return session
+
+
+def run_onnx_contract(session, sample):
+    inputs = {
+        "input_ids": sample["input_ids"].detach().cpu().numpy().astype("int64"),
+        "attention_mask": sample["attention_mask"].detach().cpu().numpy().astype("int64"),
+        "token_type_ids": sample.get("token_type_ids", torch.zeros_like(sample["input_ids"]))
+        .detach()
+        .cpu()
+        .numpy()
+        .astype("int64"),
+    }
+    intent_logits, slot_logits = session.run(["intent_logits", "slot_logits"], inputs)
+    batch_size, sequence_length = inputs["input_ids"].shape
+    expected_intent_shape = (batch_size, len(INTENTS))
+    expected_slot_shape = (batch_size, sequence_length, len(SLOT_LABELS))
+    if intent_logits.shape != expected_intent_shape:
+        raise RuntimeError(f"Unexpected ONNX intent logits shape: {intent_logits.shape}")
+    if slot_logits.shape != expected_slot_shape:
+        raise RuntimeError(f"Unexpected ONNX slot logits shape: {slot_logits.shape}")
+    return intent_logits, slot_logits
 
 
 def verify_onnx(onnx_path, sample, tokenizer, max_length):
-    session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
-    inputs = {
-        "input_ids": sample["input_ids"].numpy().astype("int64"),
-        "attention_mask": sample["attention_mask"].numpy().astype("int64"),
-        "token_type_ids": sample.get("token_type_ids", torch.zeros_like(sample["input_ids"])).numpy().astype("int64"),
-    }
-    intent_logits, slot_logits = session.run(["intent_logits", "slot_logits"], inputs)
-    if intent_logits.shape[-1] != len(INTENTS):
-        raise RuntimeError(f"Unexpected ONNX intent logits shape: {intent_logits.shape}")
-    if slot_logits.shape[-1] != len(SLOT_LABELS):
-        raise RuntimeError(f"Unexpected ONNX slot logits shape: {slot_logits.shape}")
+    session = create_onnx_session(onnx_path)
+    run_onnx_contract(session, sample)
     for text, expected_intent, minimum_confidence in EXPORT_INTENT_CHECKS:
         encoded = tokenizer(
             text,
