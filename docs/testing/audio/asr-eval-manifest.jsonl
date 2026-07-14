@@ -1,0 +1,4 @@
+{"case":"weather-moscow","audio":"weather-moscow.wav","utterance":"Какая погода в Москве сегодня?","expected_keyword":"погода","expected_intent":"get_weather","expected_widget":"weather_card"}
+{"case":"timer-five-minutes","audio":"timer-five-minutes.wav","utterance":"Поставь таймер на пять минут.","expected_keyword":"таймер","expected_intent":"set_timer","expected_widget":"timer_card"}
+{"case":"calculator-eighteen-times-three","audio":"calculator-eighteen-times-three.wav","utterance":"Посчитай 18 умножить на 3.","expected_keyword":"умножить","expected_intent":"calculate","expected_widget":"calculator_card"}
+{"case":"note-buy-milk","audio":"note-buy-milk.wav","utterance":"Создай заметку купить молоко.","expected_keyword":"заметку","expected_intent":"create_note","expected_widget":"note_card"}

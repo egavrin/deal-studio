@@ -1,0 +1,50 @@
+{"text":"Сколько времени?","intent":"get_current_time"}
+{"text":"Который час сейчас?","intent":"get_current_time"}
+{"text":"Скажи текущее время","intent":"get_current_time"}
+{"text":"Покажи время","intent":"get_current_time"}
+{"text":"Какая погода сегодня?","intent":"get_weather"}
+{"text":"Какая погода в Москве?","intent":"get_weather"}
+{"text":"Какая погода в Москве сегодня?","intent":"get_weather"}
+{"text":"Погода в Санкт-Петербурге","intent":"get_weather"}
+{"text":"Покажи погоду в Санкт-Петербурге","intent":"get_weather"}
+{"text":"Покажи погоду в Казани","intent":"get_weather"}
+{"text":"Покажи погоду на сегодня","intent":"get_weather"}
+{"text":"Будет дождь сегодня?","intent":"get_weather"}
+{"text":"Поставь таймер на 5 минут","intent":"set_timer"}
+{"text":"Поставь таймер на две минуты","intent":"set_timer"}
+{"text":"Запусти таймер на три минуты","intent":"set_timer"}
+{"text":"Запусти таймер на десять минут","intent":"set_timer"}
+{"text":"Поставь таймер на час","intent":"set_timer"}
+{"text":"Таймер на 3 минуты для чая","intent":"set_timer"}
+{"text":"Разбуди меня завтра в 7:30","intent":"set_alarm"}
+{"text":"Поставь будильник на 8:00","intent":"set_alarm"}
+{"text":"Установи будильник на семь утра","intent":"set_alarm"}
+{"text":"Будильник завтра на 6:45","intent":"set_alarm"}
+{"text":"Будильник на 08.15","intent":"set_alarm"}
+{"text":"Будильник на 08:15","intent":"set_alarm"}
+{"text":"Поставь будильник на 07.30","intent":"set_alarm"}
+{"text":"Разбуди в 06.45","intent":"set_alarm"}
+{"text":"Напомни через час проверить духовку","intent":"create_reminder"}
+{"text":"Напомни завтра позвонить маме","intent":"create_reminder"}
+{"text":"Создай напоминание купить хлеб","intent":"create_reminder"}
+{"text":"Напоминание на вечер оплатить счет","intent":"create_reminder"}
+{"text":"Создай заметку купить молоко","intent":"create_note"}
+{"text":"Запиши заметку идеи для проекта","intent":"create_note"}
+{"text":"Заметка: забрать документы","intent":"create_note"}
+{"text":"Запиши купить яйца и сыр","intent":"create_note"}
+{"text":"Посчитай 125 умножить на 37","intent":"calculate"}
+{"text":"Сколько будет 12 плюс 45?","intent":"calculate"}
+{"text":"Посчитай 90 минус 17","intent":"calculate"}
+{"text":"Умножь 8 на 9","intent":"calculate"}
+{"text":"Открой Telegram","intent":"open_app"}
+{"text":"Запусти браузер","intent":"open_app"}
+{"text":"Открой приложение Камера","intent":"open_app"}
+{"text":"Запусти YouTube","intent":"open_app"}
+{"text":"Что ты умеешь?","intent":"help"}
+{"text":"Помощь","intent":"help"}
+{"text":"Покажи список команд","intent":"help"}
+{"text":"Как пользоваться ассистентом?","intent":"help"}
+{"text":"Расскажи длинную историю про космос","intent":"unknown"}
+{"text":"Почему небо синее?","intent":"unknown"}
+{"text":"Напиши план тренировок на месяц","intent":"unknown"}
+{"text":"Сравни два способа изучения английского","intent":"unknown"}
