@@ -41,11 +41,10 @@ class LocalAnswerProviderTest {
         assertTrue(result.slots.isEmpty())
     }
 
-    private fun unknownNlu(): NluResult =
-        NluResult(
-            intent = Intents.UNKNOWN,
-            confidence = 0.3,
-            slots = buildJsonObject {},
-            source = NluSource.RUBERT_TINY2,
-        )
+    private fun unknownNlu(): NluResult = NluResult(
+        intent = Intents.UNKNOWN,
+        confidence = 0.3,
+        slots = buildJsonObject {},
+        source = NluSource.RUBERT_TINY2
+    )
 }

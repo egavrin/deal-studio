@@ -11,16 +11,16 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.core.content.ContextCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import com.offlineassistant.app.platform.ReminderNotificationScheduler
-import androidx.core.content.ContextCompat
+import java.util.regex.Pattern
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
-import java.util.regex.Pattern
 
 class NotificationPermissionAcceptanceTest {
     @get:Rule
@@ -33,7 +33,7 @@ class NotificationPermissionAcceptanceTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assumeTrue(
             "Run after: adb shell pm revoke --user 0 com.offlineassistant.poc.debug android.permission.POST_NOTIFICATIONS",
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED,
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         )
 
         sendReminder()
@@ -51,7 +51,7 @@ class NotificationPermissionAcceptanceTest {
         ReminderNotificationScheduler(context).schedule(
             reminderId = "permission-acceptance",
             text = notificationText,
-            triggerAtMillis = System.currentTimeMillis() + 1_500L,
+            triggerAtMillis = System.currentTimeMillis() + 1_500L
         )
 
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
@@ -71,11 +71,11 @@ class NotificationPermissionAcceptanceTest {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         val allowByResource = device.wait(
             Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")),
-            5_000L,
+            5_000L
         )
         val allowButton = allowByResource ?: device.wait(
             Until.findObject(By.text(Pattern.compile("(?i).*(allow|разреш).*"))),
-            5_000L,
+            5_000L
         )
         checkNotNull(allowButton) { "System POST_NOTIFICATIONS permission dialog was not visible" }
         allowButton.click()

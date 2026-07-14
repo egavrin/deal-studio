@@ -5,13 +5,13 @@ import androidx.test.core.app.ApplicationProvider
 import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.nlu.OnnxRubertNlu
 import com.offlineassistant.app.nlu.OnnxRuntimeRubertRunner
+import java.io.File
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 
 class RubertSlotEvaluationTest {
     @Test
@@ -26,7 +26,7 @@ class RubertSlotEvaluationTest {
 
         val nlu = OnnxRubertNlu(
             onnxRunner = OnnxRuntimeRubertRunner(useFallbackSlotMerge = false),
-            readinessProvider = { readiness },
+            readinessProvider = { readiness }
         )
         val artifact = File(context.filesDir, "rubert-slot-eval.jsonl")
         artifact.writeText("")
@@ -44,7 +44,7 @@ class RubertSlotEvaluationTest {
                 slotKey = case.slotKey,
                 expectedValue = case.expectedValue,
                 actualValue = actual,
-                exact = exact,
+                exact = exact
             )
             artifact.appendText(jsonLine)
             Log.i("RubertSlotEval", jsonLine.trimEnd())
@@ -55,7 +55,7 @@ class RubertSlotEvaluationTest {
         assertEquals(
             "RuBERT token-classifier slots should cover the fixed MVP slot cases without deterministic fallback merge",
             slotCases.size,
-            exactMatches,
+            exactMatches
         )
     }
 
@@ -66,7 +66,7 @@ class RubertSlotEvaluationTest {
         slotKey: String,
         expectedValue: String,
         actualValue: String?,
-        exact: Boolean,
+        exact: Boolean
     ): String {
         fun escape(value: String): String = value
             .replace("\\", "\\\\")
@@ -80,7 +80,7 @@ class RubertSlotEvaluationTest {
     private data class SlotCase(
         val text: String,
         val slotKey: String,
-        val expectedValue: String,
+        val expectedValue: String
     )
 
     private companion object {
@@ -92,7 +92,7 @@ class RubertSlotEvaluationTest {
             SlotCase("Разбуди меня завтра в 7:30", "time", "07:30"),
             SlotCase("Будильник на 08.15", "time", "08:15"),
             SlotCase("Посчитай 125 умножить на 37", "expression", "125 * 37"),
-            SlotCase("Сколько будет 18 плюс 24", "expression", "18 + 24"),
+            SlotCase("Сколько будет 18 плюс 24", "expression", "18 + 24")
         )
     }
 }

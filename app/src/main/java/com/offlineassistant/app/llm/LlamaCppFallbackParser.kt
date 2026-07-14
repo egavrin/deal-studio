@@ -1,23 +1,23 @@
 package com.offlineassistant.app.llm
 
-import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.NoOpModelRuntimeTelemetryStore
+import com.offlineassistant.core.llm.CancellableFallbackParser
 import com.offlineassistant.core.llm.FallbackKind
 import com.offlineassistant.core.llm.FallbackParse
-import com.offlineassistant.core.llm.CancellableFallbackParser
 import com.offlineassistant.core.llm.LocalAnswerResult
 import com.offlineassistant.core.llm.StreamingFallbackParser
 import com.offlineassistant.core.llm.StreamingLocalAnswerProvider
 import com.offlineassistant.core.nlu.NluResult
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.util.concurrent.atomic.AtomicLong
 
 class LlamaCppFallbackParser(
     private val nativeEngine: LlamaNativeEngine = UnavailableLlamaNativeEngine,
@@ -25,27 +25,26 @@ class LlamaCppFallbackParser(
     private val readinessProvider: () -> ModelReadiness = {
         ModelReadiness(ModelNames.QWEN, false, "models/qwen/qwen2.5-0.5b-instruct.gguf", "model file not installed")
     },
-    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
-) : StreamingFallbackParser, StreamingLocalAnswerProvider, CancellableFallbackParser {
+    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
+) : StreamingFallbackParser,
+    StreamingLocalAnswerProvider,
+    CancellableFallbackParser {
     private val cancellationEpoch = AtomicLong(0L)
 
-    override fun parse(input: String, nlu: NluResult): FallbackParse =
-        parse(input, readinessProvider(), nlu)
+    override fun parse(input: String, nlu: NluResult): FallbackParse = parse(input, readinessProvider(), nlu)
 
-    override fun parse(input: String, nlu: NluResult, onToken: (String) -> Unit): FallbackParse =
-        parse(input, readinessProvider(), nlu, onToken)
+    override fun parse(input: String, nlu: NluResult, onToken: (String) -> Unit): FallbackParse = parse(input, readinessProvider(), nlu, onToken)
 
-    override fun answer(input: String, nlu: NluResult): LocalAnswerResult =
-        parse(input, nlu).toLocalAnswerResult()
+    override fun answer(input: String, nlu: NluResult): LocalAnswerResult = parse(input, nlu).toLocalAnswerResult()
 
-    override fun answer(input: String, nlu: NluResult, onToken: (String) -> Unit): LocalAnswerResult =
-        parse(input, nlu, onToken).toLocalAnswerResult()
+    override fun answer(input: String, nlu: NluResult, onToken: (String) -> Unit): LocalAnswerResult = parse(input, nlu, onToken).toLocalAnswerResult()
 
+    @Suppress("UnusedParameter")
     fun parse(
         text: String,
         readiness: ModelReadiness,
         nlu: NluResult,
-        onToken: ((String) -> Unit)? = null,
+        onToken: ((String) -> Unit)? = null
     ): FallbackParse {
         val started = System.currentTimeMillis()
         val requestEpoch = cancellationEpoch.get()
@@ -53,13 +52,13 @@ class LlamaCppFallbackParser(
             val result = FallbackParse(
                 kind = FallbackKind.ERROR,
                 error = "Qwen GGUF model is not installed for llama.cpp fallback: ${readiness.location}.",
-                latencyMs = elapsed(started),
+                latencyMs = elapsed(started)
             )
             telemetryStore.recordFailure(
                 ModelNames.QWEN,
                 ModelOperations.GENERATION,
                 result.latencyMs,
-                result.error.orEmpty(),
+                result.error.orEmpty()
             )
             return result
         }
@@ -84,7 +83,7 @@ class LlamaCppFallbackParser(
                 FallbackParse(
                     kind = FallbackKind.ERROR,
                     error = it.message ?: "llama.cpp fallback failed",
-                    latencyMs = elapsed(started),
+                    latencyMs = elapsed(started)
                 )
             }
         }.also { result ->
@@ -95,7 +94,7 @@ class LlamaCppFallbackParser(
                     ModelNames.QWEN,
                     ModelOperations.GENERATION,
                     result.latencyMs,
-                    result.error ?: "Qwen did not return an answer",
+                    result.error ?: "Qwen did not return an answer"
                 )
             }
         }
@@ -109,7 +108,7 @@ class LlamaCppFallbackParser(
     private fun cancelledAnswer(partial: String): FallbackParse = FallbackParse(
         kind = FallbackKind.ANSWER,
         confidence = 0.65,
-        answer = partial.trim().ifBlank { "Ответ остановлен." },
+        answer = partial.trim().ifBlank { "Ответ остановлен." }
     )
 
     fun warmUp(readiness: ModelReadiness = readinessProvider()): Result<Unit> {
@@ -120,7 +119,7 @@ class LlamaCppFallbackParser(
                 ModelNames.QWEN,
                 ModelOperations.WARM_UP,
                 elapsed(started),
-                error.message.orEmpty(),
+                error.message.orEmpty()
             )
             return Result.failure(error)
         }
@@ -133,7 +132,7 @@ class LlamaCppFallbackParser(
                     ModelNames.QWEN,
                     ModelOperations.WARM_UP,
                     elapsed(started),
-                    error.message ?: error::class.java.simpleName,
+                    error.message ?: error::class.java.simpleName
                 )
             }
     }
@@ -153,7 +152,7 @@ class LlamaCppFallbackParser(
             FallbackParse(
                 kind = FallbackKind.ANSWER,
                 confidence = 0.65,
-                answer = answer,
+                answer = answer
             )
         }
     }
@@ -175,18 +174,26 @@ class LlamaCppFallbackParser(
         return when {
             lower.contains("погод") && (lower.contains("без интернет") || lower.contains("офлайн")) ->
                 """Ответь ровно двумя предложениями: "Нет, свежую погоду без интернета узнать нельзя. Можно показать только кеш или последний сохраненный прогноз, если он есть.""".trimIndent()
+
             asksForFreshOnlineDataOffline(lower) ->
                 """Для вопросов про свежие курсы валют, новости, цены, расписания и другие актуальные онлайн-данные без интернета отвечай в таком смысле: "Нет, свежие данные без интернета проверить нельзя. Можно использовать только кеш, заранее сохраненные данные или последнее известное значение, если оно есть."
-                Не называй онлайн-сервисы способом проверки без интернета.""".trimIndent()
+                Не называй онлайн-сервисы способом проверки без интернета.
+                """.trimIndent()
+
             asksAboutOfflineModePurpose(lower) ->
                 """Объясни, что офлайн-режим позволяет ассистенту работать без интернета, обрабатывать данные прямо на устройстве и лучше сохранять приватность пользователя.""".trimIndent()
+
             (lower.contains("похуд") || lower.contains("вес")) && lower.contains("точно") ->
                 """Пример: вопрос "Я точно похудею за месяц?" -> ответ "Нет, гарантировать похудение нельзя. Результат зависит от дефицита калорий, питания, активности, сна и состояния здоровья."
-                Для этого вопроса начни ответ с: Нет, гарантировать похудение нельзя. Затем кратко объясни зависимость от калорий, питания, активности, сна и здоровья.""".trimIndent()
+                Для этого вопроса начни ответ с: Нет, гарантировать похудение нельзя. Затем кратко объясни зависимость от калорий, питания, активности, сна и здоровья.
+                """.trimIndent()
+
             lower.contains("медицин") || lower.contains("здоров") || lower.contains("врач") ->
                 """Для медицинских вопросов используй ответ в таком смысле: "Нет, не стоит полагаться только на маленькую локальную модель. Лучше проверить информацию у врача или профильного специалиста." """.trimIndent()
+
             asksAboutLocalModel(lower) ->
                 """Отвечай строго на заданный вопрос о локальной модели. Учитывай реальные runtime-ограничения: вычислительные ресурсы, память, контекст, лимит токенов и таймауты.""".trimIndent()
+
             else -> ""
         }
     }
@@ -201,7 +208,7 @@ class LlamaCppFallbackParser(
             "новост",
             "цен",
             "расписан",
-            "котиров",
+            "котиров"
         ).any(lower::contains)
         return asksOffline && asksFreshData
     }
@@ -211,19 +218,16 @@ class LlamaCppFallbackParser(
         return lower.contains("офлайн") && asksPurpose
     }
 
-    private fun asksAboutLocalModel(lower: String): Boolean =
-        lower.contains("локаль") && lower.contains("модел")
+    private fun asksAboutLocalModel(lower: String): Boolean = lower.contains("локаль") && lower.contains("модел")
 
-    private fun chatPrompt(system: String, text: String): String {
-        return buildString {
-            append("<|im_start|>system\n")
-            append(system)
-            append("<|im_end|>\n")
-            append("<|im_start|>user\n")
-            append(text)
-            append("<|im_end|>\n")
-            append("<|im_start|>assistant\n")
-        }
+    private fun chatPrompt(system: String, text: String): String = buildString {
+        append("<|im_start|>system\n")
+        append(system)
+        append("<|im_end|>\n")
+        append("<|im_start|>user\n")
+        append(text)
+        append("<|im_end|>\n")
+        append("<|im_start|>assistant\n")
     }
 
     private fun extractJsonObject(raw: String): String {
@@ -257,7 +261,7 @@ class LlamaCppFallbackParser(
 }
 
 private class VisibleAnswerTokenFilter(
-    private val emit: (String) -> Unit,
+    private val emit: (String) -> Unit
 ) {
     private val raw = StringBuilder()
     private var emittedLength = 0
@@ -317,10 +321,9 @@ private fun String.visibleAnswerTextForStream(): String {
     return visible.sanitizeVisibleAnswerText()
 }
 
-private fun String.sanitizeVisibleAnswerText(): String =
-    replace("**", "")
-        .replace("__", "")
-        .replace(Regex("[\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF]"), "")
+private fun String.sanitizeVisibleAnswerText(): String = replace("**", "")
+    .replace("__", "")
+    .replace(Regex("[\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF]"), "")
 
 private fun String.extractPartialJsonAnswer(): String {
     val match = Regex(""""answer"\s*:\s*"""").find(this) ?: return ""
@@ -339,12 +342,15 @@ private fun String.extractPartialJsonAnswer(): String {
                             '"' -> '"'
                             '\\' -> '\\'
                             else -> char
-                        },
+                        }
                     )
                     escaped = false
                 }
+
                 char == '\\' -> escaped = true
+
                 char == '"' -> return@buildString
+
                 else -> append(char)
             }
             index += 1
@@ -360,11 +366,9 @@ private fun String.dropTrailingThinkTagPrefix(): String {
     return if (trailingPrefix == null) this else dropLast(trailingPrefix.length)
 }
 
-private fun JsonObject.string(name: String): String? =
-    this[name]?.jsonPrimitive?.contentOrNull
+private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
 
-private fun FallbackParse.toLocalAnswerResult(): LocalAnswerResult =
-    when (kind) {
-        FallbackKind.ANSWER -> LocalAnswerResult.answer(answer.orEmpty(), latencyMs)
-        else -> LocalAnswerResult.error(error ?: "local answer provider failed", latencyMs)
-    }
+private fun FallbackParse.toLocalAnswerResult(): LocalAnswerResult = when (kind) {
+    FallbackKind.ANSWER -> LocalAnswerResult.answer(answer.orEmpty(), latencyMs)
+    else -> LocalAnswerResult.error(error ?: "local answer provider failed", latencyMs)
+}

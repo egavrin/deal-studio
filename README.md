@@ -107,8 +107,9 @@ Silero's selected public weight is non-commercial. Do not use it in a commercial
 Fast host checks:
 
 ```bash
-./gradlew test
-./gradlew assembleDebug
+./gradlew ktlintCheck detekt lintDebug test assembleDebug :app:compileReleaseKotlin
+python3 -m unittest discover -s scripts -p 'test_*.py'
+python3 -m unittest discover -s training -p 'test_*.py'
 python3 scripts/test_qwen_generation_policy.py
 ```
 

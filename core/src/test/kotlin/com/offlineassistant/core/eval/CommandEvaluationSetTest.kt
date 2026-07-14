@@ -61,7 +61,7 @@ class CommandEvaluationSetTest {
                         status = item.requiredString("status"),
                         intent = item.requiredString("intent"),
                         widgetType = item["widget_type"]?.jsonPrimitive?.contentOrNull,
-                        payload = item["payload"]?.jsonObject ?: JsonObject(emptyMap()),
+                        payload = item["payload"]?.jsonObject ?: JsonObject(emptyMap())
                     )
                 }
                 .toList()
@@ -73,12 +73,11 @@ class CommandEvaluationSetTest {
         val status: String,
         val intent: String,
         val widgetType: String?,
-        val payload: JsonObject,
+        val payload: JsonObject
     )
 }
 
-private fun JsonObject.requiredString(key: String): String =
-    requireNotNull(this[key]?.jsonPrimitive?.contentOrNull) { "Missing $key" }
+private fun JsonObject.requiredString(key: String): String = requireNotNull(this[key]?.jsonPrimitive?.contentOrNull) { "Missing $key" }
 
 private fun JsonElement.normalized(): String = jsonPrimitive.contentOrNull ?: toString()
 

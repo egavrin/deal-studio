@@ -1,8 +1,8 @@
 package com.offlineassistant.app.asr
 
-import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.NoOpModelRuntimeTelemetryStore
 import com.offlineassistant.app.voice.AudioTranscriber
@@ -58,7 +58,7 @@ object JniWhisperNativeEngine : WhisperNativeEngine {
 class WhisperTranscriber(
     private val readiness: ModelReadiness,
     private val nativeEngine: WhisperNativeEngine = JniWhisperNativeEngine,
-    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
+    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
 ) : AudioTranscriber {
     override fun warmUp() {
         if (readiness.ready) nativeEngine.prepare(readiness.location)
@@ -72,13 +72,13 @@ class WhisperTranscriber(
             val result = AudioTranscription(
                 text = null,
                 error = "whisper.cpp model is not installed: ${readiness.location}. Audio: ${audioFile.name}",
-                latencyMs = System.currentTimeMillis() - started,
+                latencyMs = System.currentTimeMillis() - started
             )
             telemetryStore.recordFailure(
                 ModelNames.WHISPER,
                 ModelOperations.TRANSCRIPTION,
                 result.latencyMs,
-                result.error.orEmpty(),
+                result.error.orEmpty()
             )
             return result
         }
@@ -88,7 +88,7 @@ class WhisperTranscriber(
                     val result = AudioTranscription(
                         text = transcript.ifBlank { null },
                         error = if (transcript.isBlank()) "whisper.cpp returned an empty transcript. Audio: ${audioFile.name}" else null,
-                        latencyMs = System.currentTimeMillis() - started,
+                        latencyMs = System.currentTimeMillis() - started
                     )
                     if (result.error == null) {
                         telemetryStore.recordSuccess(ModelNames.WHISPER, ModelOperations.TRANSCRIPTION, result.latencyMs)
@@ -97,7 +97,7 @@ class WhisperTranscriber(
                             ModelNames.WHISPER,
                             ModelOperations.TRANSCRIPTION,
                             result.latencyMs,
-                            result.error,
+                            result.error
                         )
                     }
                     result
@@ -106,16 +106,16 @@ class WhisperTranscriber(
                     val result = AudioTranscription(
                         text = null,
                         error = "whisper.cpp native transcription failed: ${error.message ?: error::class.java.simpleName}. Audio: ${audioFile.name}",
-                        latencyMs = System.currentTimeMillis() - started,
+                        latencyMs = System.currentTimeMillis() - started
                     )
                     telemetryStore.recordFailure(
                         ModelNames.WHISPER,
                         ModelOperations.TRANSCRIPTION,
                         result.latencyMs,
-                        result.error.orEmpty(),
+                        result.error.orEmpty()
                     )
                     result
-                },
+                }
             )
     }
 }

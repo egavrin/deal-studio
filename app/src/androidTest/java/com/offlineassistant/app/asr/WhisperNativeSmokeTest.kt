@@ -10,13 +10,13 @@ import com.offlineassistant.app.ui.ChatViewModel
 import com.offlineassistant.app.voice.VoiceCommandPipeline
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.engine.AssistantEngine
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 
 class WhisperNativeSmokeTest {
     @Test
@@ -30,7 +30,7 @@ class WhisperNativeSmokeTest {
         assumeTrue("Timer WAV must be preinstalled into app files for native smoke", audio.isFile)
 
         val transcriber = WhisperTranscriber(
-            readiness = readiness,
+            readiness = readiness
         )
         val transcription = transcriber.transcribe(audio)
 
@@ -40,7 +40,7 @@ class WhisperNativeSmokeTest {
 
         val result = VoiceCommandPipeline(
             transcriber = transcriber,
-            assistantEngine = AssistantEngine.createDemo(),
+            assistantEngine = AssistantEngine.createDemo()
         ).handleRecording(audio)
 
         assertEquals("set_timer", result.response.intent)
@@ -87,7 +87,7 @@ class WhisperNativeSmokeTest {
         val transcript = transcription.text.orEmpty()
         val pipelineResult = VoiceCommandPipeline(
             transcriber = transcriber,
-            assistantEngine = AssistantEngine.createDemo(),
+            assistantEngine = AssistantEngine.createDemo()
         ).handleRecording(audio)
         val keywordHit = transcript.lowercase().contains("таймер")
         val artifact = File(context.filesDir, "whisper-asr-eval.jsonl")
@@ -99,8 +99,8 @@ class WhisperNativeSmokeTest {
                 latencyMs = transcription.latencyMs,
                 keywordHit = keywordHit,
                 intent = pipelineResult.response.intent,
-                widgetType = pipelineResult.response.widget?.type,
-            ),
+                widgetType = pipelineResult.response.widget?.type
+            )
         )
 
         assertTrue(transcription.error, transcription.error == null)
@@ -123,7 +123,7 @@ class WhisperNativeSmokeTest {
         val transcriber = WhisperTranscriber(readiness)
         val pipeline = VoiceCommandPipeline(
             transcriber = transcriber,
-            assistantEngine = AssistantEngine.createDemo(),
+            assistantEngine = AssistantEngine.createDemo()
         )
         val artifact = File(context.filesDir, "whisper-asr-eval.jsonl")
         artifact.writeText("")
@@ -149,7 +149,7 @@ class WhisperNativeSmokeTest {
                 intent = intent,
                 widgetType = widgetType,
                 expectedIntent = case.expectedIntent,
-                expectedWidgetType = case.expectedWidgetType,
+                expectedWidgetType = case.expectedWidgetType
             )
             artifact.appendText(jsonLine)
             Log.i("WhisperAsrEval", jsonLine.trimEnd())
@@ -209,7 +209,7 @@ class WhisperNativeSmokeTest {
                 audio = json.getString("audio"),
                 expectedKeyword = json.getString("expected_keyword"),
                 expectedIntent = json.getString("expected_intent"),
-                expectedWidgetType = json.getString("expected_widget"),
+                expectedWidgetType = json.getString("expected_widget")
             )
         }
     }
@@ -223,7 +223,7 @@ class WhisperNativeSmokeTest {
         intent: String?,
         widgetType: String?,
         expectedIntent: String? = null,
-        expectedWidgetType: String? = null,
+        expectedWidgetType: String? = null
     ): String {
         fun escape(value: String): String = value
             .replace("\\", "\\\\")
@@ -238,6 +238,6 @@ class WhisperNativeSmokeTest {
         val audio: String,
         val expectedKeyword: String,
         val expectedIntent: String,
-        val expectedWidgetType: String,
+        val expectedWidgetType: String
     )
 }

@@ -3,12 +3,12 @@ package com.offlineassistant.app.nlu
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.offlineassistant.core.nlu.Intents
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class RubertRuntimeBenchmarkTest {
@@ -21,21 +21,21 @@ class RubertRuntimeBenchmarkTest {
             "Поставь таймер на пять минут" to Intents.SET_TIMER,
             "Какая погода в Москве?" to Intents.GET_WEATHER,
             "Запиши заметку купить молоко" to Intents.CREATE_NOTE,
-            "Сколько будет восемнадцать умножить на три" to Intents.CALCULATE,
+            "Сколько будет восемнадцать умножить на три" to Intents.CALCULATE
         )
         val configurations = listOf(
             Configuration(RubertExecutionProvider.CPU, 2),
             Configuration(RubertExecutionProvider.CPU, 4),
             Configuration(RubertExecutionProvider.CPU, 6),
             Configuration(RubertExecutionProvider.XNNPACK, 4),
-            Configuration(RubertExecutionProvider.NNAPI, 4),
+            Configuration(RubertExecutionProvider.NNAPI, 4)
         )
         val successful = mutableListOf<Configuration>()
 
         configurations.forEach { configuration ->
             val runner = OnnxRuntimeRubertRunner(
                 intraOpThreads = configuration.threads,
-                executionProvider = configuration.provider,
+                executionProvider = configuration.provider
             )
             runCatching {
                 runner.warmUp(model.absolutePath)
@@ -69,7 +69,7 @@ class RubertRuntimeBenchmarkTest {
         medianMs: Double?,
         minMs: Double?,
         maxMs: Double?,
-        error: String?,
+        error: String?
     ) {
         Log.i(
             LogTag,
@@ -80,13 +80,13 @@ class RubertRuntimeBenchmarkTest {
                 .put("min_ms", minMs)
                 .put("max_ms", maxMs)
                 .put("error", error)
-                .toString(),
+                .toString()
         )
     }
 
     private data class Configuration(
         val provider: RubertExecutionProvider,
-        val threads: Int,
+        val threads: Int
     )
 
     private companion object {

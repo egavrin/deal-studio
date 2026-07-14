@@ -18,7 +18,7 @@ data class SileroSynthesisInput(
     val sequence: LongArray,
     val durationRate: FloatArray,
     val pitchCoefficients: FloatArray,
-    val typeIds: LongArray,
+    val typeIds: LongArray
 ) {
     init {
         require(sequence.isNotEmpty()) { "Silero sequence must not be empty" }
@@ -31,7 +31,7 @@ data class SileroSynthesisInput(
 data class SileroSpectrum(
     val magnitudeLogits: FloatArray,
     val phase: FloatArray,
-    val frameCount: Int,
+    val frameCount: Int
 )
 
 fun interface SileroTextFrontend : AutoCloseable {
@@ -53,7 +53,7 @@ interface SileroAcousticInference : AutoCloseable {
 data class SileroModelBundle(
     val predictors: File,
     val acoustic: File,
-    val window: File,
+    val window: File
 ) {
     fun requireComplete(): SileroModelBundle = apply {
         require(predictors.isFile) { "Missing Silero predictors: ${predictors.absolutePath}" }
@@ -65,7 +65,7 @@ data class SileroModelBundle(
         fun fromDirectory(directory: File): SileroModelBundle = SileroModelBundle(
             predictors = File(directory, "predictors.onnx"),
             acoustic = File(directory, "acoustic.onnx"),
-            window = File(directory, "window.f32"),
+            window = File(directory, "window.f32")
         )
     }
 }
@@ -74,7 +74,7 @@ class SileroSpeechSynthesizer(
     private val frontend: SileroTextFrontend,
     private val inference: SileroAcousticInference,
     private val istft: SileroIstft,
-    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
+    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
 ) : SpeechSynthesizer {
     override suspend fun warmUp() {
         val started = System.nanoTime()
@@ -90,7 +90,7 @@ class SileroSpeechSynthesizer(
                     ModelNames.SILERO_TTS,
                     ModelOperations.WARM_UP,
                     elapsedMillis(started),
-                    error.message ?: error::class.java.simpleName,
+                    error.message ?: error::class.java.simpleName
                 )
             }
             .getOrThrow()
@@ -105,9 +105,9 @@ class SileroSpeechSynthesizer(
                 samples = istft.synthesize(
                     spectrum.magnitudeLogits,
                     spectrum.phase,
-                    spectrum.frameCount,
+                    spectrum.frameCount
                 ),
-                sampleRate = SampleRate,
+                sampleRate = SampleRate
             )
         }.onSuccess {
             telemetryStore.recordSuccess(ModelNames.SILERO_TTS, ModelOperations.SYNTHESIS, elapsedMillis(started))
@@ -116,7 +116,7 @@ class SileroSpeechSynthesizer(
                 ModelNames.SILERO_TTS,
                 ModelOperations.SYNTHESIS,
                 elapsedMillis(started),
-                error.message ?: error::class.java.simpleName,
+                error.message ?: error::class.java.simpleName
             )
         }.getOrThrow()
     }
@@ -128,8 +128,7 @@ class SileroSpeechSynthesizer(
         inference.close()
     }
 
-    private fun elapsedMillis(started: Long): Long =
-        (System.nanoTime() - started).coerceAtLeast(0L) / 1_000_000L
+    private fun elapsedMillis(started: Long): Long = (System.nanoTime() - started).coerceAtLeast(0L) / 1_000_000L
 
     companion object {
         const val SampleRate = 48_000
@@ -137,21 +136,21 @@ class SileroSpeechSynthesizer(
         fun fromBundle(
             bundle: SileroModelBundle,
             frontend: SileroTextFrontend,
-            telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
+            telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
         ): SileroSpeechSynthesizer {
             val completeBundle = bundle.requireComplete()
             return SileroSpeechSynthesizer(
                 frontend = frontend,
                 inference = OnnxSileroAcousticInference(completeBundle),
                 istft = SileroIstft(readFloatArray(completeBundle.window)),
-                telemetryStore = telemetryStore,
+                telemetryStore = telemetryStore
             )
         }
 
         fun fromBundle(
             bundle: SileroModelBundle,
             frontendBundle: SileroFrontendBundle,
-            telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
+            telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
         ): SileroSpeechSynthesizer {
             val linguisticInference = OnnxSileroLinguisticInference(frontendBundle)
             val frontend = SileroRussianTextFrontend(frontendBundle, linguisticInference)
@@ -169,7 +168,7 @@ class SileroSpeechSynthesizer(
 
 class OnnxSileroAcousticInference(
     private val bundle: SileroModelBundle,
-    private val threadCount: Int = 4,
+    private val threadCount: Int = 4
 ) : SileroAcousticInference {
     private val environment = OrtEnvironment.getEnvironment()
     private val cancellationGeneration = AtomicLong(0L)
@@ -194,9 +193,9 @@ class OnnxSileroAcousticInference(
                 "duration_rate" to input.durationRate.tensor(longArrayOf(1, tokenCount.toLong()), predictorInputs),
                 "pitch_coefficients" to input.pitchCoefficients.tensor(
                     longArrayOf(1, tokenCount.toLong()),
-                    predictorInputs,
+                    predictorInputs
                 ),
-                "type_ids" to input.typeIds.tensor(longArrayOf(1, tokenCount.toLong()), predictorInputs),
+                "type_ids" to input.typeIds.tensor(longArrayOf(1, tokenCount.toLong()), predictorInputs)
             )
             activeSessions.predictors.run(values).use { result ->
                 duration = result.floatOutput("duration")
@@ -225,15 +224,15 @@ class OnnxSileroAcousticInference(
                 "pitch" to pitch.tensor(longArrayOf(1, 1, tokenCount.toLong()), acousticInputs),
                 "alignment" to alignment.tensor(
                     longArrayOf(1, tokenCount.toLong(), frameCount.toLong()),
-                    acousticInputs,
-                ),
+                    acousticInputs
+                )
             )
             return activeSessions.acoustic.run(values).use { result ->
                 check(generation == cancellationGeneration.get()) { "Silero synthesis cancelled" }
                 SileroSpectrum(
                     magnitudeLogits = result.floatOutput("magnitude_logit"),
                     phase = result.floatOutput("phase"),
-                    frameCount = frameCount,
+                    frameCount = frameCount
                 )
             }
         } finally {
@@ -262,16 +261,14 @@ class OnnxSileroAcousticInference(
             Sessions(
                 predictors = environment.createSession(bundle.predictors.absolutePath, options),
                 acoustic = environment.createSession(bundle.acoustic.absolutePath, options),
-                options = options,
+                options = options
             ).also { sessions = it }
         }
     }
 
-    private fun LongArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor =
-        OnnxTensor.createTensor(environment, LongBuffer.wrap(this), shape).also(owner::add)
+    private fun LongArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor = OnnxTensor.createTensor(environment, LongBuffer.wrap(this), shape).also(owner::add)
 
-    private fun FloatArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor =
-        OnnxTensor.createTensor(environment, FloatBuffer.wrap(this), shape).also(owner::add)
+    private fun FloatArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(this), shape).also(owner::add)
 
     private fun OrtSession.Result.floatOutput(name: String): FloatArray {
         val tensor = get(name).orElseThrow { IllegalStateException("Missing Silero output: $name") } as OnnxTensor
@@ -282,7 +279,7 @@ class OnnxSileroAcousticInference(
     private data class Sessions(
         val predictors: OrtSession,
         val acoustic: OrtSession,
-        val options: OrtSession.SessionOptions,
+        val options: OrtSession.SessionOptions
     ) : AutoCloseable {
         override fun close() {
             predictors.close()

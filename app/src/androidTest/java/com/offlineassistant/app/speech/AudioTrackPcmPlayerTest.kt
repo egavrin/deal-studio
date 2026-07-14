@@ -4,8 +4,8 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -39,12 +39,12 @@ class AudioTrackPcmPlayerTest {
             player.play(
                 PcmAudio(samples = FloatArray(SAMPLE_RATE / 2), sampleRate = SAMPLE_RATE),
                 onPlaybackStarted = { events += "first-start" },
-                onPlaybackCompleted = { events += "first-end" },
+                onPlaybackCompleted = { events += "first-end" }
             )
             player.play(
                 PcmAudio(samples = FloatArray(SAMPLE_RATE / 2), sampleRate = SAMPLE_RATE),
                 onPlaybackStarted = { events += "second-start" },
-                onPlaybackCompleted = { events += "second-end" },
+                onPlaybackCompleted = { events += "second-end" }
             )
             player.finish()
         } finally {

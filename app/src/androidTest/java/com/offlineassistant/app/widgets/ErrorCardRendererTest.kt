@@ -25,11 +25,14 @@ class ErrorCardRendererTest {
                     put("title", "Не получилось получить ответ")
                     put("message", "Qwen GGUF model is not installed.")
                     put("recoverable", true)
-                    put("suggestions", buildJsonArray {
-                        add(JsonPrimitive("Открыть настройки"))
-                    })
+                    put(
+                        "suggestions",
+                        buildJsonArray {
+                            add(JsonPrimitive("Открыть настройки"))
+                        }
+                    )
                 },
-                onAction = { action = it },
+                onAction = { action = it }
             )
         }
 

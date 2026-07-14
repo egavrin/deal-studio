@@ -1,7 +1,7 @@
 package com.offlineassistant.app.eval
 
-import androidx.test.core.app.ApplicationProvider
 import android.util.Log
+import androidx.test.core.app.ApplicationProvider
 import com.offlineassistant.app.llm.JniLlamaNativeEngine
 import com.offlineassistant.app.llm.LlamaCppFallbackParser
 import com.offlineassistant.app.models.ModelReadiness
@@ -10,25 +10,25 @@ import com.offlineassistant.core.llm.FallbackKind
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
+import java.io.File
 import kotlinx.serialization.json.buildJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 
 class QwenAnswerEvaluationTest {
     @Test
     fun localQwenAnswersFixedComplexQuestionSetWithLatencyArtifact() {
         assertTrue(
             "Qwen quality eval should cover at least 12 fixed complex/general questions",
-            QwenAnswerEvalCases.fixedQuestions.size >= 12,
+            QwenAnswerEvalCases.fixedQuestions.size >= 12
         )
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val readiness = qwenReadiness(context)
         val parser = LlamaCppFallbackParser(
             nativeEngine = JniLlamaNativeEngine,
-            answerMaxTokens = 384,
+            answerMaxTokens = 384
         )
         val nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2)
         val artifact = File(context.filesDir, "qwen-answer-eval.jsonl")
@@ -40,14 +40,14 @@ class QwenAnswerEvaluationTest {
             val result = parser.parse(
                 text = question.text,
                 readiness = readiness,
-                nlu = nlu,
+                nlu = nlu
             ) { token -> streamed.append(token) }
             val answer = result.answer.orEmpty()
             val jsonLine = buildJsonLine(
                 question = question.text,
                 latencyMs = result.latencyMs,
                 answer = answer,
-                streamed = streamed.toString(),
+                streamed = streamed.toString()
             )
             artifact.appendText(jsonLine)
             Log.i("QwenAnswerEval", jsonLine.trimEnd())
@@ -55,23 +55,23 @@ class QwenAnswerEvaluationTest {
             assertEquals(result.toString(), FallbackKind.ANSWER, result.kind)
             assertTrue("${question.text}: latency=${result.latencyMs}", result.latencyMs in 1..120_000)
             assertTrue("${question.text}: answer=$answer", answer.length >= 20)
-            assertTrue("${question.text}: streamed=${streamed}", streamed.isNotBlank())
+            assertTrue("${question.text}: streamed=$streamed", streamed.isNotBlank())
             assertPlainTextAnswer(question.text, answer)
             assertPlainTextAnswer("${question.text} streamed", streamed.toString())
             assertTrue(
                 "${question.text}: expected one of ${question.expectedAny}, answer=$answer",
-                question.expectedAny.any { answer.contains(it, ignoreCase = true) },
+                question.expectedAny.any { answer.contains(it, ignoreCase = true) }
             )
             question.additionallyExpectedAny.forEach { expectedGroup ->
                 assertTrue(
                     "${question.text}: also expected one of $expectedGroup, answer=$answer",
-                    expectedGroup.any { answer.contains(it, ignoreCase = true) },
+                    expectedGroup.any { answer.contains(it, ignoreCase = true) }
                 )
             }
             question.forbiddenPrefixes.forEach { forbidden ->
                 assertTrue(
                     "${question.text}: answer should not start with `$forbidden`: $answer",
-                    !answer.trimStart().startsWith(forbidden, ignoreCase = true),
+                    !answer.trimStart().startsWith(forbidden, ignoreCase = true)
                 )
             }
         }

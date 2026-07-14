@@ -5,10 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.settings.VoiceModel
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 class WhisperThreadBenchmarkTest {
     @Test

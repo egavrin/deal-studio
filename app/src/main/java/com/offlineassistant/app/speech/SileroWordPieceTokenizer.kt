@@ -83,12 +83,11 @@ internal class SileroWordPieceTokenizer(vocabularyFile: File) {
             Character.FORMAT.toInt(),
             Character.PRIVATE_USE.toInt(),
             Character.SURROGATE.toInt(),
-            Character.UNASSIGNED.toInt(),
+            Character.UNASSIGNED.toInt()
         )
     }
 
-    private fun Char.isTokenizerWhitespace(): Boolean =
-        this == ' ' || this == '\t' || this == '\n' || this == '\r' || Character.getType(this) == Character.SPACE_SEPARATOR.toInt()
+    private fun Char.isTokenizerWhitespace(): Boolean = this == ' ' || this == '\t' || this == '\n' || this == '\r' || Character.getType(this) == Character.SPACE_SEPARATOR.toInt()
 
     private fun Char.isTokenizerPunctuation(): Boolean {
         val code = code
@@ -100,14 +99,13 @@ internal class SileroWordPieceTokenizer(vocabularyFile: File) {
             Character.END_PUNCTUATION.toInt(),
             Character.INITIAL_QUOTE_PUNCTUATION.toInt(),
             Character.FINAL_QUOTE_PUNCTUATION.toInt(),
-            Character.OTHER_PUNCTUATION.toInt(),
+            Character.OTHER_PUNCTUATION.toInt()
         )
     }
 
-    private fun Int.isChineseCodePoint(): Boolean =
-        this in 0x4E00..0x9FFF || this in 0x3400..0x4DBF || this in 0x20000..0x2A6DF ||
-            this in 0x2A700..0x2B73F || this in 0x2B740..0x2B81F || this in 0x2B820..0x2CEAF ||
-            this in 0xF900..0xFAFF || this in 0x2F800..0x2FA1F
+    private fun Int.isChineseCodePoint(): Boolean = this in 0x4E00..0x9FFF || this in 0x3400..0x4DBF || this in 0x20000..0x2A6DF ||
+        this in 0x2A700..0x2B73F || this in 0x2B740..0x2B81F || this in 0x2B820..0x2CEAF ||
+        this in 0xF900..0xFAFF || this in 0x2F800..0x2FA1F
 
     private companion object {
         const val MaxCharactersPerWord = 100

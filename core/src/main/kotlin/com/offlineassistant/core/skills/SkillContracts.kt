@@ -11,7 +11,7 @@ data class NormalizedCommand(
     val intent: String,
     val slots: JsonObject,
     val originalText: String,
-    val source: NluSource,
+    val source: NluSource
 )
 
 @Serializable
@@ -19,14 +19,14 @@ data class ClarificationRequest(
     val question: String,
     val suggestions: List<String>,
     val pendingIntent: String,
-    val partialSlots: JsonObject,
+    val partialSlots: JsonObject
 )
 
 @Serializable
 data class ValidationError(
     val message: String,
     val intent: String? = null,
-    val slots: JsonObject? = null,
+    val slots: JsonObject? = null
 )
 
 interface Skill {
@@ -41,7 +41,7 @@ data class SkillResult(
     val status: SkillStatus,
     val text: String,
     val widget: WidgetPayload? = null,
-    val actionResult: String? = null,
+    val actionResult: String? = null
 )
 
 @Serializable
@@ -56,5 +56,5 @@ enum class SkillStatus {
     PERMISSION_REQUIRED,
 
     @SerialName("error")
-    ERROR,
+    ERROR
 }

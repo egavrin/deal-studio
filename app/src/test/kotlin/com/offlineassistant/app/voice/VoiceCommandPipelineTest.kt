@@ -2,16 +2,16 @@ package com.offlineassistant.app.voice
 
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.engine.AssistantEngine
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.io.File
 
 class VoiceCommandPipelineTest {
     @Test
     fun transcribedTimerCommandProducesTimerWidget() {
         val pipeline = VoiceCommandPipeline(
             transcriber = FakeAudioTranscriber("Поставь таймер на 5 минут"),
-            assistantEngine = AssistantEngine.createDemo(),
+            assistantEngine = AssistantEngine.createDemo()
         )
 
         val result = pipeline.handleRecording(File("voice.wav"))
@@ -25,7 +25,7 @@ class VoiceCommandPipelineTest {
     fun transcriptionFailureReturnsErrorWidget() {
         val pipeline = VoiceCommandPipeline(
             transcriber = FakeAudioTranscriber(null, "whisper.cpp JNI bridge is not linked"),
-            assistantEngine = AssistantEngine.createDemo(),
+            assistantEngine = AssistantEngine.createDemo()
         )
 
         val result = pipeline.handleRecording(File("voice.wav"))
@@ -37,11 +37,11 @@ class VoiceCommandPipelineTest {
 
 private class FakeAudioTranscriber(
     private val text: String?,
-    private val error: String? = null,
+    private val error: String? = null
 ) : AudioTranscriber {
     override fun transcribe(audioFile: File): AudioTranscription = AudioTranscription(
         text = text,
         error = error,
-        latencyMs = 7,
+        latencyMs = 7
     )
 }

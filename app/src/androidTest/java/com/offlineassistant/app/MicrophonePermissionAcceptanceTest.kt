@@ -22,7 +22,7 @@ class MicrophonePermissionAcceptanceTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assumeTrue(
             "Run after: adb shell pm revoke --user 0 com.offlineassistant.poc.debug android.permission.RECORD_AUDIO",
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED,
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
         )
 
         compose.onNodeWithContentDescription("Записать голос").performClick()

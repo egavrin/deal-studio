@@ -19,7 +19,7 @@ class SileroTextPreprocessorTest {
             deleteOnExit()
         }
         val fixtures = Json.parseToJsonElement(
-            requireNotNull(javaClass.getResource("/speech/silero-frontend-fixtures.json")).readText(),
+            requireNotNull(javaClass.getResource("/speech/silero-frontend-fixtures.json")).readText()
         ).jsonArray
         val preprocessor = SileroTextPreprocessor(metadata)
 

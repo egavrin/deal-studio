@@ -38,7 +38,7 @@ class CachingWeatherProviderTest {
 
         assertEquals(
             "Свежую погоду офлайн узнать нельзя, а сохраненного прогноза нет.",
-            error.message,
+            error.message
         )
     }
 
@@ -51,7 +51,7 @@ class CachingWeatherProviderTest {
         windMps = 3,
         forecast = listOf(WeatherForecastPoint("12:00", 21, "cloudy")),
         source = source,
-        updatedAt = "2026-07-13T12:00:00+03:00",
+        updatedAt = "2026-07-13T12:00:00+03:00"
     )
 
     private class MemoryWeatherCache : WeatherCache {

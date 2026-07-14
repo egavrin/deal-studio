@@ -26,13 +26,13 @@ class SileroNativeSmokeTest {
             .single { it.name == ModelNames.SILERO_TTS }
         assumeTrue(
             "Silero bundle must be staged in /data/local/tmp/offline-assistant-silero",
-            readiness.ready,
+            readiness.ready
         )
         val directory = File(readiness.location)
         val synthesizer = SileroSpeechSynthesizer.fromBundle(
             bundle = SileroModelBundle.fromDirectory(directory),
             frontendBundle = SileroFrontendBundle.fromDirectory(directory),
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
         try {
             val pssBeforeKb = Debug.getPss()
@@ -50,7 +50,7 @@ class SileroNativeSmokeTest {
                 Measurement(
                     text = phrase,
                     synthesisMs = synthesisMs,
-                    audioMs = audio.samples.size * 1_000L / audio.sampleRate,
+                    audioMs = audio.samples.size * 1_000L / audio.sampleRate
                 )
             }
             val pssAfterKb = Debug.getPss()
@@ -59,7 +59,7 @@ class SileroNativeSmokeTest {
                 pssBeforeKb = pssBeforeKb,
                 pssAfterKb = pssAfterKb,
                 pssDeltaKb = pssAfterKb - pssBeforeKb,
-                measurements = measurements,
+                measurements = measurements
             )
             Log.i(Tag, Json.encodeToString(report))
             assertTrue("No Silero measurements", measurements.isNotEmpty())
@@ -68,15 +68,14 @@ class SileroNativeSmokeTest {
         }
     }
 
-    private fun elapsedMillis(started: Long): Long =
-        (System.nanoTime() - started).coerceAtLeast(0L) / 1_000_000L
+    private fun elapsedMillis(started: Long): Long = (System.nanoTime() - started).coerceAtLeast(0L) / 1_000_000L
 
     @kotlinx.serialization.Serializable
     private data class Measurement(
         val text: String,
         val synthesisMs: Long,
         val audioMs: Long,
-        val realTimeFactor: Double = synthesisMs.toDouble() / audioMs.coerceAtLeast(1L),
+        val realTimeFactor: Double = synthesisMs.toDouble() / audioMs.coerceAtLeast(1L)
     )
 
     @kotlinx.serialization.Serializable
@@ -85,7 +84,7 @@ class SileroNativeSmokeTest {
         val pssBeforeKb: Long,
         val pssAfterKb: Long,
         val pssDeltaKb: Long,
-        val measurements: List<Measurement>,
+        val measurements: List<Measurement>
     )
 
     private companion object {
@@ -95,7 +94,7 @@ class SileroNativeSmokeTest {
             "На двери висит крепкий замок.",
             "Старый замок находится на холме.",
             "Погода в Москве облачная, двадцать один градус.",
-            "Солнечный свет состоит из множества разных видимых цветов,",
+            "Солнечный свет состоит из множества разных видимых цветов,"
         )
     }
 }

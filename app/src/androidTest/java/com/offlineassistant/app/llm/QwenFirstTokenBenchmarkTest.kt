@@ -24,7 +24,7 @@ class QwenFirstTokenBenchmarkTest {
         assumeTrue("Qwen GGUF must be installed or staged", readiness.ready && File(readiness.location).isFile)
         val parser = LlamaCppFallbackParser(
             nativeEngine = JniLlamaNativeEngine,
-            answerMaxTokens = LlamaCppFallbackParser.MODEL_MAX_GENERATION_TOKENS,
+            answerMaxTokens = LlamaCppFallbackParser.MODEL_MAX_GENERATION_TOKENS
         )
         val nlu = NluResult(Intents.UNKNOWN, 0.2, buildJsonObject {}, NluSource.RUBERT_TINY2)
         JniLlamaNativeEngine.warmUp(readiness.location)
@@ -44,20 +44,19 @@ class QwenFirstTokenBenchmarkTest {
             assertTrue("No visible token for: $question", ttftMs != null)
             Log.i(
                 Tag,
-                "{\"question\":\"${question.replace("\"", "\\\"")}\",\"ttft_ms\":$ttftMs,\"total_ms\":$totalMs}",
+                "{\"question\":\"${question.replace("\"", "\\\"")}\",\"ttft_ms\":$ttftMs,\"total_ms\":$totalMs}"
             )
         }
     }
 
-    private fun elapsedMillis(startedNs: Long): Long =
-        (SystemClock.elapsedRealtimeNanos() - startedNs) / 1_000_000L
+    private fun elapsedMillis(startedNs: Long): Long = (SystemClock.elapsedRealtimeNanos() - startedNs) / 1_000_000L
 
     private companion object {
         const val Tag = "QwenFirstToken"
         val Questions = listOf(
             "Почему небо синее?",
             "Почему локальная модель может отвечать медленнее облачной?",
-            "Зачем нужен офлайн-режим в ассистенте?",
+            "Зачем нужен офлайн-режим в ассистенте?"
         )
     }
 }

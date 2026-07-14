@@ -47,7 +47,7 @@ object RussianInverseTextNormalizer {
         "шестьсот" to 600L,
         "семьсот" to 700L,
         "восемьсот" to 800L,
-        "девятьсот" to 900L,
+        "девятьсот" to 900L
     )
     private val scales = mapOf(
         "тысяча" to 1_000L,
@@ -55,7 +55,7 @@ object RussianInverseTextNormalizer {
         "тысяч" to 1_000L,
         "миллион" to 1_000_000L,
         "миллиона" to 1_000_000L,
-        "миллионов" to 1_000_000L,
+        "миллионов" to 1_000_000L
     )
 
     fun normalizeNumbers(text: String): String {
@@ -138,7 +138,7 @@ object RussianInverseTextNormalizer {
     private data class Token(
         val value: String,
         val start: Int,
-        val end: Int,
+        val end: Int
     ) {
         val isNumberWord: Boolean
             get() {

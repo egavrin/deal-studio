@@ -1,16 +1,16 @@
 package com.offlineassistant.app.speech
 
-import org.jtransforms.fft.FloatFFT_1D
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.sin
+import org.jtransforms.fft.FloatFFT_1D
 
 /** Reconstructs Silero Vocos float PCM using its `same` overlap-add convention. */
 class SileroIstft(
     private val window: FloatArray,
     private val fftSize: Int = 2400,
-    private val hopLength: Int = 600,
+    private val hopLength: Int = 600
 ) {
     private val fft = FloatFFT_1D(fftSize.toLong())
     private val frequencyBins = fftSize / 2 + 1
@@ -24,7 +24,7 @@ class SileroIstft(
     fun synthesize(
         magnitudeLogits: FloatArray,
         phase: FloatArray,
-        frameCount: Int,
+        frameCount: Int
     ): FloatArray {
         require(frameCount > 0) { "ISTFT requires at least one frame" }
         val expectedValues = frequencyBins * frameCount

@@ -5,10 +5,10 @@ import com.offlineassistant.core.contracts.ResponseStatus
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.engine.AssistantEngine
+import java.io.File
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import java.io.File
 
 interface AudioTranscriber {
     fun warmUp() = Unit
@@ -17,7 +17,7 @@ interface AudioTranscriber {
 
     fun startStreaming(
         onPartialTranscript: (String) -> Unit,
-        onEndpointDetected: () -> Unit = {},
+        onEndpointDetected: () -> Unit = {}
     ): StreamingTranscriptionSession? = null
 
     fun transcribe(audioFile: File): AudioTranscription
@@ -36,19 +36,19 @@ fun StreamingTranscriptionSession.asAudioTranscriber(): AudioTranscriber = objec
 data class AudioTranscription(
     val text: String?,
     val error: String?,
-    val latencyMs: Long,
+    val latencyMs: Long
 )
 
 data class VoiceCommandResult(
     val audioFile: File,
     val transcript: String?,
     val response: AssistantResponse,
-    val transcriptionLatencyMs: Long,
+    val transcriptionLatencyMs: Long
 )
 
 class VoiceCommandPipeline(
     private val transcriber: AudioTranscriber,
-    private val assistantEngine: AssistantEngine,
+    private val assistantEngine: AssistantEngine
 ) {
     fun handleRecording(audioFile: File): VoiceCommandResult {
         val transcription = transcriber.transcribe(audioFile)
@@ -62,7 +62,7 @@ class VoiceCommandPipeline(
             audioFile = audioFile,
             transcript = transcript.ifBlank { null },
             response = response,
-            transcriptionLatencyMs = transcription.latencyMs,
+            transcriptionLatencyMs = transcription.latencyMs
         )
     }
 
@@ -76,8 +76,8 @@ class VoiceCommandPipeline(
                 put("title", "Не получилось распознать голос")
                 put("message", JsonPrimitive(message))
                 put("recoverable", true)
-            },
+            }
         ),
-        debug = null,
+        debug = null
     )
 }

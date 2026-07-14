@@ -23,11 +23,11 @@ class WidgetPreviewScreenTest {
         assertTrue("OpenApp preview should include multiple alternatives", alternatives.size >= 2)
         assertTrue(
             "OpenApp alternatives should include app labels",
-            alternatives.all { it.jsonObject["app_name"]?.jsonPrimitive?.content?.isNotBlank() == true },
+            alternatives.all { it.jsonObject["app_name"]?.jsonPrimitive?.content?.isNotBlank() == true }
         )
         assertTrue(
             "OpenApp alternatives should include package names",
-            alternatives.all { it.jsonObject["package_name"]?.jsonPrimitive?.content?.isNotBlank() == true },
+            alternatives.all { it.jsonObject["package_name"]?.jsonPrimitive?.content?.isNotBlank() == true }
         )
     }
 }

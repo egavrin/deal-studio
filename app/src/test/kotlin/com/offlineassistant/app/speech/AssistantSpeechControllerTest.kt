@@ -1,14 +1,14 @@
 package com.offlineassistant.app.speech
 
 import com.offlineassistant.core.speech.SpeechStopReason
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AssistantSpeechControllerTest {
@@ -31,7 +31,7 @@ class AssistantSpeechControllerTest {
         val controller = AssistantSpeechController(
             synthesizer = synthesizer,
             player = player,
-            dispatcher = UnconfinedTestDispatcher(testScheduler),
+            dispatcher = UnconfinedTestDispatcher(testScheduler)
         )
 
         controller.begin("answer")
@@ -51,7 +51,7 @@ class AssistantSpeechControllerTest {
             synthesizer = FakeSynthesizer(),
             player = FakePlayer(),
             dispatcher = UnconfinedTestDispatcher(testScheduler),
-            onFirstAudioReady = { messageId, latencyMs -> firstAudio += messageId to latencyMs },
+            onFirstAudioReady = { messageId, latencyMs -> firstAudio += messageId to latencyMs }
         )
 
         controller.begin("answer")
@@ -70,7 +70,7 @@ class AssistantSpeechControllerTest {
             synthesizer = FakeSynthesizer(),
             player = FakePlayer(),
             dispatcher = UnconfinedTestDispatcher(testScheduler),
-            onPlaybackRangeChanged = { ranges += it },
+            onPlaybackRangeChanged = { ranges += it }
         )
 
         controller.begin("answer")
@@ -88,7 +88,7 @@ class AssistantSpeechControllerTest {
         val controller = AssistantSpeechController(
             synthesizer = synthesizer,
             player = FakePlayer(),
-            dispatcher = UnconfinedTestDispatcher(testScheduler),
+            dispatcher = UnconfinedTestDispatcher(testScheduler)
         )
 
         controller.begin("first")
@@ -108,7 +108,7 @@ class AssistantSpeechControllerTest {
         val controller = AssistantSpeechController(
             synthesizer = synthesizer,
             player = FakePlayer(),
-            dispatcher = UnconfinedTestDispatcher(testScheduler),
+            dispatcher = UnconfinedTestDispatcher(testScheduler)
         )
 
         controller.begin("answer")
@@ -121,7 +121,7 @@ class AssistantSpeechControllerTest {
 
         assertEquals(
             listOf("Первая достаточно длинная фраза,", "Повторное воспроизведение работает."),
-            synthesizer.texts,
+            synthesizer.texts
         )
         controller.close()
     }
@@ -192,9 +192,9 @@ class AssistantSpeechControllerTest {
         assertEquals(
             listOf(
                 "Это первая достаточно длинная фраза,",
-                "продолжение тоже заканчивается запятой, но предложение завершается здесь.",
+                "продолжение тоже заканчивается запятой, но предложение завершается здесь."
             ),
-            synthesizer.snapshot(),
+            synthesizer.snapshot()
         )
 
         releasePlayback.countDown()
@@ -233,7 +233,7 @@ private class FakePlayer : PcmAudioPlayer {
 }
 
 private class PrefetchSynthesizer(
-    private val secondSynthesisCompleted: CountDownLatch,
+    private val secondSynthesisCompleted: CountDownLatch
 ) : SpeechSynthesizer {
     val texts = mutableListOf<String>()
 
@@ -255,7 +255,7 @@ private class PrefetchSynthesizer(
 private class BlockingFirstPlayer(
     private val firstPlaybackStarted: CountDownLatch,
     private val releaseFirstPlayback: CountDownLatch,
-    private val secondPlaybackCompleted: CountDownLatch,
+    private val secondPlaybackCompleted: CountDownLatch
 ) : PcmAudioPlayer {
     private var playbackCount = 0
 
@@ -279,7 +279,7 @@ private class BlockingFirstPlayer(
 private class CancellablePipelinePlayer(
     private val firstPlaybackStarted: CountDownLatch,
     private val releaseFirstPlayback: CountDownLatch,
-    private val newResponsePlayed: CountDownLatch,
+    private val newResponsePlayed: CountDownLatch
 ) : PcmAudioPlayer {
     val playedMarkers = mutableListOf<Float>()
 
@@ -301,7 +301,7 @@ private class CancellablePipelinePlayer(
 }
 
 private class BufferedSpeechSynthesizer(
-    private val secondSynthesisCompleted: CountDownLatch,
+    private val secondSynthesisCompleted: CountDownLatch
 ) : SpeechSynthesizer {
     private val texts = mutableListOf<String>()
 
@@ -324,7 +324,7 @@ private class BufferedSpeechSynthesizer(
 
 private class HoldingPlayer(
     private val firstPlaybackStarted: CountDownLatch,
-    private val releasePlayback: CountDownLatch,
+    private val releasePlayback: CountDownLatch
 ) : PcmAudioPlayer {
     override fun play(audio: PcmAudio) {
         firstPlaybackStarted.countDown()

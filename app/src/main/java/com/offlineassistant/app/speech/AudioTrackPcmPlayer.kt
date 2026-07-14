@@ -24,11 +24,11 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
     }
 
     init {
-        callbackExecutor.scheduleAtFixedRate(
+        callbackExecutor.scheduleWithFixedDelay(
             ::dispatchPlaybackCallbacks,
             0L,
             PLAYBACK_POLL_INTERVAL_MS,
-            TimeUnit.MILLISECONDS,
+            TimeUnit.MILLISECONDS
         )
     }
 
@@ -45,7 +45,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
     override fun play(
         audio: PcmAudio,
         onPlaybackStarted: () -> Unit,
-        onPlaybackCompleted: () -> Unit,
+        onPlaybackCompleted: () -> Unit
     ) {
         if (audio.samples.isEmpty()) {
             onPlaybackStarted()
@@ -65,7 +65,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
                 startFrame = startFrame,
                 endFrame = endFrame,
                 onStarted = onPlaybackStarted,
-                onCompleted = onPlaybackCompleted,
+                onCompleted = onPlaybackCompleted
             )
             sessionTrack
         }
@@ -127,7 +127,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
         val minimumBuffer = AudioTrack.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_FLOAT,
+            AudioFormat.ENCODING_PCM_FLOAT
         )
         val track = AudioTrack.Builder()
             .setAudioAttributes(attributes)
@@ -136,7 +136,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
                     .setSampleRate(sampleRate)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                    .build(),
+                    .build()
             )
             .setBufferSizeInBytes(max(minimumBuffer, sampleRate * Float.SIZE_BYTES / 4))
             .setTransferMode(AudioTrack.MODE_STREAM)
@@ -218,13 +218,13 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
         val endFrame: Long,
         val onStarted: () -> Unit,
         val onCompleted: () -> Unit,
-        var started: Boolean = false,
+        var started: Boolean = false
     )
 
     private data class PlaybackSession(
         val track: AudioTrack,
         val endFrame: Long,
-        val sampleRate: Int,
+        val sampleRate: Int
     )
 
     private companion object {

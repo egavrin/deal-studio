@@ -6,11 +6,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.k2fsa.sherpa.onnx.WaveReader
 import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.settings.VoiceModel
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 class TOneStreamingNativeSmokeTest {
     @Test
@@ -28,8 +28,8 @@ class TOneStreamingNativeSmokeTest {
         val session = requireNotNull(
             transcriber.startStreaming(
                 onPartialTranscript = partials::add,
-                onEndpointDetected = { endpointDetected = true },
-            ),
+                onEndpointDetected = { endpointDetected = true }
+            )
         )
 
         wave.samples.asList().chunked(4_000).forEach { chunk ->
@@ -37,14 +37,14 @@ class TOneStreamingNativeSmokeTest {
                 samples = ShortArray(chunk.size) { index ->
                     (chunk[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
                 },
-                sampleRate = wave.sampleRate,
+                sampleRate = wave.sampleRate
             )
         }
         repeat(8) { session.acceptPcm16(ShortArray(4_000), 16_000) }
         val result = session.finish()
         Log.i(
             "TOneStreamingEval",
-            "partials=${partials.joinToString(" | ")}; final=${result.text}; latency_ms=${result.latencyMs}",
+            "partials=${partials.joinToString(" | ")}; final=${result.text}; latency_ms=${result.latencyMs}"
         )
 
         assertNull(result.error)

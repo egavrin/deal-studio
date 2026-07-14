@@ -14,7 +14,7 @@ class AndroidPlatformAdaptersTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val packageInfo = context.packageManager.getPackageInfo(
             context.packageName,
-            PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
+            PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
         )
 
         assertTrue(packageInfo.requestedPermissions.orEmpty().contains("com.android.alarm.permission.SET_ALARM"))
@@ -48,7 +48,7 @@ class AndroidPlatformAdaptersTest {
         assertTrue(candidates.any { it.packageName == context.packageName })
         assertEquals(
             "Offline Assistant PoC",
-            candidates.first { it.packageName == context.packageName }.appName,
+            candidates.first { it.packageName == context.packageName }.appName
         )
     }
 }

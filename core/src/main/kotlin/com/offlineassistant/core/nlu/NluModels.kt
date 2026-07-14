@@ -8,14 +8,14 @@ data class NluResult(
     val intent: String,
     val confidence: Double,
     val slots: JsonObject,
-    val source: NluSource,
+    val source: NluSource
 )
 
 @Serializable
 enum class NluSource {
     RUBERT_TINY2,
     STUB,
-    FALLBACK_LLM,
+    FALLBACK_LLM
 }
 
 fun interface NluParser {
@@ -44,6 +44,6 @@ object Intents {
         CALCULATE,
         OPEN_APP,
         HELP,
-        UNKNOWN,
+        UNKNOWN
     )
 }

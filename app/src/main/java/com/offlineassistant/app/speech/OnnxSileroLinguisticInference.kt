@@ -8,7 +8,7 @@ import java.nio.LongBuffer
 
 class OnnxSileroLinguisticInference(
     private val bundle: SileroFrontendBundle,
-    private val threadCount: Int = 2,
+    private val threadCount: Int = 2
 ) : SileroLinguisticInference {
     private val environment = OrtEnvironment.getEnvironment()
     private val lock = Any()
@@ -25,7 +25,7 @@ class OnnxSileroLinguisticInference(
             val shape = longArrayOf(batch.rowCount.toLong(), batch.columnCount.toLong())
             val inputs = mapOf(
                 "ngram_ids" to batch.ids.tensor(shape, tensors),
-                "ngram_mask" to batch.mask.tensor(shape, tensors),
+                "ngram_mask" to batch.mask.tensor(shape, tensors)
             )
             return sessions().accentor.run(inputs).use { result ->
                 val stress = result.floatOutput("stress_logits")
@@ -46,10 +46,10 @@ class OnnxSileroLinguisticInference(
             val inputs = mapOf(
                 "input_ids" to batch.inputIds.tensor(
                     longArrayOf(batch.rowCount.toLong(), batch.columnCount.toLong()),
-                    tensors,
+                    tensors
                 ),
                 "homo_start_ids" to batch.starts.tensor(longArrayOf(batch.rowCount.toLong()), tensors),
-                "homo_end_ids" to batch.ends.tensor(longArrayOf(batch.rowCount.toLong()), tensors),
+                "homo_end_ids" to batch.ends.tensor(longArrayOf(batch.rowCount.toLong()), tensors)
             )
             return sessions().homosolver.run(inputs).use { result ->
                 result.floatOutput("logits").also { logits ->
@@ -78,16 +78,14 @@ class OnnxSileroLinguisticInference(
             Sessions(
                 accentor = environment.createSession(bundle.accentor.absolutePath, options),
                 homosolver = environment.createSession(bundle.homosolver.absolutePath, options),
-                options = options,
+                options = options
             ).also { sessions = it }
         }
     }
 
-    private fun LongArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor =
-        OnnxTensor.createTensor(environment, LongBuffer.wrap(this), shape).also(owner::add)
+    private fun LongArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor = OnnxTensor.createTensor(environment, LongBuffer.wrap(this), shape).also(owner::add)
 
-    private fun FloatArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor =
-        OnnxTensor.createTensor(environment, FloatBuffer.wrap(this), shape).also(owner::add)
+    private fun FloatArray.tensor(shape: LongArray, owner: MutableList<OnnxTensor>): OnnxTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(this), shape).also(owner::add)
 
     private fun OrtSession.Result.floatOutput(name: String): FloatArray {
         val tensor = get(name).orElseThrow { IllegalStateException("Missing Silero output: $name") } as OnnxTensor
@@ -98,7 +96,7 @@ class OnnxSileroLinguisticInference(
     private data class Sessions(
         val accentor: OrtSession,
         val homosolver: OrtSession,
-        val options: OrtSession.SessionOptions,
+        val options: OrtSession.SessionOptions
     ) : AutoCloseable {
         override fun close() {
             accentor.close()

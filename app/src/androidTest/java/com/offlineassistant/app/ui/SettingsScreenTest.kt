@@ -23,7 +23,7 @@ class SettingsScreenTest {
                 SettingsScreen(
                     modelReadiness = emptyList(),
                     selectedVoiceModel = VoiceModel.WHISPER_BASE_Q5_1,
-                    onVoiceModelChange = { selected = it },
+                    onVoiceModelChange = { selected = it }
                 )
             }
         }

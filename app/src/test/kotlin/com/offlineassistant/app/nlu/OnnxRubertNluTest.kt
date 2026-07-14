@@ -1,9 +1,9 @@
 package com.offlineassistant.app.nlu
 
-import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.InMemoryModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
@@ -29,15 +29,15 @@ class OnnxRubertNluTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.98,
                     slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = nlu.parse(
             text = "Поставь таймер на 5 минут",
-            readiness = ModelReadiness("RuBERT-tiny2 ONNX", true, "/models/rubert/model.onnx", "found"),
+            readiness = ModelReadiness("RuBERT-tiny2 ONNX", true, "/models/rubert/model.onnx", "found")
         )
 
         assertEquals(listOf("Поставь таймер на 5 минут" to "/models/rubert/model.onnx"), calls)
@@ -58,12 +58,12 @@ class OnnxRubertNluTest {
                 called = true
                 NluResult(Intents.UNKNOWN, 0.0, JsonObject(emptyMap()), NluSource.RUBERT_TINY2)
             },
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = nlu.parse(
             text = "Какая погода сегодня?",
-            readiness = ModelReadiness("RuBERT-tiny2 ONNX", false, "models/rubert/model.onnx", "missing"),
+            readiness = ModelReadiness("RuBERT-tiny2 ONNX", false, "models/rubert/model.onnx", "missing")
         )
 
         assertFalse(called)
@@ -78,12 +78,12 @@ class OnnxRubertNluTest {
         val telemetry = InMemoryModelRuntimeTelemetryStore()
         val nlu = OnnxRubertNlu(
             onnxRunner = RubertOnnxRunner { _, _ -> error("bad onnx session") },
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = nlu.parse(
             text = "Посчитай 125 умножить на 37",
-            readiness = ModelReadiness("RuBERT-tiny2 ONNX", true, "/models/rubert/model.onnx", "found"),
+            readiness = ModelReadiness("RuBERT-tiny2 ONNX", true, "/models/rubert/model.onnx", "found")
         )
 
         assertTrue(result.confidence > 0.8)
@@ -106,5 +106,4 @@ class OnnxRubertNluTest {
         assertEquals(120, merged["duration_seconds"]?.jsonPrimitive?.int)
         assertEquals("чай", merged["label"]?.jsonPrimitive?.content)
     }
-
 }

@@ -25,18 +25,25 @@ class OpenAppCardRendererTest {
                     put("app_name", "Telegram")
                     put("package_name", "unknown")
                     put("state", "confirmation_required")
-                    put("alternatives", buildJsonArray {
-                        add(buildJsonObject {
-                            put("app_name", "Telegram")
-                            put("package_name", "org.telegram.messenger")
-                        })
-                        add(buildJsonObject {
-                            put("app_name", "Telegram X")
-                            put("package_name", "org.thunderdog.challegram")
-                        })
-                    })
+                    put(
+                        "alternatives",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("app_name", "Telegram")
+                                    put("package_name", "org.telegram.messenger")
+                                }
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("app_name", "Telegram X")
+                                    put("package_name", "org.thunderdog.challegram")
+                                }
+                            )
+                        }
+                    )
                 },
-                onAction = { action = it },
+                onAction = { action = it }
             )
         }
 

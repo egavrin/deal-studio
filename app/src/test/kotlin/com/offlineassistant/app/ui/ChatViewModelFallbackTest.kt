@@ -11,10 +11,12 @@ import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
-import com.offlineassistant.core.storage.InMemoryNoteStore
-import com.offlineassistant.core.storage.InMemoryReminderStore
 import com.offlineassistant.core.speech.AssistantSpeech
 import com.offlineassistant.core.speech.SpeechStopReason
+import com.offlineassistant.core.storage.InMemoryNoteStore
+import com.offlineassistant.core.storage.InMemoryReminderStore
+import java.io.File
+import kotlin.io.path.createTempFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestDispatcher
@@ -25,18 +27,16 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.After
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
-import java.io.File
-import kotlin.io.path.createTempFile
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelFallbackTest {
@@ -77,9 +77,9 @@ class ChatViewModelFallbackTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.9,
                     slots = buildJsonObject { put("duration_seconds", 300) },
-                    answer = "Действия выбирает RuBERT, а Qwen отвечает только текстом.",
+                    answer = "Действия выбирает RuBERT, а Qwen отвечает только текстом."
                 )
-            },
+            }
         )
 
         viewModel.updateInput("обратный отсчет на пять минут")
@@ -101,17 +101,17 @@ class ChatViewModelFallbackTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.90,
                     slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
             fallbackParser = FallbackParser { _, _ ->
                 FallbackParse(
                     kind = FallbackKind.ANSWER,
                     confidence = 0.8,
-                    answer = "Команда ниже текущего порога уверенности.",
+                    answer = "Команда ниже текущего порога уверенности."
                 )
             },
-            fallbackThresholdProvider = { threshold },
+            fallbackThresholdProvider = { threshold }
         )
 
         viewModel.updateInput("Поставь таймер на 5 минут")
@@ -189,8 +189,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.NOTE_COPY,
                 widgetType = WidgetTypes.NOTE_CARD,
-                payload = mapOf("note_id" to note.id),
-            ),
+                payload = mapOf("note_id" to note.id)
+            )
         )
 
         assertEquals("купить молоко", platformActions.copiedText)
@@ -207,8 +207,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.NOTE_EDIT,
                 widgetType = WidgetTypes.NOTE_CARD,
-                payload = mapOf("note_id" to note.id),
-            ),
+                payload = mapOf("note_id" to note.id)
+            )
         )
         assertEquals("купить молоко", viewModel.state.inputText)
 
@@ -232,8 +232,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.CALCULATOR_COPY,
                 widgetType = WidgetTypes.CALCULATOR_CARD,
-                payload = mapOf("result" to "4625"),
-            ),
+                payload = mapOf("result" to "4625")
+            )
         )
 
         assertEquals("4625", platformActions.copiedText)
@@ -249,8 +249,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.OPEN_APP,
                 widgetType = WidgetTypes.OPEN_APP_CARD,
-                payload = mapOf("package_name" to "com.android.settings", "app_name" to "Settings"),
-            ),
+                payload = mapOf("package_name" to "com.android.settings", "app_name" to "Settings")
+            )
         )
 
         assertEquals("com.android.settings", platformActions.openedPackageName)
@@ -263,8 +263,8 @@ class ChatViewModelFallbackTest {
         val platformActions = FakePlatformActions(
             launchableApps = listOf(
                 AppCandidate(appName = "Telegram", packageName = "org.telegram.messenger"),
-                AppCandidate(appName = "Telegram X", packageName = "org.thunderdog.challegram"),
-            ),
+                AppCandidate(appName = "Telegram X", packageName = "org.thunderdog.challegram")
+            )
         )
         val viewModel = ChatViewModel(platformActions = platformActions)
 
@@ -289,8 +289,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.HELP_EXAMPLE,
                 widgetType = WidgetTypes.HELP_CARD,
-                payload = mapOf("text" to "Поставь таймер на 5 минут"),
-            ),
+                payload = mapOf("text" to "Поставь таймер на 5 минут")
+            )
         )
 
         assertEquals("Поставь таймер на 5 минут", state.inputText)
@@ -305,8 +305,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.CLARIFICATION_SUGGESTION,
                 widgetType = WidgetTypes.CLARIFICATION_CARD,
-                payload = mapOf("text" to "На 7:30"),
-            ),
+                payload = mapOf("text" to "На 7:30")
+            )
         )
 
         assertEquals("На 7:30", state.inputText)
@@ -321,8 +321,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.ERROR_SUGGESTION,
                 widgetType = WidgetTypes.ERROR_CARD,
-                payload = mapOf("text" to "Открыть настройки", "target" to "settings"),
-            ),
+                payload = mapOf("text" to "Открыть настройки", "target" to "settings")
+            )
         )
 
         assertEquals("Открываю настройки.", (state.messages.last() as ChatMessageUi.Assistant).text)
@@ -336,8 +336,8 @@ class ChatViewModelFallbackTest {
             audioFile = File("voice.wav"),
             transcriber = FakeAudioTranscriber(
                 text = "Поставь таймер на 5 минут",
-                latencyMs = 37,
-            ),
+                latencyMs = 37
+            )
         )
 
         val user = viewModel.state.messages.filterIsInstance<ChatMessageUi.User>().single()
@@ -363,8 +363,8 @@ class ChatViewModelFallbackTest {
             audioFile = audio,
             transcriber = FakeAudioTranscriber(
                 text = "Поставь таймер на 5 минут",
-                latencyMs = 37,
-            ),
+                latencyMs = 37
+            )
         )
 
         assertEquals(false, audio.exists())
@@ -378,9 +378,9 @@ class ChatViewModelFallbackTest {
             },
             fallbackParser = FakeStreamingFallbackParser(
                 chunks = listOf("Локальный ", "ответ."),
-                answer = "Локальный ответ.",
+                answer = "Локальный ответ."
             ),
-            ioDispatcher = testDispatcher,
+            ioDispatcher = testDispatcher
         )
         val states = mutableListOf<ChatUiState>()
 
@@ -388,12 +388,15 @@ class ChatViewModelFallbackTest {
             audioFile = File("voice.wav"),
             transcriber = FakeAudioTranscriber(
                 text = "Почему небо синее?",
-                latencyMs = 42,
-            ),
+                latencyMs = 42
+            )
         ) { states += it }
-        assertEquals(true, states.any { state ->
-            state.isProcessing && state.transcriptPreview == "Распознаю голос локально..."
-        })
+        assertEquals(
+            true,
+            states.any { state ->
+                state.isProcessing && state.transcriptPreview == "Распознаю голос локально..."
+            }
+        )
 
         advanceUntilIdle()
 
@@ -413,13 +416,16 @@ class ChatViewModelFallbackTest {
         assertEquals("Почему небо синее?", viewModel.state.transcriptPreview)
         assertEquals(42L, debug.latencyMs?.asr)
         assertEquals(true, debug.fallbackUsed)
-        assertEquals(true, states.any { state ->
-            state.messages
-                .filterIsInstance<ChatMessageUi.Assistant>()
-                .filter { it.id != "welcome" }
-                .singleOrNull()
-                ?.let { it.text == "Локальный ответ." && it.widget == null } == true
-        })
+        assertEquals(
+            true,
+            states.any { state ->
+                state.messages
+                    .filterIsInstance<ChatMessageUi.Assistant>()
+                    .filter { it.id != "welcome" }
+                    .singleOrNull()
+                    ?.let { it.text == "Локальный ответ." && it.widget == null } == true
+            }
+        )
     }
 
     @Test
@@ -432,8 +438,8 @@ class ChatViewModelFallbackTest {
             audioFile = audio,
             transcriber = FakeAudioTranscriber(
                 text = "Поставь таймер на 5 минут",
-                latencyMs = 37,
-            ),
+                latencyMs = 37
+            )
         ) {}
         advanceUntilIdle()
 
@@ -447,7 +453,7 @@ class ChatViewModelFallbackTest {
                 NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2)
             },
             fallbackParser = ThrowingStreamingFallbackParser("llama crashed on second request"),
-            ioDispatcher = testDispatcher,
+            ioDispatcher = testDispatcher
         )
 
         viewModel.updateInput("Почему приложение должно работать офлайн?")
@@ -468,7 +474,7 @@ class ChatViewModelFallbackTest {
                 NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2)
             },
             fallbackParser = CountingStreamingFallbackParser(),
-            ioDispatcher = testDispatcher,
+            ioDispatcher = testDispatcher
         )
 
         viewModel.updateInput("Почему небо синее?")
@@ -497,10 +503,10 @@ class ChatViewModelFallbackTest {
             },
             fallbackParser = FakeStreamingFallbackParser(
                 chunks = listOf("Первое предложение. ", "Второе предложение."),
-                answer = "Первое предложение. Второе предложение.",
+                answer = "Первое предложение. Второе предложение."
             ),
             assistantSpeech = speech,
-            ioDispatcher = testDispatcher,
+            ioDispatcher = testDispatcher
         )
 
         viewModel.updateInput("Почему небо синее?")
@@ -510,7 +516,7 @@ class ChatViewModelFallbackTest {
         assertEquals(1, speech.begun.size)
         assertEquals(
             listOf("Первое предложение. Второе предложение."),
-            speech.appended.map { it.second },
+            speech.appended.map { it.second }
         )
         assertEquals(listOf(speech.begun.single() to "Первое предложение. Второе предложение."), speech.finished)
         assertEquals(listOf(SpeechStopReason.NEW_REQUEST), speech.stops)
@@ -541,7 +547,7 @@ class ChatViewModelFallbackTest {
     @Test
     fun reminderCommandShowsNotificationPermissionCardWhenPostNotificationsMissing() {
         val platformActions = FakePlatformActions(
-            permissions = mapOf("POST_NOTIFICATIONS" to false),
+            permissions = mapOf("POST_NOTIFICATIONS" to false)
         )
         val viewModel = ChatViewModel(platformActions = platformActions)
 
@@ -558,7 +564,7 @@ class ChatViewModelFallbackTest {
     @Test
     fun reminderCommandSchedulesNotificationWhenPostNotificationsGranted() {
         val platformActions = FakePlatformActions(
-            permissions = mapOf("POST_NOTIFICATIONS" to true),
+            permissions = mapOf("POST_NOTIFICATIONS" to true)
         )
         val viewModel = ChatViewModel(platformActions = platformActions)
 
@@ -615,8 +621,8 @@ class ChatViewModelFallbackTest {
         val state = viewModel.handleWidgetAction(
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.ALARM_OPEN_SYSTEM,
-                widgetType = WidgetTypes.ALARM_CARD,
-            ),
+                widgetType = WidgetTypes.ALARM_CARD
+            )
         )
 
         assertEquals(1, platformActions.openedSystemAlarmCount)
@@ -637,8 +643,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.TIMER_PAUSE,
                 widgetType = WidgetTypes.TIMER_CARD,
-                payload = mapOf("timer_id" to timerId, "remaining_seconds" to "297"),
-            ),
+                payload = mapOf("timer_id" to timerId, "remaining_seconds" to "297")
+            )
         )
         val pausedCard = (paused.messages.last() as ChatMessageUi.Assistant).widget?.payload
         assertEquals("paused", pausedCard?.get("state")?.jsonPrimitive?.contentOrNull)
@@ -649,8 +655,8 @@ class ChatViewModelFallbackTest {
             com.offlineassistant.app.widgets.WidgetAction(
                 name = com.offlineassistant.app.widgets.WidgetActionNames.TIMER_RESUME,
                 widgetType = WidgetTypes.TIMER_CARD,
-                payload = mapOf("timer_id" to timerId, "remaining_seconds" to "297"),
-            ),
+                payload = mapOf("timer_id" to timerId, "remaining_seconds" to "297")
+            )
         )
         val resumedCard = (resumed.messages.last() as ChatMessageUi.Assistant).widget?.payload
         assertEquals("running", resumedCard?.get("state")?.jsonPrimitive?.contentOrNull)
@@ -687,7 +693,7 @@ private class FakePlatformActions(
     private val systemTimerResult: Boolean = true,
     private val systemAlarmResult: Boolean = true,
     private val permissions: Map<String, Boolean> = emptyMap(),
-    private val launchableApps: List<AppCandidate> = emptyList(),
+    private val launchableApps: List<AppCandidate> = emptyList()
 ) : PlatformActions {
     var copiedText: String? = null
     var openedPackageName: String? = null
@@ -749,25 +755,24 @@ private class FakePlatformActions(
 
 private class FakeAudioTranscriber(
     private val text: String?,
-    private val latencyMs: Long,
+    private val latencyMs: Long
 ) : AudioTranscriber {
     override fun transcribe(audioFile: File): AudioTranscription = AudioTranscription(
         text = text,
         error = null,
-        latencyMs = latencyMs,
+        latencyMs = latencyMs
     )
 }
 
 private class FakeStreamingFallbackParser(
     private val chunks: List<String>,
-    private val answer: String,
+    private val answer: String
 ) : StreamingFallbackParser {
-    override fun parse(input: String, nlu: NluResult): FallbackParse =
-        FallbackParse(
-            kind = FallbackKind.ANSWER,
-            confidence = 0.65,
-            answer = answer,
-        )
+    override fun parse(input: String, nlu: NluResult): FallbackParse = FallbackParse(
+        kind = FallbackKind.ANSWER,
+        confidence = 0.65,
+        answer = answer
+    )
 
     override fun parse(input: String, nlu: NluResult, onToken: (String) -> Unit): FallbackParse {
         chunks.forEach(onToken)
@@ -776,7 +781,7 @@ private class FakeStreamingFallbackParser(
 }
 
 private class ThrowingStreamingFallbackParser(
-    private val message: String,
+    private val message: String
 ) : StreamingFallbackParser {
     override fun parse(input: String, nlu: NluResult): FallbackParse {
         error(message)
@@ -790,8 +795,7 @@ private class ThrowingStreamingFallbackParser(
 private class CountingStreamingFallbackParser : StreamingFallbackParser {
     private var calls = 0
 
-    override fun parse(input: String, nlu: NluResult): FallbackParse =
-        parse(input, nlu) {}
+    override fun parse(input: String, nlu: NluResult): FallbackParse = parse(input, nlu) {}
 
     override fun parse(input: String, nlu: NluResult, onToken: (String) -> Unit): FallbackParse {
         calls += 1
@@ -801,7 +805,7 @@ private class CountingStreamingFallbackParser : StreamingFallbackParser {
         return FallbackParse(
             kind = FallbackKind.ANSWER,
             confidence = 0.8,
-            answer = answer,
+            answer = answer
         )
     }
 }

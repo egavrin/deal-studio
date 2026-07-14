@@ -43,19 +43,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.app.ui.theme.AssistantColors
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.coroutines.delay
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import com.offlineassistant.core.contracts.WidgetTypes
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 object WeatherCardRenderer : AssistantWidgetRenderer {
     override val type = WidgetTypes.WEATHER_CARD
@@ -75,7 +75,7 @@ object WeatherCardRenderer : AssistantWidgetRenderer {
         }
         Text(
             "Ощущается как ${payload.int("feels_like_c") ?: 0}°C · влажность ${payload.int("humidity_percent") ?: 0}% · ветер ${payload.int("wind_mps") ?: 0} м/с",
-            color = WidgetColors.Muted,
+            color = WidgetColors.Muted
         )
         ForecastRow(payload["forecast"] as? JsonArray)
         SourceChip(payload.text("source") ?: "mock")
@@ -117,14 +117,14 @@ object TimerCardRenderer : AssistantWidgetRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.size(132.dp),
                 strokeWidth = 7.dp,
                 color = WidgetColors.Primary,
-                trackColor = WidgetColors.BlueSoft,
+                trackColor = WidgetColors.BlueSoft
             )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("%d:%02d".format(remaining / 60, remaining % 60), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = WidgetColors.Text)
@@ -138,8 +138,8 @@ object TimerCardRenderer : AssistantWidgetRenderer {
                         WidgetAction(
                             name = if (state == "paused") WidgetActionNames.TIMER_RESUME else WidgetActionNames.TIMER_PAUSE,
                             widgetType = type,
-                            payload = mapOf("timer_id" to timerId, "remaining_seconds" to remaining.toString()),
-                        ),
+                            payload = mapOf("timer_id" to timerId, "remaining_seconds" to remaining.toString())
+                        )
                     )
                 },
                 modifier = Modifier
@@ -148,7 +148,7 @@ object TimerCardRenderer : AssistantWidgetRenderer {
                         contentDescription = if (state == "paused") "Продолжить таймер" else "Поставить таймер на паузу"
                     },
                 enabled = remaining > 0 && (state == "running" || state == "paused"),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(12.dp)
             ) { Text(if (state == "paused") "Продолжить" else "Ⅱ  Пауза") }
             OutlinedButton(
                 onClick = {
@@ -156,15 +156,15 @@ object TimerCardRenderer : AssistantWidgetRenderer {
                         WidgetAction(
                             WidgetActionNames.TIMER_CANCEL,
                             type,
-                            mapOf("timer_id" to timerId, "remaining_seconds" to remaining.toString()),
-                        ),
+                            mapOf("timer_id" to timerId, "remaining_seconds" to remaining.toString())
+                        )
                     )
                 },
                 modifier = Modifier
                     .weight(1f)
                     .semantics { contentDescription = "Отменить таймер" },
                 shape = RoundedCornerShape(12.dp),
-                enabled = state != "cancelled" && remaining > 0,
+                enabled = state != "cancelled" && remaining > 0
             ) { Text("□  Отмена", color = WidgetColors.Danger) }
         }
     }
@@ -201,7 +201,7 @@ object AlarmCardRenderer : AssistantWidgetRenderer {
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = "Открыть системный будильник" },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(10.dp)
         ) { Text("Открыть системный будильник") }
     }
 }
@@ -226,13 +226,13 @@ object ReminderCardRenderer : AssistantWidgetRenderer {
                 onClick = { onAction(WidgetAction(WidgetActionNames.REMINDER_COMPLETE, type, reminderId.asPayload("reminder_id"))) },
                 modifier = Modifier
                     .weight(1f)
-                    .semantics { contentDescription = "Выполнить напоминание" },
-) { Text("Готово") }
+                    .semantics { contentDescription = "Выполнить напоминание" }
+            ) { Text("Готово") }
             OutlinedButton(
                 onClick = { onAction(WidgetAction(WidgetActionNames.REMINDER_DELETE, type, reminderId.asPayload("reminder_id"))) },
                 modifier = Modifier
                     .weight(1f)
-                    .semantics { contentDescription = "Удалить напоминание" },
+                    .semantics { contentDescription = "Удалить напоминание" }
             ) { Text("Удалить") }
         }
     }
@@ -249,19 +249,19 @@ object NoteCardRenderer : AssistantWidgetRenderer {
         Text(displayDateTime(payload.text("created_at")), color = WidgetColors.Muted)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.End
         ) {
             IconButton(
                 onClick = { onAction(WidgetAction(WidgetActionNames.NOTE_COPY, type, noteId.asPayload("note_id"))) },
-                modifier = Modifier.semantics { contentDescription = "Скопировать заметку" },
+                modifier = Modifier.semantics { contentDescription = "Скопировать заметку" }
             ) { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = WidgetColors.Muted) }
             IconButton(
                 onClick = { onAction(WidgetAction(WidgetActionNames.NOTE_EDIT, type, noteId.asPayload("note_id"))) },
-                modifier = Modifier.semantics { contentDescription = "Изменить заметку" },
+                modifier = Modifier.semantics { contentDescription = "Изменить заметку" }
             ) { Icon(Icons.Default.Edit, contentDescription = null, tint = WidgetColors.Muted) }
             IconButton(
                 onClick = { onAction(WidgetAction(WidgetActionNames.NOTE_DELETE, type, noteId.asPayload("note_id"))) },
-                modifier = Modifier.semantics { contentDescription = "Удалить заметку" },
+                modifier = Modifier.semantics { contentDescription = "Удалить заметку" }
             ) { Icon(Icons.Default.Delete, contentDescription = null, tint = WidgetColors.Danger) }
         }
     }
@@ -283,8 +283,8 @@ object CalculatorCardRenderer : AssistantWidgetRenderer {
         }
         OutlinedButton(
             onClick = { onAction(WidgetAction(WidgetActionNames.CALCULATOR_COPY, type, result.asPayload("result"))) },
-            modifier = Modifier.semantics { contentDescription = "Скопировать результат" },
-) { Text("Копировать") }
+            modifier = Modifier.semantics { contentDescription = "Скопировать результат" }
+        ) { Text("Копировать") }
     }
 }
 
@@ -305,12 +305,12 @@ object OpenAppCardRenderer : AssistantWidgetRenderer {
                         WidgetAction(
                             WidgetActionNames.OPEN_APP,
                             type,
-                            packageName.asPayload("package_name") + appName.asPayload("app_name"),
-                        ),
+                            packageName.asPayload("package_name") + appName.asPayload("app_name")
+                        )
                     )
                 },
                 modifier = Modifier.semantics { contentDescription = "Открыть приложение" },
-                enabled = payload.text("state") != "not_found",
+                enabled = payload.text("state") != "not_found"
             ) { Text("Открыть") }
         } else {
             Text("Выберите приложение")
@@ -324,13 +324,13 @@ object OpenAppCardRenderer : AssistantWidgetRenderer {
                             WidgetAction(
                                 WidgetActionNames.OPEN_APP,
                                 type,
-                                alternativePackageName.asPayload("package_name") + alternativeAppName.asPayload("app_name"),
-                            ),
+                                alternativePackageName.asPayload("package_name") + alternativeAppName.asPayload("app_name")
+                            )
                         )
                     },
                     modifier = Modifier.semantics {
                         contentDescription = "Открыть приложение ${alternativeAppName ?: "вариант"}"
-                    },
+                    }
                 ) { Text(alternativeAppName ?: alternativePackageName ?: "Приложение") }
             }
         }
@@ -354,11 +354,11 @@ object HelpCardRenderer : AssistantWidgetRenderer {
                             WidgetAction(
                                 WidgetActionNames.HELP_EXAMPLE,
                                 type,
-                                mapOf("text" to example),
-                            ),
+                                mapOf("text" to example)
+                            )
                         )
                     },
-                    modifier = Modifier.semantics { contentDescription = "Вставить пример $example" },
+                    modifier = Modifier.semantics { contentDescription = "Вставить пример $example" }
                 ) { Text(example) }
             }
         }
@@ -380,11 +380,11 @@ object ClarificationCardRenderer : AssistantWidgetRenderer {
                             WidgetAction(
                                 WidgetActionNames.CLARIFICATION_SUGGESTION,
                                 type,
-                                mapOf("text" to suggestion),
-                            ),
+                                mapOf("text" to suggestion)
+                            )
                         )
                     },
-                    modifier = Modifier.semantics { contentDescription = "Выбрать уточнение $suggestion" },
+                    modifier = Modifier.semantics { contentDescription = "Выбрать уточнение $suggestion" }
                 ) { Text(suggestion) }
             }
         }
@@ -405,15 +405,15 @@ object PermissionCardRenderer : AssistantWidgetRenderer {
                         WidgetAction(
                             name = WidgetActionNames.PERMISSION_ALLOW,
                             widgetType = type,
-                            payload = mapOf("permission" to (payload.text("permission") ?: "")),
-                        ),
+                            payload = mapOf("permission" to (payload.text("permission") ?: ""))
+                        )
                     )
                 },
-                modifier = Modifier.semantics { contentDescription = "Разрешить permission" },
+                modifier = Modifier.semantics { contentDescription = "Разрешить permission" }
             ) { Text("Разрешить") }
             OutlinedButton(
                 onClick = { onAction(WidgetAction(WidgetActionNames.PERMISSION_NOT_NOW, type)) },
-                modifier = Modifier.semantics { contentDescription = "Не сейчас permission" },
+                modifier = Modifier.semantics { contentDescription = "Не сейчас permission" }
             ) { Text("Не сейчас") }
         }
     }
@@ -438,14 +438,14 @@ object ErrorCardRenderer : AssistantWidgetRenderer {
                                     widgetType = type,
                                     payload = mapOf(
                                         "text" to suggestion,
-                                        "target" to suggestion.errorSuggestionTarget(),
-                                    ),
-                                ),
+                                        "target" to suggestion.errorSuggestionTarget()
+                                    )
+                                )
                             )
                         },
                         modifier = Modifier.semantics {
                             contentDescription = "Выполнить действие ошибки $suggestion"
-                        },
+                        }
                     ) {
                         Text(suggestion)
                     }
@@ -489,7 +489,7 @@ private fun WidgetCard(tag: String, content: @Composable ColumnScope.() -> Unit)
         color = Color.White,
         border = BorderStroke(1.dp, WidgetColors.Border),
         shape = RoundedCornerShape(14.dp),
-        shadowElevation = 1.dp,
+        shadowElevation = 1.dp
     ) {
         Column(
             modifier = Modifier
@@ -497,7 +497,7 @@ private fun WidgetCard(tag: String, content: @Composable ColumnScope.() -> Unit)
                 .background(Color.Transparent)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = content,
+            content = content
         )
     }
 }
@@ -508,7 +508,7 @@ private fun ForecastRow(forecast: JsonArray?) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         forecast?.forEach {
             val item = it.jsonObject
@@ -566,7 +566,7 @@ private fun displayDateTime(value: String?): String {
     if (value.isNullOrBlank()) return ""
     return runCatching {
         OffsetDateTime.parse(value).format(
-            DateTimeFormatter.ofPattern("d MMMM, HH:mm", Locale.forLanguageTag("ru")),
+            DateTimeFormatter.ofPattern("d MMMM, HH:mm", Locale.forLanguageTag("ru"))
         )
     }.getOrDefault(value)
 }
@@ -604,8 +604,6 @@ private fun JsonObject.int(name: String): Int? = this[name]?.jsonPrimitive?.intO
 
 private fun JsonObject.long(name: String): Long? = this[name]?.jsonPrimitive?.longOrNull
 
-private fun String.errorSuggestionTarget(): String =
-    if (lowercase().contains("настрой")) "settings" else "retry"
+private fun String.errorSuggestionTarget(): String = if (lowercase().contains("настрой")) "settings" else "retry"
 
-private fun String?.asPayload(key: String): Map<String, String> =
-    if (this == null) emptyMap() else mapOf(key to this)
+private fun String?.asPayload(key: String): Map<String, String> = if (this == null) emptyMap() else mapOf(key to this)

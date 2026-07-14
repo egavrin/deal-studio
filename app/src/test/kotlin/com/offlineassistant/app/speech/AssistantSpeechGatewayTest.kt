@@ -27,9 +27,9 @@ class AssistantSpeechGatewayTest {
                 "finish:before:Отложенный ответ.",
                 "begin:message",
                 "append:message:Ответ.",
-                "finish:message:Ответ.",
+                "finish:message:Ответ."
             ),
-            runtime.events,
+            runtime.events
         )
         assertEquals(listOf(SpeechStopReason.MICROPHONE_STARTED), runtime.stops)
         assertTrue(runtime.closed)
@@ -55,7 +55,7 @@ class AssistantSpeechGatewayTest {
 
         assertEquals(
             listOf("begin:manual", "finish:manual:Озвучить вручную."),
-            runtime.events,
+            runtime.events
         )
     }
 
@@ -86,7 +86,9 @@ class AssistantSpeechGatewayTest {
         assertEquals(null, gateway.playbackRange.value)
     }
 
-    private class RecordingSpeech : AssistantSpeech, Closeable {
+    private class RecordingSpeech :
+        AssistantSpeech,
+        Closeable {
         val events = mutableListOf<String>()
         val stops = mutableListOf<SpeechStopReason>()
         var closed = false

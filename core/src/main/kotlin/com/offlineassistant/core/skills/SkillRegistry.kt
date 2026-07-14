@@ -28,7 +28,7 @@ class SkillRegistry(skills: List<Skill>) {
             ?: return SkillResult(
                 status = SkillStatus.ERROR,
                 text = "Нет локального навыка для команды ${command.intent}.",
-                actionResult = "missing_skill",
+                actionResult = "missing_skill"
             )
         return skill.execute(command)
     }

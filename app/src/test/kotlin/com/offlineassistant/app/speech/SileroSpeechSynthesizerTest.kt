@@ -21,12 +21,12 @@ class SileroSpeechSynthesizerTest {
                     sequence = longArrayOf(1, 2, 3),
                     durationRate = floatArrayOf(1f, 1f, 1f),
                     pitchCoefficients = floatArrayOf(1f, 1f, 1f),
-                    typeIds = longArrayOf(0, 0, 0),
+                    typeIds = longArrayOf(0, 0, 0)
                 )
             },
             inference = inference,
             istft = SileroIstft(periodicHann(8), fftSize = 8, hopLength = 2),
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         synthesizer.warmUp()
@@ -46,7 +46,7 @@ class SileroSpeechSynthesizerTest {
         val synthesizer = SileroSpeechSynthesizer(
             frontend = SileroTextFrontend { error("not used") },
             inference = inference,
-            istft = SileroIstft(periodicHann(8), fftSize = 8, hopLength = 2),
+            istft = SileroIstft(periodicHann(8), fftSize = 8, hopLength = 2)
         )
 
         synthesizer.cancel()
@@ -65,7 +65,7 @@ class SileroSpeechSynthesizerTest {
         override fun infer(input: SileroSynthesisInput): SileroSpectrum = SileroSpectrum(
             magnitudeLogits = FloatArray(10) { -100f },
             phase = FloatArray(10),
-            frameCount = 2,
+            frameCount = 2
         )
 
         override fun cancel() {

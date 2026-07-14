@@ -1,9 +1,9 @@
 package com.offlineassistant.app.speech
 
-import kotlin.math.PI
-import kotlin.math.cos
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.PI
+import kotlin.math.cos
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -19,11 +19,11 @@ class SileroIstftTest {
         val result = SileroIstft(
             window = periodicHann(fftSize),
             fftSize = fftSize,
-            hopLength = hopLength,
+            hopLength = hopLength
         ).synthesize(
             magnitudeLogits = FloatArray(bins * frames) { -100f },
             phase = FloatArray(bins * frames),
-            frameCount = frames,
+            frameCount = frames
         )
 
         assertEquals(frames * hopLength, result.size)

@@ -23,7 +23,7 @@ interface ZipformerNativeEngine {
 }
 
 class SherpaZipformerNativeEngine(
-    private val numThreads: Int = 4,
+    private val numThreads: Int = 4
 ) : ZipformerNativeEngine {
     private val lock = Any()
     private var recognizerDirectory: File? = null
@@ -88,7 +88,7 @@ class SherpaZipformerNativeEngine(
 class ZipformerTranscriber(
     private val readiness: ModelReadiness,
     private val nativeEngine: ZipformerNativeEngine,
-    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
+    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
 ) : AudioTranscriber {
     override fun warmUp() {
         if (readiness.ready) nativeEngine.prepare(File(readiness.location))
@@ -101,7 +101,7 @@ class ZipformerTranscriber(
         if (!readiness.ready) {
             return failure(
                 message = "Zipformer model is not installed: ${readiness.location}. Audio: ${audioFile.name}",
-                started = started,
+                started = started
             )
         }
 
@@ -120,9 +120,9 @@ class ZipformerTranscriber(
             onFailure = { error ->
                 failure(
                     message = "Zipformer native transcription failed: ${error.message ?: error::class.java.simpleName}. Audio: ${audioFile.name}",
-                    started = started,
+                    started = started
                 )
-            },
+            }
         )
     }
 
@@ -130,13 +130,13 @@ class ZipformerTranscriber(
         val result = AudioTranscription(
             text = null,
             error = message,
-            latencyMs = System.currentTimeMillis() - started,
+            latencyMs = System.currentTimeMillis() - started
         )
         telemetryStore.recordFailure(
             ModelNames.WHISPER,
             ModelOperations.TRANSCRIPTION,
             result.latencyMs,
-            message,
+            message
         )
         return result
     }

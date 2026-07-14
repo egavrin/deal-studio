@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
 
 class AndroidAudioRecorder(
     private val context: Context,
-    private val sampleRate: Int = 16_000,
+    private val sampleRate: Int = 16_000
 ) {
     private val isRecording = AtomicBoolean(false)
     private var recorder: AudioRecord? = null
@@ -27,7 +27,7 @@ class AndroidAudioRecorder(
     @Synchronized
     fun start(
         captureWav: Boolean = true,
-        onPcmChunk: ((ShortArray) -> Unit)? = null,
+        onPcmChunk: ((ShortArray) -> Unit)? = null
     ): Boolean {
         if (isRecording.get()) return true
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -37,7 +37,7 @@ class AndroidAudioRecorder(
         val minBufferSize = AudioRecord.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
+            AudioFormat.ENCODING_PCM_16BIT
         ).coerceAtLeast(sampleRate / 2)
 
         @SuppressLint("MissingPermission")
@@ -46,7 +46,7 @@ class AndroidAudioRecorder(
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            minBufferSize,
+            minBufferSize
         )
         if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
             audioRecord.release()
@@ -104,7 +104,7 @@ class AndroidAudioRecorder(
                 output = it,
                 pcm = shorts,
                 sampleRate = sampleRate,
-                channelCount = 1,
+                channelCount = 1
             )
         }
         return file

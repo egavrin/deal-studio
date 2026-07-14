@@ -40,13 +40,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.offlineassistant.app.models.DeviceDiagnostics
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelReadinessRepository
-import com.offlineassistant.app.models.DeviceDiagnostics
 import com.offlineassistant.app.settings.AssistantSettingsRepository
 import com.offlineassistant.app.settings.VoiceModel
 import com.offlineassistant.app.ui.theme.AssistantColors
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -59,7 +60,7 @@ fun SettingsScreen(
     onAutomaticSpeechChange: (Boolean) -> Unit = {},
     onClearChatHistory: () -> Unit = {},
     onClearNotesReminders: () -> Unit = {},
-    deviceDiagnostics: DeviceDiagnostics = DeviceDiagnostics.from(LocalContext.current),
+    deviceDiagnostics: DeviceDiagnostics = DeviceDiagnostics.from(LocalContext.current)
 ) {
     var voiceModelMenuExpanded by remember { mutableStateOf(false) }
     Column(
@@ -67,20 +68,20 @@ fun SettingsScreen(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Настройки", style = MaterialTheme.typography.headlineSmall)
             Text(
                 "Локальные модели и данные ассистента",
                 style = MaterialTheme.typography.bodyMedium,
-                color = AssistantColors.Muted,
+                color = AssistantColors.Muted
             )
         }
 
         SettingsSection(
             title = "Распознавание речи",
-            subtitle = "Модель используется только на устройстве",
+            subtitle = "Модель используется только на устройстве"
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
@@ -88,25 +89,25 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("voice_model_menu"),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.Start,
+                        horizontalAlignment = Alignment.Start
                     ) {
                         Text(selectedVoiceModel.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             selectedVoiceModel.summary,
                             style = MaterialTheme.typography.bodySmall,
                             color = AssistantColors.Muted,
-                            maxLines = 2,
+                            maxLines = 2
                         )
                     }
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                 }
                 DropdownMenu(
                     expanded = voiceModelMenuExpanded,
-                    onDismissRequest = { voiceModelMenuExpanded = false },
+                    onDismissRequest = { voiceModelMenuExpanded = false }
                 ) {
                     VoiceModel.entries.forEach { model ->
                         DropdownMenuItem(
@@ -123,7 +124,7 @@ fun SettingsScreen(
                                     Text(
                                         model.summary,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = AssistantColors.Muted,
+                                        color = AssistantColors.Muted
                                     )
                                 }
                             },
@@ -131,7 +132,7 @@ fun SettingsScreen(
                                 onVoiceModelChange(model)
                                 voiceModelMenuExpanded = false
                             },
-                            modifier = Modifier.testTag("voice_model_${model.stableId}"),
+                            modifier = Modifier.testTag("voice_model_${model.stableId}")
                         )
                     }
                 }
@@ -140,7 +141,7 @@ fun SettingsScreen(
 
         SettingsSection(
             title = "Локальные модели",
-            subtitle = "ASR, классификация команд и ответы Qwen",
+            subtitle = "ASR, классификация команд и ответы Qwen"
         ) {
             modelReadiness.forEachIndexed { index, model ->
                 ModelStatusRow(model)
@@ -155,80 +156,79 @@ fun SettingsScreen(
 
         SettingsSection(
             title = "Голос ответа",
-            subtitle = "Silero Xenia озвучивает ответы локально",
+            subtitle = "Silero Xenia озвучивает ответы локально"
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Озвучивать автоматически", fontWeight = FontWeight.Medium)
                 Switch(
                     checked = automaticSpeechEnabled,
                     onCheckedChange = onAutomaticSpeechChange,
-                    modifier = Modifier.testTag("automatic_speech_switch"),
+                    modifier = Modifier.testTag("automatic_speech_switch")
                 )
             }
         }
 
         SettingsSection(
             title = "Выполнение действий",
-            subtitle = "Минимальная уверенность RuBERT для запуска Android-действия",
+            subtitle = "Минимальная уверенность RuBERT для запуска Android-действия"
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Порог уверенности", fontWeight = FontWeight.Medium)
                 Surface(color = AssistantColors.PrimarySoft, shape = RoundedCornerShape(8.dp)) {
                     Text(
-                        String.format("%.2f", fallbackThreshold),
+                        String.format(Locale.getDefault(), "%.2f", fallbackThreshold),
                         color = AssistantColors.Primary,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                     )
                 }
             }
             Slider(
                 value = fallbackThreshold.toFloat(),
                 onValueChange = { onFallbackThresholdChange(it.toDouble()) },
-                valueRange = AssistantSettingsRepository.MIN_FALLBACK_THRESHOLD.toFloat()..
-                    AssistantSettingsRepository.MAX_FALLBACK_THRESHOLD.toFloat(),
-                steps = 9,
+                valueRange = AssistantSettingsRepository.MIN_FALLBACK_THRESHOLD.toFloat()..AssistantSettingsRepository.MAX_FALLBACK_THRESHOLD.toFloat(),
+                steps = 9
             )
             Text(
                 "RuBERT выбирает поддержанные действия. Общие вопросы направляются в Qwen как отдельный тип запроса.",
                 style = MaterialTheme.typography.bodySmall,
-                color = AssistantColors.Muted,
+                color = AssistantColors.Muted
             )
         }
 
         SettingsSection(
             title = "Устройство",
-            subtitle = "Готовность разрешений и локальных ресурсов",
+            subtitle = "Готовность разрешений и локальных ресурсов"
         ) {
             DiagnosticRow("Микрофон", if (deviceDiagnostics.microphonePermissionGranted) "Разрешен" else "Нет доступа")
             DiagnosticRow("Уведомления", if (deviceDiagnostics.notificationPermissionGranted) "Разрешены" else "Нет доступа")
             DiagnosticRow("Свободное место", "${deviceDiagnostics.freeStorageMb} МБ")
             DiagnosticRow(
                 "Память приложения",
-                "${deviceDiagnostics.memoryClassMb} МБ${if (deviceDiagnostics.lowRamDevice) ", low-RAM" else ""}",
+                "${deviceDiagnostics.memoryClassMb} МБ${if (deviceDiagnostics.lowRamDevice) ", low-RAM" else ""}"
             )
             DiagnosticRow(
                 "Обработка микрофона",
-                "NS ${deviceDiagnostics.noiseSuppressorAvailable.asAvailability()}, AGC ${deviceDiagnostics.automaticGainControlAvailable.asAvailability()}",
+                "NS ${deviceDiagnostics.noiseSuppressorAvailable.asAvailability()}, AGC ${deviceDiagnostics.automaticGainControlAvailable.asAvailability()}"
             )
         }
 
         SettingsSection(
             title = "Данные демо",
-            subtitle = "Удаление не затрагивает файлы моделей",
+            subtitle = "Удаление не затрагивает файлы моделей"
         ) {
             OutlinedButton(
                 onClick = onClearChatHistory,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("Очистить историю чата", modifier = Modifier.padding(start = 8.dp))
@@ -236,7 +236,7 @@ fun SettingsScreen(
             OutlinedButton(
                 onClick = onClearNotesReminders,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("Удалить заметки и напоминания", modifier = Modifier.padding(start = 8.dp))
@@ -245,13 +245,13 @@ fun SettingsScreen(
 
         Surface(
             color = AssistantColors.PrimarySoft,
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(10.dp)
         ) {
             Text(
                 "Речь, команды и ответы обрабатываются локально на устройстве.",
                 style = MaterialTheme.typography.bodySmall,
                 color = AssistantColors.Primary,
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(12.dp)
             )
         }
     }
@@ -271,7 +271,7 @@ private fun Boolean.asAvailability(): String = if (this) "доступен" else
 private fun SettingsSection(
     title: String,
     subtitle: String,
-    content: @Composable ColumnScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -289,20 +289,20 @@ private fun ModelStatusRow(model: ModelReadiness) {
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
                 .padding(top = 6.dp)
                 .size(8.dp)
-                .background(if (model.ready) AssistantColors.Success else AssistantColors.Danger, CircleShape),
+                .background(if (model.ready) AssistantColors.Success else AssistantColors.Danger, CircleShape)
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(modelDisplayName(model.name), fontWeight = FontWeight.Medium)
             Text(
                 if (model.ready) "Готова к работе" else "Файлы модели не найдены",
                 style = MaterialTheme.typography.bodySmall,
-                color = AssistantColors.Muted,
+                color = AssistantColors.Muted
             )
             model.runtime.operation?.let {
                 Text(runtimeSummary(model), style = MaterialTheme.typography.bodySmall, color = AssistantColors.Muted)
@@ -314,7 +314,7 @@ private fun ModelStatusRow(model: ModelReadiness) {
         Text(
             if (model.ready) "Готово" else "Нет",
             style = MaterialTheme.typography.labelMedium,
-            color = if (model.ready) AssistantColors.Success else AssistantColors.Danger,
+            color = if (model.ready) AssistantColors.Success else AssistantColors.Danger
         )
     }
 }

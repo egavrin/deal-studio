@@ -33,7 +33,7 @@ private val AssistantColorScheme = lightColorScheme(
     surfaceVariant = Color(0xFFF5F7FA),
     onSurfaceVariant = AssistantColors.Muted,
     outline = AssistantColors.Border,
-    error = AssistantColors.Danger,
+    error = AssistantColors.Danger
 )
 
 private val AssistantTypography = Typography(
@@ -44,7 +44,7 @@ private val AssistantTypography = Typography(
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp, letterSpacing = 0.sp),
     labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
-    labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
+    labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
 )
 
 @Composable
@@ -52,6 +52,6 @@ fun AssistantTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = AssistantColorScheme,
         typography = AssistantTypography,
-        content = content,
+        content = content
     )
 }

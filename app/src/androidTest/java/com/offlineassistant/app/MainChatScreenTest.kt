@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.test.platform.app.InstrumentationRegistry
 import com.offlineassistant.app.storage.SharedPreferencesNoteStore
 import com.offlineassistant.app.storage.SharedPreferencesReminderStore
 import com.offlineassistant.app.ui.AppCandidate
@@ -28,7 +29,6 @@ import com.offlineassistant.app.ui.PlatformActions
 import com.offlineassistant.core.nlu.RuleBasedNlu
 import org.junit.Assert.assertEquals
 import org.junit.Before
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 
@@ -46,7 +46,7 @@ class MainChatScreenTest {
             noteStore = SharedPreferencesNoteStore(context),
             reminderStore = SharedPreferencesReminderStore(context),
             nlu = RuleBasedNlu(),
-            platformActions = TestPlatformActions(context),
+            platformActions = TestPlatformActions(context)
         )
         compose.setContent {
             MaterialTheme {
@@ -84,7 +84,7 @@ class MainChatScreenTest {
         waitForTag("timer_card")
         assertEquals(
             emptyList<Any>(),
-            compose.onAllNodesWithText("debug:", substring = true).fetchSemanticsNodes(),
+            compose.onAllNodesWithText("debug:", substring = true).fetchSemanticsNodes()
         )
     }
 
@@ -250,13 +250,13 @@ class MainChatScreenTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.uiAutomation.grantRuntimePermission(
             instrumentation.targetContext.packageName,
-            Manifest.permission.POST_NOTIFICATIONS,
+            Manifest.permission.POST_NOTIFICATIONS
         )
     }
 }
 
 private class TestPlatformActions(
-    private val context: Context,
+    private val context: Context
 ) : PlatformActions {
     override fun copyText(label: String, text: String): Boolean {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

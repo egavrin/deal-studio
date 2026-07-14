@@ -18,7 +18,7 @@ class AssistantWidgetDeduplicationTest {
             payload = buildJsonObject {
                 put("answer", JsonPrimitive("Ответ локальной модели."))
                 put("source", JsonPrimitive("local_llm"))
-            },
+            }
         )
 
         val deduplicated = widget.deduplicateAnswerAlreadyShownInBubble("Ответ локальной модели.")
@@ -34,7 +34,7 @@ class AssistantWidgetDeduplicationTest {
             payload = buildJsonObject {
                 put("answer", JsonPrimitive("Дополнительная деталь."))
                 put("source", JsonPrimitive("local_llm"))
-            },
+            }
         )
 
         val deduplicated = widget.deduplicateAnswerAlreadyShownInBubble("Ответ в bubble.")

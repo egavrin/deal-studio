@@ -1,0 +1,54 @@
+build:
+  maxIssues: 0
+
+# These ceilings describe the current PoC debt without hiding it in a generated
+# baseline. Lower them as orchestration and UI files are split during vNext.
+complexity:
+  ComplexCondition:
+    threshold: 5
+  CyclomaticComplexMethod:
+    threshold: 50
+  LargeClass:
+    threshold: 1200
+  LongMethod:
+    threshold: 350
+  LongParameterList:
+    functionThreshold: 12
+    constructorThreshold: 12
+  NestedBlockDepth:
+    threshold: 6
+  TooManyFunctions:
+    thresholdInFiles: 20
+    thresholdInClasses: 50
+    thresholdInInterfaces: 15
+    thresholdInObjects: 20
+    thresholdInEnums: 15
+
+exceptions:
+  # JNI, model and coroutine boundaries deliberately convert broad runtime
+  # failures into product ErrorCard states. Narrowing these requires typed
+  # adapter errors, not mechanical catch rewrites.
+  InstanceOfCheckForException:
+    active: false
+  TooGenericExceptionCaught:
+    active: false
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - Composable
+  MatchingDeclarationName:
+    active: false
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Z0-9]*|[A-Z][a-zA-Z0-9]*'
+    propertyPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    max: 8
+  LoopWithTooManyJumpStatements:
+    maxJumpCount: 3

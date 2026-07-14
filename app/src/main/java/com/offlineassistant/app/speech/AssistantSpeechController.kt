@@ -6,6 +6,7 @@ import com.offlineassistant.core.speech.SpeechChunker
 import com.offlineassistant.core.speech.SpeechStopReason
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.max
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -14,11 +15,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
-import kotlin.math.max
 
 data class PcmAudio(
     val samples: FloatArray,
-    val sampleRate: Int,
+    val sampleRate: Int
 )
 
 interface SpeechSynthesizer : Closeable {
@@ -42,7 +42,7 @@ interface PcmAudioPlayer : Closeable {
     fun play(
         audio: PcmAudio,
         onPlaybackStarted: () -> Unit,
-        onPlaybackCompleted: () -> Unit,
+        onPlaybackCompleted: () -> Unit
     ) {
         onPlaybackStarted()
         play(audio)
@@ -60,12 +60,12 @@ interface PcmAudioPlayer : Closeable {
 data class SpeechPlaybackRange(
     val messageId: String,
     val startOffset: Int,
-    val endOffset: Int,
+    val endOffset: Int
 )
 
 class CachingSpeechSynthesizer(
     private val delegate: SpeechSynthesizer,
-    private val maxSampleCount: Int = 2_000_000,
+    private val maxSampleCount: Int = 2_000_000
 ) : SpeechSynthesizer {
     private val lock = Any()
     private val cache = LinkedHashMap<String, PcmAudio>(16, 0.75f, true)
@@ -108,8 +108,9 @@ class AssistantSpeechController(
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val onError: (Throwable) -> Unit = {},
     private val onFirstAudioReady: (messageId: String, latencyMs: Long) -> Unit = { _, _ -> },
-    private val onPlaybackRangeChanged: (SpeechPlaybackRange?) -> Unit = {},
-) : AssistantSpeech, Closeable {
+    private val onPlaybackRangeChanged: (SpeechPlaybackRange?) -> Unit = {}
+) : AssistantSpeech,
+    Closeable {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val chunker = SpeechChunker()
     private val generation = AtomicLong(0L)
@@ -142,6 +143,7 @@ class AssistantSpeechController(
                             onError(error)
                         }
                     }
+
                     is SynthesisEvent.EndResponse -> {
                         if (event.generation == generation.get()) {
                             playbackQueue.send(PlaybackEvent.EndResponse(event.generation, event.messageId))
@@ -173,7 +175,7 @@ class AssistantSpeechController(
                                         if (startedAt != null) {
                                             onFirstAudioReady(
                                                 job.messageId,
-                                                (System.nanoTime() - startedAt) / 1_000_000L,
+                                                (System.nanoTime() - startedAt) / 1_000_000L
                                             )
                                         }
                                     }
@@ -183,7 +185,7 @@ class AssistantSpeechController(
                                         playbackBuffer.onPlaybackCompleted()
                                         onPlaybackRangeChanged(null)
                                     }
-                                },
+                                }
                             )
                         } catch (error: Throwable) {
                             if (error is CancellationException) throw error
@@ -193,6 +195,7 @@ class AssistantSpeechController(
                             onError(error)
                         }
                     }
+
                     is PlaybackEvent.EndResponse -> {
                         if (event.generation != generation.get()) continue
                         try {
@@ -298,8 +301,8 @@ class AssistantSpeechController(
             playbackBuffer.enqueue(estimatedDurationMs)
             val result = synthesisQueue.trySend(
                 SynthesisEvent.Chunk(
-                    SpeechJob(currentGeneration, messageId, chunk, estimatedDurationMs),
-                ),
+                    SpeechJob(currentGeneration, messageId, chunk, estimatedDurationMs)
+                )
             )
             if (result.isFailure) playbackBuffer.removeQueued(estimatedDurationMs)
         }
@@ -318,7 +321,7 @@ class AssistantSpeechController(
         val generation: Long,
         val messageId: String,
         val chunk: PlannedSpeechChunk,
-        val estimatedDurationMs: Long,
+        val estimatedDurationMs: Long
     )
 
     private sealed interface SynthesisEvent {
@@ -331,7 +334,7 @@ class AssistantSpeechController(
         data class Chunk(
             val job: SpeechJob,
             val audio: PcmAudio,
-            val durationMs: Long,
+            val durationMs: Long
         ) : PlaybackEvent
 
         data class EndResponse(val generation: Long, val messageId: String) : PlaybackEvent
@@ -344,22 +347,21 @@ class AssistantSpeechController(
 
         fun estimateDurationMs(text: String): Long = max(
             MIN_ESTIMATED_CHUNK_DURATION_MS,
-            text.length * ESTIMATED_SPEECH_MILLIS_PER_CHARACTER,
+            text.length * ESTIMATED_SPEECH_MILLIS_PER_CHARACTER
         )
     }
 }
 
-private fun PcmAudio.durationMs(): Long =
-    if (sampleRate <= 0) 0L else samples.size.toLong() * 1_000L / sampleRate
+private fun PcmAudio.durationMs(): Long = if (sampleRate <= 0) 0L else samples.size.toLong() * 1_000L / sampleRate
 
 private fun PlannedSpeechChunk.toPlaybackRange(messageId: String) = SpeechPlaybackRange(
     messageId = messageId,
     startOffset = startOffset,
-    endOffset = endOffset,
+    endOffset = endOffset
 )
 
 private class SpeechPlaybackBuffer(
-    private val nanoTime: () -> Long = System::nanoTime,
+    private val nanoTime: () -> Long = System::nanoTime
 ) {
     private val lock = Any()
     private var queuedMs = 0L

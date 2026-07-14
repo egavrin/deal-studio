@@ -1,6 +1,7 @@
 package com.offlineassistant.app.storage
 
 import android.content.Context
+import androidx.core.content.edit
 import com.offlineassistant.core.storage.NoteStore
 import com.offlineassistant.core.storage.ReminderStore
 import com.offlineassistant.core.storage.StoredNote
@@ -8,10 +9,10 @@ import com.offlineassistant.core.storage.StoredReminder
 import com.offlineassistant.core.weather.WeatherCache
 import com.offlineassistant.core.weather.WeatherForecastPoint
 import com.offlineassistant.core.weather.WeatherResult
+import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.util.UUID
 
 private val storeJson = Json {
     encodeDefaults = true
@@ -46,9 +47,9 @@ class SharedPreferencesNoteStore(context: Context) : NoteStore {
     }
 
     private fun save(notes: List<StoredNote>) {
-        preferences.edit()
-            .putString("items", storeJson.encodeToString(notes.map { StoredNoteDto.from(it) }))
-            .apply()
+        preferences.edit {
+            putString("items", storeJson.encodeToString(notes.map { StoredNoteDto.from(it) }))
+        }
     }
 }
 
@@ -80,9 +81,9 @@ class SharedPreferencesReminderStore(context: Context) : ReminderStore {
     }
 
     private fun save(reminders: List<StoredReminder>) {
-        preferences.edit()
-            .putString("items", storeJson.encodeToString(reminders.map { StoredReminderDto.from(it) }))
-            .apply()
+        preferences.edit {
+            putString("items", storeJson.encodeToString(reminders.map { StoredReminderDto.from(it) }))
+        }
     }
 }
 
@@ -93,9 +94,9 @@ class SharedPreferencesWeatherCache(context: Context) : WeatherCache {
         ?.let { encoded -> runCatching { storeJson.decodeFromString<WeatherResultDto>(encoded).toWeather() }.getOrNull() }
 
     override fun write(result: WeatherResult) {
-        preferences.edit()
-            .putString(result.location.cacheKey(), storeJson.encodeToString(WeatherResultDto.from(result)))
-            .apply()
+        preferences.edit {
+            putString(result.location.cacheKey(), storeJson.encodeToString(WeatherResultDto.from(result)))
+        }
     }
 }
 
@@ -111,7 +112,7 @@ private data class WeatherResultDto(
     val windMps: Int,
     val forecast: List<WeatherForecastPointDto>,
     val source: String,
-    val updatedAt: String,
+    val updatedAt: String
 ) {
     fun toWeather() = WeatherResult(
         location,
@@ -122,7 +123,7 @@ private data class WeatherResultDto(
         windMps,
         forecast.map(WeatherForecastPointDto::toWeather),
         source,
-        updatedAt,
+        updatedAt
     )
 
     companion object {
@@ -135,7 +136,7 @@ private data class WeatherResultDto(
             result.windMps,
             result.forecast.map(WeatherForecastPointDto::from),
             result.source,
-            result.updatedAt,
+            result.updatedAt
         )
     }
 }
@@ -144,7 +145,7 @@ private data class WeatherResultDto(
 private data class WeatherForecastPointDto(
     val time: String,
     val temperatureC: Int,
-    val condition: String,
+    val condition: String
 ) {
     fun toWeather() = WeatherForecastPoint(time, temperatureC, condition)
 
@@ -152,7 +153,7 @@ private data class WeatherForecastPointDto(
         fun from(point: WeatherForecastPoint) = WeatherForecastPointDto(
             point.time,
             point.temperatureC,
-            point.condition,
+            point.condition
         )
     }
 }
@@ -161,7 +162,7 @@ private data class WeatherForecastPointDto(
 private data class StoredNoteDto(
     val id: String,
     val text: String,
-    val createdAt: String,
+    val createdAt: String
 ) {
     fun toStored(): StoredNote = StoredNote(id, text, createdAt)
 
@@ -175,7 +176,7 @@ private data class StoredReminderDto(
     val id: String,
     val text: String,
     val datetime: String,
-    val state: String,
+    val state: String
 ) {
     fun toStored(): StoredReminder = StoredReminder(id, text, datetime, state)
 
@@ -184,7 +185,7 @@ private data class StoredReminderDto(
             reminder.id,
             reminder.text,
             reminder.datetime,
-            reminder.state,
+            reminder.state
         )
     }
 }

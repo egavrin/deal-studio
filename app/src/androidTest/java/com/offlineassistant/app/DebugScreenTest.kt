@@ -26,11 +26,11 @@ class DebugScreenTest {
                         runtime = ModelRuntimeTelemetry(
                             operation = "transcription",
                             successful = true,
-                            latencyMs = 42L,
-                        ),
+                            latencyMs = 42L
+                        )
                     ),
-                    ModelReadiness("RuBERT-tiny2 ONNX", false, "/models/rubert.onnx", "missing bundle files"),
-                ),
+                    ModelReadiness("RuBERT-tiny2 ONNX", false, "/models/rubert.onnx", "missing bundle files")
+                )
             )
         }
 

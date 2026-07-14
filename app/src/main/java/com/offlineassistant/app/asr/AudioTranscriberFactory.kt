@@ -8,7 +8,7 @@ import com.offlineassistant.app.voice.AudioTranscriber
 
 class AudioTranscriberFactory(
     private val readinessRepository: ModelReadinessRepository,
-    private val telemetryStore: ModelRuntimeTelemetryStore,
+    private val telemetryStore: ModelRuntimeTelemetryStore
 ) {
     private val transcribers = mutableMapOf<VoiceModel, AudioTranscriber>()
 
@@ -27,16 +27,18 @@ class AudioTranscriberFactory(
     private fun createTranscriber(model: VoiceModel): AudioTranscriber = when (model.engine) {
         VoiceModelEngine.WHISPER_CPP -> WhisperTranscriber(
             readiness = readinessRepository.voiceModel(model),
-            telemetryStore = telemetryStore,
+            telemetryStore = telemetryStore
         )
+
         VoiceModelEngine.SHERPA_ONNX -> ZipformerTranscriber(
             readiness = readinessRepository.voiceModel(model),
             nativeEngine = SherpaZipformerNativeEngine(),
-            telemetryStore = telemetryStore,
+            telemetryStore = telemetryStore
         )
+
         VoiceModelEngine.SHERPA_ONNX_STREAMING -> TOneStreamingTranscriber(
             readiness = readinessRepository.voiceModel(model),
-            telemetryStore = telemetryStore,
+            telemetryStore = telemetryStore
         )
     }
 }
