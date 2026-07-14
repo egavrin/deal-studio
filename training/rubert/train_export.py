@@ -308,6 +308,7 @@ def export_bundle(model, tokenizer, args):
             "slot_logits": {0: "batch", 1: "sequence"},
         },
         opset_version=17,
+        dynamo=False,
     )
     onnx.checker.check_model(str(onnx_path))
     verify_onnx(onnx_path, sample, tokenizer, args.max_length)
