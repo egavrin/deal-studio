@@ -288,8 +288,12 @@ class AssistantSpeechController(
         }
         playbackBuffer.clear()
         onPlaybackRangeChanged(null)
-        while (synthesisQueue.tryReceive().isSuccess) Unit
-        while (playbackQueue.tryReceive().isSuccess) Unit
+        while (synthesisQueue.tryReceive().isSuccess) {
+            // Drain stale synthesis work before stopping the backend.
+        }
+        while (playbackQueue.tryReceive().isSuccess) {
+            // Drain stale audio before stopping playback.
+        }
         synthesizer.cancel()
         player.stop()
     }
