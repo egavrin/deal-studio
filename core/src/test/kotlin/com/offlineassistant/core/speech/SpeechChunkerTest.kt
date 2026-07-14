@@ -22,7 +22,7 @@ class SpeechChunkerTest {
 
         assertEquals(
             listOf("Второе закончено"),
-            chunker.finish("answer", "Первое предложение. Второе закончено").texts(),
+            chunker.finish("answer", "Первое предложение. Второе закончено").texts()
         )
     }
 
@@ -54,12 +54,12 @@ class SpeechChunkerTest {
             listOf("Солнечный свет состоит из множества разных видимых цветов,"),
             chunker.append(
                 "answer",
-                "Солнечный свет состоит из множества разных видимых цветов, которые продолжают путь",
-            ).texts(),
+                "Солнечный свет состоит из множества разных видимых цветов, которые продолжают путь"
+            ).texts()
         )
         assertEquals(
             listOf("которые продолжают путь через атмосферу."),
-            chunker.append("answer", " через атмосферу.").texts(),
+            chunker.append("answer", " через атмосферу.").texts()
         )
     }
 
@@ -72,8 +72,8 @@ class SpeechChunkerTest {
             listOf("Если бегать по тридцать километров в день,"),
             chunker.append(
                 "answer",
-                "Если бегать по тридцать километров в день, это может привести к серьезным",
-            ).texts(),
+                "Если бегать по тридцать километров в день, это может привести к серьезным"
+            ).texts()
         )
     }
 
@@ -86,12 +86,12 @@ class SpeechChunkerTest {
             listOf("Если бегать по тридцать километров в день,"),
             chunker.append(
                 "answer",
-                "Если бегать по тридцать километров в день, это может привести к серьезным проблемам для здоровья и физической",
-            ).texts(),
+                "Если бегать по тридцать километров в день, это может привести к серьезным проблемам для здоровья и физической"
+            ).texts()
         )
         assertEquals(
             listOf("это может привести к серьезным проблемам для здоровья и физической формы."),
-            chunker.append("answer", " формы.").texts(),
+            chunker.append("answer", " формы.").texts()
         )
     }
 
@@ -103,7 +103,7 @@ class SpeechChunkerTest {
         assertEquals(emptyList<PlannedSpeechChunk>(), chunker.append("answer", "Во-первых, это часть"))
         assertEquals(
             listOf("Во-первых, это часть ответа."),
-            chunker.append("answer", " ответа.").texts(),
+            chunker.append("answer", " ответа.").texts()
         )
     }
 
@@ -152,12 +152,12 @@ class SpeechChunkerTest {
             chunker.append(
                 "answer",
                 "Достаточно длинная вводная часть, за которой пока нет точки",
-                allowClauseBoundary = false,
-            ),
+                allowClauseBoundary = false
+            )
         )
         assertEquals(
             listOf("Достаточно длинная вводная часть, за которой пока нет точки."),
-            chunker.append("answer", ".", allowClauseBoundary = false).texts(),
+            chunker.append("answer", ".", allowClauseBoundary = false).texts()
         )
     }
 }

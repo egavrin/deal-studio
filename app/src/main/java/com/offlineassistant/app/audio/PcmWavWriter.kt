@@ -7,7 +7,7 @@ object PcmWavWriter {
         output: OutputStream,
         pcm: ShortArray,
         sampleRate: Int,
-        channelCount: Int,
+        channelCount: Int
     ) {
         val bitsPerSample = 16
         val bytesPerSample = bitsPerSample / 8

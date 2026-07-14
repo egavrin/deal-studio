@@ -1,6 +1,7 @@
 package com.offlineassistant.app.storage
 
 import android.content.Context
+import androidx.core.content.edit
 import com.offlineassistant.app.ui.ChatMessageUi
 import com.offlineassistant.core.contracts.DebugInfo
 import com.offlineassistant.core.contracts.WidgetPayload
@@ -31,11 +32,11 @@ class SharedPreferencesChatHistoryStore(context: Context) : ChatHistoryStore {
 
     override fun save(messages: List<ChatMessageUi>) {
         val stored = messages.takeLast(MAX_MESSAGES).map(StoredChatMessage::fromUi)
-        preferences.edit().putString(KEY_MESSAGES, json.encodeToString(stored)).apply()
+        preferences.edit { putString(KEY_MESSAGES, json.encodeToString(stored)) }
     }
 
     override fun clear() {
-        preferences.edit().remove(KEY_MESSAGES).apply()
+        preferences.edit { remove(KEY_MESSAGES) }
     }
 
     private companion object {
@@ -53,7 +54,7 @@ private data class StoredChatMessage(
     val text: String,
     val source: String? = null,
     val widget: WidgetPayload? = null,
-    val debug: DebugInfo? = null,
+    val debug: DebugInfo? = null
 ) {
     fun toUi(): ChatMessageUi = if (role == ROLE_USER) {
         ChatMessageUi.User(id, createdAt, text, source ?: "text")
@@ -71,15 +72,16 @@ private data class StoredChatMessage(
                 id = message.id,
                 createdAt = message.createdAt,
                 text = message.text,
-                source = message.source,
+                source = message.source
             )
+
             is ChatMessageUi.Assistant -> StoredChatMessage(
                 role = ROLE_ASSISTANT,
                 id = message.id,
                 createdAt = message.createdAt,
                 text = message.text,
                 widget = message.widget,
-                debug = message.debug,
+                debug = message.debug
             )
         }
     }

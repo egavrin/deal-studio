@@ -22,10 +22,10 @@ class PermissionCardRendererTest {
                 payload = JsonObject(
                     mapOf(
                         "permission" to JsonPrimitive("POST_NOTIFICATIONS"),
-                        "reason" to JsonPrimitive("Чтобы создавать напоминания, нужно разрешение на уведомления."),
-                    ),
+                        "reason" to JsonPrimitive("Чтобы создавать напоминания, нужно разрешение на уведомления.")
+                    )
                 ),
-                onAction = { action = it },
+                onAction = { action = it }
             )
         }
 

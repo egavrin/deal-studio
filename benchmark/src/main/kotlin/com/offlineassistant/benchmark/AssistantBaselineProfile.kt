@@ -16,10 +16,10 @@ class AssistantBaselineProfile {
     @Test
     fun startup() {
         rule.collect(
-            packageName = TargetPackage,
+            packageName = TARGET_PACKAGE,
             maxIterations = 10,
             stableIterations = 3,
-            includeInStartupProfile = true,
+            includeInStartupProfile = true
         ) {
             launchAssistant()
         }
@@ -28,10 +28,10 @@ class AssistantBaselineProfile {
     @Test
     fun chatRecordingAndStreaming() {
         rule.collect(
-            packageName = TargetPackage,
+            packageName = TARGET_PACKAGE,
             maxIterations = 5,
             stableIterations = 2,
-            includeInStartupProfile = false,
+            includeInStartupProfile = false
         ) {
             val device = launchAssistant()
             device.sendMessage("помощь")

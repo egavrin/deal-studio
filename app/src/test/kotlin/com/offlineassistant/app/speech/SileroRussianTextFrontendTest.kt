@@ -30,7 +30,7 @@ class SileroRussianTextFrontendTest {
             val resolved = SileroHomographResolver(
                 tokenizer = SileroWordPieceTokenizer(vocabulary),
                 homographs = homographs,
-                inference = inference,
+                inference = inference
             ).resolve(fixture.string("text"))
             assertEquals(fixture.string("resolved_text"), resolved)
 
@@ -60,7 +60,7 @@ class SileroRussianTextFrontendTest {
                 stress = stress.flattenFloat(),
                 stressClasses = stress.first().size,
                 yo = yo.flattenFloat(),
-                yoClasses = yo.first().size,
+                yoClasses = yo.first().size
             )
         }
 
@@ -92,7 +92,7 @@ class SileroRussianTextFrontendTest {
     }
 
     private fun resourceJson(name: String) = Json.parseToJsonElement(
-        requireNotNull(javaClass.getResource("/speech/$name")).readText(),
+        requireNotNull(javaClass.getResource("/speech/$name")).readText()
     )
 
     private fun intMap(name: String): Map<String, Int> = resourceJson(name).jsonObject
@@ -106,17 +106,13 @@ class SileroRussianTextFrontendTest {
 
     private fun JsonObject.string(name: String): String = getValue(name).jsonPrimitive.content
 
-    private fun JsonObject.longArray(name: String): LongArray =
-        getValue(name).jsonArray.map { it.jsonPrimitive.long }.toLongArray()
+    private fun JsonObject.longArray(name: String): LongArray = getValue(name).jsonArray.map { it.jsonPrimitive.long }.toLongArray()
 
-    private fun JsonObject.floatArray(name: String): FloatArray =
-        getValue(name).jsonArray.map { it.jsonPrimitive.float }.toFloatArray()
+    private fun JsonObject.floatArray(name: String): FloatArray = getValue(name).jsonArray.map { it.jsonPrimitive.float }.toFloatArray()
 
-    private fun JsonArray.longMatrix(): List<LongArray> =
-        map { row -> row.jsonArray.map { it.jsonPrimitive.long }.toLongArray() }
+    private fun JsonArray.longMatrix(): List<LongArray> = map { row -> row.jsonArray.map { it.jsonPrimitive.long }.toLongArray() }
 
-    private fun JsonArray.floatMatrix(): List<FloatArray> =
-        map { row -> row.jsonArray.map { it.jsonPrimitive.float }.toFloatArray() }
+    private fun JsonArray.floatMatrix(): List<FloatArray> = map { row -> row.jsonArray.map { it.jsonPrimitive.float }.toFloatArray() }
 
     private fun List<LongArray>.flattenLong(): LongArray = flatMap(LongArray::asList).toLongArray()
 

@@ -10,11 +10,11 @@ class RussianInverseTextNormalizerTest {
     fun normalizesCardinalNumbersWithoutCommandSpecificRules() {
         assertEquals(
             "Посчитай 125 умножить на 37",
-            RussianInverseTextNormalizer.normalizeNumbers("Посчитай сто двадцать пять умножить на тридцать семь"),
+            RussianInverseTextNormalizer.normalizeNumbers("Посчитай сто двадцать пять умножить на тридцать семь")
         )
         assertEquals(
             "через 2048 минут",
-            RussianInverseTextNormalizer.normalizeNumbers("через две тысячи сорок восемь минут"),
+            RussianInverseTextNormalizer.normalizeNumbers("через две тысячи сорок восемь минут")
         )
         assertEquals("23:45", RussianInverseTextNormalizer.normalizeSpokenTime("в двадцать три сорок пять"))
     }

@@ -13,7 +13,7 @@ class ReminderNotificationSchedulerTest {
         val scheduled = scheduler.schedule(
             reminderId = "test-reminder",
             text = "проверить духовку",
-            triggerAtMillis = System.currentTimeMillis() + 60_000L,
+            triggerAtMillis = System.currentTimeMillis() + 60_000L
         )
 
         assertTrue(scheduled)

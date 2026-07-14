@@ -15,7 +15,7 @@ interface AssistantWidgetRenderer {
 data class WidgetAction(
     val name: String,
     val widgetType: String,
-    val payload: Map<String, String> = emptyMap(),
+    val payload: Map<String, String> = emptyMap()
 )
 
 object WidgetActionNames {
@@ -38,7 +38,7 @@ object WidgetActionNames {
 }
 
 class WidgetRegistry(
-    private val renderers: Map<String, AssistantWidgetRenderer>,
+    private val renderers: Map<String, AssistantWidgetRenderer>
 ) {
     fun rendererFor(type: String): AssistantWidgetRenderer? = renderers[type]
 }
@@ -56,15 +56,15 @@ val defaultWidgetRegistry = WidgetRegistry(
         ClarificationCardRenderer,
         PermissionCardRenderer,
         ErrorCardRenderer,
-        GenericAnswerCardRenderer,
-    ).associateBy { it.type },
+        GenericAnswerCardRenderer
+    ).associateBy { it.type }
 )
 
 @Composable
 fun AssistantWidgetContainer(
     widget: WidgetPayload,
     registry: WidgetRegistry = defaultWidgetRegistry,
-    onAction: (WidgetAction) -> Unit = {},
+    onAction: (WidgetAction) -> Unit = {}
 ) {
     val renderer = registry.rendererFor(widget.type)
     if (renderer != null) {
@@ -75,10 +75,10 @@ fun AssistantWidgetContainer(
                 mapOf(
                     "title" to kotlinx.serialization.json.JsonPrimitive("Unknown widget"),
                     "message" to kotlinx.serialization.json.JsonPrimitive(widget.type),
-                    "recoverable" to kotlinx.serialization.json.JsonPrimitive(false),
-                ),
+                    "recoverable" to kotlinx.serialization.json.JsonPrimitive(false)
+                )
             ),
-            onAction,
+            onAction
         )
     }
 }
@@ -95,5 +95,5 @@ fun expectedWidgetTypes(): List<String> = listOf(
     WidgetTypes.CLARIFICATION_CARD,
     WidgetTypes.PERMISSION_CARD,
     WidgetTypes.ERROR_CARD,
-    WidgetTypes.GENERIC_ANSWER_CARD,
+    WidgetTypes.GENERIC_ANSWER_CARD
 )

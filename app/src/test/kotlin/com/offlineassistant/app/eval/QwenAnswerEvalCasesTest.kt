@@ -11,11 +11,11 @@ class QwenAnswerEvalCasesTest {
 
         assertTrue(
             "Qwen answer eval should cover at least 12 fixed complex/general questions",
-            cases.size >= 12,
+            cases.size >= 12
         )
         assertEquals(
             setOf("concept", "offline_limits", "health", "latency", "voice_help", "privacy", "safety", "choice", "planning", "troubleshooting", "recency", "device_limits"),
-            cases.map { it.category }.toSet(),
+            cases.map { it.category }.toSet()
         )
     }
 }

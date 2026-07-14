@@ -6,13 +6,13 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -40,16 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.offlineassistant.app.llm.JniLlamaNativeEngine
 import com.offlineassistant.app.llm.LlamaCppFallbackParser
-import com.offlineassistant.app.models.ModelReadinessRepository
-import com.offlineassistant.app.models.ModelReadiness
-import com.offlineassistant.app.models.ModelNames
-import com.offlineassistant.app.models.SharedPreferencesModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.DeviceDiagnostics
+import com.offlineassistant.app.models.ModelNames
+import com.offlineassistant.app.models.ModelReadiness
+import com.offlineassistant.app.models.ModelReadinessRepository
+import com.offlineassistant.app.models.SharedPreferencesModelRuntimeTelemetryStore
 import com.offlineassistant.app.nlu.OnnxRubertNlu
 import com.offlineassistant.app.platform.AndroidPlatformAdapters
 import com.offlineassistant.app.settings.AssistantSettingsRepository
@@ -61,9 +61,9 @@ import com.offlineassistant.app.speech.CachingSpeechSynthesizer
 import com.offlineassistant.app.speech.SileroFrontendBundle
 import com.offlineassistant.app.speech.SileroModelBundle
 import com.offlineassistant.app.speech.SileroSpeechSynthesizer
+import com.offlineassistant.app.storage.SharedPreferencesChatHistoryStore
 import com.offlineassistant.app.storage.SharedPreferencesNoteStore
 import com.offlineassistant.app.storage.SharedPreferencesReminderStore
-import com.offlineassistant.app.storage.SharedPreferencesChatHistoryStore
 import com.offlineassistant.app.storage.SharedPreferencesWeatherCache
 import com.offlineassistant.app.ui.ChatViewModel
 import com.offlineassistant.app.ui.ChatViewModelFactory
@@ -73,14 +73,14 @@ import com.offlineassistant.app.ui.SettingsScreen
 import com.offlineassistant.app.ui.WidgetPreviewScreen
 import com.offlineassistant.app.ui.theme.AssistantColors
 import com.offlineassistant.app.ui.theme.AssistantTheme
+import com.offlineassistant.core.speech.SpeechStopReason
+import com.offlineassistant.core.weather.CachingWeatherProvider
+import com.offlineassistant.core.weather.MockWeatherProvider
+import java.time.OffsetDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.offlineassistant.core.weather.CachingWeatherProvider
-import com.offlineassistant.core.weather.MockWeatherProvider
-import com.offlineassistant.core.speech.SpeechStopReason
-import java.time.OffsetDateTime
 
 class MainActivity : ComponentActivity() {
     private var runtimeEpoch by mutableIntStateOf(0)
@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
 fun OfflineAssistantApp(
     internalScreensEnabled: Boolean = BuildConfig.DEBUG,
     injectedChatViewModel: ChatViewModel? = null,
-    runtimeEpoch: Int = 0,
+    runtimeEpoch: Int = 0
 ) {
     val tabs = remember(internalScreensEnabled) { assistantTabs(internalScreensEnabled) }
     var selectedTab by remember { mutableStateOf(AssistantTab.Chat) }
@@ -181,7 +181,7 @@ fun OfflineAssistantApp(
                 readinessProvider = {
                     modelReadinessRepository.all().first { it.name == ModelNames.QWEN }
                 },
-                telemetryStore = telemetryStore,
+                telemetryStore = telemetryStore
             )
         } else {
             null
@@ -193,7 +193,7 @@ fun OfflineAssistantApp(
                 readinessProvider = {
                     modelReadinessRepository.all().first { it.name == ModelNames.RUBERT }
                 },
-                telemetryStore = telemetryStore,
+                telemetryStore = telemetryStore
             )
         } else {
             null
@@ -215,9 +215,9 @@ fun OfflineAssistantApp(
                 chatHistoryStore = SharedPreferencesChatHistoryStore(appContext),
                 weatherProvider = CachingWeatherProvider(
                     upstream = MockWeatherProvider { OffsetDateTime.now() },
-                    cache = SharedPreferencesWeatherCache(appContext),
-                ),
-            ),
+                    cache = SharedPreferencesWeatherCache(appContext)
+                )
+            )
         )
     }
     LaunchedEffect(
@@ -226,7 +226,7 @@ fun OfflineAssistantApp(
         modelReadinessRepository,
         telemetryStore,
         keepHeavyRuntimesResident,
-        runtimeEpoch,
+        runtimeEpoch
     ) {
         val gateway = speechGateway ?: return@LaunchedEffect
         withFrameNanos { }
@@ -241,8 +241,8 @@ fun OfflineAssistantApp(
                         SileroSpeechSynthesizer.fromBundle(
                             bundle = SileroModelBundle.fromDirectory(directory),
                             frontendBundle = SileroFrontendBundle.fromDirectory(directory),
-                            telemetryStore = telemetryStore,
-                        ),
+                            telemetryStore = telemetryStore
+                        )
                     ),
                     player = AudioTrackPcmPlayer(appContext),
                     onError = { error -> Log.e(SpeechLogTag, "Silero speech failed", error) },
@@ -250,10 +250,10 @@ fun OfflineAssistantApp(
                         telemetryStore.recordSuccess(
                             ModelNames.TTS_PLAYBACK,
                             com.offlineassistant.app.models.ModelOperations.FIRST_AUDIO,
-                            latencyMs,
+                            latencyMs
                         )
                     },
-                    onPlaybackRangeChanged = gateway::updatePlaybackRange,
+                    onPlaybackRangeChanged = gateway::updatePlaybackRange
                 )
             }.onFailure { error ->
                 Log.w(SpeechLogTag, "Silero speech is unavailable", error)
@@ -281,14 +281,17 @@ fun OfflineAssistantApp(
                         onOpenSettings = { selectedTab = AssistantTab.Settings },
                         voiceModel = voiceModelState,
                         speechPlaybackRange = playbackRange,
-                        onStopSpeech = { speechGateway?.stop(SpeechStopReason.USER_REQUESTED) },
+                        onStopSpeech = { speechGateway?.stop(SpeechStopReason.USER_REQUESTED) }
                     )
+
                     AssistantTab.Debug -> DebugScreen(
                         debugHistory = chatViewModel.state.debugHistory,
                         modelReadiness = modelReadinessState,
-                        deviceDiagnostics = DeviceDiagnostics.from(appContext),
+                        deviceDiagnostics = DeviceDiagnostics.from(appContext)
                     )
+
                     AssistantTab.WidgetPreview -> WidgetPreviewScreen()
+
                     AssistantTab.Settings -> SettingsScreen(
                         modelReadiness = modelReadinessState,
                         selectedVoiceModel = voiceModelState,
@@ -308,14 +311,14 @@ fun OfflineAssistantApp(
                         },
                         onClearChatHistory = { chatViewModel.clearChatHistory() },
                         onClearNotesReminders = { chatViewModel.clearNotesAndReminders() },
-                        deviceDiagnostics = DeviceDiagnostics.from(appContext),
+                        deviceDiagnostics = DeviceDiagnostics.from(appContext)
                     )
                 }
             }
             HorizontalDivider(color = AssistantColors.Border)
             NavigationBar(
                 containerColor = AssistantColors.Surface,
-                tonalElevation = 0.dp,
+                tonalElevation = 0.dp
             ) {
                 tabs.forEach { tab ->
                     NavigationBarItem(
@@ -324,10 +327,10 @@ fun OfflineAssistantApp(
                         icon = {
                             Icon(
                                 imageVector = navIcon(tab),
-                                contentDescription = null,
+                                contentDescription = null
                             )
                         },
-                        label = { Text(tab.title, style = androidx.compose.material3.MaterialTheme.typography.labelMedium) },
+                        label = { Text(tab.title, style = androidx.compose.material3.MaterialTheme.typography.labelMedium) }
                     )
                 }
             }
@@ -342,15 +345,14 @@ enum class AssistantTab(val title: String) {
     Chat("Чат"),
     Debug("История"),
     WidgetPreview("Навыки"),
-    Settings("Настройки"),
+    Settings("Настройки")
 }
 
-fun assistantTabs(internalScreensEnabled: Boolean): List<AssistantTab> =
-    if (internalScreensEnabled) {
-        listOf(AssistantTab.Chat, AssistantTab.Debug, AssistantTab.WidgetPreview, AssistantTab.Settings)
-    } else {
-        listOf(AssistantTab.Chat, AssistantTab.Settings)
-    }
+fun assistantTabs(internalScreensEnabled: Boolean): List<AssistantTab> = if (internalScreensEnabled) {
+    listOf(AssistantTab.Chat, AssistantTab.Debug, AssistantTab.WidgetPreview, AssistantTab.Settings)
+} else {
+    listOf(AssistantTab.Chat, AssistantTab.Settings)
+}
 
 @Composable
 private fun AssistantTopBar() {
@@ -359,7 +361,7 @@ private fun AssistantTopBar() {
             .fillMaxWidth()
             .height(56.dp)
             .background(AssistantColors.Surface)
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 18.dp)
     ) {
         Text(
             "Assistant",
@@ -368,7 +370,7 @@ private fun AssistantTopBar() {
                 .padding(bottom = 5.dp),
             style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = AssistantColors.Text,
+            color = AssistantColors.Text
         )
     }
     HorizontalDivider(color = AssistantColors.Border)

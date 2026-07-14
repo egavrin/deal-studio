@@ -20,18 +20,17 @@ class SkillContractsTest {
             override val id = "timer"
             override val supportedIntents = setOf(Intents.SET_TIMER)
 
-            override suspend fun execute(command: NormalizedCommand): SkillResult =
-                SkillResult(
-                    status = SkillStatus.SUCCESS,
-                    text = "Поставил таймер.",
-                    widget = WidgetPayload(
-                        type = WidgetTypes.TIMER_CARD,
-                        payload = buildJsonObject {
-                            put("duration_seconds", command.slots["duration_seconds"]?.jsonPrimitive?.content ?: "0")
-                        },
-                    ),
-                    actionResult = "scheduled",
-                )
+            override suspend fun execute(command: NormalizedCommand): SkillResult = SkillResult(
+                status = SkillStatus.SUCCESS,
+                text = "Поставил таймер.",
+                widget = WidgetPayload(
+                    type = WidgetTypes.TIMER_CARD,
+                    payload = buildJsonObject {
+                        put("duration_seconds", command.slots["duration_seconds"]?.jsonPrimitive?.content ?: "0")
+                    }
+                ),
+                actionResult = "scheduled"
+            )
         }
 
         val result = skill.execute(
@@ -39,8 +38,8 @@ class SkillContractsTest {
                 intent = Intents.SET_TIMER,
                 slots = buildJsonObject { put("duration_seconds", 300) },
                 originalText = "Поставь таймер на 5 минут",
-                source = NluSource.RUBERT_TINY2,
-            ),
+                source = NluSource.RUBERT_TINY2
+            )
         )
 
         assertEquals("timer", skill.id)
@@ -51,7 +50,7 @@ class SkillContractsTest {
         assertEquals("scheduled", result.actionResult)
         assertEquals(
             """{"status":"success","text":"Поставил таймер.","widget":{"type":"timer_card","payload":{"duration_seconds":"300"}},"actionResult":"scheduled"}""",
-            Json.encodeToString(result),
+            Json.encodeToString(result)
         )
     }
 }

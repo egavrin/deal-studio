@@ -1,13 +1,14 @@
 package com.offlineassistant.app.models
 
 import android.content.Context
+import androidx.core.content.edit
 
 data class ModelRuntimeTelemetry(
     val operation: String? = null,
     val successful: Boolean? = null,
     val latencyMs: Long? = null,
     val error: String? = null,
-    val updatedAtEpochMs: Long? = null,
+    val updatedAtEpochMs: Long? = null
 )
 
 interface ModelRuntimeTelemetryStore {
@@ -52,7 +53,7 @@ class SharedPreferencesModelRuntimeTelemetryStore(context: Context) : ModelRunti
             successful = preferences.getBoolean("$prefix.successful", false),
             latencyMs = preferences.getLong("$prefix.latency_ms", 0L),
             error = preferences.getString("$prefix.error", null),
-            updatedAtEpochMs = preferences.getLong("$prefix.updated_at", 0L),
+            updatedAtEpochMs = preferences.getLong("$prefix.updated_at", 0L)
         )
     }
 
@@ -66,13 +67,13 @@ class SharedPreferencesModelRuntimeTelemetryStore(context: Context) : ModelRunti
 
     private fun write(modelName: String, telemetry: ModelRuntimeTelemetry) {
         val prefix = keyPrefix(modelName)
-        preferences.edit()
-            .putString("$prefix.operation", telemetry.operation)
-            .putBoolean("$prefix.successful", telemetry.successful == true)
-            .putLong("$prefix.latency_ms", telemetry.latencyMs ?: 0L)
-            .putString("$prefix.error", telemetry.error)
-            .putLong("$prefix.updated_at", telemetry.updatedAtEpochMs ?: 0L)
-            .apply()
+        preferences.edit {
+            putString("$prefix.operation", telemetry.operation)
+            putBoolean("$prefix.successful", telemetry.successful == true)
+            putLong("$prefix.latency_ms", telemetry.latencyMs ?: 0L)
+            putString("$prefix.error", telemetry.error)
+            putLong("$prefix.updated_at", telemetry.updatedAtEpochMs ?: 0L)
+        }
     }
 
     private fun keyPrefix(modelName: String): String = modelName.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
@@ -99,7 +100,7 @@ private fun successfulTelemetry(operation: String, latencyMs: Long): ModelRuntim
     operation = operation,
     successful = true,
     latencyMs = latencyMs.coerceAtLeast(0L),
-    updatedAtEpochMs = System.currentTimeMillis(),
+    updatedAtEpochMs = System.currentTimeMillis()
 )
 
 private fun failedTelemetry(operation: String, latencyMs: Long, error: String): ModelRuntimeTelemetry = ModelRuntimeTelemetry(
@@ -107,5 +108,5 @@ private fun failedTelemetry(operation: String, latencyMs: Long, error: String): 
     successful = false,
     latencyMs = latencyMs.coerceAtLeast(0L),
     error = error,
-    updatedAtEpochMs = System.currentTimeMillis(),
+    updatedAtEpochMs = System.currentTimeMillis()
 )

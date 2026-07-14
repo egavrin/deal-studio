@@ -2,10 +2,10 @@ package com.offlineassistant.app.models
 
 import androidx.test.core.app.ApplicationProvider
 import com.offlineassistant.app.settings.VoiceModel
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 class ModelReadinessRepositoryTest {
     @Test
@@ -170,7 +170,7 @@ class ModelReadinessRepositoryTest {
             "accentor-exceptions.json",
             "homosolver.onnx",
             "homosolver-vocab.txt",
-            "homographs.json",
+            "homographs.json"
         )
         names.forEach { name -> File(stagedDir, name).writeText("fake $name") }
 

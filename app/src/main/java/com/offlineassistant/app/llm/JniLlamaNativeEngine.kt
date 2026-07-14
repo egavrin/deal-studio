@@ -9,11 +9,9 @@ object JniLlamaNativeEngine : LlamaNativeEngine {
         nativeWarmUp(modelPath)
     }
 
-    override fun generate(modelPath: String, prompt: String, maxTokens: Int): String =
-        nativeGenerate(modelPath, prompt, maxTokens)
+    override fun generate(modelPath: String, prompt: String, maxTokens: Int): String = nativeGenerate(modelPath, prompt, maxTokens)
 
-    override fun generate(modelPath: String, prompt: String, maxTokens: Int, onToken: (String) -> Unit): String =
-        nativeGenerateStreaming(modelPath, prompt, maxTokens, TokenCallback(onToken))
+    override fun generate(modelPath: String, prompt: String, maxTokens: Int, onToken: (String) -> Unit): String = nativeGenerateStreaming(modelPath, prompt, maxTokens, TokenCallback(onToken))
 
     override fun cancelGeneration() {
         nativeCancelGeneration()
@@ -31,7 +29,7 @@ object JniLlamaNativeEngine : LlamaNativeEngine {
         modelPath: String,
         prompt: String,
         maxTokens: Int,
-        callback: TokenCallback,
+        callback: TokenCallback
     ): String
 
     private external fun nativeCancelGeneration()

@@ -4,13 +4,13 @@ import androidx.test.core.app.ApplicationProvider
 import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluSource
+import java.io.File
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 
 class OnnxRubertNativeSmokeTest {
     @Test
@@ -28,7 +28,7 @@ class OnnxRubertNativeSmokeTest {
             "Какая погода сегодня?" to Intents.GET_WEATHER,
             "Посчитай 125 умножить на 37" to Intents.CALCULATE,
             "Напомни через час проверить духовку" to Intents.CREATE_REMINDER,
-            "Создай заметку купить молоко и яйца" to Intents.CREATE_NOTE,
+            "Создай заметку купить молоко и яйца" to Intents.CREATE_NOTE
         )
 
         cases.forEach { (text, expectedIntent) ->

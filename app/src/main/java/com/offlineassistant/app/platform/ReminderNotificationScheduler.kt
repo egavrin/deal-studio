@@ -23,20 +23,18 @@ private const val EXTRA_REMINDER_ID = "reminder_id"
 private const val EXTRA_REMINDER_TEXT = "reminder_text"
 
 class ReminderNotificationScheduler(
-    private val context: Context,
+    private val context: Context
 ) {
-    fun schedule(reminderId: String, text: String, triggerAtMillis: Long): Boolean {
-        return runCatching {
-            ensureChannel()
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                reminderPendingIntent(context, reminderId, text),
-            )
-            true
-        }.getOrDefault(false)
-    }
+    fun schedule(reminderId: String, text: String, triggerAtMillis: Long): Boolean = runCatching {
+        ensureChannel()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            triggerAtMillis,
+            reminderPendingIntent(context, reminderId, text)
+        )
+        true
+    }.getOrDefault(false)
 
     fun cancel(reminderId: String): Boolean = runCatching {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -47,7 +45,7 @@ class ReminderNotificationScheduler(
             context,
             reminderId.hashCode(),
             intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
         )
         pendingIntent?.let(alarmManager::cancel)
         pendingIntent?.cancel()
@@ -68,12 +66,11 @@ class ReminderNotificationScheduler(
     }
 
     fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
             "Напоминания",
-            NotificationManager.IMPORTANCE_DEFAULT,
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = "Локальные напоминания Offline Assistant"
         }
@@ -120,7 +117,7 @@ private fun reminderPendingIntent(context: Context, reminderId: String, text: St
         context,
         reminderId.hashCode(),
         intent,
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 }
 
@@ -128,5 +125,5 @@ private val RESCHEDULE_ACTIONS = setOf(
     Intent.ACTION_BOOT_COMPLETED,
     Intent.ACTION_MY_PACKAGE_REPLACED,
     Intent.ACTION_TIME_CHANGED,
-    Intent.ACTION_TIMEZONE_CHANGED,
+    Intent.ACTION_TIMEZONE_CHANGED
 )

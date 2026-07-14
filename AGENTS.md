@@ -47,6 +47,7 @@ Canonical commands:
 ```bash
 ./gradlew test
 ./gradlew assembleDebug
+./gradlew ktlintCheck detekt lintDebug
 ./gradlew installDebug
 ./gradlew :app:connectedDebugAndroidTest
 scripts/run_full_acceptance.sh --host-only
@@ -54,6 +55,8 @@ scripts/run_full_acceptance.sh
 ```
 
 After cloning, run `git lfs pull` and `git submodule update --init --recursive`. External Qwen, generated RuBERT and exported Silero bundles are required for the corresponding connected tests; see `README.md` for exact paths.
+
+Before opening a pull request, run `./gradlew ktlintCheck detekt lintDebug test assembleDebug :app:compileReleaseKotlin` plus the relevant Python/native policy tests. Do not push directly to `main`; repository rules require the `PR Quality / quality` check.
 
 ## Required Architecture
 

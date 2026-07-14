@@ -4,21 +4,21 @@ enum class SpeechBoundaryType {
     SENTENCE,
     CLAUSE,
     LATENCY_FALLBACK,
-    FINAL,
+    FINAL
 }
 
 data class PlannedSpeechChunk(
     val text: String,
     val startOffset: Int,
     val endOffset: Int,
-    val boundaryType: SpeechBoundaryType,
+    val boundaryType: SpeechBoundaryType
 )
 
 /** Plans stable, source-addressable speech phrases from streamed model deltas. */
 class SpeechChunker(
     private val maxChunkChars: Int = DEFAULT_MAX_CHUNK_CHARS,
     private val minClauseChars: Int = minOf(DEFAULT_MIN_CLAUSE_CHARS, maxChunkChars),
-    private val continuationMaxChunkChars: Int = DEFAULT_CONTINUATION_MAX_CHUNK_CHARS,
+    private val continuationMaxChunkChars: Int = DEFAULT_CONTINUATION_MAX_CHUNK_CHARS
 ) {
     private var messageId: String? = null
     private var observedText = StringBuilder()
@@ -39,7 +39,7 @@ class SpeechChunker(
     fun append(
         messageId: String,
         delta: String,
-        allowClauseBoundary: Boolean = true,
+        allowClauseBoundary: Boolean = true
     ): List<PlannedSpeechChunk> {
         if (delta.isEmpty()) return emptyList()
         ensureMessage(messageId)
@@ -75,7 +75,7 @@ class SpeechChunker(
 
     private fun drain(
         force: Boolean,
-        allowClauseBoundary: Boolean,
+        allowClauseBoundary: Boolean
     ): List<PlannedSpeechChunk> {
         val chunks = mutableListOf<PlannedSpeechChunk>()
         while (emittedLength < observedText.length) {
@@ -93,7 +93,7 @@ class SpeechChunker(
                     text = observedText.substring(start, contentEnd),
                     startOffset = start,
                     endOffset = contentEnd,
-                    boundaryType = boundary.type,
+                    boundaryType = boundary.type
                 )
             }
         }
@@ -102,7 +102,7 @@ class SpeechChunker(
 
     private fun nextChunkBoundary(
         force: Boolean,
-        allowClauseBoundary: Boolean,
+        allowClauseBoundary: Boolean
     ): Boundary? {
         var index = emittedLength
         while (index < observedText.length) {
@@ -163,6 +163,6 @@ class SpeechChunker(
 
     private data class Boundary(
         val endOffset: Int,
-        val type: SpeechBoundaryType,
+        val type: SpeechBoundaryType
     )
 }

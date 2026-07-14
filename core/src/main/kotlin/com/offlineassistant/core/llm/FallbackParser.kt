@@ -9,7 +9,7 @@ enum class FallbackKind {
     ANSWER,
     CLARIFICATION,
     UNSUPPORTED,
-    ERROR,
+    ERROR
 }
 
 data class FallbackParse(
@@ -20,7 +20,7 @@ data class FallbackParse(
     val answer: String? = null,
     val clarificationQuestion: String? = null,
     val error: String? = null,
-    val latencyMs: Long = 0,
+    val latencyMs: Long = 0
 )
 
 fun interface FallbackParser {
@@ -38,6 +38,6 @@ interface CancellableFallbackParser {
 object NoOpFallbackParser : FallbackParser {
     override fun parse(input: String, nlu: NluResult): FallbackParse = FallbackParse(
         kind = FallbackKind.ERROR,
-        error = "local LLM adapter not ready",
+        error = "local LLM adapter not ready"
     )
 }

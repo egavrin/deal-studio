@@ -10,8 +10,8 @@ import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
 import com.offlineassistant.core.skills.ClarificationRequest
-import com.offlineassistant.core.skills.NormalizedCommand
 import com.offlineassistant.core.skills.NormalizationResult
+import com.offlineassistant.core.skills.NormalizedCommand
 import com.offlineassistant.core.skills.SlotNormalizer
 import com.offlineassistant.core.storage.InMemoryNoteStore
 import com.offlineassistant.core.storage.InMemoryReminderStore
@@ -61,7 +61,7 @@ class AssistantEngineTest {
                     intent = Intents.GET_WEATHER,
                     confidence = 0.96,
                     slots = buildJsonObject { put("location", "Казань") },
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
             weatherProvider = WeatherProvider { location ->
@@ -73,12 +73,12 @@ class AssistantEngineTest {
                     humidityPercent = 81,
                     windMps = 6,
                     forecast = listOf(
-                        WeatherForecastPoint(time = "09:00", temperatureC = -5, condition = "snow"),
+                        WeatherForecastPoint(time = "09:00", temperatureC = -5, condition = "snow")
                     ),
                     source = "cache",
-                    updatedAt = "2026-07-09T12:00:00+03:00",
+                    updatedAt = "2026-07-09T12:00:00+03:00"
                 )
-            },
+            }
         )
 
         val response = engine.handleText("Какая погода?")
@@ -91,7 +91,7 @@ class AssistantEngineTest {
         assertEquals("cache", payload?.get("source")?.jsonPrimitive?.contentOrNull)
         assertEquals(
             "09:00",
-            payload?.get("forecast")?.jsonArray?.get(0)?.jsonObject?.get("time")?.jsonPrimitive?.contentOrNull,
+            payload?.get("forecast")?.jsonArray?.get(0)?.jsonObject?.get("time")?.jsonPrimitive?.contentOrNull
         )
     }
 
@@ -122,7 +122,7 @@ class AssistantEngineTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.94,
                     slots = buildJsonObject {},
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
             slotNormalizer = SlotNormalizer { _, nlu ->
@@ -131,10 +131,10 @@ class AssistantEngineTest {
                         question = "Сколько длится таймер?",
                         suggestions = listOf("3 минуты", "5 минут"),
                         pendingIntent = nlu.intent,
-                        partialSlots = nlu.slots,
-                    ),
+                        partialSlots = nlu.slots
+                    )
                 )
-            },
+            }
         )
 
         val response = engine.handleText("таймер")
@@ -154,7 +154,7 @@ class AssistantEngineTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.94,
                     slots = buildJsonObject {},
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
             slotNormalizer = SlotNormalizer { input, nlu ->
@@ -163,10 +163,10 @@ class AssistantEngineTest {
                         intent = nlu.intent,
                         slots = buildJsonObject { put("duration_seconds", 300) },
                         originalText = input,
-                        source = nlu.source,
-                    ),
+                        source = nlu.source
+                    )
                 )
-            },
+            }
         )
 
         val response = engine.handleText("таймер на пять минут")
@@ -182,7 +182,7 @@ class AssistantEngineTest {
                 ?.get("duration_seconds")
                 ?.jsonPrimitive
                 ?.contentOrNull
-                ?.toInt(),
+                ?.toInt()
         )
     }
 
@@ -240,7 +240,7 @@ class AssistantEngineTest {
         val reminderStore = InMemoryReminderStore()
         val storageEngine = AssistantEngine.createDemo(
             noteStore = noteStore,
-            reminderStore = reminderStore,
+            reminderStore = reminderStore
         )
 
         storageEngine.handleText("Запиши заметку купить молоко")
@@ -259,9 +259,9 @@ class AssistantEngineTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.87,
                     slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
-            },
+            }
         )
 
         val response = engine.handleText("любой текст")
@@ -294,9 +294,9 @@ class AssistantEngineTest {
                     kind = FallbackKind.COMMAND,
                     intent = Intents.SET_TIMER,
                     confidence = 0.91,
-                    slots = buildJsonObject { put("duration_seconds", 300) },
+                    slots = buildJsonObject { put("duration_seconds", 300) }
                 )
-            },
+            }
         )
 
         val response = engine.handleText("запусти обратный отсчет на пять минут")
@@ -318,9 +318,9 @@ class AssistantEngineTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.9,
                     answer = "Это похоже на команду таймера, но действие должен выбрать RuBERT.",
-                    latencyMs = 12,
+                    latencyMs = 12
                 )
-            },
+            }
         )
 
         val response = engine.handleText("обратный отсчет на пять минут")
@@ -341,9 +341,9 @@ class AssistantEngineTest {
             fallbackParser = FallbackParser { _, _ ->
                 FallbackParse(
                     kind = FallbackKind.ERROR,
-                    error = "Qwen GGUF model is not installed.",
+                    error = "Qwen GGUF model is not installed."
                 )
-            },
+            }
         )
 
         val response = engine.handleText("сложный вопрос")
@@ -366,7 +366,7 @@ class AssistantEngineTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.31,
                     slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
             fallbackParser = FallbackParser { _, _ ->
@@ -374,9 +374,9 @@ class AssistantEngineTest {
                 FallbackParse(
                     kind = FallbackKind.ANSWER,
                     confidence = 0.9,
-                    answer = "Qwen should not be called for low-confidence action intents.",
+                    answer = "Qwen should not be called for low-confidence action intents."
                 )
-            },
+            }
         )
 
         val response = engine.handleText("поставь что-то похожее на таймер")
@@ -396,9 +396,9 @@ class AssistantEngineTest {
                 FallbackParse(
                     kind = FallbackKind.ANSWER,
                     confidence = 0.82,
-                    answer = "Короткий локальный ответ.",
+                    answer = "Короткий локальный ответ."
                 )
-            },
+            }
         )
 
         val response = engine.handleText("объясни что такое офлайн ассистент")
@@ -419,9 +419,9 @@ class AssistantEngineTest {
                     kind = FallbackKind.COMMAND,
                     intent = "send_money",
                     confidence = 0.99,
-                    slots = buildJsonObject { put("amount", 1000) },
+                    slots = buildJsonObject { put("amount", 1000) }
                 )
-            },
+            }
         )
 
         val response = engine.handleText("переведи тысячу рублей")
@@ -437,7 +437,7 @@ class AssistantEngineTest {
             intent = Intents.UNKNOWN,
             confidence = 0.3,
             slots = buildJsonObject {},
-            source = NluSource.STUB,
+            source = NluSource.STUB
         )
     }
 }

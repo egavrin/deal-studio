@@ -4,10 +4,10 @@ import com.offlineassistant.app.models.InMemoryModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
 import com.offlineassistant.app.models.ModelReadiness
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.io.File
 
 class ZipformerTranscriberTest {
     @Test
@@ -20,10 +20,10 @@ class ZipformerTranscriberTest {
                 name = ModelNames.WHISPER,
                 ready = true,
                 location = "/models/zipformer_ru",
-                detail = "test",
+                detail = "test"
             ),
             nativeEngine = engine,
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = transcriber.transcribe(audioFile)
@@ -45,10 +45,10 @@ class ZipformerTranscriberTest {
                 name = ModelNames.WHISPER,
                 ready = false,
                 location = "/models/zipformer_ru",
-                detail = "missing",
+                detail = "missing"
             ),
             nativeEngine = engine,
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = transcriber.transcribe(File("voice.wav"))
@@ -60,7 +60,7 @@ class ZipformerTranscriberTest {
 }
 
 private class FakeZipformerNativeEngine(
-    private val transcript: String,
+    private val transcript: String
 ) : ZipformerNativeEngine {
     var modelDirectory: File? = null
         private set

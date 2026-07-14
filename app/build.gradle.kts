@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.baselineprofile)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.ktlint)
 }
 
 val asrVulkanEnabled = providers.gradleProperty("asrVulkan")
@@ -49,7 +51,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
+                "proguard-rules.pro"
             )
             // The PoC has no production keystore yet; this keeps release profiling installable.
             signingConfig = signingConfigs.getByName("debug")
@@ -76,9 +78,16 @@ android {
             excludes += setOf(
                 "lib/armeabi-v7a/**",
                 "lib/x86/**",
-                "lib/x86_64/**",
+                "lib/x86_64/**"
             )
         }
+    }
+
+    lint {
+        abortOnError = true
+        checkDependencies = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
     }
 
     externalNativeBuild {
@@ -119,6 +128,22 @@ dependencies {
     androidTestImplementation(libs.androidx.uiautomator)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    parallel = true
+}
+
+ktlint {
+    version.set(libs.versions.ktlint.get())
+    android.set(true)
+    outputToConsole.set(true)
+    filter {
+        exclude("**/build/**")
+        exclude("**/generated/**")
+    }
 }
 
 baselineProfile {

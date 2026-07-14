@@ -28,21 +28,21 @@ import com.offlineassistant.core.storage.NoteStore
 import com.offlineassistant.core.storage.ReminderStore
 import com.offlineassistant.core.weather.MockWeatherProvider
 import com.offlineassistant.core.weather.WeatherProvider
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import kotlinx.coroutines.runBlocking
 
 class AssistantEngine private constructor(
     private val nlu: NluParser,
     private val fallbackParser: FallbackParser,
     private val fallbackThreshold: Double,
     private val slotNormalizer: SlotNormalizer,
-    private val skillRegistry: SkillRegistry,
+    private val skillRegistry: SkillRegistry
 ) {
     fun handleText(input: String, onFallbackToken: ((String) -> Unit)? = null): AssistantResponse {
         val started = System.currentTimeMillis()
@@ -73,9 +73,9 @@ class AssistantEngine private constructor(
                     fallbackLlm = execution.fallbackLatencyMs,
                     normalization = normalizationLatency,
                     skillExecution = execution.skillExecutionLatencyMs,
-                    total = latency,
-                ),
-            ),
+                    total = latency
+                )
+            )
         )
     }
 
@@ -87,7 +87,7 @@ class AssistantEngine private constructor(
                 response = normalizedExecution.response,
                 debugNlu = nlu,
                 normalizedCommand = normalizedExecution.normalizedCommand,
-                skillExecutionLatencyMs = System.currentTimeMillis() - skillStarted,
+                skillExecutionLatencyMs = System.currentTimeMillis() - skillStarted
             )
         }
 
@@ -109,8 +109,9 @@ class AssistantEngine private constructor(
             FallbackKind.COMMAND -> fallbackGeneric(
                 input = input,
                 reason = "Local LLM command output is ignored; Android actions must come from RuBERT NLU.",
-                fallback = fallback,
+                fallback = fallback
             )
+
             FallbackKind.ANSWER -> {
                 val answer = fallback.answer?.takeIf { it.isNotBlank() }
                 if (answer == null) {
@@ -125,104 +126,109 @@ class AssistantEngine private constructor(
                             buildJsonObject {
                                 put("answer", answer)
                                 put("source", "local_llm")
-                            },
-                        ),
+                            }
+                        )
                     )
                     EngineExecution(
                         response = response,
                         debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
                         fallbackUsed = true,
-                        fallbackReason = "Local LLM fallback returned a text answer.",
+                        fallbackReason = "Local LLM fallback returned a text answer."
                     )
                 }
             }
+
             FallbackKind.CLARIFICATION -> clarification(
                 intent = fallback.intent ?: Intents.UNKNOWN,
                 question = fallback.clarificationQuestion ?: "Уточните команду.",
-                suggestions = listOf("Отмена"),
+                suggestions = listOf("Отмена")
             ).let {
                 EngineExecution(
                     response = it,
                     debugNlu = fallback.toDebugNlu(fallback.intent ?: Intents.UNKNOWN),
                     fallbackUsed = true,
-                    fallbackReason = "Local LLM fallback requested clarification.",
+                    fallbackReason = "Local LLM fallback requested clarification."
                 )
             }
+
             FallbackKind.UNSUPPORTED -> fallbackGeneric(input, "Fallback marked command as unsupported.", fallback)
+
             FallbackKind.ERROR -> fallbackError(fallback.error ?: "Fallback parser failed.", fallback)
         }
     }
 
-    private fun executeWithNormalization(input: String, nlu: NluResult): NormalizedExecution =
-        when (val normalized = slotNormalizer.normalize(input, nlu)) {
-            is NormalizationResult.Normalized -> NormalizedExecution(
-                response = execute(normalized.command),
-                normalizedCommand = buildJsonObject {
-                    put("intent", normalized.command.intent)
-                    put("slots", normalized.command.slots)
-                },
-            )
-            is NormalizationResult.Clarification -> NormalizedExecution(
-                response = clarification(
-                    intent = normalized.request.pendingIntent,
-                    question = normalized.request.question,
-                    suggestions = normalized.request.suggestions,
-                ),
-                normalizedCommand = buildJsonObject {
-                    put("intent", normalized.request.pendingIntent)
-                    put("slots", normalized.request.partialSlots)
-                },
-            )
-            is NormalizationResult.Error -> NormalizedExecution(
-                response = error(
-                    title = "Не получилось выполнить команду",
-                    message = normalized.error.message,
-                ),
-                normalizedCommand = buildJsonObject {
-                    normalized.error.intent?.let { put("intent", it) }
-                    normalized.error.slots?.let { put("slots", it) }
-                },
-            )
-        }
+    private fun executeWithNormalization(input: String, nlu: NluResult): NormalizedExecution = when (val normalized = slotNormalizer.normalize(input, nlu)) {
+        is NormalizationResult.Normalized -> NormalizedExecution(
+            response = execute(normalized.command),
+            normalizedCommand = buildJsonObject {
+                put("intent", normalized.command.intent)
+                put("slots", normalized.command.slots)
+            }
+        )
 
-    private fun fallbackError(message: String, fallback: FallbackParse): EngineExecution =
-        EngineExecution(
-            response = AssistantResponse(
-                status = ResponseStatus.ERROR,
-                text = "Локальная языковая модель недоступна.",
-                intent = Intents.UNKNOWN,
-                widget = WidgetPayload(
-                    WidgetTypes.ERROR_CARD,
-                    buildJsonObject {
-                        put("title", "Не получилось получить ответ")
-                        put("message", message)
-                        put("recoverable", true)
-                        put("suggestions", buildJsonArray {
+        is NormalizationResult.Clarification -> NormalizedExecution(
+            response = clarification(
+                intent = normalized.request.pendingIntent,
+                question = normalized.request.question,
+                suggestions = normalized.request.suggestions
+            ),
+            normalizedCommand = buildJsonObject {
+                put("intent", normalized.request.pendingIntent)
+                put("slots", normalized.request.partialSlots)
+            }
+        )
+
+        is NormalizationResult.Error -> NormalizedExecution(
+            response = error(
+                title = "Не получилось выполнить команду",
+                message = normalized.error.message
+            ),
+            normalizedCommand = buildJsonObject {
+                normalized.error.intent?.let { put("intent", it) }
+                normalized.error.slots?.let { put("slots", it) }
+            }
+        )
+    }
+
+    private fun fallbackError(message: String, fallback: FallbackParse): EngineExecution = EngineExecution(
+        response = AssistantResponse(
+            status = ResponseStatus.ERROR,
+            text = "Локальная языковая модель недоступна.",
+            intent = Intents.UNKNOWN,
+            widget = WidgetPayload(
+                WidgetTypes.ERROR_CARD,
+                buildJsonObject {
+                    put("title", "Не получилось получить ответ")
+                    put("message", message)
+                    put("recoverable", true)
+                    put(
+                        "suggestions",
+                        buildJsonArray {
                             add(JsonPrimitive("Открыть настройки"))
-                        })
-                    },
-                ),
-            ),
-            debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
-            fallbackUsed = true,
-            fallbackReason = message,
-        )
+                        }
+                    )
+                }
+            )
+        ),
+        debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
+        fallbackUsed = true,
+        fallbackReason = message
+    )
 
-    private fun fallbackGeneric(input: String, reason: String, fallback: FallbackParse): EngineExecution =
-        EngineExecution(
-            response = generic(input).copy(
-                widget = WidgetPayload(
-                    WidgetTypes.GENERIC_ANSWER_CARD,
-                    buildJsonObject {
-                        put("answer", fallback.answer ?: "Не удалось надежно разобрать команду локальной моделью.")
-                        put("source", "local_llm_fallback")
-                    },
-                ),
-            ),
-            debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
-            fallbackUsed = true,
-            fallbackReason = reason,
-        )
+    private fun fallbackGeneric(input: String, reason: String, fallback: FallbackParse): EngineExecution = EngineExecution(
+        response = generic(input).copy(
+            widget = WidgetPayload(
+                WidgetTypes.GENERIC_ANSWER_CARD,
+                buildJsonObject {
+                    put("answer", fallback.answer ?: "Не удалось надежно разобрать команду локальной моделью.")
+                    put("source", "local_llm_fallback")
+                }
+            )
+        ),
+        debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
+        fallbackUsed = true,
+        fallbackReason = reason
+    )
 
     private fun execute(command: NormalizedCommand): AssistantResponse {
         val result = runBlocking { skillRegistry.execute(command) }
@@ -230,57 +236,51 @@ class AssistantEngine private constructor(
             status = result.status.toResponseStatus(),
             text = result.text,
             intent = command.intent,
-            widget = result.widget,
+            widget = result.widget
         )
     }
 
-    private fun generic(input: String): AssistantResponse {
-        return AssistantResponse(
-            status = ResponseStatus.SUCCESS,
-            text = "Пока я лучше всего умею выполнять короткие локальные команды.",
-            intent = Intents.UNKNOWN,
-            widget = WidgetPayload(
-                WidgetTypes.GENERIC_ANSWER_CARD,
-                buildJsonObject {
-                    put("answer", "Локальная модель fallback пока не подключена. Команда сохранена как обычный вопрос: $input")
-                    put("source", "local_rule_fallback")
-                },
-            ),
+    private fun generic(input: String): AssistantResponse = AssistantResponse(
+        status = ResponseStatus.SUCCESS,
+        text = "Пока я лучше всего умею выполнять короткие локальные команды.",
+        intent = Intents.UNKNOWN,
+        widget = WidgetPayload(
+            WidgetTypes.GENERIC_ANSWER_CARD,
+            buildJsonObject {
+                put("answer", "Локальная модель fallback пока не подключена. Команда сохранена как обычный вопрос: $input")
+                put("source", "local_rule_fallback")
+            }
         )
-    }
+    )
 
-    private fun clarification(intent: String, question: String, suggestions: List<String>): AssistantResponse {
-        return AssistantResponse(
-            status = ResponseStatus.CLARIFICATION_REQUIRED,
-            text = question,
-            intent = intent,
-            widget = WidgetPayload(
-                WidgetTypes.CLARIFICATION_CARD,
-                buildJsonObject {
-                    put("question", question)
-                    put("suggestions", buildJsonArray { suggestions.forEach { add(JsonPrimitive(it)) } })
-                    put("pending_intent", intent)
-                },
-            ),
+    private fun clarification(intent: String, question: String, suggestions: List<String>): AssistantResponse = AssistantResponse(
+        status = ResponseStatus.CLARIFICATION_REQUIRED,
+        text = question,
+        intent = intent,
+        widget = WidgetPayload(
+            WidgetTypes.CLARIFICATION_CARD,
+            buildJsonObject {
+                put("question", question)
+                put("suggestions", buildJsonArray { suggestions.forEach { add(JsonPrimitive(it)) } })
+                put("pending_intent", intent)
+            }
         )
-    }
+    )
 
-    private fun error(title: String, message: String): AssistantResponse {
-        return AssistantResponse(
-            status = ResponseStatus.ERROR,
-            text = message,
-            intent = Intents.UNKNOWN,
-            widget = WidgetPayload(
-                WidgetTypes.ERROR_CARD,
-                buildJsonObject {
-                    put("title", title)
-                    put("message", message)
-                    put("recoverable", true)
-                    put("suggestions", buildJsonArray { add(JsonPrimitive("Попробовать снова")) })
-                },
-            ),
+    private fun error(title: String, message: String): AssistantResponse = AssistantResponse(
+        status = ResponseStatus.ERROR,
+        text = message,
+        intent = Intents.UNKNOWN,
+        widget = WidgetPayload(
+            WidgetTypes.ERROR_CARD,
+            buildJsonObject {
+                put("title", title)
+                put("message", message)
+                put("recoverable", true)
+                put("suggestions", buildJsonArray { add(JsonPrimitive("Попробовать снова")) })
+            }
         )
-    }
+    )
 
     companion object {
         fun createDemo(
@@ -292,20 +292,20 @@ class AssistantEngine private constructor(
             clock: () -> OffsetDateTime = { OffsetDateTime.now(ZoneId.systemDefault()) },
             weatherProvider: WeatherProvider = MockWeatherProvider(clock),
             slotNormalizer: SlotNormalizer = DeterministicSlotNormalizer(),
-            skillRegistry: SkillRegistry? = null,
+            skillRegistry: SkillRegistry? = null
         ): AssistantEngine {
             val resolvedSkillRegistry = skillRegistry ?: createBuiltInSkillRegistry(
                 clock = clock,
                 noteStore = noteStore,
                 reminderStore = reminderStore,
-                weatherProvider = weatherProvider,
+                weatherProvider = weatherProvider
             )
             return AssistantEngine(
                 nlu = nlu,
                 fallbackParser = fallbackParser,
                 fallbackThreshold = fallbackThreshold,
                 slotNormalizer = slotNormalizer,
-                skillRegistry = resolvedSkillRegistry,
+                skillRegistry = resolvedSkillRegistry
             )
         }
     }
@@ -318,19 +318,19 @@ private data class EngineExecution(
     val fallbackUsed: Boolean = false,
     val fallbackReason: String? = null,
     val fallbackLatencyMs: Long? = null,
-    val skillExecutionLatencyMs: Long = 0,
+    val skillExecutionLatencyMs: Long = 0
 )
 
 private data class NormalizedExecution(
     val response: AssistantResponse,
-    val normalizedCommand: JsonObject,
+    val normalizedCommand: JsonObject
 )
 
 private fun FallbackParse.toDebugNlu(intent: String): NluResult = NluResult(
     intent = intent,
     confidence = confidence,
     slots = slots,
-    source = NluSource.FALLBACK_LLM,
+    source = NluSource.FALLBACK_LLM
 )
 
 private fun SkillStatus.toResponseStatus(): ResponseStatus = when (this) {

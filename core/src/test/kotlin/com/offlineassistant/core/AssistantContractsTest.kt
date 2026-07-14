@@ -29,8 +29,8 @@ class AssistantContractsTest {
                     put("duration_seconds", 300)
                     put("label", "чай")
                     put("state", "running")
-                },
-            ),
+                }
+            )
         )
 
         val encoded = json.encodeToString(AssistantResponse.serializer(), response)
@@ -50,7 +50,7 @@ class AssistantContractsTest {
                   "text": "На какое время поставить будильник?",
                   "intent": "set_alarm"
                 }
-            """.trimIndent(),
+            """.trimIndent()
         )
 
         assertEquals(ResponseStatus.CLARIFICATION_REQUIRED, decoded.status)

@@ -5,7 +5,7 @@ import java.util.UUID
 data class StoredNote(
     val id: String,
     val text: String,
-    val createdAt: String,
+    val createdAt: String
 )
 
 interface NoteStore {
@@ -22,7 +22,7 @@ class InMemoryNoteStore : NoteStore {
         val note = StoredNote(
             id = UUID.randomUUID().toString(),
             text = text,
-            createdAt = createdAt,
+            createdAt = createdAt
         )
         notes[note.id] = note
         return note
@@ -44,7 +44,7 @@ data class StoredReminder(
     val id: String,
     val text: String,
     val datetime: String,
-    val state: String,
+    val state: String
 )
 
 interface ReminderStore {
@@ -62,7 +62,7 @@ class InMemoryReminderStore : ReminderStore {
             id = UUID.randomUUID().toString(),
             text = text,
             datetime = datetime,
-            state = "scheduled",
+            state = "scheduled"
         )
         reminders[reminder.id] = reminder
         return reminder

@@ -13,14 +13,14 @@ class SileroWordPieceTokenizerTest {
     @Test
     fun matchesSileroPythonTokenizerIncludingHomographMarkers() {
         val vocabularyBytes = requireNotNull(
-            javaClass.getResourceAsStream("/speech/silero-homosolver-vocab.txt"),
+            javaClass.getResourceAsStream("/speech/silero-homosolver-vocab.txt")
         ).readBytes()
         val vocabulary = Files.createTempFile("silero-homo-vocab", ".txt").toFile().apply {
             writeBytes(vocabularyBytes)
             deleteOnExit()
         }
         val fixtures = Json.parseToJsonElement(
-            requireNotNull(javaClass.getResource("/speech/silero-homosolver-tokenizer-fixtures.json")).readText(),
+            requireNotNull(javaClass.getResource("/speech/silero-homosolver-tokenizer-fixtures.json")).readText()
         ).jsonArray
         val tokenizer = SileroWordPieceTokenizer(vocabulary)
 

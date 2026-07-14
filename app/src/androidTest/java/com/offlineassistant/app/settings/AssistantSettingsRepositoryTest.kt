@@ -20,7 +20,7 @@ class AssistantSettingsRepositoryTest {
 
         assertEquals(
             VoiceModel.ZIPFORMER_RU_INT8,
-            AssistantSettingsRepository(context).voiceModel,
+            AssistantSettingsRepository(context).voiceModel
         )
     }
 }

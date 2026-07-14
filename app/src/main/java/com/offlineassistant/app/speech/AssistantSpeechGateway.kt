@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Allows a background-created speech runtime to be attached without rebuilding ChatViewModel. */
-class AssistantSpeechGateway : AssistantSpeech, Closeable {
+class AssistantSpeechGateway :
+    AssistantSpeech,
+    Closeable {
     private val lock = Any()
     private val _playbackRange = MutableStateFlow<SpeechPlaybackRange?>(null)
 
@@ -56,8 +58,7 @@ class AssistantSpeechGateway : AssistantSpeech, Closeable {
 
     override fun begin(messageId: String) = dispatch(SpeechEvent.Begin(messageId))
 
-    override fun begin(messageId: String, firstTokenAtNanos: Long) =
-        dispatch(SpeechEvent.Begin(messageId, firstTokenAtNanos))
+    override fun begin(messageId: String, firstTokenAtNanos: Long) = dispatch(SpeechEvent.Begin(messageId, firstTokenAtNanos))
 
     override fun append(messageId: String, delta: String) = dispatch(SpeechEvent.Append(messageId, delta))
 
@@ -65,7 +66,7 @@ class AssistantSpeechGateway : AssistantSpeech, Closeable {
 
     override fun replay(messageId: String, text: String) = dispatch(
         event = SpeechEvent.Replay(messageId, text),
-        requiresAutomaticSpeech = false,
+        requiresAutomaticSpeech = false
     )
 
     override fun stop(reason: SpeechStopReason) {
@@ -105,7 +106,7 @@ class AssistantSpeechGateway : AssistantSpeech, Closeable {
 
     private data class Installation(
         val previous: AssistantSpeech?,
-        val pending: List<SpeechEvent>,
+        val pending: List<SpeechEvent>
     )
 
     private sealed interface SpeechEvent {
@@ -113,7 +114,7 @@ class AssistantSpeechGateway : AssistantSpeech, Closeable {
 
         data class Begin(
             val messageId: String,
-            val firstTokenAtNanos: Long? = null,
+            val firstTokenAtNanos: Long? = null
         ) : SpeechEvent {
             override fun dispatchTo(target: AssistantSpeech) = if (firstTokenAtNanos == null) {
                 target.begin(messageId)

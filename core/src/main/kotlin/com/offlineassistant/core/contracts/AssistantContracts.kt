@@ -1,9 +1,9 @@
 package com.offlineassistant.core.contracts
 
+import com.offlineassistant.core.nlu.NluSource
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
-import com.offlineassistant.core.nlu.NluSource
 
 @Serializable
 data class AssistantResponse(
@@ -11,7 +11,7 @@ data class AssistantResponse(
     val text: String,
     val intent: String? = null,
     val widget: WidgetPayload? = null,
-    val debug: DebugInfo? = null,
+    val debug: DebugInfo? = null
 )
 
 @Serializable
@@ -26,13 +26,13 @@ enum class ResponseStatus {
     PERMISSION_REQUIRED,
 
     @SerialName("error")
-    ERROR,
+    ERROR
 }
 
 @Serializable
 data class WidgetPayload(
     val type: String,
-    val payload: JsonObject,
+    val payload: JsonObject
 )
 
 @Serializable
@@ -46,7 +46,7 @@ data class DebugInfo(
     val fallbackUsed: Boolean = false,
     val fallbackReason: String? = null,
     val actionResult: String? = null,
-    val latencyMs: LatencyBreakdown? = null,
+    val latencyMs: LatencyBreakdown? = null
 )
 
 @Serializable
@@ -58,5 +58,5 @@ data class LatencyBreakdown(
     val fallbackLlm: Long? = null,
     val normalization: Long? = null,
     val skillExecution: Long? = null,
-    val total: Long,
+    val total: Long
 )

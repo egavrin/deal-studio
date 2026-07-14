@@ -3,7 +3,7 @@ package com.offlineassistant.app.settings
 enum class VoiceModelEngine {
     WHISPER_CPP,
     SHERPA_ONNX,
-    SHERPA_ONNX_STREAMING,
+    SHERPA_ONNX_STREAMING
 }
 
 enum class VoiceModel(
@@ -11,14 +11,14 @@ enum class VoiceModel(
     val displayName: String,
     val summary: String,
     val engine: VoiceModelEngine,
-    val requiredPaths: List<String>,
+    val requiredPaths: List<String>
 ) {
     WHISPER_BASE_Q5_1(
         stableId = "whisper_base_q5_1",
         displayName = "Whisper Base Q5_1",
         summary = "Быстрее · 57 МБ · русский и другие языки",
         engine = VoiceModelEngine.WHISPER_CPP,
-        requiredPaths = listOf("models/whisper/whisper-base-multilingual-q5_1.bin"),
+        requiredPaths = listOf("models/whisper/whisper-base-multilingual-q5_1.bin")
     ),
     ZIPFORMER_RU_INT8(
         stableId = "zipformer_ru_int8",
@@ -29,8 +29,8 @@ enum class VoiceModel(
             "models/zipformer_ru/encoder.int8.onnx",
             "models/zipformer_ru/decoder.onnx",
             "models/zipformer_ru/joiner.int8.onnx",
-            "models/zipformer_ru/tokens.txt",
-        ),
+            "models/zipformer_ru/tokens.txt"
+        )
     ),
     TONE_RU_STREAMING(
         stableId = "tone_ru_streaming",
@@ -39,9 +39,9 @@ enum class VoiceModel(
         engine = VoiceModelEngine.SHERPA_ONNX_STREAMING,
         requiredPaths = listOf(
             "models/tone_ru/model.onnx",
-            "models/tone_ru/tokens.txt",
-        ),
-    ),
+            "models/tone_ru/tokens.txt"
+        )
+    )
     ;
 
     companion object {

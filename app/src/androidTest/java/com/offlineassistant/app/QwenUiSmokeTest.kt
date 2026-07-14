@@ -2,24 +2,24 @@ package com.offlineassistant.app
 
 import android.util.Log
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
-import com.offlineassistant.app.models.ModelReadinessRepository
+import androidx.test.platform.app.InstrumentationRegistry
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.models.SharedPreferencesModelRuntimeTelemetryStore
 import com.offlineassistant.app.settings.AssistantSettingsRepository
-import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assume.assumeTrue
+import java.io.File
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
 
 class QwenUiSmokeTest {
     @get:Rule
@@ -131,7 +131,7 @@ class QwenUiSmokeTest {
         Log.i(
             "WarmSpeechLatency",
             "{\"first_token_to_first_audio_ms\":${firstAudio.latencyMs}," +
-                "\"updated_at_ms\":${firstAudio.updatedAtEpochMs}}",
+                "\"updated_at_ms\":${firstAudio.updatedAtEpochMs}}"
         )
         stopSpeechIfPlaying()
     }
@@ -147,8 +147,7 @@ class QwenUiSmokeTest {
         }
     }
 
-    private fun firstAudioTimestamp(): Long =
-        speechTelemetry.read(ModelNames.TTS_PLAYBACK).updatedAtEpochMs ?: 0L
+    private fun firstAudioTimestamp(): Long = speechTelemetry.read(ModelNames.TTS_PLAYBACK).updatedAtEpochMs ?: 0L
 
     private fun waitForNewFirstAudio(previousTimestamp: Long): Long {
         compose.waitUntil(timeoutMillis = 60_000) {

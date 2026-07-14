@@ -1,13 +1,13 @@
 package com.offlineassistant.app.asr
 
-import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.InMemoryModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadiness
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.io.File
 
 class WhisperTranscriberTest {
     @Test
@@ -20,10 +20,10 @@ class WhisperTranscriberTest {
                 name = "Whisper",
                 ready = true,
                 location = "/models/whisper.bin",
-                detail = "test",
+                detail = "test"
             ),
             nativeEngine = engine,
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = transcriber.transcribe(audioFile)
@@ -45,10 +45,10 @@ class WhisperTranscriberTest {
                 name = "Whisper",
                 ready = false,
                 location = "models/whisper/missing.bin",
-                detail = "missing",
+                detail = "missing"
             ),
             nativeEngine = engine,
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = transcriber.transcribe(File("voice.wav"))
@@ -61,7 +61,7 @@ class WhisperTranscriberTest {
 }
 
 private class FakeWhisperNativeEngine(
-    private val transcript: String,
+    private val transcript: String
 ) : WhisperNativeEngine {
     var modelPath: String? = null
         private set

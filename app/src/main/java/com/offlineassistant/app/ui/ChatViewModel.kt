@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.offlineassistant.app.storage.ChatHistoryStore
+import com.offlineassistant.app.storage.NoOpChatHistoryStore
+import com.offlineassistant.app.voice.AudioTranscriber
+import com.offlineassistant.app.voice.StreamingTranscriptionSession
+import com.offlineassistant.app.voice.VoiceCommandPipeline
 import com.offlineassistant.app.widgets.WidgetAction
 import com.offlineassistant.app.widgets.WidgetActionNames
-import com.offlineassistant.app.voice.AudioTranscriber
-import com.offlineassistant.app.voice.VoiceCommandPipeline
 import com.offlineassistant.core.contracts.AssistantResponse
 import com.offlineassistant.core.contracts.DebugInfo
 import com.offlineassistant.core.contracts.LatencyBreakdown
@@ -15,25 +18,35 @@ import com.offlineassistant.core.contracts.ResponseStatus
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.engine.AssistantEngine
-import com.offlineassistant.core.nlu.Intents
-import com.offlineassistant.core.llm.FallbackParser
 import com.offlineassistant.core.llm.CancellableFallbackParser
+import com.offlineassistant.core.llm.FallbackParser
 import com.offlineassistant.core.llm.NoOpFallbackParser
+import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.RuleBasedNlu
+import com.offlineassistant.core.speech.AssistantSpeech
+import com.offlineassistant.core.speech.NoOpAssistantSpeech
+import com.offlineassistant.core.speech.SpeechStopReason
 import com.offlineassistant.core.storage.InMemoryNoteStore
 import com.offlineassistant.core.storage.InMemoryReminderStore
 import com.offlineassistant.core.storage.NoteStore
 import com.offlineassistant.core.storage.ReminderStore
 import com.offlineassistant.core.storage.StoredNote
-import com.offlineassistant.app.storage.ChatHistoryStore
-import com.offlineassistant.app.storage.NoOpChatHistoryStore
-import com.offlineassistant.core.speech.AssistantSpeech
-import com.offlineassistant.core.speech.NoOpAssistantSpeech
-import com.offlineassistant.core.speech.SpeechStopReason
 import com.offlineassistant.core.weather.MockWeatherProvider
 import com.offlineassistant.core.weather.WeatherProvider
-import com.offlineassistant.app.voice.StreamingTranscriptionSession
+import java.io.File
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -42,19 +55,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.util.UUID
 
 class ChatViewModel(
     noteStore: NoteStore? = null,
@@ -66,7 +66,7 @@ class ChatViewModel(
     private val assistantSpeech: AssistantSpeech = NoOpAssistantSpeech,
     private val chatHistoryStore: ChatHistoryStore = NoOpChatHistoryStore,
     private val weatherProvider: WeatherProvider = MockWeatherProvider { OffsetDateTime.now() },
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     private val noteStore: NoteStore = noteStore ?: InMemoryNoteStore()
     private val reminderStore: ReminderStore = reminderStore ?: InMemoryReminderStore()
@@ -90,7 +90,7 @@ class ChatViewModel(
                 reminderStore = reminderStore,
                 fallbackParser = fallbackParser,
                 fallbackThreshold = threshold,
-                weatherProvider = weatherProvider,
+                weatherProvider = weatherProvider
             ).also {
                 cachedAssistantEngine = it
                 cachedFallbackThreshold = threshold
@@ -134,7 +134,7 @@ class ChatViewModel(
                 val execution = executeStreaming(text, onStateChanged)
                 appendFinalAssistantResponse(
                     execution.response.withFirstVisibleTokenLatency(execution.firstVisibleTokenMs),
-                    replaceMessageId = execution.messageId,
+                    replaceMessageId = execution.messageId
                 )
                 onStateChanged(state)
             } finally {
@@ -156,7 +156,7 @@ class ChatViewModel(
 
     private suspend fun executeStreaming(
         text: String,
-        onStateChanged: (ChatUiState) -> Unit,
+        onStateChanged: (ChatUiState) -> Unit
     ): StreamingExecution = coroutineScope {
         val startedAtNanos = System.nanoTime()
         val tokenBuffer = StreamingTokenBuffer()
@@ -174,7 +174,7 @@ class ChatViewModel(
                     streamingMessageId = appendStreamingAssistantToken(
                         streamingMessageId,
                         delta,
-                        tokenBuffer.firstTokenAtNanos(),
+                        tokenBuffer.firstTokenAtNanos()
                     )
                     onStateChanged(state)
                 }
@@ -201,13 +201,13 @@ class ChatViewModel(
             id = UUID.randomUUID().toString(),
             createdAt = Instant.now().toString(),
             text = text,
-            source = source,
+            source = source
         )
         state = state.copy(
             messages = state.messages + user,
             inputText = "",
             isProcessing = true,
-            processingStage = ProcessingStage.UNDERSTANDING,
+            processingStage = ProcessingStage.UNDERSTANDING
         )
         persistHistory()
     }
@@ -215,7 +215,7 @@ class ChatViewModel(
     private fun appendStreamingAssistantToken(
         messageId: String?,
         token: String,
-        firstTokenAtNanos: Long?,
+        firstTokenAtNanos: Long?
     ): String {
         val visibleToken = token.takeIf { it.isNotEmpty() } ?: return messageId ?: ""
         if (messageId == null) {
@@ -232,8 +232,8 @@ class ChatViewModel(
                     createdAt = Instant.now().toString(),
                     text = visibleToken,
                     widget = null,
-                    debug = null,
-                ),
+                    debug = null
+                )
             )
             return id
         }
@@ -245,7 +245,7 @@ class ChatViewModel(
                 } else {
                     message
                 }
-            },
+            }
         )
         return messageId
     }
@@ -262,7 +262,7 @@ class ChatViewModel(
             createdAt = Instant.now().toString(),
             text = displayResponse.text,
             widget = displayResponse.widget,
-            debug = displayResponse.debug,
+            debug = displayResponse.debug
         )
         assistantSpeech.finish(assistant.id, displayResponse.text)
         state = state.copy(
@@ -274,7 +274,7 @@ class ChatViewModel(
             isProcessing = false,
             processingStage = null,
             latestDebugInfo = displayResponse.debug,
-            debugHistory = appendDebugHistory(displayResponse.debug),
+            debugHistory = appendDebugHistory(displayResponse.debug)
         )
         persistHistory()
     }
@@ -282,7 +282,7 @@ class ChatViewModel(
     fun fakeVoiceTranscript(): ChatUiState {
         state = state.copy(
             isRecording = !state.isRecording,
-            transcriptPreview = if (!state.isRecording) "Локальная запись: готово к whisper.cpp" else null,
+            transcriptPreview = if (!state.isRecording) "Локальная запись: готово к whisper.cpp" else null
         )
         return state
     }
@@ -294,7 +294,7 @@ class ChatViewModel(
             isProcessing = false,
             processingStage = null,
             transcriptPreview = "Идет локальная запись...",
-            stableTranscriptPrefix = null,
+            stableTranscriptPrefix = null
         )
         return state
     }
@@ -303,7 +303,7 @@ class ChatViewModel(
         state = state.copy(
             isRecording = false,
             isProcessing = true,
-            processingStage = ProcessingStage.FINALIZING_RECORDING,
+            processingStage = ProcessingStage.FINALIZING_RECORDING
         )
         return state
     }
@@ -315,7 +315,7 @@ class ChatViewModel(
                 .orEmpty()
             state = state.copy(
                 transcriptPreview = transcript,
-                stableTranscriptPrefix = commonTranscriptPrefix(previous, transcript),
+                stableTranscriptPrefix = commonTranscriptPrefix(previous, transcript)
             )
         }
         return state
@@ -326,7 +326,7 @@ class ChatViewModel(
             state = state.copy(isRecording = false)
             state = appendAssistantMessage(
                 text = "Не удалось сохранить голосовую команду.",
-                widget = null,
+                widget = null
             )
             return state
         }
@@ -334,7 +334,7 @@ class ChatViewModel(
         deleteRecorderCacheFile(audioFile)
         val response = result.response.withVoiceDebug(
             transcript = result.transcript,
-            asrLatencyMs = result.transcriptionLatencyMs,
+            asrLatencyMs = result.transcriptionLatencyMs
         )
             .withResolvedOpenAppCandidates()
             .withAndroidPermissionGate()
@@ -347,8 +347,8 @@ class ChatViewModel(
                     id = UUID.randomUUID().toString(),
                     createdAt = Instant.now().toString(),
                     text = transcript,
-                    source = "voice",
-                ),
+                    source = "voice"
+                )
             )
         }
         val assistantId = UUID.randomUUID().toString()
@@ -359,12 +359,12 @@ class ChatViewModel(
                 createdAt = Instant.now().toString(),
                 text = response.text,
                 widget = response.widget,
-                debug = response.debug,
+                debug = response.debug
             ),
             isRecording = false,
             transcriptPreview = result.transcript ?: "Аудио обработано локально.",
             latestDebugInfo = response.debug,
-            debugHistory = appendDebugHistory(response.debug),
+            debugHistory = appendDebugHistory(response.debug)
         )
         persistHistory()
         return state
@@ -373,13 +373,13 @@ class ChatViewModel(
     fun handleVoiceRecordingAsync(
         audioFile: File?,
         transcriber: AudioTranscriber,
-        onStateChanged: (ChatUiState) -> Unit,
+        onStateChanged: (ChatUiState) -> Unit
     ): ChatUiState {
         if (audioFile == null) {
             state = state.copy(isRecording = false, isProcessing = false, processingStage = null)
             state = appendAssistantMessage(
                 text = "Не удалось сохранить голосовую команду.",
-                widget = null,
+                widget = null
             )
             onStateChanged(state)
             return state
@@ -388,30 +388,29 @@ class ChatViewModel(
         return processVoiceTranscriptionAsync(
             audioFile = audioFile,
             transcribe = { transcriber.transcribe(audioFile) },
-            onStateChanged = onStateChanged,
+            onStateChanged = onStateChanged
         )
     }
 
     fun handleStreamingVoiceRecordingAsync(
         session: StreamingTranscriptionSession,
-        onStateChanged: (ChatUiState) -> Unit,
+        onStateChanged: (ChatUiState) -> Unit
     ): ChatUiState = processVoiceTranscriptionAsync(
         audioFile = null,
         transcribe = session::finish,
-        onStateChanged = onStateChanged,
+        onStateChanged = onStateChanged
     )
 
     private fun processVoiceTranscriptionAsync(
         audioFile: File?,
         transcribe: () -> com.offlineassistant.app.voice.AudioTranscription,
-        onStateChanged: (ChatUiState) -> Unit,
+        onStateChanged: (ChatUiState) -> Unit
     ): ChatUiState {
-
         state = state.copy(
             isRecording = false,
             isProcessing = true,
             processingStage = ProcessingStage.TRANSCRIBING,
-            transcriptPreview = "Распознаю голос локально...",
+            transcriptPreview = "Распознаю голос локально..."
         )
         onStateChanged(state)
 
@@ -447,9 +446,9 @@ class ChatViewModel(
                 val response = execution.response
                     .withFirstVisibleTokenLatency(execution.firstVisibleTokenMs)
                     .withVoiceDebug(
-                    transcript = transcript,
-                    asrLatencyMs = transcription.latencyMs,
-                )
+                        transcript = transcript,
+                        asrLatencyMs = transcription.latencyMs
+                    )
                 appendFinalAssistantResponse(response, replaceMessageId = execution.messageId)
                 onStateChanged(state)
             } finally {
@@ -479,15 +478,15 @@ class ChatViewModel(
                 put("title", "Не получилось обработать команду")
                 put("message", error.message ?: "Локальная модель не смогла ответить.")
                 put("recoverable", true)
-            },
+            }
         ),
         debug = DebugInfo(
             transcript = input,
             intent = Intents.UNKNOWN,
             fallbackUsed = true,
             fallbackReason = error.message ?: "async processing failed",
-            actionResult = "error",
-        ),
+            actionResult = "error"
+        )
     )
 
     private fun voiceTranscriptionError(message: String): AssistantResponse = AssistantResponse(
@@ -500,9 +499,9 @@ class ChatViewModel(
                 put("title", "Не получилось распознать голос")
                 put("message", JsonPrimitive(message))
                 put("recoverable", true)
-            },
+            }
         ),
-        debug = null,
+        debug = null
     )
 
     fun showMicrophonePermissionCard(): ChatUiState {
@@ -514,10 +513,10 @@ class ChatViewModel(
                     mapOf(
                         "permission" to JsonPrimitive("RECORD_AUDIO"),
                         "reason" to JsonPrimitive("Чтобы записать голосовую команду, нужно разрешение на микрофон."),
-                        "action" to JsonPrimitive("request_permission"),
-                    ),
-                ),
-            ),
+                        "action" to JsonPrimitive("request_permission")
+                    )
+                )
+            )
         )
         return state
     }
@@ -535,7 +534,7 @@ class ChatViewModel(
                     else -> "$permission не выдан. Голосовая запись пока недоступна."
                 }
             },
-            widget = null,
+            widget = null
         )
         return state
     }
@@ -557,7 +556,7 @@ class ChatViewModel(
         reminderStore.list().forEach { reminderStore.delete(it.id) }
         state = appendAssistantMessage(
             text = "Заметки и напоминания очищены.",
-            widget = null,
+            widget = null
         )
         return state
     }
@@ -622,10 +621,10 @@ class ChatViewModel(
                             if (newState == "running") {
                                 put("ends_at_epoch_ms", System.currentTimeMillis() + remaining * 1_000L)
                             }
-                        },
-                    ),
+                        }
+                    )
                 )
-            },
+            }
         )
         if (updated) persistHistory()
         return state
@@ -678,18 +677,16 @@ class ChatViewModel(
         }
     }
 
-    private fun openSystemAlarms(): String =
-        if (platformActions.openSystemAlarms()) {
-            "Открываю системный будильник."
-        } else {
-            "Не удалось открыть системный будильник."
-        }
+    private fun openSystemAlarms(): String = if (platformActions.openSystemAlarms()) {
+        "Открываю системный будильник."
+    } else {
+        "Не удалось открыть системный будильник."
+    }
 
-    private fun errorSuggestion(action: WidgetAction): String =
-        when (action.payload["target"]) {
-            "settings" -> "Открываю настройки."
-            else -> action.payload["text"] ?: "Попробуйте еще раз."
-        }
+    private fun errorSuggestion(action: WidgetAction): String = when (action.payload["target"]) {
+        "settings" -> "Открываю настройки."
+        else -> action.payload["text"] ?: "Попробуйте еще раз."
+    }
 
     private fun deleteNote(action: WidgetAction): String {
         val noteId = action.payload["note_id"] ?: return "Не нашел id заметки для удаления."
@@ -714,16 +711,16 @@ class ChatViewModel(
                         mapOf(
                             "title" to JsonPrimitive("Не получилось обновить заметку"),
                             "message" to JsonPrimitive("Заметка уже удалена или не найдена."),
-                            "recoverable" to JsonPrimitive(false),
-                        ),
-                    ),
-                ),
+                            "recoverable" to JsonPrimitive(false)
+                        )
+                    )
+                )
             )
         return AssistantResponse(
             status = ResponseStatus.SUCCESS,
             text = "Заметка обновлена.",
             intent = Intents.CREATE_NOTE,
-            widget = updated.toNoteWidget(),
+            widget = updated.toNoteWidget()
         )
     }
 
@@ -756,8 +753,8 @@ class ChatViewModel(
                 createdAt = Instant.now().toString(),
                 text = text,
                 widget = widget,
-                debug = null,
-            ),
+                debug = null
+            )
         ).also { chatHistoryStore.save(it.messages) }
     }
 
@@ -770,8 +767,7 @@ class ChatViewModel(
         return state
     }
 
-    private fun appendDebugHistory(debug: DebugInfo?): List<DebugInfo> =
-        debug?.let { (state.debugHistory + it).takeLast(MaxDebugHistoryItems) } ?: state.debugHistory
+    private fun appendDebugHistory(debug: DebugInfo?): List<DebugInfo> = debug?.let { (state.debugHistory + it).takeLast(MaxDebugHistoryItems) } ?: state.debugHistory
 
     private fun AssistantResponse.withAndroidPermissionGate(): AssistantResponse {
         if (intent != Intents.CREATE_REMINDER || platformActions.hasPermission(PermissionNames.POST_NOTIFICATIONS)) {
@@ -786,11 +782,11 @@ class ChatViewModel(
                     mapOf(
                         "permission" to JsonPrimitive(PermissionNames.POST_NOTIFICATIONS),
                         "reason" to JsonPrimitive("Чтобы создавать напоминания, нужно разрешение на уведомления."),
-                        "action" to JsonPrimitive("request_permission"),
-                    ),
-                ),
+                        "action" to JsonPrimitive("request_permission")
+                    )
+                )
             ),
-            debug = debug?.copy(actionResult = "permission_required"),
+            debug = debug?.copy(actionResult = "permission_required")
         )
     }
 
@@ -810,23 +806,30 @@ class ChatViewModel(
                     put("package_name", "unknown")
                     put("state", "not_found")
                 }
+
                 1 -> {
                     val candidate = candidates.single()
                     put("app_name", candidate.appName)
                     put("package_name", candidate.packageName)
                     put("state", "confirmation_required")
                 }
+
                 else -> {
                     put("package_name", "unknown")
                     put("state", "confirmation_required")
-                    put("alternatives", buildJsonArray {
-                        candidates.forEach { candidate ->
-                            add(buildJsonObject {
-                                put("app_name", candidate.appName)
-                                put("package_name", candidate.packageName)
-                            })
+                    put(
+                        "alternatives",
+                        buildJsonArray {
+                            candidates.forEach { candidate ->
+                                add(
+                                    buildJsonObject {
+                                        put("app_name", candidate.appName)
+                                        put("package_name", candidate.packageName)
+                                    }
+                                )
+                            }
                         }
-                    })
+                    )
                 }
             }
         }
@@ -839,7 +842,7 @@ class ChatViewModel(
         return copy(
             text = resolvedText,
             widget = openAppWidget.copy(payload = resolvedPayload),
-            debug = currentDebug?.copy(actionResult = resolvedPayload.string("state") ?: currentDebug.actionResult),
+            debug = currentDebug?.copy(actionResult = resolvedPayload.string("state") ?: currentDebug.actionResult)
         )
     }
 
@@ -861,7 +864,7 @@ class ChatViewModel(
         platformActions.scheduleReminderNotification(
             reminderId = reminderId,
             text = text,
-            triggerAtMillis = triggerAtMillis,
+            triggerAtMillis = triggerAtMillis
         )
         return this
     }
@@ -884,9 +887,9 @@ class ChatViewModel(
                     put("mode", "in_app")
                     put("state", "running")
                     put("ends_at_epoch_ms", System.currentTimeMillis() + durationSeconds * 1_000L)
-                },
+                }
             ),
-            debug = debug?.copy(actionResult = "success"),
+            debug = debug?.copy(actionResult = "success")
         )
     }
 
@@ -908,31 +911,30 @@ class ChatViewModel(
             copy(
                 text = "Будильник создан в системном приложении.",
                 widget = alarmWidget.copy(payload = alarmWidget.payload.withPassiveSystemMode()),
-                debug = debug?.copy(actionResult = "success"),
+                debug = debug?.copy(actionResult = "success")
             )
         } else {
             systemActionError(
                 text = "Не получилось создать будильник.",
                 title = "Не получилось выполнить команду",
-                message = "Я понял команду, но не смог создать будильник.",
+                message = "Я понял команду, но не смог создать будильник."
             )
         }
     }
 
-    private fun AssistantResponse.systemActionError(text: String, title: String, message: String): AssistantResponse =
-        copy(
-            status = ResponseStatus.ERROR,
-            text = text,
-            widget = WidgetPayload(
-                type = WidgetTypes.ERROR_CARD,
-                payload = buildJsonObject {
-                    put("title", title)
-                    put("message", message)
-                    put("recoverable", true)
-                },
-            ),
-            debug = debug?.copy(actionResult = "error"),
-        )
+    private fun AssistantResponse.systemActionError(text: String, title: String, message: String): AssistantResponse = copy(
+        status = ResponseStatus.ERROR,
+        text = text,
+        widget = WidgetPayload(
+            type = WidgetTypes.ERROR_CARD,
+            payload = buildJsonObject {
+                put("title", title)
+                put("message", message)
+                put("recoverable", true)
+            }
+        ),
+        debug = debug?.copy(actionResult = "error")
+    )
 
     private companion object {
         const val MaxDebugHistoryItems = 50
@@ -943,7 +945,7 @@ class ChatViewModel(
 private data class StreamingExecution(
     val response: AssistantResponse,
     val messageId: String?,
-    val firstVisibleTokenMs: Long?,
+    val firstVisibleTokenMs: Long?
 )
 
 private class StreamingTokenBuffer {
@@ -981,9 +983,9 @@ private fun StoredNote.toNoteWidget(): WidgetPayload = WidgetPayload(
         mapOf(
             "note_id" to JsonPrimitive(id),
             "text" to JsonPrimitive(text),
-            "created_at" to JsonPrimitive(createdAt),
-        ),
-    ),
+            "created_at" to JsonPrimitive(createdAt)
+        )
+    )
 )
 
 object PermissionNames {
@@ -991,11 +993,9 @@ object PermissionNames {
     const val POST_NOTIFICATIONS = "POST_NOTIFICATIONS"
 }
 
-private fun JsonObject.string(key: String): String? =
-    this[key]?.jsonPrimitive?.contentOrNull
+private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
-private fun JsonObject.int(key: String): Int? =
-    this[key]?.jsonPrimitive?.intOrNull
+private fun JsonObject.int(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
 
 private fun JsonObject.withPassiveSystemMode(): JsonObject = buildJsonObject {
     this@withPassiveSystemMode.forEach { (key, value) -> put(key, value) }
@@ -1006,7 +1006,7 @@ private fun JsonObject.withPassiveSystemMode(): JsonObject = buildJsonObject {
 private fun AssistantResponse.withVoiceDebug(transcript: String?, asrLatencyMs: Long): AssistantResponse {
     val baseDebug = debug ?: DebugInfo(
         transcript = transcript,
-        actionResult = status.name.lowercase(),
+        actionResult = status.name.lowercase()
     )
     val currentLatency = baseDebug.latencyMs
     val latency = if (currentLatency == null) {
@@ -1014,14 +1014,14 @@ private fun AssistantResponse.withVoiceDebug(transcript: String?, asrLatencyMs: 
     } else {
         currentLatency.copy(
             asr = asrLatencyMs,
-            total = currentLatency.total + asrLatencyMs,
+            total = currentLatency.total + asrLatencyMs
         )
     }
     return copy(
         debug = baseDebug.copy(
             transcript = baseDebug.transcript ?: transcript,
-            latencyMs = latency,
-        ),
+            latencyMs = latency
+        )
     )
 }
 
@@ -1039,8 +1039,8 @@ data class ChatUiState(
             createdAt = Instant.now().toString(),
             text = "Напишите команду или нажмите микрофон.",
             widget = null,
-            debug = null,
-        ),
+            debug = null
+        )
     ),
     val inputText: String = "",
     val isRecording: Boolean = false,
@@ -1049,7 +1049,7 @@ data class ChatUiState(
     val isProcessing: Boolean = false,
     val processingStage: ProcessingStage? = null,
     val latestDebugInfo: DebugInfo? = null,
-    val debugHistory: List<DebugInfo> = emptyList(),
+    val debugHistory: List<DebugInfo> = emptyList()
 )
 
 enum class ProcessingStage {
@@ -1057,7 +1057,7 @@ enum class ProcessingStage {
     TRANSCRIBING,
     UNDERSTANDING,
     GENERATING,
-    STOPPING,
+    STOPPING
 }
 
 private fun commonTranscriptPrefix(previous: String, current: String): String {
@@ -1076,7 +1076,7 @@ sealed interface ChatMessageUi {
         override val id: String,
         override val createdAt: String,
         val text: String,
-        val source: String,
+        val source: String
     ) : ChatMessageUi
 
     data class Assistant(
@@ -1084,7 +1084,7 @@ sealed interface ChatMessageUi {
         override val createdAt: String,
         val text: String,
         val widget: WidgetPayload?,
-        val debug: DebugInfo?,
+        val debug: DebugInfo?
     ) : ChatMessageUi
 }
 
@@ -1093,7 +1093,7 @@ fun AssistantResponse.toAssistantMessage(): ChatMessageUi.Assistant = ChatMessag
     createdAt = Instant.now().toString(),
     text = text,
     widget = widget,
-    debug = debug,
+    debug = debug
 )
 
 class ChatViewModelFactory(
@@ -1105,7 +1105,7 @@ class ChatViewModelFactory(
     private val platformActions: PlatformActions = NoOpPlatformActions,
     private val assistantSpeech: AssistantSpeech = NoOpAssistantSpeech,
     private val chatHistoryStore: ChatHistoryStore = NoOpChatHistoryStore,
-    private val weatherProvider: WeatherProvider = MockWeatherProvider { OffsetDateTime.now() },
+    private val weatherProvider: WeatherProvider = MockWeatherProvider { OffsetDateTime.now() }
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
@@ -1119,7 +1119,7 @@ class ChatViewModelFactory(
                 platformActions = platformActions,
                 assistantSpeech = assistantSpeech,
                 chatHistoryStore = chatHistoryStore,
-                weatherProvider = weatherProvider,
+                weatherProvider = weatherProvider
             ) as T
         }
         error("Unsupported ViewModel class: ${modelClass.name}")
@@ -1142,7 +1142,7 @@ interface PlatformActions {
 
 data class AppCandidate(
     val appName: String,
-    val packageName: String,
+    val packageName: String
 )
 
 object NoOpPlatformActions : PlatformActions {

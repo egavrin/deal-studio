@@ -1,8 +1,8 @@
 package com.offlineassistant.app.asr
 
-import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.EndpointConfig
 import com.k2fsa.sherpa.onnx.EndpointRule
+import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OnlineModelConfig
 import com.k2fsa.sherpa.onnx.OnlineRecognizer
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
@@ -23,7 +23,7 @@ import kotlin.math.sqrt
 class TOneStreamingTranscriber(
     private val readiness: ModelReadiness,
     private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
-    private val numThreads: Int = 4,
+    private val numThreads: Int = 4
 ) : AudioTranscriber {
     private val lock = Any()
     private var recognizer: OnlineRecognizer? = null
@@ -34,7 +34,7 @@ class TOneStreamingTranscriber(
 
     override fun startStreaming(
         onPartialTranscript: (String) -> Unit,
-        onEndpointDetected: () -> Unit,
+        onEndpointDetected: () -> Unit
     ): StreamingTranscriptionSession? {
         if (!readiness.ready) return null
         return synchronized(lock) {
@@ -43,7 +43,7 @@ class TOneStreamingTranscriber(
                 telemetryStore = telemetryStore,
                 onPartialTranscript = onPartialTranscript,
                 onEndpointDetected = onEndpointDetected,
-                lock = lock,
+                lock = lock
             )
         }
     }
@@ -53,7 +53,7 @@ class TOneStreamingTranscriber(
             return AudioTranscription(
                 text = null,
                 error = "T-one model is not installed: ${readiness.location}. Audio: ${audioFile.name}",
-                latencyMs = 0,
+                latencyMs = 0
             )
         }
         val wave = WaveReader.readWave(audioFile.absolutePath)
@@ -89,7 +89,7 @@ class TOneStreamingTranscriber(
             endpointConfig = EndpointConfig(
                 EndpointRule(false, 2.4f, 0f),
                 EndpointRule(true, 0.9f, 0f),
-                EndpointRule(false, 0f, 20f),
+                EndpointRule(false, 0f, 20f)
             )
             enableEndpoint = true
             decodingMethod = "greedy_search"
@@ -104,7 +104,7 @@ private class SherpaTOneSession(
     private val telemetryStore: ModelRuntimeTelemetryStore,
     private val onPartialTranscript: (String) -> Unit,
     private val onEndpointDetected: () -> Unit,
-    private val lock: Any,
+    private val lock: Any
 ) : StreamingTranscriptionSession {
     private val stream: OnlineStream = recognizer.createStream()
     private var lastTranscript = ""
@@ -133,7 +133,7 @@ private class SherpaTOneSession(
             return@synchronized AudioTranscription(
                 text = lastTranscript.ifBlank { null },
                 error = if (lastTranscript.isBlank()) "T-one returned an empty transcript." else null,
-                latencyMs = 0,
+                latencyMs = 0
             )
         }
         stream.acceptWaveform(FloatArray(inputSampleRate * 3 / 10), inputSampleRate)
@@ -152,7 +152,7 @@ private class SherpaTOneSession(
                 ModelNames.WHISPER,
                 ModelOperations.TRANSCRIPTION,
                 latencyMs,
-                "T-one returned an empty transcript.",
+                "T-one returned an empty transcript."
             )
             AudioTranscription(null, "T-one returned an empty transcript.", latencyMs)
         } else {
@@ -195,7 +195,7 @@ private class SherpaTOneSession(
 
 internal class TrailingSilenceEndpointDetector(
     private val silenceThresholdRms: Double = 0.004,
-    private val requiredTrailingSilenceMs: Long = 1_100L,
+    private val requiredTrailingSilenceMs: Long = 1_100L
 ) {
     private var recognizedSpeech = false
     private var trailingSilenceMs = 0L

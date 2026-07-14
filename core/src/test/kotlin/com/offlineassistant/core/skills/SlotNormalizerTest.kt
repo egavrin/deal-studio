@@ -19,8 +19,8 @@ class SlotNormalizerTest {
                 intent = Intents.SET_TIMER,
                 confidence = 0.92,
                 slots = buildJsonObject { put("duration_seconds", 300) },
-                source = NluSource.RUBERT_TINY2,
-            ),
+                source = NluSource.RUBERT_TINY2
+            )
         )
 
         val command = result as NormalizationResult.Normalized
@@ -38,8 +38,8 @@ class SlotNormalizerTest {
                 intent = Intents.SET_TIMER,
                 confidence = 0.92,
                 slots = buildJsonObject {},
-                source = NluSource.RUBERT_TINY2,
-            ),
+                source = NluSource.RUBERT_TINY2
+            )
         )
 
         val clarification = result as NormalizationResult.Clarification

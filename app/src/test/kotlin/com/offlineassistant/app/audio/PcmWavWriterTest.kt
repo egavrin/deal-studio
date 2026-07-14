@@ -1,9 +1,9 @@
 package com.offlineassistant.app.audio
 
+import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.io.ByteArrayOutputStream
 
 class PcmWavWriterTest {
     @Test
@@ -13,7 +13,7 @@ class PcmWavWriterTest {
             output = output,
             pcm = shortArrayOf(0, Short.MAX_VALUE, Short.MIN_VALUE),
             sampleRate = 16_000,
-            channelCount = 1,
+            channelCount = 1
         )
 
         val wav = output.toByteArray()
@@ -35,14 +35,11 @@ class PcmWavWriterTest {
     }
 }
 
-private fun ByteArray.asAscii(offset: Int, length: Int): String =
-    copyOfRange(offset, offset + length).toString(Charsets.US_ASCII)
+private fun ByteArray.asAscii(offset: Int, length: Int): String = copyOfRange(offset, offset + length).toString(Charsets.US_ASCII)
 
-private fun ByteArray.readLeShort(offset: Int): Int =
-    (this[offset].toInt() and 0xff) or ((this[offset + 1].toInt() and 0xff) shl 8)
+private fun ByteArray.readLeShort(offset: Int): Int = (this[offset].toInt() and 0xff) or ((this[offset + 1].toInt() and 0xff) shl 8)
 
-private fun ByteArray.readLeInt(offset: Int): Int =
-    (this[offset].toInt() and 0xff) or
-        ((this[offset + 1].toInt() and 0xff) shl 8) or
-        ((this[offset + 2].toInt() and 0xff) shl 16) or
-        ((this[offset + 3].toInt() and 0xff) shl 24)
+private fun ByteArray.readLeInt(offset: Int): Int = (this[offset].toInt() and 0xff) or
+    ((this[offset + 1].toInt() and 0xff) shl 8) or
+    ((this[offset + 2].toInt() and 0xff) shl 16) or
+    ((this[offset + 3].toInt() and 0xff) shl 24)

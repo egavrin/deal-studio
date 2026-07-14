@@ -3,16 +3,16 @@ package com.offlineassistant.app.asr
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
-import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.models.ModelNames
+import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.nlu.OnnxRubertNlu
 import com.offlineassistant.app.settings.VoiceModel
 import com.offlineassistant.core.engine.AssistantEngine
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 class ZipformerNativeSmokeTest {
     @Test
@@ -23,13 +23,13 @@ class ZipformerNativeSmokeTest {
 
         val transcriber = ZipformerTranscriber(
             readiness = readiness,
-            nativeEngine = SherpaZipformerNativeEngine(),
+            nativeEngine = SherpaZipformerNativeEngine()
         )
         transcriber.warmUp()
         val rubertReadiness = ModelReadinessRepository(context).all().single { it.name == ModelNames.RUBERT }
         assertTrue(rubertReadiness.detail, rubertReadiness.ready)
         val engine = AssistantEngine.createDemo(
-            nlu = OnnxRubertNlu(readinessProvider = { rubertReadiness }),
+            nlu = OnnxRubertNlu(readinessProvider = { rubertReadiness })
         )
         val cases = readCases()
         val artifact = File(context.filesDir, "zipformer-asr-eval.jsonl").apply { writeText("") }
@@ -78,7 +78,7 @@ class ZipformerNativeSmokeTest {
                     audio = json.getString("audio"),
                     expectedKeyword = json.getString("expected_keyword"),
                     expectedIntent = json.getString("expected_intent"),
-                    expectedWidgetType = json.getString("expected_widget"),
+                    expectedWidgetType = json.getString("expected_widget")
                 )
             }.toList()
         }
@@ -96,6 +96,6 @@ class ZipformerNativeSmokeTest {
         val audio: String,
         val expectedKeyword: String,
         val expectedIntent: String,
-        val expectedWidgetType: String,
+        val expectedWidgetType: String
     )
 }

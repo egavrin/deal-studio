@@ -31,7 +31,7 @@ enum class SpeechStopReason {
     MICROPHONE_STARTED,
     CHAT_CLEARED,
     GENERATION_STOPPED,
-    VIEW_MODEL_CLEARED,
+    VIEW_MODEL_CLEARED
 }
 
 object NoOpAssistantSpeech : AssistantSpeech {

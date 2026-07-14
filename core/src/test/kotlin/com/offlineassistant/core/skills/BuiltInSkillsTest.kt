@@ -46,7 +46,7 @@ class BuiltInSkillsTest {
     fun timerSkillReturnsStructuredTimerWidget() = runBlocking {
         val command = command(
             intent = Intents.SET_TIMER,
-            slots = buildJsonObject { put("duration_seconds", 300) },
+            slots = buildJsonObject { put("duration_seconds", 300) }
         )
 
         val result = TimerSkill(idProvider = { "timer-test" }).execute(command)
@@ -65,7 +65,7 @@ class BuiltInSkillsTest {
             override suspend fun execute(command: NormalizedCommand): SkillResult = SkillResult(
                 status = SkillStatus.SUCCESS,
                 text = "custom skill executed",
-                actionResult = "custom",
+                actionResult = "custom"
             )
         }
         val engine = AssistantEngine.createDemo(
@@ -74,10 +74,10 @@ class BuiltInSkillsTest {
                     intent = Intents.SET_TIMER,
                     confidence = 0.99,
                     slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2,
+                    source = NluSource.RUBERT_TINY2
                 )
             },
-            skillRegistry = SkillRegistry(listOf(customSkill)),
+            skillRegistry = SkillRegistry(listOf(customSkill))
         )
 
         val response = engine.handleText("Поставь таймер на 5 минут")
@@ -91,17 +91,17 @@ class BuiltInSkillsTest {
         clock = { now },
         noteStore = InMemoryNoteStore(),
         reminderStore = InMemoryReminderStore(),
-        weatherProvider = MockWeatherProvider { now },
+        weatherProvider = MockWeatherProvider { now }
     )
 
     private fun command(
         intent: String,
-        slots: kotlinx.serialization.json.JsonObject = buildJsonObject {},
+        slots: kotlinx.serialization.json.JsonObject = buildJsonObject {}
     ): NormalizedCommand = NormalizedCommand(
         intent = intent,
         slots = slots,
         originalText = "test",
-        source = NluSource.STUB,
+        source = NluSource.STUB
     )
 
     private fun testSkill(id: String, intent: String): Skill = object : Skill {
@@ -110,7 +110,7 @@ class BuiltInSkillsTest {
 
         override suspend fun execute(command: NormalizedCommand): SkillResult = SkillResult(
             status = SkillStatus.SUCCESS,
-            text = id,
+            text = id
         )
     }
 }

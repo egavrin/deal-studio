@@ -21,17 +21,17 @@ class AssistantMacrobenchmark {
 
     @Test
     fun coldStartupWithBaselineProfile() = startup(
-        CompilationMode.Partial(BaselineProfileMode.Require),
+        CompilationMode.Partial(BaselineProfileMode.Require)
     )
 
     @Test
     fun chatActionFrames() {
         rule.measureRepeated(
-            packageName = TargetPackage,
+            packageName = TARGET_PACKAGE,
             metrics = listOf(FrameTimingMetric()),
             compilationMode = CompilationMode.None(),
             iterations = 5,
-            setupBlock = { killProcess() },
+            setupBlock = { killProcess() }
         ) {
             val device = launchAssistant()
             device.sendMessage("помощь")
@@ -41,12 +41,12 @@ class AssistantMacrobenchmark {
 
     private fun startup(compilationMode: CompilationMode) {
         rule.measureRepeated(
-            packageName = TargetPackage,
+            packageName = TARGET_PACKAGE,
             metrics = listOf(StartupTimingMetric(), FrameTimingMetric()),
             compilationMode = compilationMode,
             startupMode = StartupMode.COLD,
             iterations = 5,
-            setupBlock = { pressHome() },
+            setupBlock = { pressHome() }
         ) {
             startActivityAndWait()
         }

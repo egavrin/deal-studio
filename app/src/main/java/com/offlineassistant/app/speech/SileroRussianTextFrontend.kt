@@ -12,14 +12,14 @@ data class SileroNgramBatch(
     val ids: LongArray,
     val mask: FloatArray,
     val rowCount: Int,
-    val columnCount: Int,
+    val columnCount: Int
 )
 
 data class SileroAccentLogits(
     val stress: FloatArray,
     val stressClasses: Int,
     val yo: FloatArray,
-    val yoClasses: Int,
+    val yoClasses: Int
 )
 
 data class SileroHomographBatch(
@@ -27,7 +27,7 @@ data class SileroHomographBatch(
     val rowCount: Int,
     val columnCount: Int,
     val starts: LongArray,
-    val ends: LongArray,
+    val ends: LongArray
 )
 
 interface SileroLinguisticInference : AutoCloseable {
@@ -45,7 +45,7 @@ data class SileroFrontendBundle(
     val accentorExceptions: File,
     val homosolver: File,
     val homosolverVocabulary: File,
-    val homographs: File,
+    val homographs: File
 ) {
     fun requireComplete(): SileroFrontendBundle = apply {
         files().forEach { file -> require(file.isFile) { "Missing Silero frontend file: ${file.absolutePath}" } }
@@ -58,7 +58,7 @@ data class SileroFrontendBundle(
         accentorExceptions,
         homosolver,
         homosolverVocabulary,
-        homographs,
+        homographs
     )
 
     companion object {
@@ -69,26 +69,26 @@ data class SileroFrontendBundle(
             accentorExceptions = File(directory, "accentor-exceptions.json"),
             homosolver = File(directory, "homosolver.onnx"),
             homosolverVocabulary = File(directory, "homosolver-vocab.txt"),
-            homographs = File(directory, "homographs.json"),
+            homographs = File(directory, "homographs.json")
         )
     }
 }
 
 class SileroRussianTextFrontend(
     bundle: SileroFrontendBundle,
-    private val inference: SileroLinguisticInference,
+    private val inference: SileroLinguisticInference
 ) : SileroTextFrontend {
     private val completeBundle = bundle.requireComplete()
     private val preprocessor = SileroTextPreprocessor(completeBundle.metadata)
     private val homographResolver = SileroHomographResolver(
         tokenizer = SileroWordPieceTokenizer(completeBundle.homosolverVocabulary),
         homographs = readStringLists(completeBundle.homographs),
-        inference = inference,
+        inference = inference
     )
     private val accentor = SileroAccentor(
         ngrams = readIntMap(completeBundle.accentorNgrams),
         exceptions = readIntLists(completeBundle.accentorExceptions),
-        inference = inference,
+        inference = inference
     )
 
     override fun prepare(text: String): SileroSynthesisInput {
@@ -116,7 +116,7 @@ class SileroRussianTextFrontend(
 internal class SileroHomographResolver(
     private val tokenizer: SileroWordPieceTokenizer,
     private val homographs: Map<String, List<String>>,
-    private val inference: SileroLinguisticInference,
+    private val inference: SileroLinguisticInference
 ) {
     private val wordPattern = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
 
@@ -133,7 +133,7 @@ internal class SileroHomographResolver(
                 variants = variants.sorted(),
                 ids = ids,
                 homoStart = ids.indexOf(tokenizer.homoStartId).toLong(),
-                homoEnd = ids.indexOf(tokenizer.homoEndId).toLong(),
+                homoEnd = ids.indexOf(tokenizer.homoEndId).toLong()
             ).also {
                 require(it.homoStart >= 0 && it.homoEnd >= 0) { "Silero homograph markers were not tokenized" }
             }
@@ -151,8 +151,8 @@ internal class SileroHomographResolver(
                 rowCount = candidates.size,
                 columnCount = width,
                 starts = candidates.map { it.homoStart }.toLongArray(),
-                ends = candidates.map { it.homoEnd }.toLongArray(),
-            ),
+                ends = candidates.map { it.homoEnd }.toLongArray()
+            )
         )
         require(logits.size == candidates.size) { "Silero homosolver returned ${logits.size} rows" }
 
@@ -183,14 +183,14 @@ internal class SileroHomographResolver(
         val variants: List<String>,
         val ids: LongArray,
         val homoStart: Long,
-        val homoEnd: Long,
+        val homoEnd: Long
     )
 }
 
 internal class SileroAccentor(
     private val ngrams: Map<String, Int>,
     private val exceptions: Map<String, IntArray>,
-    private val inference: SileroLinguisticInference,
+    private val inference: SileroLinguisticInference
 ) {
     private val separatorPattern = Regex("[\\s.,!?;:<>=()/\\\\]+")
     private val nonRussian = Regex("[^А-Яа-яёЁ]")
@@ -280,7 +280,7 @@ internal class SileroAccentor(
             stress = stressIds.filter { it in vowelPositions.indices }.map(vowelPositions::get),
             yo = yoIds.filter { it > 0 && it - 1 in yePositions.indices }.map { yePositions[it - 1] },
             vowelCount = vowelPositions.size,
-            firstVowel = vowelPositions.firstOrNull() ?: -1,
+            firstVowel = vowelPositions.firstOrNull() ?: -1
         )
     }
 
@@ -359,7 +359,7 @@ internal class SileroAccentor(
         val stress: List<Int>,
         val yo: List<Int>,
         val vowelCount: Int,
-        val firstVowel: Int,
+        val firstVowel: Int
     )
 
     private companion object {

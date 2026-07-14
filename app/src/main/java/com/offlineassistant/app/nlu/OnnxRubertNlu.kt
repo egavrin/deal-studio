@@ -4,9 +4,9 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OnnxValue
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
-import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.NoOpModelRuntimeTelemetryStore
 import com.offlineassistant.core.nlu.Intents
@@ -15,12 +15,12 @@ import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
 import com.offlineassistant.core.nlu.RuleBasedNlu
 import com.offlineassistant.core.nlu.RussianInverseTextNormalizer
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.io.File
 import java.nio.LongBuffer
 import kotlin.math.exp
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 fun interface RubertOnnxRunner {
     fun infer(text: String, modelPath: String): NluResult
@@ -34,7 +34,7 @@ class OnnxRubertNlu(
     private val readinessProvider: () -> ModelReadiness = {
         ModelReadiness(ModelNames.RUBERT, false, "models/rubert/rubert-tiny2-intent-slots.onnx", "model file not installed")
     },
-    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore,
+    private val telemetryStore: ModelRuntimeTelemetryStore = NoOpModelRuntimeTelemetryStore
 ) : NluParser {
     fun warmUp(): Result<Unit> {
         val readiness = readinessProvider()
@@ -49,7 +49,7 @@ class OnnxRubertNlu(
                     ModelNames.RUBERT,
                     ModelOperations.WARM_UP,
                     elapsedMillis(started),
-                    error.message ?: error::class.java.simpleName,
+                    error.message ?: error::class.java.simpleName
                 )
             }
     }
@@ -63,7 +63,7 @@ class OnnxRubertNlu(
                 modelName = ModelNames.RUBERT,
                 operation = ModelOperations.INFERENCE,
                 latencyMs = elapsedMillis(started),
-                error = readiness.detail,
+                error = readiness.detail
             )
             return ruleBasedFallback.parse(text)
         }
@@ -74,7 +74,7 @@ class OnnxRubertNlu(
                     telemetryStore.recordSuccess(
                         ModelNames.RUBERT,
                         ModelOperations.INFERENCE,
-                        elapsedMillis(started),
+                        elapsedMillis(started)
                     )
                 }
         } catch (error: Throwable) {
@@ -82,14 +82,13 @@ class OnnxRubertNlu(
                 ModelNames.RUBERT,
                 ModelOperations.INFERENCE,
                 elapsedMillis(started),
-                error.message ?: error::class.java.simpleName,
+                error.message ?: error::class.java.simpleName
             )
             ruleBasedFallback.parse(text)
         }
     }
 
-    private fun elapsedMillis(startedNanos: Long): Long =
-        (System.nanoTime() - startedNanos).coerceAtLeast(0L) / 1_000_000L
+    private fun elapsedMillis(startedNanos: Long): Long = (System.nanoTime() - startedNanos).coerceAtLeast(0L) / 1_000_000L
 }
 
 class OnnxRuntimeRubertRunner(
@@ -97,8 +96,9 @@ class OnnxRuntimeRubertRunner(
     private val slotExtractor: RuleBasedNlu = RuleBasedNlu(),
     private val useFallbackSlotMerge: Boolean = true,
     private val intraOpThreads: Int = 2,
-    private val executionProvider: RubertExecutionProvider = RubertExecutionProvider.CPU,
-) : RubertOnnxRunner, AutoCloseable {
+    private val executionProvider: RubertExecutionProvider = RubertExecutionProvider.CPU
+) : RubertOnnxRunner,
+    AutoCloseable {
     private val lock = Any()
     private val environment = OrtEnvironment.getEnvironment()
     private var cachedRuntime: RubertRuntime? = null
@@ -112,40 +112,40 @@ class OnnxRuntimeRubertRunner(
         val runtime = runtimeFor(modelFile)
         val tensors = mutableListOf<OnnxTensor>()
         try {
-                val encoded = runtime.tokenizer.encode(text, maxTokens)
-                val inputs = buildMap<String, OnnxTensor> {
-                    runtime.session.inputNames.forEach { name ->
-                        when (name) {
-                            "input_ids" -> put(name, encoded.inputIds.toTensor(environment, tensors))
-                            "attention_mask" -> put(name, encoded.attentionMask.toTensor(environment, tensors))
-                            "token_type_ids" -> put(name, encoded.tokenTypeIds.toTensor(environment, tensors))
-                        }
-                    }
-                    if (isEmpty()) {
-                        put("input_ids", encoded.inputIds.toTensor(environment, tensors))
-                        put("attention_mask", encoded.attentionMask.toTensor(environment, tensors))
-                        put("token_type_ids", encoded.tokenTypeIds.toTensor(environment, tensors))
+            val encoded = runtime.tokenizer.encode(text, maxTokens)
+            val inputs = buildMap<String, OnnxTensor> {
+                runtime.session.inputNames.forEach { name ->
+                    when (name) {
+                        "input_ids" -> put(name, encoded.inputIds.toTensor(environment, tensors))
+                        "attention_mask" -> put(name, encoded.attentionMask.toTensor(environment, tensors))
+                        "token_type_ids" -> put(name, encoded.tokenTypeIds.toTensor(environment, tensors))
                     }
                 }
+                if (isEmpty()) {
+                    put("input_ids", encoded.inputIds.toTensor(environment, tensors))
+                    put("attention_mask", encoded.attentionMask.toTensor(environment, tensors))
+                    put("token_type_ids", encoded.tokenTypeIds.toTensor(environment, tensors))
+                }
+            }
 
-                runtime.session.run(inputs).use { output ->
-                    val intentLogits = output.intentLogits()
-                    val intentIndex = intentLogits.argmax()
-                    val fallbackSlots = slotExtractor.parse(text).slots
-                    val modelSlots = output.slotLogits()
-                        ?.let { slotLogits -> decodeSlots(text, encoded, slotLogits, runtime.slotLabels) }
-                        ?: JsonObject(emptyMap())
-                    return NluResult(
-                        intent = runtime.intentLabels.labelAt(intentIndex),
-                        confidence = intentLogits.softmaxConfidence(intentIndex),
-                        slots = if (useFallbackSlotMerge) {
-                            mergeModelAndFallbackSlots(modelSlots, fallbackSlots)
-                        } else {
-                            modelSlots
-                        },
-                        source = NluSource.RUBERT_TINY2,
-                    )
-                }
+            runtime.session.run(inputs).use { output ->
+                val intentLogits = output.intentLogits()
+                val intentIndex = intentLogits.argmax()
+                val fallbackSlots = slotExtractor.parse(text).slots
+                val modelSlots = output.slotLogits()
+                    ?.let { slotLogits -> decodeSlots(text, encoded, slotLogits, runtime.slotLabels) }
+                    ?: JsonObject(emptyMap())
+                return NluResult(
+                    intent = runtime.intentLabels.labelAt(intentIndex),
+                    confidence = intentLogits.softmaxConfidence(intentIndex),
+                    slots = if (useFallbackSlotMerge) {
+                        mergeModelAndFallbackSlots(modelSlots, fallbackSlots)
+                    } else {
+                        modelSlots
+                    },
+                    source = NluSource.RUBERT_TINY2
+                )
+            }
         } finally {
             tensors.forEach(OnnxTensor::close)
         }
@@ -168,9 +168,11 @@ class OnnxRuntimeRubertRunner(
             setInterOpNumThreads(1)
             when (executionProvider) {
                 RubertExecutionProvider.CPU -> Unit
+
                 RubertExecutionProvider.XNNPACK -> addXnnpack(
-                    mapOf("intra_op_num_threads" to intraOpThreads.toString()),
+                    mapOf("intra_op_num_threads" to intraOpThreads.toString())
                 )
+
                 RubertExecutionProvider.NNAPI -> addNnapi()
             }
         }
@@ -180,7 +182,7 @@ class OnnxRuntimeRubertRunner(
             session = session,
             tokenizer = WordPieceTokenizer(File(modelDir, "vocab.txt")),
             intentLabels = LabelSet(File(modelDir, "intent_labels.txt")),
-            slotLabels = LabelSet(File(modelDir, "slot_labels.txt")),
+            slotLabels = LabelSet(File(modelDir, "slot_labels.txt"))
         ).also { cachedRuntime = it }
     }
 
@@ -194,7 +196,7 @@ class OnnxRuntimeRubertRunner(
 enum class RubertExecutionProvider {
     CPU,
     XNNPACK,
-    NNAPI,
+    NNAPI
 }
 
 private data class RubertRuntime(
@@ -202,7 +204,7 @@ private data class RubertRuntime(
     val session: OrtSession,
     val tokenizer: WordPieceTokenizer,
     val intentLabels: LabelSet,
-    val slotLabels: LabelSet,
+    val slotLabels: LabelSet
 )
 
 internal fun mergeModelAndFallbackSlots(modelSlots: JsonObject, fallbackSlots: JsonObject): JsonObject {
@@ -218,13 +220,13 @@ private data class EncodedText(
     val inputIds: LongArray,
     val attentionMask: LongArray,
     val tokenTypeIds: LongArray,
-    val pieces: List<TokenPiece>,
+    val pieces: List<TokenPiece>
 )
 
 private data class TokenPiece(
     val id: Int,
     val start: Int,
-    val end: Int,
+    val end: Int
 )
 
 private class WordPieceTokenizer(vocabFile: File) {
@@ -249,15 +251,13 @@ private class WordPieceTokenizer(vocabFile: File) {
         }
         val inputIds = LongArray(maxTokens) { index -> pieces.getOrNull(index)?.id?.toLong() ?: padId.toLong() }
         val attentionMask = LongArray(maxTokens) { index -> if (index < pieces.size) 1L else 0L }
-        val tokenTypeIds = LongArray(maxTokens) { 0L }
+        val tokenTypeIds = LongArray(maxTokens)
         return EncodedText(inputIds, attentionMask, tokenTypeIds, pieces)
     }
 
-    private fun tokenize(text: String): List<TokenPiece> {
-        return Regex("[\\p{L}\\p{N}]+|[^\\s]").findAll(text).flatMap { match ->
-            wordPieces(match.value, match.range.first)
-        }.toList()
-    }
+    private fun tokenize(text: String): List<TokenPiece> = Regex("[\\p{L}\\p{N}]+|[^\\s]").findAll(text).flatMap { match ->
+        wordPieces(match.value, match.range.first)
+    }.toList()
 
     private fun wordPieces(token: String, tokenStart: Int): List<TokenPiece> {
         val normalized = token
@@ -297,14 +297,14 @@ private class LabelSet(file: File) {
 private data class SlotSpan(
     val name: String,
     val start: Int,
-    val end: Int,
+    val end: Int
 )
 
 private fun decodeSlots(
     text: String,
     encoded: EncodedText,
     slotLogits: Array<FloatArray>,
-    slotLabels: LabelSet,
+    slotLabels: LabelSet
 ): JsonObject {
     val spans = mutableListOf<SlotSpan>()
     var activeName: String? = null
@@ -390,8 +390,7 @@ private fun normalizeExpression(raw: String): String? {
     return "${match.groupValues[1]} $op ${match.groupValues[3]}"
 }
 
-private fun String.capitalizeForSlot(): String =
-    replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+private fun String.capitalizeForSlot(): String = replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
 private fun OrtSession.Result.intentLogits(): FloatArray {
     val entries = iterator().asSequence().toList()
@@ -408,33 +407,32 @@ private fun OrtSession.Result.slotLogits(): Array<FloatArray>? {
     return value.asFloatMatrix()
 }
 
-private fun OnnxValue.asFloatVector(): FloatArray {
-    return when (val raw = value) {
-        is FloatArray -> raw
-        is Array<*> -> {
-            val first = raw.firstOrNull() ?: error("Empty ONNX tensor output")
-            when (first) {
-                is FloatArray -> first
-                is Array<*> -> first.firstOrNull() as? FloatArray ?: error("Unsupported nested ONNX tensor output")
-                else -> error("Unsupported ONNX tensor output: ${first::class.java.name}")
-            }
+private fun OnnxValue.asFloatVector(): FloatArray = when (val raw = value) {
+    is FloatArray -> raw
+
+    is Array<*> -> {
+        val first = raw.firstOrNull() ?: error("Empty ONNX tensor output")
+        when (first) {
+            is FloatArray -> first
+            is Array<*> -> first.firstOrNull() as? FloatArray ?: error("Unsupported nested ONNX tensor output")
+            else -> error("Unsupported ONNX tensor output: ${first::class.java.name}")
         }
-        else -> error("Unsupported ONNX tensor output: ${raw?.javaClass?.name}")
     }
+
+    else -> error("Unsupported ONNX tensor output: ${raw?.javaClass?.name}")
 }
 
-private fun OnnxValue.asFloatMatrix(): Array<FloatArray> {
-    return when (val raw = value) {
-        is Array<*> -> {
-            val first = raw.firstOrNull() ?: error("Empty ONNX tensor output")
-            when (first) {
-                is FloatArray -> raw.map { it as FloatArray }.toTypedArray()
-                is Array<*> -> first.map { it as FloatArray }.toTypedArray()
-                else -> error("Unsupported ONNX matrix output: ${first::class.java.name}")
-            }
+private fun OnnxValue.asFloatMatrix(): Array<FloatArray> = when (val raw = value) {
+    is Array<*> -> {
+        val first = raw.firstOrNull() ?: error("Empty ONNX tensor output")
+        when (first) {
+            is FloatArray -> raw.map { it as FloatArray }.toTypedArray()
+            is Array<*> -> first.map { it as FloatArray }.toTypedArray()
+            else -> error("Unsupported ONNX matrix output: ${first::class.java.name}")
         }
-        else -> error("Unsupported ONNX matrix output: ${raw?.javaClass?.name}")
     }
+
+    else -> error("Unsupported ONNX matrix output: ${raw?.javaClass?.name}")
 }
 
 private fun FloatArray.argmax(): Int {

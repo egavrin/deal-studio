@@ -9,13 +9,13 @@ data class ModelReadiness(
     val ready: Boolean,
     val location: String,
     val detail: String,
-    val runtime: ModelRuntimeTelemetry = ModelRuntimeTelemetry(),
+    val runtime: ModelRuntimeTelemetry = ModelRuntimeTelemetry()
 )
 
 class ModelReadinessRepository(
     private val context: Context,
     private val externalStagingRoot: File = File("/data/local/tmp"),
-    private val telemetryStore: ModelRuntimeTelemetryStore = SharedPreferencesModelRuntimeTelemetryStore(context),
+    private val telemetryStore: ModelRuntimeTelemetryStore = SharedPreferencesModelRuntimeTelemetryStore(context)
 ) {
     private companion object {
         val assetMaterializationLock = Any()
@@ -27,26 +27,26 @@ class ModelReadinessRepository(
         checkFile(
             name = ModelNames.QWEN,
             relativePath = "models/qwen/qwen2.5-0.5b-instruct.gguf",
-            externalStagingFileName = "offline-assistant-qwen.gguf",
+            externalStagingFileName = "offline-assistant-qwen.gguf"
         ),
-        checkSileroBundle(),
+        checkSileroBundle()
     ).map { readiness -> readiness.copy(runtime = telemetryStore.read(readiness.name)) }
 
     fun voiceModel(model: VoiceModel): ModelReadiness = checkAssetBundle(
         name = ModelNames.WHISPER,
         requiredPaths = model.requiredPaths,
-        reportDirectory = model.requiredPaths.size > 1,
+        reportDirectory = model.requiredPaths.size > 1
     ).let { readiness ->
         readiness.copy(
             detail = "${model.displayName}: ${readiness.detail}",
-            runtime = telemetryStore.read(ModelNames.WHISPER),
+            runtime = telemetryStore.read(ModelNames.WHISPER)
         )
     }
 
     private fun checkAssetBundle(
         name: String,
         requiredPaths: List<String>,
-        reportDirectory: Boolean,
+        reportDirectory: Boolean
     ): ModelReadiness {
         require(requiredPaths.isNotEmpty()) { "A model bundle must contain at least one file" }
         if (requiredPaths.size == 1) {
@@ -68,7 +68,7 @@ class ModelReadinessRepository(
                 name = name,
                 ready = false,
                 location = location,
-                detail = "missing bundle files: ${missing.joinToString { it.substringAfterLast('/') }}",
+                detail = "missing bundle files: ${missing.joinToString { it.substringAfterLast('/') }}"
             )
         }
     }
@@ -78,7 +78,7 @@ class ModelReadinessRepository(
             "models/rubert/rubert-tiny2-intent-slots.onnx",
             "models/rubert/vocab.txt",
             "models/rubert/intent_labels.txt",
-            "models/rubert/slot_labels.txt",
+            "models/rubert/slot_labels.txt"
         )
         val files = requiredPaths.associateWith { relativePath ->
             File(context.filesDir, relativePath)
@@ -88,7 +88,7 @@ class ModelReadinessRepository(
         val externalMaterialized = materializeExternalDirectory(
             directoryName = "offline-assistant-rubert",
             requiredPaths = requiredPaths,
-            targetFiles = files,
+            targetFiles = files
         )
         if (files.all { it.value.isFile } && externalMaterialized) {
             val detail = if (hadCompleteBundle) "updated from external staging" else "installed from external staging"
@@ -106,7 +106,7 @@ class ModelReadinessRepository(
             name = ModelNames.RUBERT,
             ready = false,
             location = modelFile.absolutePath,
-            detail = "missing bundle files: ${missing.joinToString { it.substringAfterLast('/') }}",
+            detail = "missing bundle files: ${missing.joinToString { it.substringAfterLast('/') }}"
         )
     }
 
@@ -121,7 +121,7 @@ class ModelReadinessRepository(
             "accentor-exceptions.json",
             "homosolver.onnx",
             "homosolver-vocab.txt",
-            "homographs.json",
+            "homographs.json"
         )
         val requiredPaths = fileNames.map { "models/tts/silero-xenia/$it" }
         val files = requiredPaths.associateWith { relativePath -> File(context.filesDir, relativePath) }
@@ -130,7 +130,7 @@ class ModelReadinessRepository(
         val externalMaterialized = materializeExternalDirectory(
             directoryName = "offline-assistant-silero",
             requiredPaths = requiredPaths,
-            targetFiles = files,
+            targetFiles = files
         )
         if (files.all { it.value.isFile }) {
             val detail = when {
@@ -145,14 +145,14 @@ class ModelReadinessRepository(
             name = ModelNames.SILERO_TTS,
             ready = false,
             location = bundleDirectory.absolutePath,
-            detail = "missing bundle files: ${missing.joinToString { it.substringAfterLast('/') }}",
+            detail = "missing bundle files: ${missing.joinToString { it.substringAfterLast('/') }}"
         )
     }
 
     private fun checkFile(
         name: String,
         relativePath: String,
-        externalStagingFileName: String? = null,
+        externalStagingFileName: String? = null
     ): ModelReadiness {
         val appFile = File(context.filesDir, relativePath)
         val stagedFile = externalStagingFileName?.let { File(externalStagingRoot, it) }
@@ -177,52 +177,51 @@ class ModelReadinessRepository(
         }
     }
 
-    private fun materializeAsset(relativePath: String, appFile: File): Boolean =
-        synchronized(assetMaterializationLock) {
-            if (appFile.exists()) return@synchronized true
-            runCatching {
-                context.assets.open(relativePath).use { input ->
-                    appFile.parentFile?.mkdirs()
-                    val tempFile = File(appFile.parentFile, "${appFile.name}.tmp")
-                    tempFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                    if (!tempFile.renameTo(appFile)) {
-                        tempFile.copyTo(appFile, overwrite = true)
-                        tempFile.delete()
-                    }
-                }
-                appFile.exists()
-            }.getOrDefault(false)
-        }
-
-    private fun materializeExternalStagingFile(
-        stagedFile: File,
-        appFile: File,
-        overwrite: Boolean = false,
-    ): Boolean = synchronized(assetMaterializationLock) {
-        if (appFile.exists() && !overwrite) return@synchronized true
-        if (!stagedFile.isFile || !stagedFile.canRead()) return@synchronized false
+    private fun materializeAsset(relativePath: String, appFile: File): Boolean = synchronized(assetMaterializationLock) {
+        if (appFile.exists()) return@synchronized true
         runCatching {
+            context.assets.open(relativePath).use { input ->
                 appFile.parentFile?.mkdirs()
                 val tempFile = File(appFile.parentFile, "${appFile.name}.tmp")
-                stagedFile.inputStream().use { input ->
-                    tempFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
                 }
                 if (!tempFile.renameTo(appFile)) {
                     tempFile.copyTo(appFile, overwrite = true)
                     tempFile.delete()
                 }
-                appFile.exists()
-            }.getOrDefault(false)
+            }
+            appFile.exists()
+        }.getOrDefault(false)
+    }
+
+    private fun materializeExternalStagingFile(
+        stagedFile: File,
+        appFile: File,
+        overwrite: Boolean = false
+    ): Boolean = synchronized(assetMaterializationLock) {
+        if (appFile.exists() && !overwrite) return@synchronized true
+        if (!stagedFile.isFile || !stagedFile.canRead()) return@synchronized false
+        runCatching {
+            appFile.parentFile?.mkdirs()
+            val tempFile = File(appFile.parentFile, "${appFile.name}.tmp")
+            stagedFile.inputStream().use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (!tempFile.renameTo(appFile)) {
+                tempFile.copyTo(appFile, overwrite = true)
+                tempFile.delete()
+            }
+            appFile.exists()
+        }.getOrDefault(false)
     }
 
     private fun materializeExternalDirectory(
         directoryName: String,
         requiredPaths: List<String>,
-        targetFiles: Map<String, File>,
+        targetFiles: Map<String, File>
     ): Boolean = synchronized(assetMaterializationLock) {
         val stagedDirectory = File(externalStagingRoot, directoryName)
         if (!stagedDirectory.isDirectory || !stagedDirectory.canRead()) return@synchronized false

@@ -1,0 +1,128 @@
+name: PR Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source pointers
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          lfs: false
+          submodules: false
+
+      - name: Determine verification scope
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          code=true
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+            if [[ -z "$(printf '%s\n' "$changed" | grep -Ev '^(docs/|README\.md$|AGENTS\.md$|\.github/CODEOWNERS$)' || true)" ]]; then
+              code=false
+            fi
+          fi
+          printf 'code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+
+      - name: Check repository whitespace
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff-tree --check --no-commit-id --root -r HEAD
+          fi
+
+      - name: Restore Git LFS cache
+        if: steps.scope.outputs.code == 'true'
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: .git/lfs
+          key: ${{ runner.os }}-lfs-${{ hashFiles('.gitattributes', 'app/libs/**', 'app/src/main/assets/models/**') }}
+
+      - name: Materialize source dependencies
+        if: steps.scope.outputs.code == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive
+          git lfs pull --include='app/libs/**,app/src/main/assets/models/**'
+          test "$(wc -c < app/src/main/assets/models/tone_ru/model.onnx)" -gt 100000000
+          test "$(wc -c < app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar)" -gt 30000000
+
+      - name: Set up JDK 17
+        if: steps.scope.outputs.code == 'true'
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android native toolchain
+        if: steps.scope.outputs.code == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
+
+      - name: Set up Gradle
+        if: steps.scope.outputs.code == 'true'
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Run host policy tests
+        if: steps.scope.outputs.code == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 -m unittest discover -s training -p 'test_*.py'
+          python3 scripts/test_qwen_generation_policy.py
+
+      - name: Run Kotlin and Android quality gates
+        if: steps.scope.outputs.code == 'true'
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          ktlintCheck detekt lintDebug test assembleDebug :app:compileReleaseKotlin
+
+      - name: Upload verification reports
+        if: always() && steps.scope.outputs.code == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-reports-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            core/build/reports/
+            core/build/test-results/
+            benchmark/build/reports/

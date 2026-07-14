@@ -26,7 +26,7 @@ class AssistantStoresTest {
 
         val reminder = store.create(
             text = "проверить духовку",
-            datetime = "2026-07-10T09:00:00+03:00",
+            datetime = "2026-07-10T09:00:00+03:00"
         )
         val completed = store.complete(reminder.id)
         val deleted = store.delete(reminder.id)

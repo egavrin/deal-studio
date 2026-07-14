@@ -13,18 +13,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.offlineassistant.app.models.DeviceDiagnostics
+import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.ModelReadinessRepository
-import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.SharedPreferencesModelRuntimeTelemetryStore
-import com.offlineassistant.app.models.DeviceDiagnostics
 import com.offlineassistant.core.contracts.DebugInfo
 
 @Composable
 fun DebugScreen(
     debugHistory: List<DebugInfo> = emptyList(),
     modelReadiness: List<ModelReadiness> = ModelReadinessRepository(LocalContext.current).all(),
-    deviceDiagnostics: DeviceDiagnostics = DeviceDiagnostics.from(LocalContext.current),
+    deviceDiagnostics: DeviceDiagnostics = DeviceDiagnostics.from(LocalContext.current)
 ) {
     val context = LocalContext.current
     val firstAudio = SharedPreferencesModelRuntimeTelemetryStore(context).read(ModelNames.TTS_PLAYBACK)
@@ -33,7 +33,7 @@ fun DebugScreen(
             .fillMaxSize()
             .testTag("debug_history_list")
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {

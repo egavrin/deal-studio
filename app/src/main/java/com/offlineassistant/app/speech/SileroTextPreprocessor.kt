@@ -35,7 +35,7 @@ class SileroTextPreprocessor(metadataFile: File) {
             sequence = sequence,
             durationRate = FloatArray(sequence.size) { 1f },
             pitchCoefficients = FloatArray(sequence.size) { 1f },
-            typeIds = SileroSentenceClassifier.typeIds(originalText, sequence.size, startToken.isNotEmpty()),
+            typeIds = SileroSentenceClassifier.typeIds(originalText, sequence.size, startToken.isNotEmpty())
         )
     }
 }
@@ -47,7 +47,7 @@ internal object SileroSentenceClassifier {
         Regex("[,\\s]+(правда|верно|да)\\s*\\?$", RegexOption.IGNORE_CASE),
         Regex("[,\\s]+(не\\s+так\\s+ли|не\\s+правда\\s+ли|разве\\s+не\\s+так|ведь\\s+так)\\s*\\?$", RegexOption.IGNORE_CASE),
         Regex("[,\\s]+ведь\\s*\\?$", RegexOption.IGNORE_CASE),
-        Regex("[,\\s]+а\\s*\\?$", RegexOption.IGNORE_CASE),
+        Regex("[,\\s]+а\\s*\\?$", RegexOption.IGNORE_CASE)
     )
     private val whForms = setOf(
         "кто", "кого", "кому", "кем", "ком", "что", "чего", "чему", "чем", "чём", "чё", "чо",
@@ -56,11 +56,11 @@ internal object SileroSentenceClassifier {
         "какого", "каких", "какому", "каким", "какими", "каком", "какую", "чей", "чья", "чьё",
         "чье", "чьи", "чьего", "чьей", "чьих", "чьему", "чьим", "чьими", "чьём", "чьем", "чью",
         "который", "которая", "которое", "которые", "которого", "которой", "которых", "которому",
-        "которым", "которыми", "котором", "которую", "каков", "какова", "каково", "каковы",
+        "которым", "которыми", "котором", "которую", "каков", "какова", "каково", "каковы"
     )
     private val leadingFillers = setOf(
         "а", "ну", "и", "так", "вот", "слышь", "слушай", "скажите", "скажи", "пожалуйста",
-        "вобще", "вообще", "типа", "короче",
+        "вобще", "вообще", "типа", "короче"
     )
 
     fun typeIds(text: String, sequenceLength: Int, hasStartToken: Boolean): LongArray {

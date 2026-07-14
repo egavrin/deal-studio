@@ -1,9 +1,9 @@
 package com.offlineassistant.app.llm
 
-import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.models.InMemoryModelRuntimeTelemetryStore
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelOperations
+import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.core.llm.FallbackKind
 import com.offlineassistant.core.llm.LocalAnswerStatus
 import com.offlineassistant.core.llm.StreamingLocalAnswerProvider
@@ -21,7 +21,7 @@ class LlamaCppFallbackParserTest {
     fun llamaParserExposesAnswerOnlyProviderContract() {
         val parser: StreamingLocalAnswerProvider = LlamaCppFallbackParser(
             nativeEngine = FakeLlamaEngine("Это обычный локальный ответ."),
-            readinessProvider = { readyModel() },
+            readinessProvider = { readyModel() }
         )
         val streamed = StringBuilder()
 
@@ -38,7 +38,7 @@ class LlamaCppFallbackParserTest {
     @Test
     fun readyModelUsesPlainAnswerPromptForActionLikeUnknowns() {
         val nativeEngine = FakeLlamaEngine(
-            "Если нужен таймер, сформулируйте команду явно; действия выбирает локальный классификатор.",
+            "Если нужен таймер, сформулируйте команду явно; действия выбирает локальный классификатор."
         )
         val parser = LlamaCppFallbackParser(nativeEngine = nativeEngine)
 
@@ -74,7 +74,7 @@ class LlamaCppFallbackParserTest {
         val telemetry = InMemoryModelRuntimeTelemetryStore()
         val parser = LlamaCppFallbackParser(
             nativeEngine = FakeLlamaEngine("   "),
-            telemetryStore = telemetry,
+            telemetryStore = telemetry
         )
 
         val result = parser.parse("что-то", readyModel(), unknownNlu())
@@ -93,7 +93,7 @@ class LlamaCppFallbackParserTest {
         val result = parser.parse(
             text = "что-то",
             readiness = ModelReadiness("Qwen2.5 0.5B Instruct GGUF", false, "models/qwen/qwen2.5-0.5b-instruct.gguf", "missing"),
-            nlu = unknownNlu(),
+            nlu = unknownNlu()
         )
 
         assertEquals(FallbackKind.ERROR, result.kind)
@@ -191,7 +191,7 @@ class LlamaCppFallbackParserTest {
     @Test
     fun offlineModePurposePromptExplainsOnDevicePrivacyAndNoInternet() {
         val nativeEngine = FakeLlamaEngine(
-            "Офлайн-режим работает без интернета, обрабатывает данные на устройстве и помогает сохранять приватность.",
+            "Офлайн-режим работает без интернета, обрабатывает данные на устройстве и помогает сохранять приватность."
         )
         val parser = LlamaCppFallbackParser(nativeEngine = nativeEngine)
 
@@ -217,7 +217,7 @@ class LlamaCppFallbackParserTest {
     fun streamingGeneralAnswerEmitsVisibleTextAndHidesThinkingBlock() {
         val nativeEngine = FakeLlamaEngine(
             output = "<think>internal</think>Похудение зависит от дефицита калорий.",
-            streamingChunks = listOf("<think>", "internal", "</think>", "Похудение ", "зависит ", "от дефицита калорий."),
+            streamingChunks = listOf("<think>", "internal", "</think>", "Похудение ", "зависит ", "от дефицита калорий.")
         )
         val parser = LlamaCppFallbackParser(nativeEngine = nativeEngine)
         val streamed = StringBuilder()
@@ -240,8 +240,8 @@ class LlamaCppFallbackParserTest {
                 "Похудение ",
                 "зависит ",
                 "от дефицита калорий.",
-                """"}""",
-            ),
+                """"}"""
+            )
         )
         val parser = LlamaCppFallbackParser(nativeEngine = nativeEngine)
         val streamed = StringBuilder()
@@ -261,7 +261,7 @@ class LlamaCppFallbackParserTest {
     fun streamingGeneralAnswerSanitizesVisibleMarkdownAndCjkLeakage() {
         val nativeEngine = FakeLlamaEngine(
             output = "Ответ **важный** 资质.",
-            streamingChunks = listOf("Ответ ", "**важ", "ный** ", "资质", "."),
+            streamingChunks = listOf("Ответ ", "**важ", "ный** ", "资质", ".")
         )
         val parser = LlamaCppFallbackParser(nativeEngine = nativeEngine)
         val streamed = StringBuilder()
@@ -281,7 +281,7 @@ class LlamaCppFallbackParserTest {
         val nativeEngine = FakeLlamaEngine(
             output = "Частичный ответ",
             streamingChunks = listOf("Частичный ", "ответ"),
-            afterStreaming = { parser.cancel() },
+            afterStreaming = { parser.cancel() }
         )
         parser = LlamaCppFallbackParser(nativeEngine = nativeEngine)
         val streamed = StringBuilder()
@@ -294,21 +294,20 @@ class LlamaCppFallbackParserTest {
         assertEquals(1, nativeEngine.cancelCount)
     }
 
-    private fun readyModel(): ModelReadiness =
-        ModelReadiness("Qwen2.5 0.5B Instruct GGUF", true, "/models/qwen.gguf", "found")
+    private fun readyModel(): ModelReadiness = ModelReadiness("Qwen2.5 0.5B Instruct GGUF", true, "/models/qwen.gguf", "found")
 
     private fun unknownNlu(): NluResult = NluResult(
         intent = Intents.UNKNOWN,
         confidence = 0.3,
         slots = buildJsonObject {},
-        source = NluSource.STUB,
+        source = NluSource.STUB
     )
 }
 
 private class FakeLlamaEngine(
     private val output: String,
     private val streamingChunks: List<String> = listOf(output),
-    private val afterStreaming: () -> Unit = {},
+    private val afterStreaming: () -> Unit = {}
 ) : LlamaNativeEngine {
     var called: Boolean = false
         private set

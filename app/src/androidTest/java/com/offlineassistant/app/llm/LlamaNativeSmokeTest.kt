@@ -6,12 +6,12 @@ import com.offlineassistant.core.llm.FallbackKind
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
+import java.io.File
 import kotlinx.serialization.json.buildJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 
 class LlamaNativeSmokeTest {
     @Test
@@ -22,7 +22,7 @@ class LlamaNativeSmokeTest {
         val output = JniLlamaNativeEngine.generate(
             modelPath = readiness.location,
             prompt = """{"kind":"answer","answer":"""",
-            maxTokens = 8,
+            maxTokens = 8
         )
 
         assertTrue(output.isNotBlank())
@@ -37,7 +37,7 @@ class LlamaNativeSmokeTest {
         val output = JniLlamaNativeEngine.generate(
             modelPath = readiness.location,
             prompt = """{"kind":"answer","answer":"""",
-            maxTokens = 8,
+            maxTokens = 8
         )
 
         assertTrue(output.isNotBlank())
@@ -51,7 +51,7 @@ class LlamaNativeSmokeTest {
         val result = LlamaCppFallbackParser(nativeEngine = JniLlamaNativeEngine, answerMaxTokens = 24).parse(
             text = "ответь коротко",
             readiness = readiness,
-            nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.STUB),
+            nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.STUB)
         )
 
         assertTrue(result.latencyMs >= 0)
@@ -65,11 +65,11 @@ class LlamaNativeSmokeTest {
 
         val result = LlamaCppFallbackParser(
             nativeEngine = JniLlamaNativeEngine,
-            answerMaxTokens = LlamaCppFallbackParser.MODEL_MAX_GENERATION_TOKENS,
+            answerMaxTokens = LlamaCppFallbackParser.MODEL_MAX_GENERATION_TOKENS
         ).parse(
             text = "Если я буду пить по 2 литра воды в день и бегать по утрам, через месяц я точно похудею на 5 кг?",
             readiness = readiness,
-            nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2),
+            nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2)
         ) { token -> streamed.append(token) }
 
         assertEquals(result.toString(), FallbackKind.ANSWER, result.kind)
@@ -88,7 +88,7 @@ class LlamaNativeSmokeTest {
         val readiness = qwenReadiness(context)
         val parser = LlamaCppFallbackParser(
             nativeEngine = JniLlamaNativeEngine,
-            answerMaxTokens = 256,
+            answerMaxTokens = 256
         )
         val nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2)
 
@@ -97,7 +97,7 @@ class LlamaNativeSmokeTest {
             val result = parser.parse(
                 text = "Ответь коротко: почему небо синее? Запрос ${index + 1}.",
                 readiness = readiness,
-                nlu = nlu,
+                nlu = nlu
             ) { token -> streamed.append(token) }
 
             assertEquals(result.toString(), FallbackKind.ANSWER, result.kind)
@@ -113,13 +113,13 @@ class LlamaNativeSmokeTest {
         val readiness = qwenReadiness(context)
         val parser = LlamaCppFallbackParser(
             nativeEngine = JniLlamaNativeEngine,
-            answerMaxTokens = 256,
+            answerMaxTokens = 256
         )
 
         val timer = parser.parse(
             text = "Запусти обратный отсчет на пять минут",
             readiness = readiness,
-            nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2),
+            nlu = NluResult(Intents.UNKNOWN, 0.3, buildJsonObject {}, NluSource.RUBERT_TINY2)
         )
 
         assertEquals(timer.toString(), FallbackKind.ANSWER, timer.kind)
