@@ -500,7 +500,7 @@ The offline core stores no full mailbox by default. A future provider connector 
 
 ## 17. Milestone 9 - Android AppFunctions Experiment
 
-AppFunctions are experimental and currently require a compileSdk 37-compatible setup, while the product uses compileSdk/targetSdk 36.
+AppFunctions remain experimental. The product now uses compileSdk/targetSdk 37, so the platform-level prerequisite is satisfied, but the integration must remain isolated behind a capability flag until the API is production-ready.
 
 ### Deliverables
 

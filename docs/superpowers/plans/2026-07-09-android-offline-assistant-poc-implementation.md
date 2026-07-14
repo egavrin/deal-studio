@@ -53,7 +53,7 @@ Task 5 UI implementation and later polish passes must compare the rendered app a
 - [ ] Step 1: Copy Gradle wrapper from the local llama Android example.
 - [ ] Step 2: Create Gradle settings with `:core` and `:app`.
 - [ ] Step 3: Configure Android SDK path from `/opt/homebrew/share/android-commandlinetools`.
-- [ ] Step 4: Add compile SDK 36, min SDK 26, Kotlin JVM target 17, Compose plugin, serialization plugin, and test dependencies.
+- [x] Step 4: Add compile SDK 37, min SDK 26, Kotlin JVM target 17, Compose plugin, serialization plugin, and test dependencies.
 - [ ] Step 5: Run `./gradlew projects` and confirm both modules are visible.
 
 ## Task 2: Core Contracts, Tests First

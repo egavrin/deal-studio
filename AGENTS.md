@@ -7,7 +7,7 @@ This file provides guidance to AI agents working in this repository.
 - **Name:** Android Offline Assistant PoC
 - **Purpose:** Android-only technology demo for fully local voice input, deterministic command execution, general-question answers and speech output.
 - **Primary stack:** Kotlin, Jetpack Compose, C++/JNI, ONNX Runtime, llama.cpp, whisper.cpp and Python training/evaluation tools.
-- **Platform:** `minSdk 26`, `targetSdk 36`, ARM64 Android; Pixel 10 is the measured reference device.
+- **Platform:** `minSdk 26`, `compileSdk 37`, `targetSdk 37`, ARM64 Android; Pixel 10 is the measured reference device.
 
 The current PoC Definition of Done is complete. Treat planned vNext work as proposed until it is implemented and accepted. Sources of truth:
 
@@ -40,7 +40,7 @@ Do not treat `core/src/**/skills` as Codex skill directories. They contain produ
 
 ## Build, Test, and Run
 
-Prerequisites are JDK 17, Android SDK 36, Android NDK/CMake, Python 3, Git LFS and `adb` for device work.
+Prerequisites are JDK 17, Android SDK 37, Build Tools 37.0.0, NDK 27.0.12077973, CMake 3.22.1, Python 3, Git LFS and `adb` for device work.
 
 Canonical commands:
 
@@ -48,6 +48,7 @@ Canonical commands:
 ./gradlew test
 ./gradlew assembleDebug
 ./gradlew ktlintCheck detekt lintDebug
+./gradlew :app:koverVerifyCi :app:koverXmlReportCi
 ./gradlew installDebug
 ./gradlew :app:connectedDebugAndroidTest
 scripts/run_full_acceptance.sh --host-only
@@ -56,7 +57,7 @@ scripts/run_full_acceptance.sh
 
 After cloning, run `git lfs pull` and `git submodule update --init --recursive`. External Qwen, generated RuBERT and exported Silero bundles are required for the corresponding connected tests; see `README.md` for exact paths.
 
-Before opening a pull request, run `./gradlew ktlintCheck detekt lintDebug test assembleDebug :app:compileReleaseKotlin` plus the relevant Python/native policy tests. Do not push directly to `main`; repository rules require the `PR Quality / quality` check.
+Before opening a pull request, run `./gradlew ktlintCheck detekt lintDebug :app:koverVerifyCi :app:koverXmlReportCi :app:compileReleaseKotlin`, `./gradlew assembleDebug`, and the relevant Python/native policy tests. The Kover variant combines `:app` and `:core` JVM unit coverage and enforces a 45% line floor. Gradle dependency verification is strict; when intentionally changing dependencies, regenerate and review `gradle/verification-metadata.xml` rather than bypassing verification. Do not push directly to `main`; repository rules require the aggregate `PR Quality / quality` check after parallel `fast quality` and `native APK` jobs pass.
 
 ## Required Architecture
 

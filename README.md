@@ -53,13 +53,13 @@ The approved UI references are documented in [`docs/design/references/`](docs/de
 
 - macOS or Linux host;
 - JDK 17;
-- Android SDK 36, Android Build Tools and an NDK/CMake version supported by AGP;
+- Android SDK 37, Build Tools 37.0.0, NDK 27.0.12077973 and CMake 3.22.1;
 - Python 3 for training and acceptance helpers;
 - `adb` for connected-device flows;
 - Git LFS for bundled ASR/runtime binaries;
 - ARM64 Android device for native runtime acceptance.
 
-The tested reference device is Pixel 10. The application has `minSdk 26`, `targetSdk 36` and packages only `arm64-v8a` native libraries.
+The tested reference device is Pixel 10. The application has `minSdk 26`, `compileSdk 37`, `targetSdk 37` and packages only `arm64-v8a` native libraries. The build uses AGP 9.2.1, Gradle 9.4.1 and JDK 17.
 
 ## Clone and Build
 
@@ -107,11 +107,21 @@ Silero's selected public weight is non-commercial. Do not use it in a commercial
 Fast host checks:
 
 ```bash
-./gradlew ktlintCheck detekt lintDebug test assembleDebug :app:compileReleaseKotlin
+./gradlew ktlintCheck detekt lintDebug :app:koverVerifyCi :app:koverXmlReportCi :app:compileReleaseKotlin
 python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 -m unittest discover -s training -p 'test_*.py'
 python3 scripts/test_qwen_generation_policy.py
 ```
+
+The Kover gate merges JVM unit coverage from `:app` and `:core`, enforces at least 45% line coverage and writes `app/build/reports/kover/reportCi.xml`. Native APK compilation is a separate check:
+
+```bash
+./gradlew assembleDebug
+```
+
+Gradle dependency verification is strict and backed by committed SHA-256 checksums in `gradle/verification-metadata.xml`. CI runs fast quality and native APK jobs in parallel, then exposes their aggregate as the required `PR Quality / quality` check.
+
+The API 37 host, 16 KB alignment and Android 17 runtime evidence is recorded in [`docs/testing/2026-07-14-android-17-migration.md`](docs/testing/2026-07-14-android-17-migration.md).
 
 Host readiness, including the generated RuBERT bundle:
 

@@ -1,7 +1,7 @@
 # Android Offline Assistant PoC Design Spec
 
 Дата: 2026-07-09
-Актуализировано: 2026-07-13
+Актуализировано: 2026-07-14
 Статус: implementation-aligned design baseline; functional DoD принят, UX stabilization/release profiling выполнены на Pixel 10
 Целевая платформа: Android, Kotlin, Jetpack Compose
 
@@ -30,6 +30,8 @@ ASR/NLU boundary: the selected ASR backend returns a final transcript; RuBERT/ru
 
 - `:core` — pure Kotlin contracts, assistant orchestration, NLU abstractions, slot normalization, storage/weather contracts and reusable domain logic;
 - `:app` — Android UI, platform adapters, ONNX Runtime, AudioRecord, whisper.cpp JNI, sherpa-onnx, llama.cpp JNI, model materialization and Android persistence.
+
+Build baseline: `minSdk 26`, `compileSdk/targetSdk 37`, AGP 9.2.1, Gradle 9.4.1, JDK 17, NDK 27.0.12077973 and CMake 3.22.1. Dependency verification uses committed SHA-256 metadata. CI executes static analysis plus combined `:app`/`:core` JVM coverage and the native APK build in parallel; the current line-coverage regression floor is 45%. Host and Android 17/16 KB runtime evidence is recorded in `docs/testing/2026-07-14-android-17-migration.md`.
 
 Вертикальный путь text/voice -> local model -> structured response -> Compose widget реализован и проверяется unit- и connected-тестами на Pixel. Qwen работает только как answer provider, стримит plain text в одно assistant message и прогревается в фоне. Выбираемый ASR backend, RuBERT, Qwen и Silero выполняются локально.
 

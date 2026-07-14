@@ -15,10 +15,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: quality
+  scope:
+    name: verification scope
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
 
     steps:
       - name: Check out source pointers
@@ -60,15 +62,104 @@ jobs:
             git diff-tree --check --no-commit-id --root -r HEAD
           fi
 
-      - name: Restore Git LFS cache
-        if: steps.scope.outputs.code == 'true'
+  fast-quality:
+    name: fast quality
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source pointers
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          lfs: false
+          submodules: false
+
+      - name: Restore runtime AAR cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .git/lfs
-          key: ${{ runner.os }}-lfs-${{ hashFiles('.gitattributes', 'app/libs/**', 'app/src/main/assets/models/**') }}
+          key: ${{ runner.os }}-fast-lfs-${{ hashFiles('.gitattributes', 'app/libs/**') }}
 
-      - name: Materialize source dependencies
-        if: steps.scope.outputs.code == 'true'
+      - name: Materialize runtime AAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include='app/libs/**'
+          test "$(wc -c < app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar)" -gt 30000000
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+
+      - name: Install Android 17 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Run host policy tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 -m unittest discover -s training -p 'test_*.py'
+          python3 scripts/test_qwen_generation_policy.py
+
+      - name: Run static analysis, unit tests, and coverage
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          ktlintCheck detekt lintDebug
+          :app:koverVerifyCi :app:koverXmlReportCi
+          :app:compileReleaseKotlin
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fast-quality-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            core/build/reports/
+            core/build/test-results/
+            benchmark/build/reports/
+
+  native-build:
+    name: native APK
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out source pointers
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          lfs: false
+          submodules: false
+
+      - name: Restore native source and model cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: .git/lfs
+          key: ${{ runner.os }}-native-lfs-${{ hashFiles('.gitattributes', 'app/libs/**', 'app/src/main/assets/models/**') }}
+
+      - name: Materialize native sources and model assets
         shell: bash
         run: |
           set -euo pipefail
@@ -78,55 +169,63 @@ jobs:
           test "$(wc -c < app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar)" -gt 30000000
 
       - name: Set up JDK 17
-        if: steps.scope.outputs.code == 'true'
         uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
-        if: steps.scope.outputs.code == 'true'
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
 
-      - name: Install Android native toolchain
-        if: steps.scope.outputs.code == 'true'
+      - name: Install Android 17 native toolchain
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
 
       - name: Set up Gradle
-        if: steps.scope.outputs.code == 'true'
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Run host policy tests
-        if: steps.scope.outputs.code == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m unittest discover -s scripts -p 'test_*.py'
-          python3 -m unittest discover -s training -p 'test_*.py'
-          python3 scripts/test_qwen_generation_policy.py
+      - name: Build native debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
 
-      - name: Run Kotlin and Android quality gates
-        if: steps.scope.outputs.code == 'true'
-        run: >-
-          ./gradlew --no-daemon --stacktrace
-          ktlintCheck detekt lintDebug test assembleDebug :app:compileReleaseKotlin
-
-      - name: Upload verification reports
-        if: always() && steps.scope.outputs.code == 'true'
+      - name: Upload debug APK
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: verification-reports-${{ github.run_id }}
-          if-no-files-found: warn
+          name: native-debug-apk-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
           retention-days: 7
-          path: |
-            app/build/reports/
-            app/build/test-results/
-            core/build/reports/
-            core/build/test-results/
-            benchmark/build/reports/
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+  quality:
+    name: quality
+    needs:
+      - scope
+      - fast-quality
+      - native-build
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Enforce required quality jobs
+        shell: bash
+        env:
+          CODE_REQUIRED: ${{ needs.scope.outputs.code }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          FAST_RESULT: ${{ needs.fast-quality.result }}
+          NATIVE_RESULT: ${{ needs.native-build.result }}
+        run: |
+          set -euo pipefail
+          test "$SCOPE_RESULT" = success
+          if [[ "$CODE_REQUIRED" == true ]]; then
+            test "$FAST_RESULT" = success
+            test "$NATIVE_RESULT" = success
+          else
+            test "$FAST_RESULT" = skipped
+            test "$NATIVE_RESULT" = skipped
+          fi

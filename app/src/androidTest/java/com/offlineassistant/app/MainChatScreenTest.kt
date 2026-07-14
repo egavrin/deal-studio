@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -93,7 +94,7 @@ class MainChatScreenTest {
         compose.onNodeWithTag("chat_input").performTextInput("Какая погода сегодня?")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForTag("weather_card")
-        compose.onNodeWithTag("weather_card").assertIsDisplayed()
+        compose.onNodeWithTag("weather_card").performScrollTo().assertIsDisplayed()
         compose.waitUntil(timeoutMillis = 30_000) {
             compose.onAllNodesWithText("21°").fetchSemanticsNodes().isNotEmpty()
         }
@@ -101,13 +102,13 @@ class MainChatScreenTest {
         compose.onNodeWithTag("chat_input").performTextInput("Посчитай 125 умножить на 37")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForTag("calculator_card")
-        compose.onNodeWithTag("calculator_card").assertIsDisplayed()
+        compose.onNodeWithTag("calculator_card").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("4625").assertIsDisplayed()
 
         compose.onNodeWithTag("chat_input").performTextInput("Напомни через час проверить духовку")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForTag("reminder_card")
-        compose.onNodeWithTag("reminder_card").assertIsDisplayed()
+        compose.onNodeWithTag("reminder_card").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Проверить духовку").assertIsDisplayed()
     }
 
@@ -116,21 +117,21 @@ class MainChatScreenTest {
         compose.onNodeWithTag("chat_input").performTextInput("Поставь таймер на 5 минут")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForContentDescription("Отменить таймер")
-        compose.onNodeWithContentDescription("Отменить таймер").performClick()
-        waitForText("Таймер отменен.")
-        compose.onNodeWithText("Таймер отменен.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Отменить таймер").performScrollTo().performClick()
+        waitForText("отменен")
+        compose.onNodeWithText("отменен").assertIsDisplayed()
 
         compose.onNodeWithTag("chat_input").performTextInput("Напомни через час проверить духовку")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForContentDescription("Выполнить напоминание")
-        compose.onNodeWithContentDescription("Выполнить напоминание").performClick()
+        compose.onNodeWithContentDescription("Выполнить напоминание").performScrollTo().performClick()
         waitForText("Напоминание выполнено.")
         compose.onNodeWithText("Напоминание выполнено.").assertIsDisplayed()
 
         compose.onNodeWithTag("chat_input").performTextInput("Создай заметку купить молоко и яйца")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForContentDescription("Удалить заметку")
-        compose.onNodeWithContentDescription("Удалить заметку").performClick()
+        compose.onNodeWithContentDescription("Удалить заметку").performScrollTo().performClick()
         waitForText("Заметка удалена.")
         compose.onNodeWithText("Заметка удалена.").assertIsDisplayed()
     }
@@ -168,7 +169,7 @@ class MainChatScreenTest {
         assertEquals(1, notes.list().size)
 
         waitForContentDescription("Удалить заметку")
-        compose.onNodeWithContentDescription("Удалить заметку").performClick()
+        compose.onNodeWithContentDescription("Удалить заметку").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 30_000) { notes.list().isEmpty() }
         assertEquals(emptyList<Any>(), notes.list())
 
@@ -178,7 +179,7 @@ class MainChatScreenTest {
         assertEquals("scheduled", reminders.list().single().state)
 
         waitForContentDescription("Выполнить напоминание")
-        compose.onNodeWithContentDescription("Выполнить напоминание").performClick()
+        compose.onNodeWithContentDescription("Выполнить напоминание").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 30_000) { reminders.list().singleOrNull()?.state == "completed" }
         assertEquals("completed", reminders.list().single().state)
     }
@@ -193,7 +194,7 @@ class MainChatScreenTest {
         compose.waitUntil(timeoutMillis = 30_000) { notes.list().size == 1 }
 
         waitForContentDescription("Изменить заметку")
-        compose.onNodeWithContentDescription("Изменить заметку").performClick()
+        compose.onNodeWithContentDescription("Изменить заметку").performScrollTo().performClick()
         compose.onNodeWithTag("chat_input").performTextReplacement("купить молоко и яйца")
         compose.onNodeWithContentDescription("Отправить").performClick()
 
@@ -210,14 +211,14 @@ class MainChatScreenTest {
         compose.onNodeWithTag("chat_input").performTextInput("Создай заметку купить молоко и яйца")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForContentDescription("Скопировать заметку")
-        compose.onNodeWithContentDescription("Скопировать заметку").performClick()
+        compose.onNodeWithContentDescription("Скопировать заметку").performScrollTo().performClick()
         waitForText("Заметка скопирована.")
         assertEquals("купить молоко и яйца", clipboard.primaryClip?.getItemAt(0)?.coerceToText(context).toString())
 
         compose.onNodeWithTag("chat_input").performTextInput("Посчитай 125 умножить на 37")
         compose.onNodeWithContentDescription("Отправить").performClick()
         waitForContentDescription("Скопировать результат")
-        compose.onNodeWithContentDescription("Скопировать результат").performClick()
+        compose.onNodeWithContentDescription("Скопировать результат").performScrollTo().performClick()
         waitForText("Результат скопирован.")
         assertEquals("4625", clipboard.primaryClip?.getItemAt(0)?.coerceToText(context).toString())
     }

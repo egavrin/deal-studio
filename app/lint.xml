@@ -3,5 +3,5 @@
     <!-- This product packages ARM64 native models and does not target ChromeOS. -->
     <issue id="ChromeOsAbiSupport" severity="ignore" />
     <!-- Dependabot owns version discovery; platform/dependency releases must not break unchanged builds. -->
-    <issue id="AndroidGradlePluginVersion,GradleDependency,NewerVersionAvailable,OldTargetApi" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion,GradleDependency,NewerVersionAvailable" severity="ignore" />
 </lint>
