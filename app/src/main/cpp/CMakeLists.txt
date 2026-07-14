@@ -84,6 +84,7 @@ add_library(
     "${TALK_LLAMA_DIR}/llama-kv-cache.cpp"
     "${TALK_LLAMA_DIR}/llama-kv-cache-iswa.cpp"
     "${TALK_LLAMA_DIR}/llama-kv-cache-dsa.cpp"
+    "${TALK_LLAMA_DIR}/llama-kv-cache-dsv4.cpp"
     "${TALK_LLAMA_DIR}/llama-memory-recurrent.cpp"
     "${TALK_LLAMA_DIR}/llama-memory-hybrid.cpp"
     "${TALK_LLAMA_DIR}/llama-memory-hybrid-iswa.cpp"
