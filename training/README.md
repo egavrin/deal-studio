@@ -41,6 +41,14 @@ Evaluate an exported model:
 python3 training/scripts/evaluate_nlu.py --model-dir models/generated/rubert --output build/rubert-host-eval.jsonl
 ```
 
+Run the deterministic RuBERT-compatible ONNX export contract used by CI:
+
+```bash
+python3 training/rubert/ci_export_smoke.py --output-dir build/rubert-ci
+```
+
+The smoke uses a small, randomly initialized BERT encoder with the production joint intent/slot heads. It does not download model weights. It verifies ONNX validity, exact input/output names, dynamic batch and sequence dimensions, output shapes, and numerical parity with PyTorch. Semantic quality remains covered by `evaluate_nlu.py` against the trained RuBERT bundle.
+
 The evaluator writes two artifacts:
 
 - `build/rubert-host-eval.jsonl` with one normalized result per case;
