@@ -4,6 +4,15 @@ plugins {
     alias(libs.plugins.android.lint)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.kover)
+}
+
+kover {
+    currentProject {
+        createVariant("ci") {
+            add("jvm")
+        }
+    }
 }
 
 kotlin {

@@ -1,11 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.baselineprofile)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.kover)
 }
 
 val asrVulkanEnabled = providers.gradleProperty("asrVulkan")
@@ -17,12 +17,13 @@ val vulkanHeadersDir = providers.gradleProperty("vulkanHeadersDir").orNull
 
 android {
     namespace = "com.offlineassistant.app"
-    compileSdk = 36
+    compileSdk = 37
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.offlineassistant.poc"
         minSdk = if (asrVulkanEnabled) 28 else 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -55,17 +56,12 @@ android {
             )
             // The PoC has no production keystore yet; this keeps release profiling installable.
             signingConfig = signingConfigs.getByName("debug")
-            baselineProfile.automaticGenerationDuringBuild = false
         }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlin {
-        jvmToolchain(17)
     }
 
     buildFeatures {
@@ -93,12 +89,14 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 }
 
 dependencies {
     implementation(project(":core"))
+    kover(project(":core"))
     implementation(files("libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar"))
 
     implementation(libs.kotlinx.coroutines.android)
@@ -130,6 +128,23 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }
 
+kover {
+    currentProject {
+        createVariant("ci") {
+            add("debug")
+        }
+    }
+    reports {
+        variant("ci") {
+            verify {
+                rule("Combined app and core line coverage") {
+                    minBound(45)
+                }
+            }
+        }
+    }
+}
+
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.files("config/detekt/detekt.yml"))
@@ -147,6 +162,7 @@ ktlint {
 }
 
 baselineProfile {
+    automaticGenerationDuringBuild = false
     filter {
         include("com.offlineassistant.**")
     }
