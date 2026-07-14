@@ -53,6 +53,17 @@ EXPORT_INTENT_CHECKS = [
     ("Сколько будет 18 плюс 24", "calculate", 0.75),
 ]
 
+DEFAULT_BASE_MODEL = "cointegrated/rubert-tiny2"
+DEFAULT_BASE_MODEL_REVISION = "e8ed3b0c8bbf4fb6984c3de043bf7d2f4e5969ae"
+
+
+def resolve_base_model_revision(base_model, requested_revision):
+    if requested_revision is not None:
+        return requested_revision
+    if base_model == DEFAULT_BASE_MODEL:
+        return DEFAULT_BASE_MODEL_REVISION
+    return None
+
 
 class IntentDataset(Dataset):
     def __init__(self, rows, tokenizer, max_length):
@@ -85,12 +96,17 @@ class IntentDataset(Dataset):
 
 
 class JointIntentSlotModel(torch.nn.Module):
-    def __init__(self, base_model_name=None, *, encoder=None):
+    def __init__(self, base_model_name=None, *, revision=None, encoder=None):
         super().__init__()
         if encoder is None:
             if base_model_name is None:
                 raise ValueError("base_model_name or encoder is required")
-            encoder = AutoModel.from_pretrained(base_model_name)
+            encoder = AutoModel.from_pretrained(
+                base_model_name,
+                revision=revision,
+                trust_remote_code=False,
+                use_safetensors=True,
+            )
         self.encoder = encoder
         hidden_size = self.encoder.config.hidden_size
         self.dropout = torch.nn.Dropout(0.1)
@@ -214,9 +230,14 @@ def train(args):
     torch.manual_seed(args.seed)
     rows = load_rows(args.dataset)
     random.shuffle(rows)
+    base_model_revision = resolve_base_model_revision(args.base_model, args.base_model_revision)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.base_model)
-    model = JointIntentSlotModel(args.base_model)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.base_model,
+        revision=base_model_revision,
+        trust_remote_code=False,
+    )
+    model = JointIntentSlotModel(args.base_model, revision=base_model_revision)
 
     dataset = IntentDataset(rows, tokenizer, args.max_length)
     train_size = max(1, int(len(dataset) * 0.85))
@@ -300,27 +321,47 @@ def export_bundle(model, tokenizer, args):
 def export_joint_onnx(model, sample, onnx_path):
     model.eval()
     wrapper = JointOnnxWrapper(model).eval()
+    export_sample = {
+        "input_ids": ensure_dynamic_batch(sample["input_ids"]),
+        "attention_mask": ensure_dynamic_batch(sample["attention_mask"]),
+        "token_type_ids": ensure_dynamic_batch(
+            sample.get("token_type_ids", torch.zeros_like(sample["input_ids"]))
+        ),
+    }
+    batch = torch.export.Dim("batch", min=1, max=64)
+    sequence = torch.export.Dim(
+        "sequence",
+        min=2,
+        max=model.encoder.config.max_position_embeddings,
+    )
     torch.onnx.export(
         wrapper,
         (
-            sample["input_ids"],
-            sample["attention_mask"],
-            sample.get("token_type_ids", torch.zeros_like(sample["input_ids"])),
+            export_sample["input_ids"],
+            export_sample["attention_mask"],
+            export_sample["token_type_ids"],
         ),
         onnx_path,
         input_names=["input_ids", "attention_mask", "token_type_ids"],
         output_names=["intent_logits", "slot_logits"],
-        dynamic_axes={
-            "input_ids": {0: "batch", 1: "sequence"},
-            "attention_mask": {0: "batch", 1: "sequence"},
-            "token_type_ids": {0: "batch", 1: "sequence"},
-            "intent_logits": {0: "batch"},
-            "slot_logits": {0: "batch", 1: "sequence"},
+        dynamic_shapes={
+            "input_ids": {0: batch, 1: sequence},
+            "attention_mask": {0: batch, 1: sequence},
+            "token_type_ids": {0: batch, 1: sequence},
         },
-        opset_version=17,
-        dynamo=False,
+        opset_version=18,
+        dynamo=True,
+        external_data=False,
     )
     onnx.checker.check_model(str(onnx_path))
+
+
+def ensure_dynamic_batch(value):
+    if value.shape[0] != 1:
+        return value
+    repeats = [1] * value.dim()
+    repeats[0] = 2
+    return value.repeat(*repeats)
 
 
 def create_onnx_session(onnx_path):
@@ -393,7 +434,12 @@ def softmax(values):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-model", default="cointegrated/rubert-tiny2")
+    parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
+    parser.add_argument(
+        "--base-model-revision",
+        default=None,
+        help="Hugging Face revision; the default RuBERT model uses the repository-pinned revision",
+    )
     parser.add_argument("--dataset", type=Path, default=Path("training/rubert/synthetic_intents.jsonl"))
     parser.add_argument("--output-dir", type=Path, default=Path("models/generated/rubert"))
     parser.add_argument("--epochs", type=int, default=4)
