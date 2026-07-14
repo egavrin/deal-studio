@@ -49,7 +49,7 @@ python3 training/rubert/ci_export_smoke.py --output-dir build/rubert-ci
 
 The smoke uses a small, randomly initialized BERT encoder with the production joint intent/slot heads. It does not download model weights. It verifies ONNX validity, exact input/output names, dynamic batch and sequence dimensions, output shapes, and numerical parity with PyTorch. Semantic quality remains covered by `evaluate_nlu.py` against the trained RuBERT bundle.
 
-The maintained exporter uses the `torch.export`-based ONNX path with opset 18 and embeds weights in a single ONNX file. The default `cointegrated/rubert-tiny2` source is pinned to a reviewed Hugging Face revision, loads safetensors only, and does not allow remote model code.
+The maintained exporter uses the `torch.export`-based ONNX path with opset 18 and embeds weights in a single ONNX file. The default `cointegrated/rubert-tiny2` source is pinned to a reviewed Hugging Face revision, loads safetensors only, and does not allow remote model code. A custom `--base-model` uses its repository default revision unless `--base-model-revision` is supplied explicitly.
 
 The evaluator writes two artifacts:
 

@@ -57,6 +57,14 @@ DEFAULT_BASE_MODEL = "cointegrated/rubert-tiny2"
 DEFAULT_BASE_MODEL_REVISION = "e8ed3b0c8bbf4fb6984c3de043bf7d2f4e5969ae"
 
 
+def resolve_base_model_revision(base_model, requested_revision):
+    if requested_revision is not None:
+        return requested_revision
+    if base_model == DEFAULT_BASE_MODEL:
+        return DEFAULT_BASE_MODEL_REVISION
+    return None
+
+
 class IntentDataset(Dataset):
     def __init__(self, rows, tokenizer, max_length):
         self.rows = rows
@@ -222,13 +230,14 @@ def train(args):
     torch.manual_seed(args.seed)
     rows = load_rows(args.dataset)
     random.shuffle(rows)
+    base_model_revision = resolve_base_model_revision(args.base_model, args.base_model_revision)
 
     tokenizer = AutoTokenizer.from_pretrained(
         args.base_model,
-        revision=args.base_model_revision,
+        revision=base_model_revision,
         trust_remote_code=False,
     )
-    model = JointIntentSlotModel(args.base_model, revision=args.base_model_revision)
+    model = JointIntentSlotModel(args.base_model, revision=base_model_revision)
 
     dataset = IntentDataset(rows, tokenizer, args.max_length)
     train_size = max(1, int(len(dataset) * 0.85))
@@ -426,7 +435,11 @@ def softmax(values):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
-    parser.add_argument("--base-model-revision", default=DEFAULT_BASE_MODEL_REVISION)
+    parser.add_argument(
+        "--base-model-revision",
+        default=None,
+        help="Hugging Face revision; the default RuBERT model uses the repository-pinned revision",
+    )
     parser.add_argument("--dataset", type=Path, default=Path("training/rubert/synthetic_intents.jsonl"))
     parser.add_argument("--output-dir", type=Path, default=Path("models/generated/rubert"))
     parser.add_argument("--epochs", type=int, default=4)

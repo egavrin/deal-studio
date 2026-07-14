@@ -11,11 +11,14 @@ import transformers
 from transformers import BertConfig, BertModel
 
 from train_export import (
+    DEFAULT_BASE_MODEL,
+    DEFAULT_BASE_MODEL_REVISION,
     INTENTS,
     SLOT_LABELS,
     JointIntentSlotModel,
     create_onnx_session,
     export_joint_onnx,
+    resolve_base_model_revision,
     run_onnx_contract,
 )
 
@@ -47,6 +50,13 @@ def verify_parity(model, session, sample):
 
 
 def run(output_dir):
+    if resolve_base_model_revision(DEFAULT_BASE_MODEL, None) != DEFAULT_BASE_MODEL_REVISION:
+        raise RuntimeError("The default model must use the repository-pinned revision")
+    if resolve_base_model_revision("example/custom-model", None) is not None:
+        raise RuntimeError("Custom models must not inherit the default model revision")
+    if resolve_base_model_revision("example/custom-model", "reviewed-revision") != "reviewed-revision":
+        raise RuntimeError("An explicitly requested custom model revision must be preserved")
+
     torch.manual_seed(7)
     config = BertConfig(
         vocab_size=97,
@@ -84,6 +94,7 @@ def run(output_dir):
         "opsets": opsets,
         "intent_labels": len(INTENTS),
         "slot_labels": len(SLOT_LABELS),
+        "revision_resolution": "verified",
         "cases": cases,
     }
     report_path = output_dir / "contract.json"
