@@ -3,10 +3,6 @@ import argparse
 import json
 from pathlib import Path
 
-import numpy as np
-import onnxruntime as ort
-from transformers import AutoTokenizer
-
 
 DEFAULT_MIN_CONFIDENCE = 0.75
 STRICT_MIN_CONFIDENCE = 0.8
@@ -14,6 +10,9 @@ STRICT_INTENTS = {"get_weather", "set_timer", "set_alarm", "calculate"}
 
 
 def main():
+    import onnxruntime as ort
+    from transformers import AutoTokenizer
+
     args = parse_args()
     model_dir = args.model_dir
     eval_cases = load_eval_cases(args.eval_set)
@@ -71,6 +70,8 @@ def main():
 
 
 def evaluate_case(case, tokenizer, session, intent_labels, slot_labels, max_length):
+    import numpy as np
+
     text = case["text"]
     encoded = tokenizer(
         text,
@@ -406,6 +407,8 @@ def read_labels(path):
 
 
 def softmax(values):
+    import numpy as np
+
     shifted = values - values.max()
     exps = np.exp(shifted)
     return exps / exps.sum()
