@@ -19,7 +19,7 @@ profileInstaller = "1.4.1"
 detekt = "1.23.8"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
-kover = "0.9.8"
+kover = "0.9.9"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
