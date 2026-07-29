@@ -143,6 +143,9 @@ only validated HTTPS links are shown, and the app does not use Exa `/answer`.
 
 The normative scope and routing rules are in
 [`docs/superpowers/specs/2026-07-29-core-assistant-scope.md`](docs/superpowers/specs/2026-07-29-core-assistant-scope.md).
+The optional system-assistant product integration is researched and staged in
+[`docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md`](docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md).
+It is a plan, not part of the current implementation.
 The measured path from the current Russian classifier to multilingual or 200+
 intents is defined in
 [`docs/testing/intent-model-evaluation.md`](docs/testing/intent-model-evaluation.md).
