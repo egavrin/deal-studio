@@ -40,6 +40,7 @@ class AssistantEngine(
     fun handleText(
         input: String,
         conversationHistory: List<ConversationTurn> = emptyList(),
+        screenContext: String? = null,
         onAnswerToken: ((String) -> Unit)? = null,
         onAnswerEvent: ((AnswerEvent) -> Unit)? = null,
         isCancelled: () -> Boolean = { false }
@@ -64,6 +65,7 @@ class AssistantEngine(
                 input,
                 nluResult,
                 conversationHistory,
+                screenContext,
                 onAnswerToken,
                 onAnswerEvent,
                 isCancelled
@@ -121,6 +123,7 @@ class AssistantEngine(
             input = input,
             nluResult = nluResult,
             conversationHistory = emptyList(),
+            screenContext = null,
             onAnswerToken = {},
             onAnswerEvent = onAnswerEvent,
             isCancelled = isCancelled,
@@ -211,6 +214,7 @@ class AssistantEngine(
         input: String,
         nluResult: NluResult,
         conversationHistory: List<ConversationTurn>,
+        screenContext: String?,
         onAnswerToken: ((String) -> Unit)?,
         onAnswerEvent: ((AnswerEvent) -> Unit)?,
         isCancelled: () -> Boolean,
@@ -223,6 +227,7 @@ class AssistantEngine(
         val request = AnswerRequest(
             input = input,
             history = conversationHistory,
+            screenContext = screenContext,
             mediaSearchQuery = nluResult.slots["query"]?.jsonPrimitive?.contentOrNull,
             route = when (nluResult.intent) {
                 Intents.WEB_SEARCH -> AnswerRoute.WEB_SEARCH

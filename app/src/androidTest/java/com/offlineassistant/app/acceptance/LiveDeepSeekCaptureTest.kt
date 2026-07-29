@@ -28,7 +28,7 @@ class LiveDeepSeekCaptureTest {
         assumeTrue(InstrumentationRegistry.getArguments().getString("liveCapture") == "true")
 
         compose.onNodeWithTag("chat_input")
-            .performTextInput("Покажи фотографии Красной площади и расскажи, почему она важна")
+            .performTextInput("Покажи фотографии Кривого Рога")
         compose.onNodeWithTag("primary_chat_action").performClick()
 
         compose.waitUntil(timeoutMillis = PROCESSING_START_TIMEOUT_MILLIS) {

@@ -35,3 +35,5 @@
 {"text":"Собери подробный обзор конкурентов Perplexity","intent":"web_research","slots":[],"gate":true}
 {"text":"Почему небо синее?","intent":"unknown","slots":[]}
 {"text":"Объясни квантовую запутанность простыми словами","intent":"unknown","slots":[]}
+{"text":"Покажи фотографии Кривого Рога","intent":"unknown","slots":[]}
+{"text":"Покажи мне фотографии Москвы","intent":"unknown","slots":[]}

@@ -20,9 +20,14 @@ Deliver a stable vertical assistant demo around these capabilities:
 10. confirmed Android compose/navigation/settings/media actions;
 11. inline citations, source previews and related search questions;
 12. automatic foreground conversation barge-in with echo cancellation.
+13. optional Android default-assistant invocation through a compact
+    `VoiceInteractionSession` that reuses the same pipeline.
 
 The product is intentionally not a general personal operator or generated-UI
 platform.
+
+The default-assistant role is a product entry point. It does not grant AppFunctions,
+arbitrary application control or permission to read personal data.
 
 ## Runtime Flow
 
@@ -223,6 +228,29 @@ Android `VOICE_COMMUNICATION` plus available AEC/NS/AGC. A meaningful local T-on
 partial interrupts playback and continues as the next utterance. On unsupported
 devices, explicit interruption and post-playback capture remain the fallback.
 
+## System Assistant
+
+On supported devices the user may select the app as `ROLE_ASSISTANT` in system
+settings. Android then routes the power/home/corner assistant gesture to
+`VoiceInteractionService`, which hosts a compact Compose
+`VoiceInteractionSession`.
+
+The session:
+
+- shares `AssistantRuntimeContainer`, `AssistantConversationCoordinator`, model
+  instances, history and speech runtime with the full chat;
+- starts local streaming recognition after an explicit system invocation;
+- preserves RuBERT routing, action confirmation, DeepSeek/Exa consent and BYOK;
+- can expand into the full application without duplicating a request;
+- releases capture, playback and foreground network work when dismissed.
+
+Current-screen text is optional and disabled by default. When enabled, sanitized
+`AssistStructure` text is held only for the active session and may be included as
+untrusted context for a non-action answer. It is never persisted, logged or allowed
+to affect action selection or authorization. `FLAG_SECURE`, policy-disabled and
+empty structures produce no context. Screenshot/VLM processing is not part of the
+current implementation.
+
 The three images under `docs/design/references/` remain visual references. They are
 not evidence for removed generated-widget or organizer functionality.
 
@@ -232,7 +260,7 @@ not evidence for removed generated-widget or organizer functionality.
 - Whisper and selectable ASR backends;
 - Gemma and local widget planning;
 - generated Widget DSL and arbitrary cloud widget generation;
-- AppFunctions and assistant-system role integration;
+- AppFunctions and privileged cross-app execution;
 - organizer databases, inbox/calendar reading, tasks, routines, notification digest
   and personal memory;
 - Linux CLI.

@@ -80,6 +80,8 @@ EXPORT_INTENT_CHECKS = [
     ("Разбуди меня завтра", "set_alarm", 0.75, False),
     ("Что нового в Android 17", "web_search", 0.75, False),
     ("Проведи исследование конкурентов Perplexity", "web_research", 0.75, False),
+    ("Покажи фотографии Кривого Рога", "unknown", 0.75, False),
+    ("Покажи картинки котов", "unknown", 0.75, False),
     ("Позвони по номеру +7 999 123-45-67", "dial_phone", 0.75, True),
     ("Подготовь сообщение: буду через десять минут", "compose_message", 0.75, True),
     ("Подготовь письмо: отправляю документы", "compose_email", 0.75, True),

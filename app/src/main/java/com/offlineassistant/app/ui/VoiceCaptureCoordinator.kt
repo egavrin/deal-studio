@@ -8,30 +8,36 @@ import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal class VoiceCaptureCoordinator(
-    private val viewModel: ChatViewModel,
+    private val conversation: AssistantConversationCoordinator,
     private val recorder: AndroidAudioRecorder,
     private val transcriber: () -> AudioTranscriber,
     private val scope: CoroutineScope,
     private val onStateChanged: (ChatUiState) -> Unit,
+    private val screenContext: () -> String? = { null },
     private val onStopSpeech: () -> Unit,
     private val onCaptureFeedback: () -> Unit
 ) : Closeable {
     private var streamingSession: StreamingTranscriptionSession? = null
     private var bargeInSession: StreamingTranscriptionSession? = null
+    private var captureMayContainAssistantAudio = false
 
-    fun startRecording(mode: VoiceCaptureMode) {
+    fun startRecording(
+        mode: VoiceCaptureMode,
+        rejectAssistantEcho: Boolean = false
+    ) {
         if (mode == VoiceCaptureMode.CONVERSATION && promoteBargeInMonitor(mode)) return
-        if (viewModel.state.isRecording) {
+        if (conversation.state.isRecording) {
             stopRecording()
             return
         }
         val session = transcriber().startStreaming(
             onPartialTranscript = { partial ->
-                scope.launch { onStateChanged(viewModel.updateStreamingTranscript(partial)) }
+                scope.launch { onStateChanged(conversation.updateStreamingTranscript(partial)) }
             },
             onEndpointDetected = { scope.launch { stopRecording() } }
         )
@@ -42,33 +48,54 @@ internal class VoiceCaptureCoordinator(
         )
         if (started) {
             streamingSession = session
+            captureMayContainAssistantAudio = rejectAssistantEcho
             onCaptureFeedback()
-            onStateChanged(viewModel.startVoiceRecording(mode))
+            onStateChanged(conversation.startVoiceRecording(mode))
         } else {
             session?.cancel()
-            onStateChanged(viewModel.showMicrophonePermissionCard())
+            onStateChanged(conversation.showMicrophonePermissionCard())
         }
     }
 
     fun stopRecording() {
-        if (!viewModel.state.isRecording) return
+        if (!conversation.state.isRecording) return
         onCaptureFeedback()
         val session = streamingSession
         streamingSession = null
-        onStateChanged(viewModel.beginVoiceFinalization())
+        val rejectAssistantEcho = captureMayContainAssistantAudio
+        captureMayContainAssistantAudio = false
+        onStateChanged(conversation.beginVoiceFinalization())
         scope.launch {
             val audioFile = withContext(Dispatchers.IO) { recorder.stop() }
             if (session == null) {
-                viewModel.handleVoiceRecordingAsync(audioFile, transcriber(), onStateChanged)
+                conversation.handleVoiceRecordingAsync(
+                    audioFile,
+                    transcriber(),
+                    screenContext(),
+                    rejectAssistantEcho,
+                    onStateChanged,
+                    onEchoRejected = ::restartConversationAfterEcho
+                )
             } else {
-                viewModel.handleStreamingVoiceRecordingAsync(session, onStateChanged)
+                conversation.handleStreamingVoiceRecordingAsync(
+                    session,
+                    screenContext(),
+                    rejectAssistantEcho,
+                    onStateChanged,
+                    onEchoRejected = ::restartConversationAfterEcho
+                )
             }
         }
     }
 
     fun startBargeInMonitor() {
-        if (bargeInSession != null || streamingSession != null || viewModel.state.isRecording) return
-        val gate = BargeInGate()
+        if (bargeInSession != null || streamingSession != null || conversation.state.isRecording) return
+        val gate = BargeInGate {
+            conversation.state.messages
+                .filterIsInstance<ChatMessageUi.Assistant>()
+                .lastOrNull()
+                ?.text
+        }
         val triggered = AtomicBoolean(false)
         var candidate: StreamingTranscriptionSession? = null
         candidate = transcriber().startStreaming(
@@ -77,14 +104,14 @@ internal class VoiceCaptureCoordinator(
                     scope.launch {
                         if (bargeInSession === candidate) {
                             startRecording(VoiceCaptureMode.CONVERSATION)
-                            onStateChanged(viewModel.updateStreamingTranscript(partial))
+                            onStateChanged(conversation.updateStreamingTranscript(partial))
                         }
                     }
                 }
             },
             onEndpointDetected = {
                 scope.launch {
-                    if (streamingSession === candidate && viewModel.state.isRecording) stopRecording()
+                    if (streamingSession === candidate && conversation.state.isRecording) stopRecording()
                 }
             }
         )
@@ -106,7 +133,18 @@ internal class VoiceCaptureCoordinator(
         bargeInSession?.cancel()
         bargeInSession = null
         withContext(Dispatchers.IO) { recorder.cancel() }
-        startRecording(VoiceCaptureMode.CONVERSATION)
+        delay(AUDIO_TAIL_GUARD_MS)
+        if (
+            conversation.state.conversationActive &&
+            conversation.state.conversationPhase == ConversationPhase.SPEAKING &&
+            !conversation.state.isProcessing &&
+            !conversation.state.isRecording
+        ) {
+            startRecording(
+                mode = VoiceCaptureMode.CONVERSATION,
+                rejectAssistantEcho = true
+            )
+        }
     }
 
     suspend fun stopBargeInMonitor() {
@@ -130,12 +168,32 @@ internal class VoiceCaptureCoordinator(
         val monitor = bargeInSession ?: return false
         bargeInSession = null
         streamingSession = monitor
+        captureMayContainAssistantAudio = true
         onStopSpeech()
-        onStateChanged(viewModel.startVoiceRecording(mode))
+        onStateChanged(conversation.startVoiceRecording(mode))
         return true
+    }
+
+    private fun restartConversationAfterEcho() {
+        scope.launch {
+            delay(ECHO_RETRY_DELAY_MS)
+            if (
+                conversation.state.conversationActive &&
+                conversation.state.conversationPhase == ConversationPhase.LISTENING &&
+                !conversation.state.isProcessing &&
+                !conversation.state.isRecording
+            ) {
+                startRecording(
+                    mode = VoiceCaptureMode.CONVERSATION,
+                    rejectAssistantEcho = true
+                )
+            }
+        }
     }
 
     private companion object {
         const val SAMPLE_RATE = 16_000
+        const val AUDIO_TAIL_GUARD_MS = 650L
+        const val ECHO_RETRY_DELAY_MS = 250L
     }
 }

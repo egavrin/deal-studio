@@ -1,8 +1,36 @@
 # Default Assistant Product Integration
 
-**Status:** planned, not implemented  
+**Status:** implementation complete; focused OPPO regressions pass, full role
+acceptance remains
 **Date:** 2026-07-29  
 **Target:** Android 16 first, API 26 minimum, API 37 target
+
+## Implementation Status
+
+Implemented in the current branch:
+
+- process-owned `AssistantConversationCoordinator` shared by Activity and service
+  surfaces;
+- process-level T-one, RuBERT and Silero warmup/release ownership in the active
+  Activity/session process;
+- `VoiceInteractionService`, `VoiceInteractionSessionService`,
+  `VoiceInteractionSession` and a compatible local `RecognitionService`;
+- lower-screen Compose overlay with live transcript, stable streaming text, final
+  Markdown, fixed
+  cards, route badges, text input, Stop, microphone, dismiss and full-chat actions;
+- direct `ROLE_ASSISTANT` request with OEM settings fallbacks and role refresh;
+- microphone onboarding and opt-in text-only `AssistStructure` context;
+- bounded redaction, memory-only context lifetime and explicit “ЭКРАН” indicator;
+- prompt-injection delimiters and tests for the DeepSeek context path.
+
+Host tests, static analysis, release compilation and debug packaging pass. API 37
+emulator acceptance confirms role selection, system-key invocation, the compact
+overlay, text submission through the shared RuBERT route, correct navigation-bar
+insets and five repeated invoke/dismiss cycles without an application crash.
+Focused OPPO CPH2765 checks now cover the production RuBERT/DeepSeek visual route,
+real Silero speaker-to-T-one microphone echo rejection and ColorOS IME placement.
+Full gesture/context coverage and long repeated-session stability remain
+physical-device acceptance gates.
 
 ## Product Decision
 
@@ -108,6 +136,26 @@ the current product boundary:
 The differentiator is a fast local control plane with an optional grounded cloud
 knowledge plane.
 
+## Latest System-Role Evidence
+
+Validated on the API 37 16 KB ARM64 emulator on 2026-07-29:
+
+- Android selected `OfflineAssistantVoiceInteractionService` as the active
+  `ROLE_ASSISTANT` holder;
+- the always-bound `:assistant_entry` process remained model-free and contained no
+  view, activity or session objects;
+- the system assistant key opened `OfflineAssistantVoiceInteractionSession`
+  without launching `MainActivity`;
+- the session rendered above the gesture navigation area and accepted text through
+  the shared conversation coordinator;
+- route diagnostics showed `LOCAL • RUBERT` for the local classifier path;
+- five warm invoke/dismiss cycles ended with `mShown=false` and no application
+  `FATAL`, ANR, model-contention or `AudioRecord` error.
+
+The emulator invocation reported `mShowFlags=0x0`, so Android did not deliver an
+`AssistStructure`. Current-screen context remains a physical-device/OEM acceptance
+item rather than a host claim.
+
 ## User Experience
 
 ### Onboarding
@@ -122,10 +170,9 @@ Settings adds a `System assistant` section:
 - optional `Use current screen` toggle, off by default;
 - optional `Speak answers` toggle reuses the existing speech setting.
 
-Android's assistant role is not generally requestable through the regular role
-consent dialog in AOSP. The application opens the appropriate system settings
-surface and verifies the resulting role when it resumes. OEM fallbacks must be
-provided for ColorOS.
+The application first uses `RoleManager.createRequestRoleIntent` and verifies the
+result when it resumes. If the OEM does not expose that flow, it falls back through
+voice-input, default-app and general settings surfaces for ColorOS compatibility.
 
 ### Invocation
 
@@ -157,6 +204,36 @@ The initial surface contains:
 The overlay should occupy only the lower portion of the screen initially. It may
 expand when the response or card needs more space. It must not imitate Alice or
 Perplexity branding.
+
+Reference behavior captured from Alice and ChatGPT establishes a
+compact-to-expanded direction:
+
+- idle/listening is a minimal, immediately recognizable voice surface;
+- text, sources and fixed widgets expand into one anchored response panel above
+  the current application;
+- the composer remains a separate stable control at the panel edge;
+- expansion preserves visible background context instead of opening the full app;
+- light/dark treatment follows the host theme and retains Offline Assistant's own
+  shape, iconography and route indicators.
+
+Streaming must not re-layout the complete panel on every token. Render plain text
+during generation, throttle follow-latest scrolling and construct Markdown once
+the response is final.
+
+## Latest Physical Regression Evidence
+
+Validated on OPPO CPH2765 on 2026-07-29:
+
+- retrained RuBERT classifies `Покажи фотографии Кривого Рога` as `unknown` with
+  confidence `0.9868`; the production route streamed one DeepSeek response and
+  loaded three attributed Wikimedia images;
+- a real Silero speaker -> microphone test completed the local weather response,
+  returned to T-one listening and created no echoed user turn during the
+  observation window;
+- short decoder noise observed as `кога` is discarded before RuBERT while
+  intentional short controls remain accepted;
+- the composer ends at the ColorOS keyboard boundary and no longer jumps to the
+  top or renders beneath the keyboard.
 
 ### Session States
 
@@ -190,8 +267,7 @@ Rules:
 5. Screen context is never written to chat history, logs or analytics.
 6. Context can inform a natural-language answer but cannot bypass RuBERT or authorize
    an Android action.
-7. Screenshots are resized and encoded under a fixed byte limit before any approved
-   network request.
+7. Screenshots are not requested or transported in this release.
 
 The first release may support extracted text only. Screenshot/VLM support is a
 separate gate because the current DeepSeek connector is text-only.
@@ -262,9 +338,9 @@ transcriber. That policy is incompatible with a selected system assistant.
 
 Replace activity-owned release with a process-level warmup policy:
 
-- RuBERT remains warm while the service is ready;
-- T-one warms when the service becomes ready or the first assistant invocation
-  begins, selected through a measured setting;
+- the always-running `VoiceInteractionService` entry stays in a separate,
+  model-free process;
+- RuBERT and T-one warm when the session service is created;
 - Silero warms after listening starts, before an answer is expected;
 - DeepSeek and Exa hold no local model memory;
 - low-memory callbacks release T-one and Silero in that order while keeping the
@@ -445,4 +521,3 @@ Before PR 1 is merged:
    explicitly prohibited;
 4. add the system-assistant device flow to
    `docs/testing/core-device-acceptance.md`.
-

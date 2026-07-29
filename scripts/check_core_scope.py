@@ -4,6 +4,7 @@
 from pathlib import Path
 import re
 import sys
+import xml.etree.ElementTree as ElementTree
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +53,14 @@ EXPECTED_MODULES = {
     ":core",
     ":deepseek-connector",
 }
+EXPECTED_PERMISSIONS = {
+    "android.permission.RECORD_AUDIO",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.RECEIVE_BOOT_COMPLETED",
+    "com.android.alarm.permission.SET_ALARM",
+    "android.permission.READ_ASSIST_STRUCTURE_SCREEN_CONTENT",
+}
 FORBIDDEN_PATHS = (
     "appfunctions-experiment",
     "cloud-widget-connector",
@@ -84,6 +93,49 @@ def main() -> int:
     for relative in FORBIDDEN_PATHS:
         if (ROOT / relative).exists():
             failures.append(f"forbidden path exists: {relative}")
+
+    android = "{http://schemas.android.com/apk/res/android}"
+    manifest = ElementTree.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
+    actual_permissions = {
+        element.attrib[f"{android}name"]
+        for element in manifest.findall("uses-permission")
+    }
+    if actual_permissions != EXPECTED_PERMISSIONS:
+        failures.append(
+            f"manifest permission allowlist mismatch: expected={sorted(EXPECTED_PERMISSIONS)} "
+            f"actual={sorted(actual_permissions)}"
+        )
+    services = {
+        element.attrib[f"{android}name"]: element
+        for element in manifest.find("application").findall("service")
+    }
+    expected_service_guards = {
+        ".assistant.OfflineAssistantVoiceInteractionService": {
+            "exported": "true",
+            "permission": "android.permission.BIND_VOICE_INTERACTION",
+            "process": ":assistant_entry",
+        },
+        ".assistant.OfflineAssistantSessionService": {
+            "exported": "false",
+            "permission": "android.permission.BIND_VOICE_INTERACTION",
+        },
+        ".assistant.OfflineAssistantRecognitionService": {
+            "exported": "true",
+            "permission": "android.permission.BIND_SPEECH_RECOGNITION_SERVICE",
+        },
+    }
+    for service_name, expected_attributes in expected_service_guards.items():
+        service = services.get(service_name)
+        if service is None:
+            failures.append(f"required assistant service missing: {service_name}")
+            continue
+        for attribute, expected_value in expected_attributes.items():
+            actual_value = service.attrib.get(f"{android}{attribute}")
+            if actual_value != expected_value:
+                failures.append(
+                    f"assistant service {service_name} has {attribute}={actual_value!r}; "
+                    f"expected {expected_value!r}"
+                )
 
     production_roots = (
         ROOT / "app/src/main/java",

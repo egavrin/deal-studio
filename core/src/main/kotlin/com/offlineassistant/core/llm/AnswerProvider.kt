@@ -23,6 +23,7 @@ data class AnswerResult(
 data class AnswerRequest(
     val input: String,
     val history: List<ConversationTurn> = emptyList(),
+    val screenContext: String? = null,
     val mediaSearchQuery: String? = null,
     val route: AnswerRoute = AnswerRoute.DIRECT,
     val sources: List<SourceCitation> = emptyList(),

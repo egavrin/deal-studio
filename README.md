@@ -37,6 +37,7 @@ provides independent BYOK keys.
 - cancellable SSE-driven Exa Agent research with a report view and follow-up runs;
 - inline citations, persisted visual source cards, source previews and related questions;
 - editable local voice dictation and a continuous listen-answer-speak conversation mode;
+- optional Android default-assistant mode with a compact system-invoked voice session;
 - attributed Wikimedia Commons image results for explicit visual requests;
 - local Russian TTS with Silero Xenia;
 - independent encrypted DeepSeek and Exa BYOK storage through Android Keystore.
@@ -139,13 +140,30 @@ only validated HTTPS links are shown, and the app does not use Exa `/answer`.
   `VOICE_COMMUNICATION` with available AEC/NS/AGC. A meaningful ASR partial stops
   speech and becomes the next turn; manual interruption remains available.
 
+## System Assistant
+
+On Android devices that expose the default digital-assistant role:
+
+1. Open Settings in the app.
+2. Under “Системный ассистент”, grant microphone access.
+3. Tap “Выбрать системным ассистентом” and confirm the Android role dialog or OEM
+   settings fallback.
+4. Invoke the configured power, home or corner assistant gesture.
+
+The compact overlay reuses the same process-level T-one, RuBERT, local skill,
+DeepSeek/Exa and Silero runtimes as the full chat. Route badges make local and
+network execution visible. Optional current-screen text is off by default,
+memory-only, sanitized and shown with an “ЭКРАН” indicator; screenshots are not
+captured.
+
 ## Architecture
 
 The normative scope and routing rules are in
 [`docs/superpowers/specs/2026-07-29-core-assistant-scope.md`](docs/superpowers/specs/2026-07-29-core-assistant-scope.md).
 The optional system-assistant product integration is researched and staged in
 [`docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md`](docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md).
-It is a plan, not part of the current implementation.
+The host implementation is complete; physical-device role and gesture acceptance
+remains in the device checklist.
 The measured path from the current Russian classifier to multilingual or 200+
 intents is defined in
 [`docs/testing/intent-model-evaluation.md`](docs/testing/intent-model-evaluation.md).

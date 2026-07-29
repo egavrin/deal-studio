@@ -9,7 +9,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,12 +18,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -77,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
@@ -93,6 +95,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -151,10 +154,16 @@ fun MainChatScreen(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val imeNavigationLift = if (WindowInsets.ime.getBottom(density) > 0) {
+        with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
+    } else {
+        0.dp
+    }
     val listState = rememberLazyListState()
     val voiceCapture = remember(viewModel, recorder, transcriberFactory, scope) {
         VoiceCaptureCoordinator(
-            viewModel = viewModel,
+            conversation = viewModel.coordinator,
             recorder = recorder,
             transcriber = transcriberFactory::get,
             scope = scope,
@@ -170,6 +179,10 @@ fun MainChatScreen(
         is ChatMessageUi.User -> latest.text.length
         null -> 0
     }
+    val latestAssistantMessageId = uiState.messages
+        .filterIsInstance<ChatMessageUi.Assistant>()
+        .lastOrNull()
+        ?.id
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
@@ -240,6 +253,10 @@ fun MainChatScreen(
         }
     }
 
+    LaunchedEffect(viewModel) {
+        viewModel.stateFlow.collect { uiState = it }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             voiceCapture.close()
@@ -250,9 +267,16 @@ fun MainChatScreen(
         onConversationModeChanged(uiState.conversationActive)
     }
 
-    LaunchedEffect(uiState.messages.size, latestTextLength, uiState.isProcessing) {
+    LaunchedEffect(
+        uiState.messages.size,
+        latestTextLength / STREAM_SCROLL_CHARACTER_STEP,
+        uiState.isProcessing
+    ) {
         if (uiState.messages.isNotEmpty()) {
-            listState.scrollToItem(uiState.messages.size)
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            val followsLatest = lastVisibleIndex == null ||
+                lastVisibleIndex >= listState.layoutInfo.totalItemsCount - 2
+            if (followsLatest) listState.scrollToItem(uiState.messages.size)
         }
     }
 
@@ -261,7 +285,6 @@ fun MainChatScreen(
             .fillMaxSize()
             .background(AssistantColors.Screen)
             .semantics { testTagsAsResourceId = true }
-            .imePadding()
     ) {
         LazyColumn(
             modifier = Modifier
@@ -277,6 +300,9 @@ fun MainChatScreen(
 
                     is ChatMessageUi.Assistant -> AssistantMessageBubble(
                         message = message,
+                        isStreaming = uiState.isProcessing &&
+                            uiState.processingStage == ProcessingStage.GENERATING &&
+                            message.id == latestAssistantMessageId,
                         speechPlaybackRange = speechPlaybackRange?.takeIf { it.messageId == message.id },
                         onSpeak = {
                             if (speechPlaybackRange?.messageId == message.id) {
@@ -372,6 +398,7 @@ fun MainChatScreen(
         } else {
             ChatComposer(
                 state = uiState,
+                bottomInset = imeNavigationLift,
                 onInputChanged = {
                     viewModel.updateInput(it)
                     uiState = viewModel.state
@@ -418,6 +445,7 @@ fun MainChatScreen(
 @Composable
 private fun ChatComposer(
     state: ChatUiState,
+    bottomInset: Dp,
     onInputChanged: (String) -> Unit,
     onSend: () -> Unit,
     onToggleDictation: () -> Unit,
@@ -427,7 +455,12 @@ private fun ChatComposer(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp)
+            .padding(
+                start = 16.dp,
+                end = 16.dp,
+                top = 6.dp,
+                bottom = 12.dp + bottomInset
+            )
             .testTag("chat_composer"),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -642,6 +675,7 @@ private fun UserMessageBubble(text: String) {
 @Composable
 private fun AssistantMessageBubble(
     message: ChatMessageUi.Assistant,
+    isStreaming: Boolean,
     speechPlaybackRange: SpeechPlaybackRange?,
     onSpeak: () -> Unit,
     onSourceSelected: (SourceCitation) -> Unit,
@@ -667,9 +701,7 @@ private fun AssistantMessageBubble(
         }
     }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -684,7 +716,15 @@ private fun AssistantMessageBubble(
                     border = BorderStroke(1.dp, AssistantColors.Border)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (speechPlaybackRange == null || message.text.hasMarkdownSyntax()) {
+                        if (isStreaming) {
+                            Text(
+                                text = message.text,
+                                color = AssistantColors.Text,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 14.dp, top = 11.dp, bottom = 11.dp)
+                            )
+                        } else if (speechPlaybackRange == null || message.text.hasMarkdownSyntax()) {
                             CompositionLocalProvider(LocalUriHandler provides citationUriHandler) {
                                 Markdown(
                                     content = message.text.withInlineSourceLinks(message.sources),
@@ -1343,3 +1383,5 @@ private fun String.toAndroidPermissions(): Array<String> = when (this) {
 
     else -> emptyArray()
 }
+
+private const val STREAM_SCROLL_CHARACTER_STEP = 96

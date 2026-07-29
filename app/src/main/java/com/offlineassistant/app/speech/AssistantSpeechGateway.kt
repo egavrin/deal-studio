@@ -17,6 +17,8 @@ class AssistantSpeechGateway :
 
     val playbackRange: StateFlow<SpeechPlaybackRange?> = _playbackRange.asStateFlow()
     val playbackState: StateFlow<SpeechPlaybackState> = _playbackState.asStateFlow()
+    val isRuntimeInstalled: Boolean
+        get() = synchronized(lock) { delegate != null }
 
     @Volatile
     private var delegate: AssistantSpeech? = null

@@ -47,6 +47,12 @@ class AssistantSettingsRepository(context: Context) {
             preferences.edit(commit = true) { putBoolean(KEY_EXA_ENABLED, value) }
         }
 
+    var assistantScreenContextEnabled: Boolean
+        get() = preferences.getBoolean(KEY_ASSISTANT_SCREEN_CONTEXT, false)
+        set(value) {
+            preferences.edit { putBoolean(KEY_ASSISTANT_SCREEN_CONTEXT, value) }
+        }
+
     val deepSeekApiKeyConfigured: Boolean
         get() = deepSeekApiKeyStore.isConfigured()
 
@@ -89,5 +95,6 @@ class AssistantSettingsRepository(context: Context) {
         private const val KEY_AUTOMATIC_SPEECH = "automatic_speech"
         private const val KEY_DEEPSEEK_ENABLED = "deepseek_enabled"
         private const val KEY_EXA_ENABLED = "exa_enabled"
+        private const val KEY_ASSISTANT_SCREEN_CONTEXT = "assistant_screen_context"
     }
 }

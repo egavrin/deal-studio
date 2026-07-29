@@ -1,9 +1,12 @@
 package com.offlineassistant.app
 
-import android.content.ComponentCallbacks2
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -17,6 +20,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,10 +31,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.offlineassistant.app.platform.AndroidPlatformAdapters
-import com.offlineassistant.app.speech.AssistantSpeechRuntimeViewModel
-import com.offlineassistant.app.storage.SharedPreferencesChatHistoryStore
+import com.offlineassistant.app.assistant.DefaultAssistantSettingsLauncher
+import com.offlineassistant.app.assistant.DefaultAssistantStatusRepository
 import com.offlineassistant.app.ui.ChatViewModel
 import com.offlineassistant.app.ui.ChatViewModelFactory
 import com.offlineassistant.app.ui.MainChatScreen
@@ -39,8 +46,6 @@ import com.offlineassistant.app.ui.SettingsScreen
 import com.offlineassistant.app.ui.SettingsUiState
 import com.offlineassistant.app.ui.theme.AssistantTheme
 import com.offlineassistant.core.speech.SpeechStopReason
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,14 +54,6 @@ class MainActivity : ComponentActivity() {
             AssistantTheme {
                 AssistantApp()
             }
-        }
-    }
-
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
-            val application = application as? OfflineAssistantApplication
-            application?.assistantRuntime?.audioTranscribers?.release()
         }
     }
 }
@@ -73,8 +70,7 @@ private fun AssistantApp() {
     val application = context.applicationContext as OfflineAssistantApplication
     val runtime = application.assistantRuntime
     val settings = runtime.settings
-    val speechRuntime = viewModel<AssistantSpeechRuntimeViewModel>()
-    val speechGateway = speechRuntime.gateway
+    val speechGateway = runtime.speechGateway
     var selectedTab by remember { mutableStateOf(AppTab.CHAT) }
     var threshold by remember { mutableDoubleStateOf(settings.intentConfidenceThreshold) }
     var automaticSpeech by remember { mutableStateOf(settings.automaticSpeechEnabled) }
@@ -82,40 +78,62 @@ private fun AssistantApp() {
     var exaEnabled by remember { mutableStateOf(settings.exaEnabled) }
     var keyConfigured by remember { mutableStateOf(settings.deepSeekApiKeyConfigured) }
     var exaKeyConfigured by remember { mutableStateOf(settings.exaApiKeyConfigured) }
+    val defaultAssistantStatusRepository = remember(context) {
+        DefaultAssistantStatusRepository(context.applicationContext)
+    }
+    val defaultAssistantSettingsLauncher = remember(context) {
+        DefaultAssistantSettingsLauncher(context.applicationContext)
+    }
+    var defaultAssistantStatus by remember {
+        mutableStateOf(defaultAssistantStatusRepository.current())
+    }
+    val defaultAssistantRoleLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        defaultAssistantStatus = defaultAssistantStatusRepository.current()
+    }
+    var assistantScreenContextEnabled by remember {
+        mutableStateOf(settings.assistantScreenContextEnabled)
+    }
+    var microphoneGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        microphoneGranted = granted
+    }
     var readinessEpoch by remember { mutableIntStateOf(0) }
-    val readiness = rememberModelReadiness(runtime.readiness, readinessEpoch)
-    val chatHistory = remember(context) { SharedPreferencesChatHistoryStore(context.applicationContext) }
+    val readiness = rememberModelReadiness(runtime, readinessEpoch)
     val chatViewModel = viewModel<ChatViewModel>(
         factory = ChatViewModelFactory(
-            assistantEngineProvider = { runtime.assistantEngine(settings.intentConfidenceThreshold) },
-            answerProvider = runtime.answerProvider,
-            noteStore = runtime.stores.notes,
-            reminderStore = runtime.stores.reminders,
-            timerStore = runtime.stores.timers,
-            platformActions = AndroidPlatformAdapters(context.applicationContext),
-            assistantSpeech = speechGateway,
-            chatHistoryStore = chatHistory
+            coordinator = runtime.conversationCoordinator
         )
     )
     val playbackRange by speechGateway.playbackRange.collectAsState()
     val playbackState by speechGateway.playbackState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, defaultAssistantStatusRepository) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                defaultAssistantStatus = defaultAssistantStatusRepository.current()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(automaticSpeech) {
         speechGateway.setEnabled(automaticSpeech)
     }
-    LaunchedEffect(runtime) {
-        withContext(Dispatchers.IO) {
-            runCatching { runtime.audioTranscribers.get().warmUp() }
-            runCatching { runtime.rubert.warmUp() }
-        }
-        readinessEpoch++
-    }
     WarmAssistantRuntimes(
-        appContext = context.applicationContext,
-        speechGateway = speechGateway,
-        readinessRepository = runtime.readiness,
-        telemetryStore = runtime.telemetry,
-        automaticSpeechEnabled = automaticSpeech
+        runtime = runtime,
+        automaticSpeechEnabled = automaticSpeech,
+        onComplete = { readinessEpoch++ }
     )
 
     Scaffold(
@@ -163,7 +181,10 @@ private fun AssistantApp() {
                     deepSeekEnabled = deepSeekEnabled,
                     deepSeekApiKeyConfigured = keyConfigured,
                     exaEnabled = exaEnabled,
-                    exaApiKeyConfigured = exaKeyConfigured
+                    exaApiKeyConfigured = exaKeyConfigured,
+                    defaultAssistantStatus = defaultAssistantStatus,
+                    assistantScreenContextEnabled = assistantScreenContextEnabled,
+                    microphoneGranted = microphoneGranted
                 ),
                 actions = SettingsActions(
                     onIntentConfidenceThresholdChanged = {
@@ -198,6 +219,18 @@ private fun AssistantApp() {
                     onClearExaApiKey = {
                         settings.clearExaApiKey()
                         exaKeyConfigured = false
+                    },
+                    onOpenDefaultAssistantSettings = {
+                        defaultAssistantStatusRepository.selectionIntent()
+                            ?.let(defaultAssistantRoleLauncher::launch)
+                            ?: defaultAssistantSettingsLauncher.open()
+                    },
+                    onAssistantScreenContextChanged = {
+                        assistantScreenContextEnabled = it
+                        settings.assistantScreenContextEnabled = it
+                    },
+                    onRequestMicrophonePermission = {
+                        microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onRefreshReadiness = { readinessEpoch++ },
                     onClearChat = chatViewModel::clearChatHistory,

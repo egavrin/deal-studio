@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.offlineassistant.app.assistant.DefaultAssistantStatus
 import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelReadiness
 import com.offlineassistant.app.settings.AssistantSettingsRepository
@@ -47,7 +48,10 @@ data class SettingsUiState(
     val deepSeekEnabled: Boolean,
     val deepSeekApiKeyConfigured: Boolean,
     val exaEnabled: Boolean,
-    val exaApiKeyConfigured: Boolean
+    val exaApiKeyConfigured: Boolean,
+    val defaultAssistantStatus: DefaultAssistantStatus,
+    val assistantScreenContextEnabled: Boolean,
+    val microphoneGranted: Boolean
 )
 
 data class SettingsActions(
@@ -59,6 +63,9 @@ data class SettingsActions(
     val onExaEnabledChanged: (Boolean) -> Unit,
     val onSaveExaApiKey: (String) -> Unit,
     val onClearExaApiKey: () -> Unit,
+    val onOpenDefaultAssistantSettings: () -> Unit,
+    val onAssistantScreenContextChanged: (Boolean) -> Unit,
+    val onRequestMicrophonePermission: () -> Unit,
     val onRefreshReadiness: () -> Unit,
     val onClearChat: () -> Unit,
     val onClearCoreData: () -> Unit
@@ -80,6 +87,56 @@ fun SettingsScreen(
             .fillMaxSize()
             .testTag("settings_screen")
     ) {
+        item {
+            SettingsSection("Системный ассистент") {
+                Text(
+                    when (state.defaultAssistantStatus) {
+                        DefaultAssistantStatus.SELECTED -> "Выбран системным ассистентом"
+                        DefaultAssistantStatus.NOT_SELECTED -> "Не выбран системным ассистентом"
+                        DefaultAssistantStatus.UNAVAILABLE -> "Роль ассистента недоступна"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (state.defaultAssistantStatus == DefaultAssistantStatus.SELECTED) {
+                        AssistantColors.Success
+                    } else {
+                        AssistantColors.Muted
+                    }
+                )
+                Text(
+                    "Системный жест откроет локальный голосовой диалог поверх текущего приложения.",
+                    color = AssistantColors.Muted,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Button(
+                    enabled = state.defaultAssistantStatus != DefaultAssistantStatus.UNAVAILABLE,
+                    onClick = actions.onOpenDefaultAssistantSettings
+                ) {
+                    Text(
+                        if (state.defaultAssistantStatus == DefaultAssistantStatus.SELECTED) {
+                            "Изменить системного ассистента"
+                        } else {
+                            "Выбрать системным ассистентом"
+                        }
+                    )
+                }
+                if (!state.microphoneGranted) {
+                    OutlinedButton(onClick = actions.onRequestMicrophonePermission) {
+                        Text("Разрешить микрофон")
+                    }
+                    Text(
+                        "Без доступа к микрофону системный overlay доступен только для текста.",
+                        color = AssistantColors.Danger,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                ToggleRow(
+                    label = "Использовать текущий экран",
+                    detail = "Текст экрана хранится только во время системной сессии и явно отмечается в интерфейсе.",
+                    checked = state.assistantScreenContextEnabled,
+                    onCheckedChange = actions.onAssistantScreenContextChanged
+                )
+            }
+        }
         item {
             SettingsSection("Локальные модели") {
                 Row(

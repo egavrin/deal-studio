@@ -18,14 +18,18 @@ This repository implements a narrow Android assistant:
 8. The chat exposes separate dictation and continuous conversation modes.
 9. Explicit visual requests may add attributed Wikimedia Commons images through a
    separate media provider; images never affect intent routing or action execution.
+10. On supported Android devices the user may select the app for `ROLE_ASSISTANT`.
+    A `VoiceInteractionSession` reuses the same local/cloud pipeline in a compact
+    system-invoked surface; the role is an entry point, not a privilege escalation.
 
 The normative architecture is
 `docs/superpowers/specs/2026-07-29-core-assistant-scope.md`.
 
 Do not add or restore Qwen, llama.cpp, Whisper, Gemma, generated UI/Widget DSL,
-AppFunctions, routines, organizer databases, personal memory or a Linux CLI unless
-the product scope is explicitly changed first. Calendar and email are limited to
-confirmed Android compose/insert intents; the app must not read either data source.
+AppFunctions, Accessibility-based UI automation, routines, organizer databases,
+personal memory or a Linux CLI unless the product scope is explicitly changed
+first. Calendar and email are limited to confirmed Android compose/insert intents;
+the app must not read either data source.
 
 ## Routing Invariants
 
@@ -54,6 +58,9 @@ confirmed Android compose/insert intents; the app must not read either data sour
   changes routing or executes actions.
 - TTS receives assistant text only, never model metadata or structured payloads.
 - A streaming cloud response is one chat message updated in place.
+- While that message is streaming, Compose renders stable plain text and throttles
+  follow-latest scrolling. Markdown is parsed once after completion; do not rebuild
+  the Markdown tree or animate the entire message on every token.
 - A long Exa Agent run releases the composer after its run ID is known and updates
   one cancellable card in the background. Follow-up research must use the validated
   previous run ID; do not emulate continuation with prompt text.
@@ -66,8 +73,21 @@ confirmed Android compose/insert intents; the app must not read either data sour
 - During playback, conversation mode may monitor the microphone through
   `VOICE_COMMUNICATION` with platform AEC/NS/AGC. Only a meaningful local T-one
   partial may trigger automatic barge-in; raw PCM thresholds must not stop TTS.
+- TTS output must never become a user turn. Barge-in capture and the first
+  post-playback capture reject semantic echoes of the latest assistant text.
+  Short decoder noise is discarded and listening resumes; explicit short controls
+  such as `да`, `нет` and `стоп` remain valid.
 - Starting the microphone stops current speech. Manual interruption remains
   available when device echo cancellation is unavailable or ineffective.
+- System-assistant invocation never changes routing. RuBERT remains authoritative,
+  actions retain confirmation, and the overlay shares one process runtime with chat.
+- Current-screen context is disabled by default, memory-only and visibly indicated.
+  It may ground a non-action answer but can never select, repair or authorize an
+  action. Secure or policy-blocked content fails closed.
+- The system surface follows a compact-to-expanded pattern: a minimal listening
+  state grows into an anchored response panel for text, sources and fixed widgets.
+  It may learn from Alice and ChatGPT interaction patterns but must retain its own
+  identity and must not reproduce competitor branding.
 
 ## Ownership
 
@@ -76,6 +96,10 @@ confirmed Android compose/insert intents; the app must not read either data sour
 - `:deepseek-connector` owns restricted DeepSeek HTTPS/SSE, Exa Search/Agent and
   allowlisted Wikimedia transports.
 - `AssistantRuntimeContainer` is the production composition root.
+- `AssistantConversationCoordinator` owns the reusable request/session state
+  machine. Activity and `VoiceInteractionSession` surfaces are adapters.
+- The always-running `VoiceInteractionService` entry process stays model-free.
+  T-one, RuBERT and Silero are created only in the Activity/session process.
 - Skills return data-only `WidgetPayload`; Compose owns rendering through
   `WidgetRegistry`.
 
@@ -160,6 +184,9 @@ Gradle dependency verification is strict. Regenerate and review
   `https://api.exa.ai/agent/runs`, fail closed without explicit product enablement
   and remain outside deterministic RuBERT actions.
 - Do not log prompts, answers or the BYOK value.
+- Do not persist `AssistStructure`, extracted current-screen text or screenshots.
+- Do not request SMS, Call Log, Contacts, Calendar read, media, notification-listener
+  or Accessibility permissions merely because the app can hold `ROLE_ASSISTANT`.
 - Keep app backup disabled while credentials and local assistant data are present.
 
 ## Editing

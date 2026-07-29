@@ -36,7 +36,8 @@ Run on an ARM64 phone after host checks pass.
 - Completed research opens a report, shares Markdown and accepts a follow-up tied
   to the original Exa run.
 - A follow-up open-ended question uses earlier visible turns as context.
-- “Покажи фотографии Красной площади” renders attributed Wikimedia images and
+- “Покажи фотографии Кривого Рога” routes as RuBERT `unknown`, renders attributed
+  Wikimedia images and
   opens the Commons source page when tapped.
 - Second and later DeepSeek requests do not crash or duplicate the answer.
 - Silero starts speaking a stable clause and highlights the spoken range.
@@ -44,6 +45,47 @@ Run on an ARM64 phone after host checks pass.
 - Chat auto-scrolls during transcription and cloud streaming.
 - Composer stays above the bottom navigation and IME.
 - Title stays below display cutouts and status bars.
+- Assistant TTS is not accepted as the next user turn. Short ASR decoder noise
+  resumes listening without invoking RuBERT.
+
+## System Assistant Checklist
+
+Run after the normal chat path is stable:
+
+API 37 emulator coverage already verifies role binding, system-key invocation,
+overlay rendering/insets, shared text routing and repeated dismissal. The checklist
+below intentionally remains a physical-device gate for OEM role UX, real audio,
+screen context and barge-in.
+
+1. In app Settings, grant microphone access and choose the app as the default
+   digital assistant.
+2. Verify Android reports “Выбран системным ассистентом” after returning to the
+   app.
+3. From the launcher and from another application, invoke the configured
+   power/home/corner gesture.
+4. Require the compact overlay to appear without opening the full activity and to
+   begin local T-one listening.
+5. Say “Поставь таймер на 5 минут”. Require an evolving local transcript, the
+   `LOCAL • RUBERT` badge and one TimerCard.
+6. Ask an open-ended question. Require one streamed Markdown message, the
+   `DEEPSEEK` badge and local Silero playback.
+7. With screen context disabled, ask about the foreground page and verify no
+   “ЭКРАН” badge or page text reaches the answer.
+8. Enable screen context, invoke over a non-sensitive page and ask “Кратко перескажи
+   этот экран”. Require the visible “ЭКРАН” badge and a context-aware answer.
+9. Repeat over password/payment and `FLAG_SECURE` screens. Require no sensitive
+   text in the overlay, answer, history or logs.
+10. Interrupt TTS with a new utterance and require the existing AEC/T-one barge-in
+    path to continue the same conversation.
+11. Dismiss during listening and during DeepSeek streaming. Require microphone,
+    speech and foreground request cancellation with no stuck notification or UI.
+12. Invoke and dismiss ten times, then open full chat. Require one shared history
+    and no duplicate answer or model instance.
+13. Switch the default role back to the previous assistant and verify its gesture
+    works without residual Offline Assistant services.
+
+Record cold and warm gesture-to-overlay, gesture-to-listening, first ASR partial,
+RuBERT completion, first cloud token, first spoken audio and process PSS.
 
 ## Final Gate
 
@@ -55,6 +97,7 @@ Record one self-contained demo showing:
 4. a background Exa Agent research card;
 5. local Silero playback;
 6. debug route labels distinguishing local and cloud execution.
+7. system gesture invocation and the compact assistant overlay.
 
 ## Automated Device Checks
 
@@ -67,6 +110,9 @@ DeepSeek:
 
 ./gradlew :app:connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.offlineassistant.app.audio.VoiceProcessingDeviceTest
+
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.offlineassistant.app.acceptance.ConversationEchoLoopTest
 ```
 
 `LocalActionsRouteTest` submits a navigation command through the installed ONNX
@@ -74,6 +120,9 @@ RuBERT model and requires the local route label plus `ActionConfirmationCard`.
 `VoiceProcessingDeviceTest` starts a real `VOICE_COMMUNICATION` capture and requires
 working acoustic echo cancellation. It reports NS/AGC availability but does not
 replace the final human speak-over-TTS barge-in check.
+`ConversationEchoLoopTest` drives a real local response through
+Silero speaker playback and T-one microphone capture, then requires that no second
+user turn is created.
 
 ## Latest Live Cloud Evidence
 
@@ -103,6 +152,15 @@ The same device passed both automated production-wiring checks on 2026-07-29:
   `Построй маршрут до Красной площади` locally and rendered a confirmation card;
 - `VOICE_COMMUNICATION` initialized and platform acoustic echo cancellation was
   enabled.
+
+Additional OPPO CPH2765 regressions passed on 2026-07-29:
+
+- `Покажи фотографии Кривого Рога` classified as `unknown` at confidence `0.9868`,
+  streamed one DeepSeek answer and loaded three attributed Wikimedia images;
+- the focused speaker-to-microphone test completed local weather TTS, returned to
+  listening and created no echoed user turn during the observation window;
+- a real ColorOS IME check placed the composer bottom exactly at the keyboard top,
+  with neither the previous full-height jump nor keyboard overlap.
 
 The live tests are opt-in and do not run in CI:
 

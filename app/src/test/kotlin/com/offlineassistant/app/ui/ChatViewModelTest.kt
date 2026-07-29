@@ -107,6 +107,101 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `barge in rejects assistant echo without sending a new request`() = runTest(dispatcher) {
+        val provider = FakeStreamingProvider()
+        val viewModel = viewModel(provider)
+        viewModel.updateInput("Почему небо синее?")
+        viewModel.sendTextAsync {}
+        advanceUntilIdle()
+        viewModel.startConversation()
+        viewModel.startVoiceRecording(VoiceCaptureMode.CONVERSATION)
+        viewModel.beginVoiceFinalization()
+        var echoRejected = false
+
+        viewModel.coordinator.handleStreamingVoiceRecordingAsync(
+            session = FakeTranscriptionSession("Потому что свет рассеивается"),
+            rejectAssistantEcho = true,
+            onStateChanged = {},
+            onEchoRejected = { echoRejected = true }
+        )
+        advanceUntilIdle()
+
+        assertTrue(echoRejected)
+        assertEquals(1, provider.requests.size)
+        assertTrue(viewModel.state.messages.filterIsInstance<ChatMessageUi.User>().size == 1)
+        assertEquals(ConversationPhase.LISTENING, viewModel.state.conversationPhase)
+    }
+
+    @Test
+    fun `normal follow up may repeat assistant words`() = runTest(dispatcher) {
+        val provider = FakeStreamingProvider()
+        val viewModel = viewModel(provider)
+        viewModel.updateInput("Почему небо синее?")
+        viewModel.sendTextAsync {}
+        advanceUntilIdle()
+        viewModel.startConversation()
+        viewModel.startVoiceRecording(VoiceCaptureMode.CONVERSATION)
+        viewModel.beginVoiceFinalization()
+
+        viewModel.coordinator.handleStreamingVoiceRecordingAsync(
+            session = FakeTranscriptionSession("А почему свет рассеивается?"),
+            rejectAssistantEcho = false,
+            onStateChanged = {}
+        )
+        advanceUntilIdle()
+
+        assertEquals(2, provider.requests.size)
+        assertEquals(
+            "А почему свет рассеивается?",
+            viewModel.state.messages.filterIsInstance<ChatMessageUi.User>().last().text
+        )
+    }
+
+    @Test
+    fun `conversation ignores short decoder noise`() = runTest(dispatcher) {
+        val provider = FakeStreamingProvider()
+        val viewModel = viewModel(provider)
+        viewModel.startConversation()
+        viewModel.startVoiceRecording(VoiceCaptureMode.CONVERSATION)
+        viewModel.beginVoiceFinalization()
+        var transcriptRejected = false
+
+        viewModel.coordinator.handleStreamingVoiceRecordingAsync(
+            session = FakeTranscriptionSession("кога"),
+            onStateChanged = {},
+            onEchoRejected = { transcriptRejected = true }
+        )
+        advanceUntilIdle()
+
+        assertTrue(transcriptRejected)
+        assertEquals(0, provider.requests.size)
+        assertTrue(viewModel.state.messages.filterIsInstance<ChatMessageUi.User>().isEmpty())
+        assertEquals(ConversationPhase.LISTENING, viewModel.state.conversationPhase)
+    }
+
+    @Test
+    fun `conversation stop control does not start an assistant request`() = runTest(dispatcher) {
+        val provider = FakeStreamingProvider()
+        val viewModel = viewModel(provider)
+        viewModel.startConversation()
+        viewModel.startVoiceRecording(VoiceCaptureMode.CONVERSATION)
+        viewModel.beginVoiceFinalization()
+        var listeningRestarted = false
+
+        viewModel.coordinator.handleStreamingVoiceRecordingAsync(
+            session = FakeTranscriptionSession("стоп"),
+            onStateChanged = {},
+            onEchoRejected = { listeningRestarted = true }
+        )
+        advanceUntilIdle()
+
+        assertTrue(listeningRestarted)
+        assertEquals(0, provider.requests.size)
+        assertTrue(viewModel.state.messages.filterIsInstance<ChatMessageUi.User>().isEmpty())
+        assertEquals(ConversationPhase.LISTENING, viewModel.state.conversationPhase)
+    }
+
+    @Test
     fun `follow up sends previous turns as DeepSeek context`() = runTest(dispatcher) {
         val provider = FakeStreamingProvider()
         val viewModel = viewModel(provider)
@@ -122,6 +217,48 @@ class ChatViewModelTest {
         assertEquals(2, history.size)
         assertEquals("Почему небо синее?", history.first().text)
         assertEquals("Потому что свет рассеивается.", history.last().text)
+    }
+
+    @Test
+    fun `system assistant screen context reaches answer provider`() = runTest(dispatcher) {
+        val provider = FakeStreamingProvider()
+        val viewModel = viewModel(provider)
+        viewModel.updateInput("Какие события на экране?")
+
+        viewModel.sendTextAsync(screenContext = "Календарь\n09:30 Планирование") {}
+        advanceUntilIdle()
+
+        assertEquals(
+            "Календарь\n09:30 Планирование",
+            provider.requests.single().screenContext
+        )
+    }
+
+    @Test
+    fun `starting voice cancels an in-flight text request`() = runTest(dispatcher) {
+        val provider = FakeStreamingProvider()
+        val viewModel = viewModel(provider)
+        viewModel.updateInput("Длинный вопрос")
+        viewModel.sendTextAsync {}
+
+        viewModel.startVoiceRecording(VoiceCaptureMode.CONVERSATION)
+
+        assertEquals(1, provider.cancelCalls)
+        assertFalse(viewModel.state.isProcessing)
+        assertTrue(viewModel.state.isRecording)
+    }
+
+    @Test
+    fun `handoff keeps conversation but releases overlay capture`() = runTest(dispatcher) {
+        val viewModel = viewModel(FakeStreamingProvider())
+        viewModel.startConversation()
+        viewModel.startVoiceRecording(VoiceCaptureMode.CONVERSATION)
+
+        viewModel.coordinator.handOffToFullChat()
+
+        assertTrue(viewModel.state.conversationActive)
+        assertFalse(viewModel.state.isRecording)
+        assertEquals(ConversationPhase.LISTENING, viewModel.state.conversationPhase)
     }
 
     @Test
@@ -241,6 +378,7 @@ private interface FakeAnswerProvider :
 
 private class FakeStreamingProvider : FakeAnswerProvider {
     val requests = mutableListOf<AnswerRequest>()
+    var cancelCalls = 0
 
     override fun answer(input: String): AnswerResult = AnswerResult("Потому что свет рассеивается.", source = "deepseek_cloud")
 
@@ -256,7 +394,9 @@ private class FakeStreamingProvider : FakeAnswerProvider {
         return answer(request.input, onToken)
     }
 
-    override fun cancel() = Unit
+    override fun cancel() {
+        cancelCalls += 1
+    }
 }
 
 private class FakeResearchProvider :
