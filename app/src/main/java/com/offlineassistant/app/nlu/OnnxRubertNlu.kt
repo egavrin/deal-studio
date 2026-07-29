@@ -13,7 +13,7 @@ import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
-import com.offlineassistant.core.nlu.RuleBasedNlu
+import com.offlineassistant.core.nlu.RussianExpressionNormalizer
 import com.offlineassistant.core.nlu.RussianInverseTextNormalizer
 import java.io.File
 import java.nio.LongBuffer
@@ -29,7 +29,6 @@ fun interface RubertOnnxRunner {
 }
 
 class OnnxRubertNlu(
-    private val ruleBasedFallback: RuleBasedNlu = RuleBasedNlu(),
     private val onnxRunner: RubertOnnxRunner = OnnxRuntimeRubertRunner(),
     private val readinessProvider: () -> ModelReadiness = {
         ModelReadiness(ModelNames.RUBERT, false, "models/rubert/rubert-tiny2-intent-slots.onnx", "model file not installed")
@@ -65,7 +64,7 @@ class OnnxRubertNlu(
                 latencyMs = elapsedMillis(started),
                 error = readiness.detail
             )
-            return ruleBasedFallback.parse(text)
+            return unavailableResult()
         }
         return try {
             onnxRunner.infer(text, readiness.location)
@@ -84,17 +83,22 @@ class OnnxRubertNlu(
                 elapsedMillis(started),
                 error.message ?: error::class.java.simpleName
             )
-            ruleBasedFallback.parse(text)
+            unavailableResult()
         }
     }
+
+    private fun unavailableResult() = NluResult(
+        intent = Intents.UNKNOWN,
+        confidence = 0.0,
+        slots = JsonObject(emptyMap()),
+        source = NluSource.UNAVAILABLE
+    )
 
     private fun elapsedMillis(startedNanos: Long): Long = (System.nanoTime() - startedNanos).coerceAtLeast(0L) / 1_000_000L
 }
 
 class OnnxRuntimeRubertRunner(
     private val maxTokens: Int = 64,
-    private val slotExtractor: RuleBasedNlu = RuleBasedNlu(),
-    private val useFallbackSlotMerge: Boolean = true,
     private val intraOpThreads: Int = 2,
     private val executionProvider: RubertExecutionProvider = RubertExecutionProvider.CPU
 ) : RubertOnnxRunner,
@@ -131,18 +135,13 @@ class OnnxRuntimeRubertRunner(
             runtime.session.run(inputs).use { output ->
                 val intentLogits = output.intentLogits()
                 val intentIndex = intentLogits.argmax()
-                val fallbackSlots = slotExtractor.parse(text).slots
                 val modelSlots = output.slotLogits()
                     ?.let { slotLogits -> decodeSlots(text, encoded, slotLogits, runtime.slotLabels) }
                     ?: JsonObject(emptyMap())
                 return NluResult(
                     intent = runtime.intentLabels.labelAt(intentIndex),
                     confidence = intentLogits.softmaxConfidence(intentIndex),
-                    slots = if (useFallbackSlotMerge) {
-                        mergeModelAndFallbackSlots(modelSlots, fallbackSlots)
-                    } else {
-                        modelSlots
-                    },
+                    slots = modelSlots,
                     source = NluSource.RUBERT_TINY2
                 )
             }
@@ -174,6 +173,13 @@ class OnnxRuntimeRubertRunner(
                 )
 
                 RubertExecutionProvider.NNAPI -> addNnapi()
+
+                RubertExecutionProvider.QNN_HTP -> addQnn(
+                    mapOf(
+                        "backend_path" to "libQnnHtp.so",
+                        "htp_performance_mode" to "burst"
+                    )
+                )
             }
         }
         val session = options.use { environment.createSession(modelFile.absolutePath, it) }
@@ -196,7 +202,8 @@ class OnnxRuntimeRubertRunner(
 enum class RubertExecutionProvider {
     CPU,
     XNNPACK,
-    NNAPI
+    NNAPI,
+    QNN_HTP
 }
 
 private data class RubertRuntime(
@@ -206,15 +213,6 @@ private data class RubertRuntime(
     val intentLabels: LabelSet,
     val slotLabels: LabelSet
 )
-
-internal fun mergeModelAndFallbackSlots(modelSlots: JsonObject, fallbackSlots: JsonObject): JsonObject {
-    if (modelSlots.isEmpty()) return fallbackSlots
-    if (fallbackSlots.isEmpty()) return modelSlots
-    return buildJsonObject {
-        fallbackSlots.forEach { (key, value) -> put(key, value) }
-        modelSlots.forEach { (key, value) -> put(key, value) }
-    }
-}
 
 private data class EncodedText(
     val inputIds: LongArray,
@@ -294,7 +292,7 @@ private class LabelSet(file: File) {
     fun labelAt(index: Int): String = labels.getOrElse(index) { Intents.UNKNOWN }
 }
 
-private data class SlotSpan(
+internal data class SlotSpan(
     val name: String,
     val start: Int,
     val end: Int
@@ -344,17 +342,31 @@ private fun decodeSlots(
     return normalizeSlotSpans(text, spans)
 }
 
-private fun normalizeSlotSpans(text: String, spans: List<SlotSpan>): JsonObject = buildJsonObject {
+internal fun normalizeSlotSpans(text: String, spans: List<SlotSpan>): JsonObject = buildJsonObject {
     spans.forEach { span ->
         val raw = text.substring(span.start, span.end).trim().trimEnd('?', '.', '!', ',')
+        if (raw.none(Char::isLetterOrDigit)) return@forEach
         when (span.name) {
             "duration" -> normalizeDurationSeconds(raw)?.let { put("duration_seconds", it) }
+
             "time" -> normalizeTime(raw)?.let { put("time", it) }
+
+            "date", "due_at", "start_at", "end_at", "range_start", "range_end" -> put(span.name, raw)
+
             "location" -> put("location", raw.capitalizeForSlot())
+
             "note_text" -> put("text", raw)
+
             "reminder_text" -> put("reminder_text", raw)
+
             "app_name" -> put("app_name", raw)
-            "expression" -> normalizeExpression(raw)?.let { put("expression", it) }
+
+            "expression" -> RussianExpressionNormalizer.normalize(raw)?.let { put("expression", it) }
+
+            "percent" -> Regex("\\d{1,3}").find(RussianInverseTextNormalizer.normalizeNumbers(raw))
+                ?.value?.let { put("percent", it) }
+
+            else -> put(span.name, raw)
         }
     }
 }
@@ -376,18 +388,6 @@ private fun normalizeTime(raw: String): String? {
     return match?.let {
         "%02d:%02d".format(it.groupValues[1].toInt(), it.groupValues[2].toInt())
     } ?: RussianInverseTextNormalizer.normalizeSpokenTime(raw)
-}
-
-private fun normalizeExpression(raw: String): String? {
-    val lower = RussianInverseTextNormalizer.normalizeNumbers(raw.lowercase())
-    val match = Regex("(\\d+)\\s*(умножить на|\\*|плюс|\\+|минус|-)\\s*(\\d+)").find(lower) ?: return null
-    val op = when (match.groupValues[2]) {
-        "умножить на", "*" -> "*"
-        "плюс", "+" -> "+"
-        "минус", "-" -> "-"
-        else -> return null
-    }
-    return "${match.groupValues[1]} $op ${match.groupValues[3]}"
 }
 
 private fun String.capitalizeForSlot(): String = replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }

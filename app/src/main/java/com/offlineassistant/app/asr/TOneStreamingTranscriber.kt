@@ -115,15 +115,24 @@ private class SherpaTOneSession(
 
     override fun acceptPcm16(samples: ShortArray, sampleRate: Int) {
         if (finished || samples.isEmpty()) return
-        trailingSilenceDetector.accept(samples, sampleRate)
-        val floats = FloatArray(samples.size) { index -> samples[index] / 32768f }
         synchronized(lock) {
             if (finished) return
             inputSampleRate = sampleRate
-            stream.acceptWaveform(floats, sampleRate)
-            decodeReady()
-            emitPartial()
-            emitEndpointIfDetected()
+            val stepSamples = (sampleRate * STREAMING_DECODE_STEP_MS / 1_000).coerceAtLeast(1)
+            var offset = 0
+            while (offset < samples.size) {
+                val end = (offset + stepSamples).coerceAtMost(samples.size)
+                val chunk = samples.copyOfRange(offset, end)
+                trailingSilenceDetector.accept(chunk, sampleRate)
+                stream.acceptWaveform(
+                    FloatArray(chunk.size) { index -> chunk[index] / 32768f },
+                    sampleRate
+                )
+                decodeReady()
+                emitPartial()
+                emitEndpointIfDetected()
+                offset = end
+            }
         }
     }
 
@@ -149,14 +158,14 @@ private class SherpaTOneSession(
         val latencyMs = (System.nanoTime() - finalizationStarted) / 1_000_000L
         if (lastTranscript.isBlank()) {
             telemetryStore.recordFailure(
-                ModelNames.WHISPER,
+                ModelNames.TONE,
                 ModelOperations.TRANSCRIPTION,
                 latencyMs,
                 "T-one returned an empty transcript."
             )
             AudioTranscription(null, "T-one returned an empty transcript.", latencyMs)
         } else {
-            telemetryStore.recordSuccess(ModelNames.WHISPER, ModelOperations.TRANSCRIPTION, latencyMs)
+            telemetryStore.recordSuccess(ModelNames.TONE, ModelOperations.TRANSCRIPTION, latencyMs)
             AudioTranscription(lastTranscript, null, latencyMs)
         }
     }
@@ -190,6 +199,10 @@ private class SherpaTOneSession(
             endpointNotified = true
             onEndpointDetected()
         }
+    }
+
+    private companion object {
+        const val STREAMING_DECODE_STEP_MS = 80
     }
 }
 

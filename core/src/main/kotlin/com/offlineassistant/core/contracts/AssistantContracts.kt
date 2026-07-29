@@ -43,8 +43,8 @@ data class DebugInfo(
     val nluSource: NluSource? = null,
     val slots: JsonObject? = null,
     val normalizedCommand: JsonObject? = null,
-    val fallbackUsed: Boolean = false,
-    val fallbackReason: String? = null,
+    val cloudAnswerUsed: Boolean = false,
+    val answerSource: String? = null,
     val actionResult: String? = null,
     val latencyMs: LatencyBreakdown? = null
 )
@@ -55,7 +55,7 @@ data class LatencyBreakdown(
     val nlu: Long? = null,
     /** Transcript/text submission to the first token actually published to the chat UI. */
     val firstVisibleToken: Long? = null,
-    val fallbackLlm: Long? = null,
+    val cloudAnswer: Long? = null,
     val normalization: Long? = null,
     val skillExecution: Long? = null,
     val total: Long

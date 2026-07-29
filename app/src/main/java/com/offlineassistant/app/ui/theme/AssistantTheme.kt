@@ -2,6 +2,7 @@ package com.offlineassistant.app.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,22 @@ private val AssistantColorScheme = lightColorScheme(
     error = AssistantColors.Danger
 )
 
+private val AssistantDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF9FC5FF),
+    onPrimary = Color(0xFF00315F),
+    primaryContainer = Color(0xFF12477C),
+    onPrimaryContainer = Color(0xFFD4E4FF),
+    background = Color(0xFF101419),
+    onBackground = Color(0xFFE2E7EF),
+    surface = Color(0xFF171C22),
+    onSurface = Color(0xFFE2E7EF),
+    surfaceVariant = Color(0xFF222931),
+    onSurfaceVariant = Color(0xFFBAC3CF),
+    outline = Color(0xFF414A55),
+    error = Color(0xFFFFB3B8),
+    onError = Color(0xFF680014)
+)
+
 private val AssistantTypography = Typography(
     headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
     titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
@@ -48,9 +65,12 @@ private val AssistantTypography = Typography(
 )
 
 @Composable
-fun AssistantTheme(content: @Composable () -> Unit) {
+fun AssistantTheme(
+    darkTheme: Boolean = false,
+    content: @Composable () -> Unit
+) {
     MaterialTheme(
-        colorScheme = AssistantColorScheme,
+        colorScheme = if (darkTheme) AssistantDarkColorScheme else AssistantColorScheme,
         typography = AssistantTypography,
         content = content
     )

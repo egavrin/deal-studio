@@ -30,11 +30,6 @@ interface WeatherCache {
     fun write(result: WeatherResult)
 }
 
-object NoOpWeatherCache : WeatherCache {
-    override fun read(location: String): WeatherResult? = null
-    override fun write(result: WeatherResult) = Unit
-}
-
 class CachingWeatherProvider(
     private val upstream: WeatherProvider,
     private val cache: WeatherCache

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,10 +14,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -31,8 +32,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
@@ -44,14 +43,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,7 +56,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.SpanStyle
@@ -68,33 +66,23 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.offlineassistant.app.BuildConfig
 import com.offlineassistant.app.asr.AudioTranscriberFactory
 import com.offlineassistant.app.audio.AndroidAudioRecorder
-import com.offlineassistant.app.llm.JniLlamaNativeEngine
-import com.offlineassistant.app.llm.LlamaCppFallbackParser
-import com.offlineassistant.app.models.ModelNames
 import com.offlineassistant.app.models.ModelReadinessRepository
 import com.offlineassistant.app.models.SharedPreferencesModelRuntimeTelemetryStore
-import com.offlineassistant.app.nlu.OnnxRubertNlu
-import com.offlineassistant.app.settings.VoiceModel
 import com.offlineassistant.app.speech.SpeechPlaybackRange
-import com.offlineassistant.app.storage.SharedPreferencesChatHistoryStore
-import com.offlineassistant.app.storage.SharedPreferencesNoteStore
-import com.offlineassistant.app.storage.SharedPreferencesReminderStore
 import com.offlineassistant.app.ui.theme.AssistantColors
 import com.offlineassistant.app.voice.StreamingTranscriptionSession
 import com.offlineassistant.app.widgets.AssistantWidgetContainer
-import com.offlineassistant.app.widgets.WidgetAction
 import com.offlineassistant.app.widgets.WidgetActionNames
+import com.offlineassistant.core.contracts.DebugInfo
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
+import com.offlineassistant.core.nlu.NluSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
@@ -103,117 +91,80 @@ import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
 fun MainChatScreen(
-    injectedViewModel: ChatViewModel? = null,
+    viewModel: ChatViewModel,
+    modifier: Modifier = Modifier,
     onOpenSettings: () -> Unit = {},
-    voiceModel: VoiceModel = VoiceModel.DEFAULT,
     speechPlaybackRange: SpeechPlaybackRange? = null,
-    onStopSpeech: () -> Unit = {}
+    onStopSpeech: () -> Unit = {},
+    sharedAudioTranscriberFactory: AudioTranscriberFactory? = null
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
-    val telemetryStore = remember(appContext) { SharedPreferencesModelRuntimeTelemetryStore(appContext) }
-    val modelReadinessRepository = remember(appContext, telemetryStore) {
-        ModelReadinessRepository(appContext, telemetryStore = telemetryStore)
+    val telemetry = remember(appContext) { SharedPreferencesModelRuntimeTelemetryStore(appContext) }
+    val readiness = remember(appContext, telemetry) {
+        ModelReadinessRepository(appContext, telemetryStore = telemetry)
     }
-    val audioTranscriberFactory = remember(modelReadinessRepository, telemetryStore) {
-        AudioTranscriberFactory(modelReadinessRepository, telemetryStore)
-    }
-    LaunchedEffect(audioTranscriberFactory, voiceModel) {
-        withContext(Dispatchers.IO) {
-            runCatching { audioTranscriberFactory.select(voiceModel).warmUp() }
-        }
-    }
-    val viewModel: ChatViewModel = injectedViewModel ?: run {
-        val rubertNlu = remember(modelReadinessRepository) {
-            OnnxRubertNlu(
-                readinessProvider = {
-                    modelReadinessRepository.all().first { it.name == ModelNames.RUBERT }
-                },
-                telemetryStore = telemetryStore
-            )
-        }
-        val qwenFallback = remember(modelReadinessRepository) {
-            LlamaCppFallbackParser(
-                nativeEngine = JniLlamaNativeEngine,
-                readinessProvider = {
-                    modelReadinessRepository.all().first { it.name == ModelNames.QWEN }
-                },
-                telemetryStore = telemetryStore
-            )
-        }
-        viewModel(
-            factory = ChatViewModelFactory(
-                noteStore = SharedPreferencesNoteStore(appContext),
-                reminderStore = SharedPreferencesReminderStore(appContext),
-                nlu = rubertNlu,
-                fallbackParser = qwenFallback,
-                chatHistoryStore = SharedPreferencesChatHistoryStore(appContext)
-            )
-        )
+    val transcriberFactory = remember(sharedAudioTranscriberFactory, readiness, telemetry) {
+        sharedAudioTranscriberFactory ?: AudioTranscriberFactory(readiness, telemetry)
     }
     var uiState by remember { mutableStateOf(viewModel.state) }
-    val audioRecorder = remember(appContext) { AndroidAudioRecorder(appContext) }
-    val coroutineScope = rememberCoroutineScope()
     var streamingSession by remember { mutableStateOf<StreamingTranscriptionSession?>(null) }
-    val focusManager = LocalFocusManager.current
-    val hapticFeedback = LocalHapticFeedback.current
-    val listState = rememberLazyListState()
-    var followLatest by rememberSaveable { mutableStateOf(true) }
     var pendingPermission by remember { mutableStateOf(PermissionNames.RECORD_AUDIO) }
+    val recorder = remember(appContext) { AndroidAudioRecorder(appContext) }
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val haptics = LocalHapticFeedback.current
+    val listState = rememberLazyListState()
+    val latestTextLength = when (val latest = uiState.messages.lastOrNull()) {
+        is ChatMessageUi.Assistant -> latest.text.length
+        is ChatMessageUi.User -> latest.text.length
+        null -> 0
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        uiState = viewModel.handlePermissionResult(pendingPermission, granted)
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        uiState = viewModel.handlePermissionResult(pendingPermission, grants.values.all { it })
     }
-    val sendCurrentText = {
-        focusManager.clearFocus(force = true)
-        followLatest = true
-        uiState = viewModel.sendTextAsync { uiState = it }
-    }
-    fun stopVoiceRecording() {
+
+    fun stopRecording() {
         if (!viewModel.state.isRecording) return
-        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         val session = streamingSession
         streamingSession = null
         uiState = viewModel.beginVoiceFinalization()
-        coroutineScope.launch {
-            val audioFile = withContext(Dispatchers.IO) { audioRecorder.stop() }
-            if (session != null) {
-                viewModel.handleStreamingVoiceRecordingAsync(session) { uiState = it }
+        scope.launch {
+            val audioFile = withContext(Dispatchers.IO) { recorder.stop() }
+            if (session == null) {
+                viewModel.handleVoiceRecordingAsync(audioFile, transcriberFactory.get()) { uiState = it }
             } else {
-                val transcriber = audioTranscriberFactory.create(voiceModel)
-                viewModel.handleVoiceRecordingAsync(audioFile, transcriber) { uiState = it }
+                viewModel.handleStreamingVoiceRecordingAsync(session) { uiState = it }
             }
         }
     }
-    val toggleVoiceRecording: () -> Unit = {
+
+    fun toggleRecording() {
         when {
             !hasRecordAudioPermission(context) -> {
-                uiState = viewModel.showMicrophonePermissionCard()
+                pendingPermission = PermissionNames.RECORD_AUDIO
+                permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
             }
 
-            viewModel.state.isRecording -> stopVoiceRecording()
+            viewModel.state.isRecording -> stopRecording()
 
             else -> {
-                val transcriber = audioTranscriberFactory.create(voiceModel)
-                val session = transcriber.startStreaming(
+                val session = transcriberFactory.get().startStreaming(
                     onPartialTranscript = { partial ->
-                        coroutineScope.launch {
-                            uiState = viewModel.updateStreamingTranscript(partial)
-                        }
+                        scope.launch { uiState = viewModel.updateStreamingTranscript(partial) }
                     },
-                    onEndpointDetected = {
-                        coroutineScope.launch { stopVoiceRecording() }
-                    }
+                    onEndpointDetected = { scope.launch { stopRecording() } }
                 )
-                if (audioRecorder.start(
-                        captureWav = session == null,
-                        onPcmChunk = { samples -> session?.acceptPcm16(samples, 16_000) }
-                    )
-                ) {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                val started = recorder.start(
+                    captureWav = session == null,
+                    onPcmChunk = { samples -> session?.acceptPcm16(samples, 16_000) }
+                )
+                if (started) {
                     streamingSession = session
-                    followLatest = true
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     uiState = viewModel.startVoiceRecording()
                 } else {
                     session?.cancel()
@@ -223,129 +174,66 @@ fun MainChatScreen(
         }
     }
 
-    val isNearBottom by remember(listState) {
-        derivedStateOf {
-            val layout = listState.layoutInfo
-            val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
-            layout.totalItemsCount == 0 || lastVisible >= layout.totalItemsCount - 2
-        }
-    }
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to isNearBottom }.collect { (scrolling, nearBottom) ->
-            if (scrolling) followLatest = nearBottom
-        }
-    }
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val lastMessage = uiState.messages.lastOrNull()
-            val length = when (lastMessage) {
-                is ChatMessageUi.Assistant -> lastMessage.text.length
-                is ChatMessageUi.User -> lastMessage.text.length
-                null -> 0
-            }
-            Triple(uiState.messages.size, lastMessage?.id, length)
-        }.conflate().collect {
-            if (followLatest && uiState.messages.isNotEmpty()) {
-                listState.scrollToItem(uiState.messages.lastIndex)
-                delay(AUTO_SCROLL_INTERVAL_MS)
-            }
-        }
-    }
-
-    if (injectedViewModel == null) {
-        LaunchedEffect(modelReadinessRepository) {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    val qwenReadiness = modelReadinessRepository.all().first { it.name == ModelNames.QWEN }
-                    LlamaCppFallbackParser(
-                        nativeEngine = JniLlamaNativeEngine,
-                        telemetryStore = telemetryStore
-                    ).warmUp(qwenReadiness)
-                }
-            }
+    LaunchedEffect(uiState.messages.size, latestTextLength, uiState.isProcessing) {
+        if (uiState.messages.isNotEmpty()) {
+            listState.scrollToItem(uiState.messages.lastIndex)
         }
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .background(ChatColors.Screen)
+            .background(AssistantColors.Screen)
             .semantics { testTagsAsResourceId = true }
-            .padding(horizontal = 16.dp)
+            .imePadding()
     ) {
-        Box(
+        LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 10.dp)
-            ) {
-                items(uiState.messages, key = { it.id }) { message ->
-                    when (message) {
-                        is ChatMessageUi.User -> UserMessageBubble(message.text)
+            items(uiState.messages, key = { it.id }) { message ->
+                when (message) {
+                    is ChatMessageUi.User -> UserMessageBubble(message.text)
 
-                        is ChatMessageUi.Assistant -> {
-                            val activeSpeechRange = speechPlaybackRange?.takeIf { it.messageId == message.id }
-                            AssistantMessageBubble(
-                                message = message,
-                                canSpeak = !uiState.isProcessing || activeSpeechRange != null,
-                                speechPlaybackRange = activeSpeechRange,
-                                onSpeak = {
-                                    if (activeSpeechRange != null) {
-                                        onStopSpeech()
-                                    } else {
-                                        viewModel.replayAssistantMessage(message.id, message.text)
-                                    }
-                                },
-                                onWidgetAction = {
-                                    if (it.name == WidgetActionNames.PERMISSION_ALLOW) {
-                                        val permission = it.payload["permission"]?.takeIf { value -> value.isNotBlank() }
-                                            ?: PermissionNames.RECORD_AUDIO
-                                        pendingPermission = permission
-                                        permission.toAndroidPermission()?.let(permissionLauncher::launch)
-                                    } else {
-                                        if (it.name == WidgetActionNames.ERROR_SUGGESTION && it.payload["target"] == "settings") {
-                                            onOpenSettings()
-                                        }
-                                        uiState = viewModel.handleWidgetAction(it)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-            if (!followLatest && uiState.messages.isNotEmpty()) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(12.dp),
-                    shape = CircleShape,
-                    color = AssistantColors.Surface,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(1.dp, AssistantColors.Border)
-                ) {
-                    IconButton(
-                        onClick = {
-                            followLatest = true
-                            coroutineScope.launch { listState.scrollToItem(uiState.messages.lastIndex) }
+                    is ChatMessageUi.Assistant -> AssistantMessageBubble(
+                        message = message,
+                        speechPlaybackRange = speechPlaybackRange?.takeIf { it.messageId == message.id },
+                        onSpeak = {
+                            if (speechPlaybackRange?.messageId == message.id) {
+                                onStopSpeech()
+                            } else {
+                                viewModel.replayAssistantMessage(message.id, message.text)
+                            }
                         },
-                        modifier = Modifier.semantics { contentDescription = "К последнему сообщению" }
-                    ) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = null)
-                    }
+                        onWidgetAction = { action ->
+                            if (action.name == WidgetActionNames.PERMISSION_ALLOW) {
+                                val permission = action.payload["permission"].orEmpty()
+                                pendingPermission = permission
+                                permission.toAndroidPermissions()
+                                    .takeIf { it.isNotEmpty() }
+                                    ?.let(permissionLauncher::launch)
+                            } else {
+                                if (
+                                    action.name == WidgetActionNames.ERROR_SUGGESTION &&
+                                    action.payload["target"] == "settings"
+                                ) {
+                                    onOpenSettings()
+                                }
+                                uiState = viewModel.handleWidgetAction(action)
+                            }
+                        }
+                    )
                 }
             }
         }
 
-        uiState.transcriptPreview?.let {
-            StatusText(
-                text = transcriptPreviewLabel(it),
-                emphasized = uiState.isRecording,
+        uiState.transcriptPreview?.let { preview ->
+            TranscriptStatus(
+                text = transcriptPreviewLabel(preview),
                 stablePrefix = uiState.stableTranscriptPrefix
             )
         }
@@ -353,14 +241,12 @@ fun MainChatScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .padding(horizontal = 18.dp, vertical = 6.dp)
+                    .testTag("processing_indicator")
+                    .semantics { liveRegion = LiveRegionMode.Polite },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = AssistantColors.Primary
-                )
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 Text(
                     processingStageLabel(uiState.processingStage),
                     style = MaterialTheme.typography.bodySmall,
@@ -373,7 +259,8 @@ fun MainChatScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp, bottom = 18.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp)
+                .testTag("chat_composer"),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -400,53 +287,57 @@ fun MainChatScreen(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = AssistantColors.Text),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
-                            if (!uiState.isProcessing && uiState.inputText.isNotBlank()) sendCurrentText()
+                    keyboardActions = KeyboardActions(onSend = {
+                        if (!uiState.isProcessing && uiState.inputText.isNotBlank()) {
+                            focusManager.clearFocus()
+                            uiState = viewModel.sendTextAsync { uiState = it }
                         }
-                    ),
-                    decorationBox = { innerTextField ->
+                    }),
+                    decorationBox = { input ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.inputText.isBlank()) {
-                                Text(
-                                    "Введите сообщение...",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = AssistantColors.Muted
-                                )
+                                Text("Введите сообщение...", color = AssistantColors.Muted)
                             }
-                            innerTextField()
+                            input()
                         }
                     }
                 )
             }
-            val hasText = uiState.inputText.isNotBlank()
             val actionDescription = when {
-                uiState.isProcessing -> "Остановить ответ"
                 uiState.isRecording -> "Остановить запись"
-                hasText -> "Отправить"
-                else -> "Записать голос"
+                uiState.isProcessing -> "Остановить ответ"
+                uiState.inputText.isNotBlank() -> "Отправить"
+                else -> "Записать голосовую команду"
             }
             Surface(
-                modifier = Modifier.size(52.dp),
                 shape = CircleShape,
-                color = AssistantColors.Primary,
-                shadowElevation = 3.dp
+                color = if (uiState.isRecording) AssistantColors.Danger else AssistantColors.Primary,
+                shadowElevation = 4.dp
             ) {
                 IconButton(
+                    modifier = Modifier
+                        .size(54.dp)
+                        .testTag("primary_chat_action")
+                        .semantics { contentDescription = actionDescription },
                     onClick = {
                         when {
+                            uiState.isRecording -> stopRecording()
+
                             uiState.isProcessing -> uiState = viewModel.stopProcessing()
-                            hasText && !uiState.isRecording -> sendCurrentText()
-                            else -> toggleVoiceRecording()
+
+                            uiState.inputText.isNotBlank() -> {
+                                focusManager.clearFocus()
+                                uiState = viewModel.sendTextAsync { uiState = it }
+                            }
+
+                            else -> toggleRecording()
                         }
-                    },
-                    modifier = Modifier.semantics { contentDescription = actionDescription }
+                    }
                 ) {
                     Icon(
                         imageVector = when {
-                            uiState.isProcessing -> Icons.Default.Stop
-                            uiState.isRecording -> Icons.Default.Close
-                            hasText -> Icons.AutoMirrored.Filled.Send
+                            uiState.isRecording || uiState.isProcessing -> Icons.Default.Stop
+                            uiState.inputText.isNotBlank() -> Icons.AutoMirrored.Filled.Send
                             else -> Icons.Default.Mic
                         },
                         contentDescription = null,
@@ -458,40 +349,15 @@ fun MainChatScreen(
     }
 }
 
-private fun hasRecordAudioPermission(context: Context): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
-private fun String.toAndroidPermission(): String? = when (this) {
-    PermissionNames.RECORD_AUDIO -> Manifest.permission.RECORD_AUDIO
-
-    PermissionNames.POST_NOTIFICATIONS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.POST_NOTIFICATIONS
-    } else {
-        null
-    }
-
-    else -> this
-}
-
-private fun processingStageLabel(stage: ProcessingStage?): String = when (stage) {
-    ProcessingStage.FINALIZING_RECORDING -> "Завершаю запись"
-    ProcessingStage.TRANSCRIBING -> "Распознаю речь"
-    ProcessingStage.UNDERSTANDING -> "Понимаю команду"
-    ProcessingStage.GENERATING -> "Готовлю ответ"
-    ProcessingStage.STOPPING -> "Останавливаю ответ"
-    null -> "Обрабатываю локально"
-}
-
-private const val AUTO_SCROLL_INTERVAL_MS = 80L
-
 @Composable
 private fun UserMessageBubble(text: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
-            modifier = Modifier.widthIn(max = 320.dp),
-            color = ChatColors.UserBubble,
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp)
+            modifier = Modifier.widthIn(max = 330.dp),
+            color = AssistantColors.Primary,
+            shape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
         ) {
-            Text(text = text, color = ChatColors.Text, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+            Text(text, color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp))
         }
     }
 }
@@ -499,155 +365,149 @@ private fun UserMessageBubble(text: String) {
 @Composable
 private fun AssistantMessageBubble(
     message: ChatMessageUi.Assistant,
-    canSpeak: Boolean,
     speechPlaybackRange: SpeechPlaybackRange?,
     onSpeak: () -> Unit,
-    onWidgetAction: (WidgetAction) -> Unit
+    onWidgetAction: (com.offlineassistant.app.widgets.WidgetAction) -> Unit
 ) {
-    val spokenText = remember(message.text, speechPlaybackRange) {
-        buildAnnotatedString {
-            append(message.text)
-            speechPlaybackRange?.let { range ->
-                val start = range.startOffset.coerceIn(0, message.text.length)
-                val end = range.endOffset.coerceIn(start, message.text.length)
-                if (start < end) {
-                    addStyle(
-                        style = SpanStyle(background = ChatColors.SpokenHighlight),
-                        start = start,
-                        end = end
-                    )
-                }
-            }
-        }
-    }
-    val isSpeaking = speechPlaybackRange != null
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
-        AssistantAvatar()
-        Column(modifier = Modifier.fillMaxWidth(0.94f)) {
-            Surface(
-                color = Color.White,
-                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
-                border = BorderStroke(1.dp, ChatColors.Border),
-                shadowElevation = 1.dp
-            ) {
-                Text(spokenText, color = ChatColors.Text, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                IconButton(
-                    onClick = onSpeak,
-                    enabled = canSpeak && message.text.isNotBlank(),
-                    modifier = Modifier
-                        .size(36.dp)
-                        .semantics {
-                            contentDescription = if (isSpeaking) "Остановить озвучивание" else "Озвучить ответ"
-                        }
+        Surface(shape = CircleShape, color = AssistantColors.PrimarySoft) {
+            Text("AI", color = AssistantColors.Primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (message.text.isNotBlank()) {
+                Surface(
+                    color = AssistantColors.Surface,
+                    shape = RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp),
+                    border = BorderStroke(1.dp, AssistantColors.Border)
                 ) {
-                    Icon(
-                        if (isSpeaking) Icons.Default.Stop else Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = null,
-                        tint = if (isSpeaking) ChatColors.Primary else ChatColors.Muted,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = highlightedSpeechText(message.text, speechPlaybackRange),
+                            color = AssistantColors.Text,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 14.dp, top = 11.dp, bottom = 11.dp)
+                        )
+                        IconButton(
+                            onClick = onSpeak,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .semantics { contentDescription = "Озвучить ответ" }
+                        ) {
+                            Icon(
+                                if (speechPlaybackRange == null) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.Close,
+                                contentDescription = null,
+                                tint = AssistantColors.Muted
+                            )
+                        }
+                    }
                 }
+            }
+            assistantRouteLabel(message.debug)?.let { route ->
+                Text(
+                    route,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AssistantColors.Muted,
+                    modifier = Modifier.testTag("assistant_route")
+                )
             }
             message.widget
                 ?.deduplicateAnswerAlreadyShownInBubble(message.text)
-                ?.let { AssistantWidgetContainer(widget = it, onAction = onWidgetAction) }
+                ?.let { AssistantWidgetContainer(it, onAction = onWidgetAction) }
         }
     }
 }
 
 @Composable
-private fun AssistantAvatar() {
-    Box(
-        modifier = Modifier
-            .padding(end = 8.dp, top = 2.dp)
-            .size(30.dp)
-            .background(ChatColors.AssistantAvatar, CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            Icons.Default.AutoAwesome,
-            contentDescription = null,
-            tint = ChatColors.Primary,
-            modifier = Modifier.size(18.dp)
-        )
-    }
-}
-
-@Composable
-private fun StatusText(text: String, emphasized: Boolean, stablePrefix: String? = null) {
-    Surface(
-        color = if (emphasized) AssistantColors.PrimarySoft else AssistantColors.Surface,
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, if (emphasized) AssistantColors.Primary.copy(alpha = 0.24f) else AssistantColors.Border),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        val stable = stablePrefix.orEmpty().takeIf { text.startsWith("Распознано: ") }
-        val displayText = if (stable == null) {
-            buildAnnotatedString { append(text) }
-        } else {
-            val transcript = text.removePrefix("Распознано: ")
-            buildAnnotatedString {
-                append("Распознано: ")
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = AssistantColors.Text)) {
-                    append(stable.take(transcript.length))
+private fun TranscriptStatus(text: String, stablePrefix: String?) {
+    Text(
+        text = buildAnnotatedString {
+            val stableLength = stablePrefix?.length?.coerceAtMost(text.length) ?: 0
+            if (stableLength > 0) {
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                    append(text.take(stableLength))
                 }
-                withStyle(SpanStyle(color = AssistantColors.Muted)) {
-                    append(transcript.drop(stable.length.coerceAtMost(transcript.length)))
-                }
+                append(text.drop(stableLength))
+            } else {
+                append(text)
             }
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = AssistantColors.Muted,
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
+    )
+}
+
+private fun highlightedSpeechText(
+    text: String,
+    range: SpeechPlaybackRange?
+) = buildAnnotatedString {
+    if (range == null || range.startOffset !in text.indices) {
+        append(text)
+        return@buildAnnotatedString
+    }
+    val end = range.endOffset.coerceIn(range.startOffset, text.length)
+    append(text.take(range.startOffset))
+    withStyle(SpanStyle(background = AssistantColors.PrimarySoft, color = AssistantColors.Primary)) {
+        append(text.substring(range.startOffset, end))
+    }
+    append(text.drop(end))
+}
+
+internal fun processingStageLabel(stage: ProcessingStage?): String = when (stage) {
+    ProcessingStage.FINALIZING_RECORDING -> "Завершаю запись…"
+    ProcessingStage.TRANSCRIBING -> "T-one распознаёт речь локально…"
+    ProcessingStage.UNDERSTANDING -> "RuBERT определяет intent локально…"
+    ProcessingStage.EXECUTING -> "Выполняю локальное действие…"
+    ProcessingStage.GENERATING -> "DeepSeek отвечает…"
+    ProcessingStage.STOPPING -> "Останавливаю…"
+    null -> "Обрабатываю…"
+}
+
+internal fun assistantRouteLabel(debug: DebugInfo?): String? {
+    if (!BuildConfig.DEBUG || debug == null) return null
+    return when (debug.actionResult) {
+        "deepseek_answer" -> "DeepSeek · облачный ответ"
+
+        "deepseek_error" -> "DeepSeek · ошибка"
+
+        else -> when (debug.nluSource) {
+            NluSource.RUBERT_TINY2 -> "RuBERT · локальный intent"
+            NluSource.UNAVAILABLE -> "RuBERT · недоступен"
+            else -> null
         }
-        Text(
-            displayText,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (emphasized) AssistantColors.Primary else AssistantColors.Muted,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-        )
     }
 }
 
-fun transcriptPreviewLabel(preview: String): String {
-    val value = preview.trim()
-        .removePrefix("Transcript preview:")
-        .removePrefix("Распознано:")
-        .trim()
-    return when {
-        value.startsWith("Идет локальная запись") -> "Слушаю..."
-        value.isBlank() -> "Слушаю..."
-        else -> "Распознано: $value"
-    }
-}
-
-private object ChatColors {
-    val Screen = AssistantColors.Screen
-    val UserBubble = AssistantColors.PrimarySoft
-    val AssistantAvatar = AssistantColors.PrimarySoft
-    val Primary = AssistantColors.Primary
-    val Text = AssistantColors.Text
-    val Muted = AssistantColors.Muted
-    val Border = AssistantColors.Border
-    val SpokenHighlight = Color(0xFFDCEAFF)
-}
+fun transcriptPreviewLabel(preview: String): String = preview.removePrefix("Transcript preview: ").removePrefix("Транскрипт: ").trim()
 
 internal fun WidgetPayload.deduplicateAnswerAlreadyShownInBubble(bubbleText: String): WidgetPayload {
     if (type != WidgetTypes.GENERIC_ANSWER_CARD) return this
     val answer = payload["answer"]?.jsonPrimitive?.contentOrNull?.trim()
-    if (answer.isNullOrBlank() || answer != bubbleText.trim()) return this
+    if (answer.isNullOrEmpty() || answer != bubbleText.trim()) return this
     return copy(
         payload = buildJsonObject {
-            payload.forEach { (key, value) ->
-                if (key != "answer") put(key, value)
-            }
+            payload.forEach { (key, value) -> if (key != "answer") put(key, value) }
         }
     )
+}
+
+private fun hasRecordAudioPermission(context: Context): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+private fun String.toAndroidPermissions(): Array<String> = when (this) {
+    PermissionNames.RECORD_AUDIO -> arrayOf(Manifest.permission.RECORD_AUDIO)
+
+    PermissionNames.POST_NOTIFICATIONS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        emptyArray()
+    }
+
+    else -> emptyArray()
 }

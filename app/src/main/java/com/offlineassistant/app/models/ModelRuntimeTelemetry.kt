@@ -2,6 +2,7 @@ package com.offlineassistant.app.models
 
 import android.content.Context
 import androidx.core.content.edit
+import java.util.Locale
 
 data class ModelRuntimeTelemetry(
     val operation: String? = null,
@@ -17,29 +18,15 @@ interface ModelRuntimeTelemetryStore {
     fun recordSuccess(modelName: String, operation: String, latencyMs: Long)
 
     fun recordFailure(modelName: String, operation: String, latencyMs: Long, error: String)
+
+    fun clear()
 }
 
 object NoOpModelRuntimeTelemetryStore : ModelRuntimeTelemetryStore {
     override fun read(modelName: String): ModelRuntimeTelemetry = ModelRuntimeTelemetry()
     override fun recordSuccess(modelName: String, operation: String, latencyMs: Long) = Unit
     override fun recordFailure(modelName: String, operation: String, latencyMs: Long, error: String) = Unit
-}
-
-class InMemoryModelRuntimeTelemetryStore : ModelRuntimeTelemetryStore {
-    private val values = mutableMapOf<String, ModelRuntimeTelemetry>()
-
-    @Synchronized
-    override fun read(modelName: String): ModelRuntimeTelemetry = values[modelName] ?: ModelRuntimeTelemetry()
-
-    @Synchronized
-    override fun recordSuccess(modelName: String, operation: String, latencyMs: Long) {
-        values[modelName] = successfulTelemetry(operation, latencyMs)
-    }
-
-    @Synchronized
-    override fun recordFailure(modelName: String, operation: String, latencyMs: Long, error: String) {
-        values[modelName] = failedTelemetry(operation, latencyMs, error)
-    }
+    override fun clear() = Unit
 }
 
 class SharedPreferencesModelRuntimeTelemetryStore(context: Context) : ModelRuntimeTelemetryStore {
@@ -65,6 +52,10 @@ class SharedPreferencesModelRuntimeTelemetryStore(context: Context) : ModelRunti
         write(modelName, failedTelemetry(operation, latencyMs, error))
     }
 
+    override fun clear() {
+        preferences.edit { clear() }
+    }
+
     private fun write(modelName: String, telemetry: ModelRuntimeTelemetry) {
         val prefix = keyPrefix(modelName)
         preferences.edit {
@@ -80,9 +71,8 @@ class SharedPreferencesModelRuntimeTelemetryStore(context: Context) : ModelRunti
 }
 
 object ModelNames {
-    const val WHISPER = "Whisper"
+    const val TONE = "T-one RU Streaming"
     const val RUBERT = "RuBERT-tiny2 ONNX"
-    const val QWEN = "Qwen2.5 0.5B Instruct GGUF"
     const val SILERO_TTS = "Silero v5.5 RU Xenia"
     const val TTS_PLAYBACK = "TTS first audio"
 }
@@ -107,6 +97,34 @@ private fun failedTelemetry(operation: String, latencyMs: Long, error: String): 
     operation = operation,
     successful = false,
     latencyMs = latencyMs.coerceAtLeast(0L),
-    error = error,
+    error = safeTelemetryFailureReason(error),
     updatedAtEpochMs = System.currentTimeMillis()
 )
+
+object ModelFailureReasons {
+    const val MODEL_UNAVAILABLE = "model_unavailable"
+    const val EMPTY_RESULT = "empty_result"
+    const val CANCELLED = "cancelled"
+    const val INVALID_OUTPUT = "invalid_output"
+    const val ACCESS_DENIED = "access_denied"
+    const val RUNTIME_FAILURE = "runtime_failure"
+}
+
+internal fun safeTelemetryFailureReason(error: String): String {
+    val normalized = error.lowercase(Locale.ROOT)
+    return when {
+        listOf("not installed", "not ready", "missing", "unavailable").any(normalized::contains) ->
+            ModelFailureReasons.MODEL_UNAVAILABLE
+
+        "empty" in normalized -> ModelFailureReasons.EMPTY_RESULT
+
+        "cancel" in normalized || "stopped" in normalized -> ModelFailureReasons.CANCELLED
+
+        listOf("invalid", "json", "did not return", "неверный формат").any(normalized::contains) ->
+            ModelFailureReasons.INVALID_OUTPUT
+
+        "permission" in normalized || "access denied" in normalized -> ModelFailureReasons.ACCESS_DENIED
+
+        else -> ModelFailureReasons.RUNTIME_FAILURE
+    }
+}

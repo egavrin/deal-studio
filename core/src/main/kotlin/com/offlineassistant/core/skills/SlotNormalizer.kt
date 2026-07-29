@@ -3,7 +3,11 @@ package com.offlineassistant.core.skills
 import com.offlineassistant.core.nlu.IntentSchema
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluResult
+import com.offlineassistant.core.nlu.RussianDateTimeNormalizer
+import java.time.OffsetDateTime
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 fun interface SlotNormalizer {
     fun normalize(originalText: String, nlu: NluResult): NormalizationResult
@@ -16,66 +20,74 @@ sealed interface NormalizationResult {
 }
 
 class DeterministicSlotNormalizer(
-    private val schema: IntentSchema = IntentSchema.default
+    private val schema: IntentSchema = IntentSchema.default,
+    private val clock: () -> OffsetDateTime = OffsetDateTime::now
 ) : SlotNormalizer {
     override fun normalize(originalText: String, nlu: NluResult): NormalizationResult {
-        val missing = schema.definitionFor(nlu.intent)
-            ?.requiredSlots
-            .orEmpty()
-            .filterNot { nlu.slots.containsKey(it) }
+        val definition = schema.definitionFor(nlu.intent)
+            ?: return NormalizationResult.Error(
+                ValidationError("Этот локальный intent не поддерживается.", nlu.intent, nlu.slots)
+            )
+        val allowedSlots = (definition.requiredSlots + definition.optionalSlots).toSet()
+        val normalizedSlots = buildJsonObject {
+            nlu.slots.forEach { (name, value) ->
+                if (name in allowedSlots) put(name, value)
+            }
+            when (nlu.intent) {
+                Intents.CREATE_REMINDER ->
+                    RussianDateTimeNormalizer
+                        .normalizeDateTime(originalText, clock())
+                        ?.let { put("datetime", it) }
+
+                Intents.SET_ALARM ->
+                    RussianDateTimeNormalizer
+                        .normalizeDate(originalText, clock())
+                        ?.let { put("date", it.toString()) }
+            }
+        }
+        val missing = definition.requiredSlots.filterNot(normalizedSlots::containsKey)
         if (missing.isEmpty()) {
             return NormalizationResult.Normalized(
                 NormalizedCommand(
                     intent = nlu.intent,
-                    slots = nlu.slots,
+                    slots = normalizedSlots,
                     originalText = originalText,
-                    source = nlu.source
+                    source = nlu.source,
+                    confidence = nlu.confidence
                 )
             )
         }
-
-        clarificationFor(nlu.intent, nlu.slots)?.let {
-            return NormalizationResult.Clarification(it)
-        }
-
-        return NormalizationResult.Error(
-            ValidationError(
-                message = "Missing required slots: ${missing.joinToString()}",
-                intent = nlu.intent,
-                slots = nlu.slots
-            )
-        )
+        val expectedSlot = missing.first()
+        return clarificationFor(nlu.intent, expectedSlot, normalizedSlots)
     }
 
-    private fun clarificationFor(intent: String, partialSlots: JsonObject): ClarificationRequest? = when (intent) {
-        Intents.SET_TIMER -> ClarificationRequest(
-            question = "На сколько поставить таймер?",
-            suggestions = listOf("На 5 минут", "На 10 минут", "Отмена"),
+    private fun clarificationFor(
+        intent: String,
+        expectedSlot: String,
+        slots: JsonObject
+    ): NormalizationResult = NormalizationResult.Clarification(
+        ClarificationRequest(
+            question = when (expectedSlot) {
+                "duration_seconds" -> "На сколько поставить таймер?"
+                "time" -> "На какое время поставить будильник?"
+                "reminder_text" -> "Что напомнить?"
+                "text" -> "Какой текст записать в заметку?"
+                "expression" -> "Какое выражение посчитать?"
+                "app_name" -> "Какое приложение открыть?"
+                else -> "Уточните команду."
+            },
+            suggestions = when (expectedSlot) {
+                "duration_seconds" -> listOf("Поставь таймер на 5 минут", "Поставь таймер на 10 минут")
+                "time" -> listOf("Поставь будильник на 7:30", "Поставь будильник завтра на 8:00")
+                "reminder_text" -> listOf("Напомни через час проверить духовку")
+                "text" -> listOf("Запиши заметку купить молоко")
+                "expression" -> listOf("Сколько будет 18 умножить на 3")
+                "app_name" -> listOf("Открой Telegram")
+                else -> emptyList()
+            } + "Отмена",
             pendingIntent = intent,
-            partialSlots = partialSlots
+            partialSlots = slots,
+            expectedSlot = expectedSlot
         )
-
-        Intents.SET_ALARM -> ClarificationRequest(
-            question = "На какое время поставить будильник?",
-            suggestions = listOf("На 7:30", "Завтра в 8:00", "Отмена"),
-            pendingIntent = intent,
-            partialSlots = partialSlots
-        )
-
-        Intents.CREATE_REMINDER -> ClarificationRequest(
-            question = "Что напомнить?",
-            suggestions = listOf("Проверить духовку", "Позвонить завтра", "Отмена"),
-            pendingIntent = intent,
-            partialSlots = partialSlots
-        )
-
-        Intents.CREATE_NOTE -> ClarificationRequest(
-            question = "Какой текст записать в заметку?",
-            suggestions = listOf("Купить молоко", "Идея для проекта", "Отмена"),
-            pendingIntent = intent,
-            partialSlots = partialSlots
-        )
-
-        else -> null
-    }
+    )
 }

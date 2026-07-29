@@ -52,6 +52,9 @@ interface PcmAudioPlayer : Closeable {
     /** Drains submitted PCM and closes the current response-level playback session. */
     fun finish() = Unit
 
+    /** Number of transport underruns observed in the active response-level stream. */
+    fun transportUnderrunCount(): Int = 0
+
     fun stop()
 
     override fun close()
@@ -108,7 +111,8 @@ class AssistantSpeechController(
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val onError: (Throwable) -> Unit = {},
     private val onFirstAudioReady: (messageId: String, latencyMs: Long) -> Unit = { _, _ -> },
-    private val onPlaybackRangeChanged: (SpeechPlaybackRange?) -> Unit = {}
+    private val onPlaybackRangeChanged: (SpeechPlaybackRange?) -> Unit = {},
+    private val onPipelineEvent: (SpeechPipelineEvent) -> Unit = {}
 ) : AssistantSpeech,
     Closeable {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -121,6 +125,8 @@ class AssistantSpeechController(
     private val firstAudioReported = mutableSetOf<String>()
     private var activeMessageId: String? = null
     private var suppressedMessageId: String? = null
+    private var lastPlaybackEndedAtNanos: Long? = null
+    private var reportedUnderrunCount = 0
     private val playbackBuffer = SpeechPlaybackBuffer()
 
     init {
@@ -131,10 +137,16 @@ class AssistantSpeechController(
                         val job = event.job
                         if (job.generation != generation.get()) continue
                         try {
+                            val synthesisStartedAt = System.nanoTime()
                             val audio = synthesizer.synthesize(job.chunk.text)
                             if (job.generation == generation.get()) {
                                 val durationMs = audio.durationMs()
                                 playbackBuffer.replaceEstimate(job.estimatedDurationMs, durationMs)
+                                report(
+                                    job,
+                                    SpeechPipelineStage.SYNTHESIZED_CHUNK_READY,
+                                    elapsedMs = (System.nanoTime() - synthesisStartedAt) / 1_000_000L
+                                )
                                 playbackQueue.send(PlaybackEvent.Chunk(job, audio, durationMs))
                             }
                         } catch (error: Throwable) {
@@ -159,10 +171,21 @@ class AssistantSpeechController(
                         val job = event.job
                         if (job.generation != generation.get()) continue
                         try {
+                            report(job, SpeechPipelineStage.QUEUED_TO_AUDIO_TRACK)
                             player.play(
                                 audio = event.audio,
                                 onPlaybackStarted = {
                                     if (job.generation == generation.get()) {
+                                        val now = System.nanoTime()
+                                        val gapMs = synchronized(chunkerLock) {
+                                            lastPlaybackEndedAtNanos?.let { endedAt ->
+                                                ((now - endedAt).coerceAtLeast(0L) / 1_000_000L)
+                                            }.also { lastPlaybackEndedAtNanos = null }
+                                        }
+                                        if (gapMs != null && gapMs > TRANSPORT_GAP_THRESHOLD_MS) {
+                                            report(job, SpeechPipelineStage.TRANSPORT_GAP, elapsedMs = gapMs)
+                                        }
+                                        report(job, SpeechPipelineStage.PLAYBACK_HEAD_STARTED)
                                         playbackBuffer.onPlaybackStarted(event.durationMs)
                                         onPlaybackRangeChanged(job.chunk.toPlaybackRange(job.messageId))
                                         val startedAt = synchronized(chunkerLock) {
@@ -182,6 +205,9 @@ class AssistantSpeechController(
                                 },
                                 onPlaybackCompleted = {
                                     if (job.generation == generation.get()) {
+                                        report(job, SpeechPipelineStage.PLAYBACK_HEAD_ENDED)
+                                        synchronized(chunkerLock) { lastPlaybackEndedAtNanos = System.nanoTime() }
+                                        reportNewUnderruns(job)
                                         playbackBuffer.onPlaybackCompleted()
                                         onPlaybackRangeChanged(null)
                                     }
@@ -208,6 +234,8 @@ class AssistantSpeechController(
                                 responseStartedAtNanos.remove(event.messageId)
                                 firstAudioReported.remove(event.messageId)
                                 if (activeMessageId == event.messageId) activeMessageId = null
+                                lastPlaybackEndedAtNanos = null
+                                reportedUnderrunCount = 0
                             }
                             playbackBuffer.clear()
                             onPlaybackRangeChanged(null)
@@ -240,6 +268,8 @@ class AssistantSpeechController(
             suppressedMessageId = null
             responseStartedAtNanos[messageId] = firstTokenAtNanos
             firstAudioReported.remove(messageId)
+            lastPlaybackEndedAtNanos = null
+            reportedUnderrunCount = 0
         }
     }
 
@@ -280,11 +310,15 @@ class AssistantSpeechController(
     override fun stop(reason: SpeechStopReason) {
         generation.incrementAndGet()
         synchronized(chunkerLock) {
-            suppressedMessageId = if (reason == SpeechStopReason.USER_REQUESTED) activeMessageId else null
-            if (reason != SpeechStopReason.USER_REQUESTED) activeMessageId = null
+            val suppressCurrentMessage = reason == SpeechStopReason.USER_REQUESTED ||
+                reason == SpeechStopReason.GENERATION_STOPPED
+            suppressedMessageId = if (suppressCurrentMessage) activeMessageId else null
+            if (!suppressCurrentMessage) activeMessageId = null
             chunker.cancel()
             responseStartedAtNanos.clear()
             firstAudioReported.clear()
+            lastPlaybackEndedAtNanos = null
+            reportedUnderrunCount = 0
         }
         playbackBuffer.clear()
         onPlaybackRangeChanged(null)
@@ -310,6 +344,34 @@ class AssistantSpeechController(
             )
             if (result.isFailure) playbackBuffer.removeQueued(estimatedDurationMs)
         }
+    }
+
+    private fun report(
+        job: SpeechJob,
+        stage: SpeechPipelineStage,
+        elapsedMs: Long? = null,
+        count: Int? = null
+    ) {
+        runCatching {
+            onPipelineEvent(
+                SpeechPipelineEvent(
+                    messageId = job.messageId,
+                    startOffset = job.chunk.startOffset,
+                    endOffset = job.chunk.endOffset,
+                    stage = stage,
+                    elapsedMs = elapsedMs,
+                    count = count
+                )
+            )
+        }
+    }
+
+    private fun reportNewUnderruns(job: SpeechJob) {
+        val current = player.transportUnderrunCount().coerceAtLeast(0)
+        val delta = synchronized(chunkerLock) {
+            (current - reportedUnderrunCount).coerceAtLeast(0).also { reportedUnderrunCount = current }
+        }
+        if (delta > 0) report(job, SpeechPipelineStage.TRANSPORT_UNDERFLOW, count = delta)
     }
 
     override fun close() {
@@ -348,6 +410,7 @@ class AssistantSpeechController(
         const val CLAUSE_BOUNDARY_BUFFER_TARGET_MS = 1_400L
         const val ESTIMATED_SPEECH_MILLIS_PER_CHARACTER = 55L
         const val MIN_ESTIMATED_CHUNK_DURATION_MS = 450L
+        const val TRANSPORT_GAP_THRESHOLD_MS = 30L
 
         fun estimateDurationMs(text: String): Long = max(
             MIN_ESTIMATED_CHUNK_DURATION_MS,

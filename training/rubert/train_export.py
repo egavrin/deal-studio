@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import random
+from collections import Counter
 from pathlib import Path
 
 import onnx
@@ -26,31 +28,32 @@ INTENTS = [
     "unknown",
 ]
 
-SLOT_LABELS = [
-    "O",
-    "B-duration",
-    "I-duration",
-    "B-time",
-    "I-time",
-    "B-date",
-    "I-date",
-    "B-location",
-    "I-location",
-    "B-note_text",
-    "I-note_text",
-    "B-reminder_text",
-    "I-reminder_text",
-    "B-app_name",
-    "I-app_name",
-    "B-expression",
-    "I-expression",
+SLOT_NAMES = [
+    "duration",
+    "time",
+    "date",
+    "location",
+    "text",
+    "reminder_text",
+    "app_name",
+    "expression",
+    "label",
+    "repeat",
+    "package_name",
 ]
+SLOT_LABELS = ["O"] + [f"{prefix}-{name}" for name in SLOT_NAMES for prefix in ("B", "I")]
+
 
 EXPORT_INTENT_CHECKS = [
-    ("Покажи погоду в Санкт-Петербурге", "get_weather", 0.8),
-    ("Будильник на 08.15", "set_alarm", 0.8),
-    ("Поставь таймер на час", "set_timer", 0.8),
-    ("Сколько будет 18 плюс 24", "calculate", 0.75),
+    ("Покажи погоду в Санкт-Петербурге", "get_weather", 0.8, True),
+    ("Будильник на 08.15", "set_alarm", 0.8, True),
+    ("Поставь таймер на час", "set_timer", 0.8, True),
+    ("Сколько будет 18 плюс 24", "calculate", 0.75, True),
+    ("Поставь таймер", "set_timer", 0.75, False),
+    ("Какая погода сегодня?", "get_weather", 0.75, False),
+    ("Помощь", "help", 0.75, False),
+    ("Напомни через час проверить духовку", "create_reminder", 0.75, True),
+    ("Разбуди меня завтра", "set_alarm", 0.75, False),
 ]
 
 DEFAULT_BASE_MODEL = "cointegrated/rubert-tiny2"
@@ -89,7 +92,7 @@ class IntentDataset(Dataset):
         item = {key: value.squeeze(0) for key, value in encoded.items()}
         item["intent_labels"] = torch.tensor(self.label_to_id[row["intent"]], dtype=torch.long)
         item["slot_labels"] = torch.tensor(
-            slot_labels_for_text(row["text"], offsets, item["attention_mask"].tolist()),
+            slot_labels_for_text(row, offsets, item["attention_mask"].tolist()),
             dtype=torch.long,
         )
         return item
@@ -113,18 +116,20 @@ class JointIntentSlotModel(torch.nn.Module):
         self.intent_classifier = torch.nn.Linear(hidden_size, len(INTENTS))
         self.slot_classifier = torch.nn.Linear(hidden_size, len(SLOT_LABELS))
 
-    def forward(self, input_ids, attention_mask, token_type_ids=None):
+    def features(self, input_ids, attention_mask, token_type_ids=None):
         output = self.encoder(
             input_ids=input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
         )
         sequence_output = self.dropout(output.last_hidden_state)
-        pooled_output = sequence_output[:, 0]
+        return sequence_output, sequence_output[:, 0]
+
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
+        sequence_output, pooled_output = self.features(input_ids, attention_mask, token_type_ids)
         intent_logits = self.intent_classifier(pooled_output)
         slot_logits = self.slot_classifier(sequence_output)
         return intent_logits, slot_logits
-
 
 class JointOnnxWrapper(torch.nn.Module):
     def __init__(self, model):
@@ -139,9 +144,9 @@ class JointOnnxWrapper(torch.nn.Module):
         )
 
 
-def slot_labels_for_text(text, offsets, attention_mask):
+def slot_labels_for_text(row, offsets, attention_mask):
     labels = [SLOT_LABELS.index("O")] * len(offsets)
-    spans = infer_slot_spans(text)
+    spans = explicit_slot_spans(row) or infer_slot_spans(row["text"])
     for index, ((start, end), is_active) in enumerate(zip(offsets, attention_mask)):
         if not is_active or start == end:
             labels[index] = -100
@@ -153,6 +158,16 @@ def slot_labels_for_text(text, offsets, attention_mask):
                 labels[index] = SLOT_LABELS.index(label)
                 break
     return labels
+
+
+def explicit_slot_spans(row):
+    spans = []
+    for slot in row.get("slots", []):
+        name = slot["name"]
+        if name not in SLOT_NAMES:
+            raise ValueError(f"Unsupported slot label: {name}")
+        spans.append((name, int(slot["start"]), int(slot["end"])))
+    return spans
 
 
 def infer_slot_spans(text):
@@ -169,9 +184,14 @@ def infer_slot_spans(text):
     add_regex_span(spans, lower, r"\b(?:[01]?\d|2[0-3])[:.]([0-5]\d)\b", "time")
     add_weather_location_span(spans, text, lower)
     add_after_marker(spans, text, lower, ["открой приложение ", "открой ", "запусти "], "app_name")
-    add_after_marker(spans, text, lower, ["запиши заметку ", "создай заметку ", "заметка: ", "заметка ", "запиши "], "note_text")
+    add_after_marker(spans, text, lower, ["запиши заметку ", "создай заметку ", "заметка: ", "заметка ", "запиши "], "text")
     add_after_marker(spans, text, lower, ["создай напоминание ", "напоминание на вечер ", "напомни завтра ", "напомни через час ", "напомни "], "reminder_text")
-    add_regex_span(spans, lower, r"\b\d+\s*(?:умножить на|\*|плюс|\+|минус|-)\s*\d+\b", "expression")
+    add_regex_span(
+        spans,
+        lower,
+        r"\b\d+\s*(?:умножить на|разделить на|поделить на|делить на|\*|/|÷|плюс|\+|минус|-)\s*\d+\b",
+        "expression",
+    )
     return spans
 
 
@@ -238,6 +258,10 @@ def train(args):
         trust_remote_code=False,
     )
     model = JointIntentSlotModel(args.base_model, revision=base_model_revision)
+    if args.resume_from is not None:
+        state = torch.load(args.resume_from, map_location="cpu", weights_only=True)
+        model.load_state_dict(state)
+        print(f"resumed_from={args.resume_from}")
 
     dataset = IntentDataset(rows, tokenizer, args.max_length)
     train_size = max(1, int(len(dataset) * 0.85))
@@ -250,6 +274,14 @@ def train(args):
 
     loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    intent_counts = Counter(row["intent"] for row in rows)
+    intent_class_weights = torch.tensor(
+        [
+            min(3.0, max(0.5, len(rows) / (len(INTENTS) * intent_counts[intent])))
+            for intent in INTENTS
+        ],
+        dtype=torch.float,
+    )
     slot_class_weights = torch.ones(len(SLOT_LABELS), dtype=torch.float)
     slot_class_weights[SLOT_LABELS.index("O")] = args.outside_slot_weight
     for index, label in enumerate(SLOT_LABELS):
@@ -263,7 +295,11 @@ def train(args):
             intent_labels = batch.pop("intent_labels")
             slot_labels = batch.pop("slot_labels")
             intent_logits, slot_logits = model(**batch)
-            intent_loss = F.cross_entropy(intent_logits, intent_labels)
+            intent_loss = F.cross_entropy(
+                intent_logits,
+                intent_labels,
+                weight=intent_class_weights.to(intent_logits.device),
+            )
             slot_loss = F.cross_entropy(
                 slot_logits.view(-1, len(SLOT_LABELS)),
                 slot_labels.view(-1),
@@ -296,6 +332,7 @@ def export_bundle(model, tokenizer, args):
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     tokenizer.save_pretrained(output_dir)
+    ensure_special_tokens_map(tokenizer, output_dir)
     ordered_vocab = sorted(tokenizer.get_vocab().items(), key=lambda item: item[1])
     (output_dir / "vocab.txt").write_text(
         "".join(f"{token}\n" for token, _ in ordered_vocab),
@@ -304,6 +341,7 @@ def export_bundle(model, tokenizer, args):
 
     (output_dir / "intent_labels.txt").write_text("\n".join(INTENTS) + "\n", encoding="utf-8")
     (output_dir / "slot_labels.txt").write_text("\n".join(SLOT_LABELS) + "\n", encoding="utf-8")
+    torch.save(model.state_dict(), output_dir / "training-checkpoint.pt")
 
     sample = tokenizer(
         "Поставь таймер на 5 минут",
@@ -315,7 +353,84 @@ def export_bundle(model, tokenizer, args):
     onnx_path = output_dir / "rubert-tiny2-intent-slots.onnx"
     export_joint_onnx(model, sample, onnx_path)
     verify_onnx(onnx_path, sample, tokenizer, args.max_length)
+    write_training_manifest(
+        args=args,
+        rows=load_rows(args.dataset),
+        base_model_revision=resolve_base_model_revision(args.base_model, args.base_model_revision),
+        output_dir=output_dir,
+    )
     print(f"exported={output_dir}")
+
+
+def ensure_special_tokens_map(tokenizer, output_dir):
+    """Keeps the runtime bundle stable across Transformers tokenizer serializers."""
+    path = output_dir / "special_tokens_map.json"
+    if path.is_file():
+        return
+    path.write_text(
+        json.dumps(tokenizer.special_tokens_map, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_training_manifest(args, rows, base_model_revision, output_dir):
+    bundle_names = (
+        "rubert-tiny2-intent-slots.onnx",
+        "vocab.txt",
+        "intent_labels.txt",
+        "slot_labels.txt",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+    )
+    missing = [name for name in bundle_names if not (output_dir / name).is_file()]
+    if missing:
+        raise RuntimeError(f"Cannot write RuBERT manifest; missing bundle files: {missing}")
+    dataset_path = args.dataset.resolve()
+    resume_path = args.resume_from.resolve() if args.resume_from is not None else None
+    manifest = {
+        "schema_version": 1,
+        "task": "joint_intent_and_bio_slot_classification",
+        "base_model": args.base_model,
+        "base_model_revision": base_model_revision,
+        "dataset": str(args.dataset),
+        "dataset_sha256": sha256_file(dataset_path),
+        "dataset_rows": len(rows),
+        "intent_count": len(INTENTS),
+        "slot_label_count": len(SLOT_LABELS),
+        "training": {
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "learning_rate": args.learning_rate,
+            "max_length": args.max_length,
+            "seed": args.seed,
+            "slot_loss_weight": args.slot_loss_weight,
+            "outside_slot_weight": args.outside_slot_weight,
+            "named_slot_weight": args.named_slot_weight,
+            "resumed_from_sha256": sha256_file(resume_path) if resume_path else None,
+        },
+        "onnx_contract": {
+            "opset": 18,
+            "inputs": ["input_ids", "attention_mask", "token_type_ids"],
+            "outputs": ["intent_logits", "slot_logits"],
+        },
+        "bundle_sha256": {
+            name: sha256_file(output_dir / name)
+            for name in bundle_names
+        },
+    }
+    (output_dir / "rubert-training-manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def export_joint_onnx(model, sample, onnx_path):
@@ -328,32 +443,60 @@ def export_joint_onnx(model, sample, onnx_path):
             sample.get("token_type_ids", torch.zeros_like(sample["input_ids"]))
         ),
     }
-    batch = torch.export.Dim("batch", min=1, max=64)
-    sequence = torch.export.Dim(
-        "sequence",
-        min=2,
-        max=model.encoder.config.max_position_embeddings,
+    values = (
+        export_sample["input_ids"],
+        export_sample["attention_mask"],
+        export_sample["token_type_ids"],
     )
-    torch.onnx.export(
-        wrapper,
-        (
-            export_sample["input_ids"],
-            export_sample["attention_mask"],
-            export_sample["token_type_ids"],
-        ),
-        onnx_path,
-        input_names=["input_ids", "attention_mask", "token_type_ids"],
-        output_names=["intent_logits", "slot_logits"],
-        dynamic_shapes={
-            "input_ids": {0: batch, 1: sequence},
-            "attention_mask": {0: batch, 1: sequence},
-            "token_type_ids": {0: batch, 1: sequence},
-        },
-        opset_version=18,
-        dynamo=True,
-        external_data=False,
-    )
+    if modern_onnx_export_available():
+        batch = torch.export.Dim("batch", min=1, max=64)
+        sequence = torch.export.Dim(
+            "sequence",
+            min=2,
+            max=model.encoder.config.max_position_embeddings,
+        )
+        torch.onnx.export(
+            wrapper,
+            values,
+            onnx_path,
+            input_names=["input_ids", "attention_mask", "token_type_ids"],
+            output_names=["intent_logits", "slot_logits"],
+            dynamic_shapes={
+                "input_ids": {0: batch, 1: sequence},
+                "attention_mask": {0: batch, 1: sequence},
+                "token_type_ids": {0: batch, 1: sequence},
+            },
+            opset_version=18,
+            dynamo=True,
+            external_data=False,
+        )
+    else:
+        torch.onnx.export(
+            wrapper,
+            values,
+            onnx_path,
+            input_names=["input_ids", "attention_mask", "token_type_ids"],
+            output_names=["intent_logits", "slot_logits"],
+            dynamic_axes={
+                "input_ids": {0: "batch", 1: "sequence"},
+                "attention_mask": {0: "batch", 1: "sequence"},
+                "token_type_ids": {0: "batch", 1: "sequence"},
+                "intent_logits": {0: "batch"},
+                "slot_logits": {0: "batch", 1: "sequence"},
+            },
+            opset_version=18,
+            dynamo=False,
+        )
     onnx.checker.check_model(str(onnx_path))
+
+
+def modern_onnx_export_available():
+    try:
+        import onnxscript
+        major, minor = (int(value) for value in onnxscript.__version__.split(".")[:2])
+        return (major, minor) >= (0, 7)
+    except (ImportError, AttributeError, ValueError):
+        return False
 
 
 def ensure_dynamic_batch(value):
@@ -399,7 +542,7 @@ def run_onnx_contract(session, sample):
 def verify_onnx(onnx_path, sample, tokenizer, max_length):
     session = create_onnx_session(onnx_path)
     run_onnx_contract(session, sample)
-    for text, expected_intent, minimum_confidence in EXPORT_INTENT_CHECKS:
+    for text, expected_intent, minimum_confidence, requires_slot in EXPORT_INTENT_CHECKS:
         encoded = tokenizer(
             text,
             max_length=max_length,
@@ -422,7 +565,7 @@ def verify_onnx(onnx_path, sample, tokenizer, max_length):
                 f"Export check failed for {text!r}: expected {expected_intent} >= {minimum_confidence}, "
                 f"got {actual_intent} confidence={confidence:.3f}"
             )
-        if np.argmax(check_slot_logits[0], axis=-1).max() <= SLOT_LABELS.index("O"):
+        if requires_slot and np.argmax(check_slot_logits[0], axis=-1).max() <= SLOT_LABELS.index("O"):
             raise RuntimeError(f"Export check failed for {text!r}: slot classifier returned only O labels")
 
 
@@ -442,11 +585,17 @@ def parse_args():
     )
     parser.add_argument("--dataset", type=Path, default=Path("training/rubert/synthetic_intents.jsonl"))
     parser.add_argument("--output-dir", type=Path, default=Path("models/generated/rubert"))
-    parser.add_argument("--epochs", type=int, default=4)
+    parser.add_argument("--epochs", type=int, default=14)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--learning-rate", type=float, default=2e-5)
     parser.add_argument("--max-length", type=int, default=64)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--resume-from",
+        type=Path,
+        default=None,
+        help="Optional compatible training checkpoint used for controlled continued training",
+    )
     parser.add_argument("--slot-loss-weight", type=float, default=3.0)
     parser.add_argument("--outside-slot-weight", type=float, default=0.15)
     parser.add_argument("--named-slot-weight", type=float, default=6.0)

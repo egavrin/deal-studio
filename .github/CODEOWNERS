@@ -2,9 +2,9 @@
 * @egavrin
 
 # Sensitive and high-risk surfaces.
-/app/src/main/cpp/ @egavrin
 /app/src/main/java/com/offlineassistant/app/llm/ @egavrin
 /app/src/main/java/com/offlineassistant/app/nlu/ @egavrin
 /app/src/main/java/com/offlineassistant/app/speech/ @egavrin
 /training/ @egavrin
+/deepseek-connector/ @egavrin
 /.github/ @egavrin

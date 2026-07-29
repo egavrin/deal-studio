@@ -29,8 +29,16 @@ internal fun UiDevice.sendMessage(text: String) {
 
 internal fun UiDevice.exerciseRecording() {
     executeShellCommand("pm grant $TARGET_PACKAGE ${Manifest.permission.RECORD_AUDIO}")
-    val record = wait(Until.findObject(By.desc("Записать голос")), UI_TIMEOUT_MS) ?: return
+    val record = wait(Until.findObject(By.desc("Записать голосовую команду")), UI_TIMEOUT_MS) ?: return
     record.click()
     wait(Until.hasObject(By.desc("Остановить запись")), UI_TIMEOUT_MS)
     findObject(By.desc("Остановить запись"))?.click()
+}
+
+internal fun UiDevice.scrollStreamingAnswer() {
+    if (!wait(Until.hasObject(By.desc("Остановить ответ")), 45_000L)) return
+    repeat(3) {
+        swipe(displayWidth / 2, displayHeight * 3 / 4, displayWidth / 2, displayHeight / 4, 20)
+        waitForIdle()
+    }
 }

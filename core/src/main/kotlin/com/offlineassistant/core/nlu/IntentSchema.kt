@@ -16,84 +16,64 @@ data class IntentDefinition(
 data class IntentSchema(
     val definitions: List<IntentDefinition>
 ) {
-    private val byId: Map<String, IntentDefinition> = definitions.associateBy { it.id }
+    private val byId = definitions.associateBy(IntentDefinition::id)
 
     fun definitionFor(intent: String): IntentDefinition? = byId[intent]
 
-    fun require(intent: String): IntentDefinition = requireNotNull(definitionFor(intent)) { "Unknown intent in schema: $intent" }
-
     companion object {
         val default = IntentSchema(
-            definitions = listOf(
+            listOf(
+                IntentDefinition(Intents.GET_CURRENT_TIME, emptyList(), emptyList(), "time"),
                 IntentDefinition(
-                    id = Intents.GET_CURRENT_TIME,
-                    requiredSlots = emptyList(),
-                    optionalSlots = emptyList(),
-                    skillId = "time"
+                    Intents.GET_WEATHER,
+                    emptyList(),
+                    listOf("location"),
+                    "weather",
+                    WidgetTypes.WEATHER_CARD
                 ),
                 IntentDefinition(
-                    id = Intents.GET_WEATHER,
-                    requiredSlots = emptyList(),
-                    optionalSlots = listOf("location"),
-                    skillId = "weather",
-                    successWidgetType = WidgetTypes.WEATHER_CARD
+                    Intents.SET_TIMER,
+                    listOf("duration_seconds"),
+                    listOf("label"),
+                    "timer",
+                    WidgetTypes.TIMER_CARD
                 ),
                 IntentDefinition(
-                    id = Intents.SET_TIMER,
-                    requiredSlots = listOf("duration_seconds"),
-                    optionalSlots = listOf("label"),
-                    skillId = "timer",
-                    successWidgetType = WidgetTypes.TIMER_CARD
+                    Intents.SET_ALARM,
+                    listOf("time"),
+                    listOf("date", "label", "repeat"),
+                    "alarm",
+                    WidgetTypes.ALARM_CARD
                 ),
                 IntentDefinition(
-                    id = Intents.SET_ALARM,
-                    requiredSlots = listOf("time"),
-                    optionalSlots = listOf("date", "label", "repeat"),
-                    skillId = "alarm",
-                    successWidgetType = WidgetTypes.ALARM_CARD
+                    Intents.CREATE_REMINDER,
+                    listOf("reminder_text"),
+                    listOf("datetime"),
+                    "reminder",
+                    WidgetTypes.REMINDER_CARD
                 ),
                 IntentDefinition(
-                    id = Intents.CREATE_REMINDER,
-                    requiredSlots = listOf("reminder_text"),
-                    optionalSlots = listOf("datetime"),
-                    skillId = "reminder",
-                    successWidgetType = WidgetTypes.REMINDER_CARD
+                    Intents.CREATE_NOTE,
+                    listOf("text"),
+                    emptyList(),
+                    "note",
+                    WidgetTypes.NOTE_CARD
                 ),
                 IntentDefinition(
-                    id = Intents.CREATE_NOTE,
-                    requiredSlots = listOf("text"),
-                    optionalSlots = emptyList(),
-                    skillId = "note",
-                    successWidgetType = WidgetTypes.NOTE_CARD
+                    Intents.CALCULATE,
+                    listOf("expression"),
+                    emptyList(),
+                    "calculator",
+                    WidgetTypes.CALCULATOR_CARD
                 ),
                 IntentDefinition(
-                    id = Intents.CALCULATE,
-                    requiredSlots = listOf("expression"),
-                    optionalSlots = emptyList(),
-                    skillId = "calculator",
-                    successWidgetType = WidgetTypes.CALCULATOR_CARD
+                    Intents.OPEN_APP,
+                    listOf("app_name"),
+                    listOf("package_name"),
+                    "open_app",
+                    WidgetTypes.OPEN_APP_CARD
                 ),
-                IntentDefinition(
-                    id = Intents.OPEN_APP,
-                    requiredSlots = listOf("app_name"),
-                    optionalSlots = listOf("package_name"),
-                    skillId = "open_app",
-                    successWidgetType = WidgetTypes.OPEN_APP_CARD
-                ),
-                IntentDefinition(
-                    id = Intents.HELP,
-                    requiredSlots = emptyList(),
-                    optionalSlots = emptyList(),
-                    skillId = "help",
-                    successWidgetType = WidgetTypes.HELP_CARD
-                ),
-                IntentDefinition(
-                    id = Intents.UNKNOWN,
-                    requiredSlots = emptyList(),
-                    optionalSlots = emptyList(),
-                    skillId = "local_answer",
-                    successWidgetType = WidgetTypes.GENERIC_ANSWER_CARD
-                )
+                IntentDefinition(Intents.HELP, emptyList(), emptyList(), "help", WidgetTypes.HELP_CARD)
             )
         )
     }

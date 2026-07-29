@@ -15,7 +15,7 @@ data class NluResult(
 enum class NluSource {
     RUBERT_TINY2,
     STUB,
-    FALLBACK_LLM
+    UNAVAILABLE
 }
 
 fun interface NluParser {
@@ -34,7 +34,7 @@ object Intents {
     const val HELP = "help"
     const val UNKNOWN = "unknown"
 
-    val mvpActionAndAnswerIntents: List<String> = listOf(
+    val supported: Set<String> = setOf(
         GET_CURRENT_TIME,
         GET_WEATHER,
         SET_TIMER,
@@ -46,4 +46,6 @@ object Intents {
         HELP,
         UNKNOWN
     )
+
+    val localActions: Set<String> = supported - UNKNOWN
 }

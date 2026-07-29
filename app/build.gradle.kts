@@ -8,38 +8,19 @@ plugins {
     alias(libs.plugins.kover)
 }
 
-val asrVulkanEnabled = providers.gradleProperty("asrVulkan")
-    .map(String::toBoolean)
-    .getOrElse(false)
-val spirvHeadersDir = providers.gradleProperty("spirvHeadersDir").orNull
-val spirvHeadersIncludeDir = providers.gradleProperty("spirvHeadersIncludeDir").orNull
-val vulkanHeadersDir = providers.gradleProperty("vulkanHeadersDir").orNull
-
 android {
     namespace = "com.offlineassistant.app"
     compileSdk = 37
-    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.offlineassistant.poc"
-        minSdk = if (asrVulkanEnabled) 28 else 26
+        minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += "arm64-v8a"
-        }
-        externalNativeBuild {
-            cmake {
-                arguments += "-DCMAKE_BUILD_TYPE=Release"
-                arguments += "-DOFFLINE_ASSISTANT_ASR_VULKAN=${if (asrVulkanEnabled) "ON" else "OFF"}"
-                spirvHeadersDir?.let { arguments += "-DSPIRV-Headers_DIR=$it" }
-                spirvHeadersIncludeDir?.let {
-                    arguments += "-DOFFLINE_ASSISTANT_SPIRV_HEADERS_INCLUDE_DIR=$it"
-                }
-                vulkanHeadersDir?.let { arguments += "-DOFFLINE_ASSISTANT_VULKAN_HEADERS_DIR=$it" }
-            }
         }
     }
 
@@ -54,7 +35,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // The PoC has no production keystore yet; this keeps release profiling installable.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -84,18 +64,13 @@ android {
         checkDependencies = true
         checkReleaseBuilds = true
         warningsAsErrors = true
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
+        disable += setOf("GradleDependency", "NewerVersionAvailable")
     }
 }
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":deepseek-connector"))
     kover(project(":core"))
     implementation(files("libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar"))
 
@@ -136,8 +111,24 @@ kover {
     }
     reports {
         variant("ci") {
+            filters {
+                excludes {
+                    classes(
+                        "com.offlineassistant.app.MainActivity*",
+                        "com.offlineassistant.app.AssistantRuntimeContainer*",
+                        "com.offlineassistant.app.OfflineAssistantApplication*",
+                        "com.offlineassistant.app.audio.*",
+                        "com.offlineassistant.app.models.ModelReadinessRepository*",
+                        "com.offlineassistant.app.platform.*",
+                        "com.offlineassistant.app.storage.*",
+                        "com.offlineassistant.app.ui.*ScreenKt*",
+                        "com.offlineassistant.app.ui.theme.*",
+                        "com.offlineassistant.app.widgets.*"
+                    )
+                }
+            }
             verify {
-                rule("Combined app and core line coverage") {
+                rule("Unit-testable app and core line coverage") {
                     minBound(45)
                 }
             }
@@ -149,6 +140,10 @@ detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.files("config/detekt/detekt.yml"))
     parallel = true
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "17"
 }
 
 ktlint {

@@ -38,7 +38,7 @@ class AssistantBaselineProfile {
             device.wait(Until.hasObject(By.textContains("Что я умею")), 15_000)
             device.exerciseRecording()
 
-            // With a staged Qwen model this also captures the visible streaming path.
+            // With DeepSeek configured this also captures the visible streaming path.
             device.sendMessage("Почему небо синее?")
             if (device.wait(Until.hasObject(By.desc("Остановить ответ")), 30_000)) {
                 device.waitForIdle(2_000)

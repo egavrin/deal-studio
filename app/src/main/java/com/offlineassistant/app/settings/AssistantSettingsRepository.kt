@@ -5,19 +5,17 @@ import androidx.core.content.edit
 
 class AssistantSettingsRepository(context: Context) {
     private val preferences = context.getSharedPreferences("offline_assistant_settings", Context.MODE_PRIVATE)
+    private val deepSeekApiKeyStore = DeepSeekApiKeyStore(context.applicationContext)
 
-    var fallbackThreshold: Double
-        get() = preferences.getFloat(KEY_FALLBACK_THRESHOLD, DEFAULT_FALLBACK_THRESHOLD.toFloat()).toDouble()
+    var intentConfidenceThreshold: Double
+        get() = preferences.getFloat(KEY_INTENT_CONFIDENCE_THRESHOLD, DEFAULT_INTENT_CONFIDENCE_THRESHOLD.toFloat()).toDouble()
         set(value) {
             preferences.edit {
-                putFloat(KEY_FALLBACK_THRESHOLD, value.coerceIn(MIN_FALLBACK_THRESHOLD, MAX_FALLBACK_THRESHOLD).toFloat())
+                putFloat(
+                    KEY_INTENT_CONFIDENCE_THRESHOLD,
+                    value.coerceIn(MIN_INTENT_CONFIDENCE_THRESHOLD, MAX_INTENT_CONFIDENCE_THRESHOLD).toFloat()
+                )
             }
-        }
-
-    var voiceModel: VoiceModel
-        get() = VoiceModel.fromStableId(preferences.getString(KEY_VOICE_MODEL, null))
-        set(value) {
-            preferences.edit { putString(KEY_VOICE_MODEL, value.stableId) }
         }
 
     var automaticSpeechEnabled: Boolean
@@ -26,13 +24,37 @@ class AssistantSettingsRepository(context: Context) {
             preferences.edit { putBoolean(KEY_AUTOMATIC_SPEECH, value) }
         }
 
-    companion object {
-        const val DEFAULT_FALLBACK_THRESHOLD = 0.75
-        const val MIN_FALLBACK_THRESHOLD = 0.45
-        const val MAX_FALLBACK_THRESHOLD = 0.95
+    var deepSeekEnabled: Boolean
+        get() = preferences.getBoolean(KEY_DEEPSEEK_ENABLED, false)
+        set(value) {
+            preferences.edit(commit = true) { putBoolean(KEY_DEEPSEEK_ENABLED, value) }
+        }
 
-        private const val KEY_FALLBACK_THRESHOLD = "fallback_threshold"
-        private const val KEY_VOICE_MODEL = "voice_model"
+    val deepSeekApiKeyConfigured: Boolean
+        get() = deepSeekApiKeyStore.isConfigured()
+
+    fun saveDeepSeekApiKey(value: String) {
+        deepSeekApiKeyStore.save(value)
+    }
+
+    fun deepSeekApiKeyOrNull(): String? = deepSeekApiKeyStore.readOrNull()
+
+    fun clearDeepSeekApiKey() {
+        deepSeekApiKeyStore.clear()
+    }
+
+    fun clear() {
+        preferences.edit { clear() }
+        deepSeekApiKeyStore.clear()
+    }
+
+    companion object {
+        const val DEFAULT_INTENT_CONFIDENCE_THRESHOLD = 0.75
+        const val MIN_INTENT_CONFIDENCE_THRESHOLD = 0.45
+        const val MAX_INTENT_CONFIDENCE_THRESHOLD = 0.95
+
+        private const val KEY_INTENT_CONFIDENCE_THRESHOLD = "intent_confidence_threshold"
         private const val KEY_AUTOMATIC_SPEECH = "automatic_speech"
+        private const val KEY_DEEPSEEK_ENABLED = "deepseek_enabled"
     }
 }

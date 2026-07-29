@@ -1,13 +1,14 @@
 package com.offlineassistant.core.skills
 
+import com.offlineassistant.core.calculator.ExpressionEvaluator
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.storage.NoteStore
 import com.offlineassistant.core.storage.ReminderStore
+import com.offlineassistant.core.storage.TimerStore
 import com.offlineassistant.core.weather.WeatherProvider
 import java.time.OffsetDateTime
-import java.util.UUID
 import kotlinx.serialization.json.JsonArrayBuilder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -22,19 +23,19 @@ fun createBuiltInSkillRegistry(
     clock: () -> OffsetDateTime,
     noteStore: NoteStore,
     reminderStore: ReminderStore,
+    timerStore: TimerStore,
     weatherProvider: WeatherProvider
 ): SkillRegistry = SkillRegistry(
     listOf(
         TimeSkill(clock),
         WeatherSkill(weatherProvider),
-        TimerSkill(),
+        TimerSkill(clock, timerStore),
         AlarmSkill(clock),
         ReminderSkill(clock, reminderStore),
         NoteSkill(clock, noteStore),
         CalculatorSkill(),
         OpenAppSkill(),
-        HelpSkill(),
-        UnknownSkill()
+        HelpSkill()
     )
 )
 
@@ -44,10 +45,7 @@ class TimeSkill(
     override val id = "time"
     override val supportedIntents = setOf(Intents.GET_CURRENT_TIME)
 
-    override suspend fun execute(command: NormalizedCommand): SkillResult {
-        val now = clock()
-        return success("Сейчас ${now.toLocalTime().withNano(0)}.")
-    }
+    override suspend fun execute(command: NormalizedCommand): SkillResult = success("Сейчас ${clock().toLocalTime().withNano(0)}.")
 }
 
 class WeatherSkill(
@@ -57,8 +55,7 @@ class WeatherSkill(
     override val supportedIntents = setOf(Intents.GET_WEATHER)
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
-        val location = command.slots.string("location") ?: "Москва"
-        val weather = weatherProvider.currentWeather(location)
+        val weather = weatherProvider.currentWeather(command.slots.string("location") ?: "Москва")
         return success(
             text = "Показываю ${weather.source}-прогноз для ${weather.location}.",
             widget = WidgetPayload(
@@ -73,7 +70,15 @@ class WeatherSkill(
                     put(
                         "forecast",
                         buildJsonArray {
-                            weather.forecast.forEach { addForecast(it.time, it.temperatureC, it.condition) }
+                            weather.forecast.forEach {
+                                add(
+                                    buildJsonObject {
+                                        put("time", it.time)
+                                        put("temperature_c", it.temperatureC)
+                                        put("condition", it.condition)
+                                    }
+                                )
+                            }
                         }
                     )
                     put("source", weather.source)
@@ -85,29 +90,29 @@ class WeatherSkill(
 }
 
 class TimerSkill(
-    private val idProvider: () -> String = { UUID.randomUUID().toString() }
+    private val clock: () -> OffsetDateTime,
+    private val timerStore: TimerStore
 ) : Skill {
     override val id = "timer"
     override val supportedIntents = setOf(Intents.SET_TIMER)
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val duration = command.slots.int("duration_seconds")
-            ?: return clarification(
-                question = "На сколько поставить таймер?",
-                suggestions = listOf("На 5 минут", "На 10 минут", "Отмена"),
-                pendingIntent = command.intent
-            )
-        val label = command.slots.string("label") ?: if (duration == 300) "чай" else null
+            ?: return error("Не получилось поставить таймер", "Не указана длительность.")
+        val label = command.slots.string("label")
+        val now = clock()
+        val timer = timerStore.create(duration, label, now.toString(), now.toInstant().toEpochMilli())
         return success(
             text = "Поставил таймер на ${duration / 60} минут.",
             widget = WidgetPayload(
                 WidgetTypes.TIMER_CARD,
                 buildJsonObject {
-                    put("timer_id", idProvider())
-                    put("duration_seconds", duration)
-                    put("remaining_seconds", duration)
-                    label?.let { put("label", it) }
+                    put("timer_id", timer.id)
+                    put("duration_seconds", timer.durationSeconds)
+                    put("remaining_seconds", timer.remainingSeconds)
+                    timer.label?.let { put("label", it) }
                     put("state", "running")
+                    put("ends_at_epoch_ms", timer.endsAtEpochMs ?: 0L)
                     put("mode", "in_app")
                 }
             )
@@ -123,19 +128,15 @@ class AlarmSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val time = command.slots.string("time")
-            ?: return clarification(
-                question = "На какое время поставить будильник?",
-                suggestions = listOf("На 7:30", "Завтра в 8:00", "Отмена"),
-                pendingIntent = command.intent
-            )
+            ?: return error("Не получилось поставить будильник", "Не указано время.")
         return success(
             text = "Будильник поставлен на $time.",
             widget = WidgetPayload(
                 WidgetTypes.ALARM_CARD,
                 buildJsonObject {
-                    put("alarm_id", "external_or_local_id")
+                    put("alarm_id", "system")
                     put("time", time)
-                    put("date", clock().plusDays(1).toLocalDate().toString())
+                    put("date", command.slots.string("date") ?: clock().plusDays(1).toLocalDate().toString())
                     put("label", command.slots.string("label") ?: "будильник")
                     put("state", "scheduled")
                     put("mode", "system_passive")
@@ -154,13 +155,11 @@ class ReminderSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val text = command.slots.string("reminder_text")
-            ?: return clarification(
-                question = "Что напомнить?",
-                suggestions = listOf("Проверить духовку", "Позвонить завтра", "Отмена"),
-                pendingIntent = command.intent
-            )
-        val scheduledAt = command.slots.string("datetime") ?: clock().plusHours(1).toString()
-        val reminder = reminderStore.create(text = text, datetime = scheduledAt)
+            ?: return error("Не получилось создать напоминание", "Не указан текст.")
+        val reminder = reminderStore.create(
+            text = text,
+            datetime = command.slots.string("datetime") ?: clock().plusHours(1).toString()
+        )
         return success(
             text = "Создал напоминание: $text.",
             widget = WidgetPayload(
@@ -185,12 +184,8 @@ class NoteSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val text = command.slots.string("text")
-            ?: return clarification(
-                question = "Какой текст записать в заметку?",
-                suggestions = listOf("Купить молоко", "Идея для проекта", "Отмена"),
-                pendingIntent = command.intent
-            )
-        val note = noteStore.create(text = text, createdAt = clock().toString())
+            ?: return error("Не получилось создать заметку", "Не указан текст.")
+        val note = noteStore.create(text, clock().toString())
         return success(
             text = "Записал заметку.",
             widget = WidgetPayload(
@@ -211,7 +206,7 @@ class CalculatorSkill : Skill {
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val expression = command.slots.string("expression")
-        val result = expression?.let(::evaluateExpression)
+        val result = expression?.let(ExpressionEvaluator::evaluate)
         if (expression == null || result == null) {
             return error("Не получилось посчитать", "Я не смог разобрать выражение.")
         }
@@ -221,8 +216,8 @@ class CalculatorSkill : Skill {
                 WidgetTypes.CALCULATOR_CARD,
                 buildJsonObject {
                     put("expression", expression)
-                    put("display_expression", expression.replace("*", "×"))
-                    put("result", result.toString())
+                    put("display_expression", expression.replace("*", "×").replace("/", "÷"))
+                    put("result", result)
                 }
             )
         )
@@ -234,9 +229,10 @@ class OpenAppSkill : Skill {
     override val supportedIntents = setOf(Intents.OPEN_APP)
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
-        val appName = command.slots.string("app_name") ?: "приложение"
+        val appName = command.slots.string("app_name")
+            ?: return error("Не получилось открыть приложение", "Не указано название.")
         return success(
-            text = "Открываю $appName.",
+            text = "Ищу $appName.",
             widget = WidgetPayload(
                 WidgetTypes.OPEN_APP_CARD,
                 buildJsonObject {
@@ -254,20 +250,35 @@ class HelpSkill : Skill {
     override val supportedIntents = setOf(Intents.HELP)
 
     override suspend fun execute(command: NormalizedCommand): SkillResult = success(
-        text = "Вот примеры команд.",
+        text = "Вот примеры локальных команд.",
         widget = WidgetPayload(
             WidgetTypes.HELP_CARD,
             buildJsonObject {
                 put(
                     "sections",
                     buildJsonArray {
-                        addHelpSection(
-                            "Время и будильники",
-                            listOf("Сколько времени?", "Поставь таймер на 5 минут", "Разбуди меня завтра в 7:30")
+                        addSection(
+                            "Время",
+                            listOf(
+                                "Сколько времени?",
+                                "Поставь таймер на 5 минут",
+                                "Разбуди меня завтра в 7:30"
+                            )
                         )
-                        addHelpSection(
+                        addSection(
                             "Заметки и напоминания",
-                            listOf("Запиши заметку купить молоко", "Напомни через час проверить духовку")
+                            listOf(
+                                "Запиши заметку купить молоко",
+                                "Напомни через час проверить духовку"
+                            )
+                        )
+                        addSection(
+                            "Другое",
+                            listOf(
+                                "Сколько будет 18 умножить на 3?",
+                                "Открой Telegram",
+                                "Какая погода в Москве?"
+                            )
                         )
                     }
                 )
@@ -276,48 +287,14 @@ class HelpSkill : Skill {
     )
 }
 
-class UnknownSkill : Skill {
-    override val id = "local_answer"
-    override val supportedIntents = setOf(Intents.UNKNOWN)
-
-    override suspend fun execute(command: NormalizedCommand): SkillResult = success(
-        text = "Пока я лучше всего умею выполнять короткие локальные команды.",
-        widget = WidgetPayload(
-            WidgetTypes.GENERIC_ANSWER_CARD,
-            buildJsonObject {
-                put("answer", "Локальная модель не ответила на вопрос: ${command.originalText}")
-                put("source", "local_rule_fallback")
-            }
-        )
-    )
-}
-
-private fun success(text: String, widget: WidgetPayload? = null): SkillResult = SkillResult(
+private fun success(text: String, widget: WidgetPayload? = null) = SkillResult(
     status = SkillStatus.SUCCESS,
     text = text,
     widget = widget,
     actionResult = "success"
 )
 
-private fun clarification(
-    question: String,
-    suggestions: List<String>,
-    pendingIntent: String
-): SkillResult = SkillResult(
-    status = SkillStatus.CLARIFICATION_REQUIRED,
-    text = question,
-    widget = WidgetPayload(
-        WidgetTypes.CLARIFICATION_CARD,
-        buildJsonObject {
-            put("question", question)
-            put("suggestions", buildJsonArray { suggestions.forEach { add(JsonPrimitive(it)) } })
-            put("pending_intent", pendingIntent)
-        }
-    ),
-    actionResult = "clarification_required"
-)
-
-private fun error(title: String, message: String): SkillResult = SkillResult(
+private fun error(title: String, message: String) = SkillResult(
     status = SkillStatus.ERROR,
     text = message,
     widget = WidgetPayload(
@@ -326,40 +303,16 @@ private fun error(title: String, message: String): SkillResult = SkillResult(
             put("title", title)
             put("message", message)
             put("recoverable", true)
-            put("suggestions", buildJsonArray { add(JsonPrimitive("Попробовать снова")) })
         }
     ),
     actionResult = "error"
 )
 
-private fun evaluateExpression(expression: String): Int? {
-    val parts = expression.split(" ")
-    if (parts.size != 3) return null
-    val left = parts[0].toIntOrNull() ?: return null
-    val right = parts[2].toIntOrNull() ?: return null
-    return when (parts[1]) {
-        "*" -> left * right
-        "+" -> left + right
-        "-" -> left - right
-        else -> null
-    }
-}
-
 private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
 
 private fun JsonObject.int(name: String): Int? = this[name]?.jsonPrimitive?.intOrNull
 
-private fun JsonArrayBuilder.addForecast(time: String, temperature: Int, condition: String) {
-    add(
-        buildJsonObject {
-            put("time", time)
-            put("temperature_c", temperature)
-            put("condition", condition)
-        }
-    )
-}
-
-private fun JsonArrayBuilder.addHelpSection(title: String, examples: List<String>) {
+private fun JsonArrayBuilder.addSection(title: String, examples: List<String>) {
     add(
         buildJsonObject {
             put("title", title)

@@ -1,148 +1,104 @@
-# Android Offline Assistant PoC
+# Offline Assistant
 
-Private Android technology demo of a voice-first assistant whose speech recognition, command routing, general-question LLM and speech synthesis run on the phone.
-
-The current PoC demonstrates the complete vertical path:
-
-- T-one streaming ASR by default, with Whisper Base and Zipformer selectable in Settings;
-- RuBERT-tiny2 intent and slot classification for deterministic actions;
-- Qwen2.5 0.5B through llama.cpp for plain-text answers to general questions;
-- Silero v5.5 RU/Xenia through ONNX Runtime for local speech output;
-- Jetpack Compose chat with structured result widgets and streaming responses;
-- offline timer, alarm, reminder, note, calculator, app launch, help and mock/cache weather flows;
-- Debug, widget preview, model telemetry and device acceptance tooling.
-
-Qwen is deliberately not an action parser. It does not generate command JSON or repair RuBERT classifications.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    Input["Text or microphone"] --> ASR["T-one / Whisper / Zipformer"]
-    ASR --> Transcript["Final transcript"]
-    Input --> Transcript
-    Transcript --> NLU["RuBERT-tiny2 intent + slots"]
-    NLU -->|"Action intent"| Normalize["Generic slot normalization"]
-    Normalize --> Skill["Typed Skill"]
-    Skill --> Response["AssistantResponse + WidgetPayload"]
-    NLU -->|"General question"| Qwen["Qwen plain-text streaming answer"]
-    Qwen --> Response
-    Response --> UI["Compose chat + widget registry"]
-    Response --> TTS["Silero Xenia streaming TTS"]
-```
-
-Reusable contracts, NLU normalization and skills live in `:core`. Android UI, permissions, persistence, model runtimes, JNI and platform adapters live in `:app`.
-
-## Repository Layout
+Android technology demo with one deliberately narrow assistant pipeline:
 
 ```text
-app/                 Android application, Compose UI, JNI and model adapters
-benchmark/           Macrobenchmark and baseline-profile journeys
-core/                Pure Kotlin assistant contracts, routing and skills
-docs/                Product, design, implementation and acceptance documents
-scripts/             Host and connected-device acceptance runners
-training/            RuBERT dataset, fine-tuning, ONNX export and evaluation
-tools/               ASR fixture and Silero export/staging utilities
-third_party/          Pinned whisper.cpp Git submodule
-models/               Ignored generated and externally downloaded model bundles
+Microphone -> T-one RU -> transcript
+                         |
+Text --------------------+
+                         v
+                  RuBERT-tiny2
+                    /        \
+          known action       unknown
+               |                |
+        local skill        DeepSeek SSE
+               \                /
+                text + fixed card
+                         |
+                  Silero Xenia TTS
 ```
 
-The approved UI references are documented in [`docs/design/references/`](docs/design/references/). The current product specification is [`docs/superpowers/specs/2026-07-09-android-offline-assistant-poc-design.md`](docs/superpowers/specs/2026-07-09-android-offline-assistant-poc-design.md), and the proposed next-product roadmap is [`docs/superpowers/plans/2026-07-14-local-personal-operator-vnext.md`](docs/superpowers/plans/2026-07-14-local-personal-operator-vnext.md).
+Voice recognition, intent classification, slots, local actions, UI rendering and speech
+synthesis run on device. Only open-ended `unknown` requests may use DeepSeek, after the
+user enables it and provides a BYOK key.
 
-## Requirements
+## Core Features
 
-- macOS or Linux host;
-- JDK 17;
-- Android SDK 37, Build Tools 37.0.0, NDK 27.0.12077973 and CMake 3.22.1;
-- Python 3 for training and acceptance helpers;
-- `adb` for connected-device flows;
-- Git LFS for bundled ASR/runtime binaries;
-- ARM64 Android device for native runtime acceptance.
+- streaming Russian ASR with T-one RU and sherpa-onnx;
+- local RuBERT-tiny2 intent and slot inference through ONNX Runtime;
+- time, weather mock/cache, timer, alarm, reminder, note, calculator, open-app and help;
+- fixed Compose result cards for those commands plus clarification, permission and error;
+- streaming plain-text DeepSeek answers for open-ended questions;
+- local Russian TTS with Silero Xenia;
+- encrypted DeepSeek BYOK storage through Android Keystore.
 
-The tested reference device is Pixel 10. The application has `minSdk 26`, `compileSdk 37`, `targetSdk 37` and packages only `arm64-v8a` native libraries. The build uses AGP 9.2.1, Gradle 9.4.1 and JDK 17.
+Qwen, llama.cpp, Whisper, Gemma, generated Widget DSL, AppFunctions and organizer
+features are intentionally outside the current scope.
 
-## Clone and Build
+## Modules
 
-```bash
-git clone --recurse-submodules https://github.com/egavrin/android-offline-assistant-poc.git
-cd android-offline-assistant-poc
-git lfs pull
-./gradlew test assembleDebug
+```text
+app/                  Compose UI, T-one, RuBERT runtime, Silero, Android actions
+core/                 platform-neutral contracts, routing, normalization and skills
+deepseek-connector/   restricted HTTPS/SSE plain-text answer transport
+benchmark/            startup, chat, microphone and streaming macrobenchmarks
+training/             narrow RuBERT training/export/evaluation pipeline
+docs/                 current scope, device checklist and visual references
 ```
 
-Android Studio may create `local.properties` automatically. Otherwise configure `sdk.dir` there; the file is intentionally ignored.
+## Build
 
-Install and launch the debug application:
-
-```bash
-./gradlew installDebug
-adb shell am start -n com.offlineassistant.poc.debug/com.offlineassistant.app.MainActivity
-```
-
-## Model Assets
-
-Large files are split into two groups.
-
-Tracked with Git LFS because they are required by the application package:
-
-- `app/src/main/assets/models/tone_ru/`;
-- `app/src/main/assets/models/whisper/`;
-- `app/src/main/assets/models/zipformer_ru/`;
-- `app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar`.
-
-Generated or externally acquired bundles remain outside Git:
-
-| Runtime | Expected local path | Preparation |
-| --- | --- | --- |
-| RuBERT-tiny2 | `models/generated/rubert/` | `python3 training/scripts/train_rubert_tiny2.py --dataset training/data/synthetic_intents.jsonl --output-dir models/generated/rubert` |
-| Qwen2.5 0.5B Q4_K_M | `models/external/qwen2.5-0.5b-instruct-gguf/qwen2.5-0.5b-instruct-q4_k_m.gguf` | Acquire the exact GGUF under its upstream license |
-| Silero v5.5 RU/Xenia | `models/external/silero-v5_5-ru-xenia/android-bundle/` | Run `python3 tools/tts/silero_xenia_export_probe.py --probe-onnx --require-export --publish-dir models/external/silero-v5_5-ru-xenia/android-bundle` |
-
-Connected tests stage these bundles through `/data/local/tmp`; Qwen, RuBERT and Silero weights are not packaged into the APK.
-
-Silero's selected public weight is non-commercial. Do not use it in a commercial distribution without a separate license or an approved replacement.
-
-## Verification
-
-Fast host checks:
+Prerequisites: JDK 17, Android SDK/Build Tools 37 and an ARM64 Android device for
+connected validation.
 
 ```bash
-./gradlew ktlintCheck detekt lintDebug :app:koverVerifyCi :app:koverXmlReportCi :app:compileReleaseKotlin
-python3 -m unittest discover -s scripts -p 'test_*.py'
-python3 -m unittest discover -s training -p 'test_*.py'
-python3 scripts/test_qwen_generation_policy.py
-```
-
-The Kover gate merges JVM unit coverage from `:app` and `:core`, enforces at least 45% line coverage and writes `app/build/reports/kover/reportCi.xml`. Native APK compilation is a separate check:
-
-```bash
+./gradlew testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
+./gradlew ktlintCheck detekt lintDebug
 ./gradlew assembleDebug
 ```
 
-Gradle dependency verification is strict and backed by committed SHA-256 checksums in `gradle/verification-metadata.xml`. CI runs fast quality and native APK jobs in parallel, then exposes their aggregate as the required `PR Quality / quality` check.
-
-The API 37 host, 16 KB alignment and Android 17 runtime evidence is recorded in [`docs/testing/2026-07-14-android-17-migration.md`](docs/testing/2026-07-14-android-17-migration.md).
-
-Host readiness, including the generated RuBERT bundle:
+Install:
 
 ```bash
-scripts/run_full_acceptance.sh --host-only
+./gradlew installDebug
 ```
 
-Complete connected-device acceptance:
+## Model Bundles
+
+- T-one RU is packaged under `app/src/main/assets/models/tone_ru/`.
+- RuBERT is trained/exported to `models/generated/rubert/` and staged on a device as
+  `/data/local/tmp/offline-assistant-rubert/`.
+- Silero Xenia is exported under
+  `models/external/silero-v5_5-ru-xenia/android-bundle/` and staged as
+  `/data/local/tmp/offline-assistant-silero/`.
+
+Model weights generated under `models/` are ignored by Git. The app materializes
+verified staged bundles into private app storage.
+
+Train the narrow RuBERT classifier:
 
 ```bash
-scripts/run_full_acceptance.sh
+python3 training/rubert/train_export.py \
+  --dataset training/rubert/synthetic_intents.jsonl \
+  --output-dir models/generated/rubert
+
+python3 training/rubert/evaluate_export.py \
+  --model-dir models/generated/rubert \
+  --output build/rubert-host-eval.jsonl
 ```
 
-The connected path stages external models, runs native and UI tests, denies networking to the app during the local-model gate, records device evidence and verifies the final Definition of Done matrix. A host-only run is not a substitute for phone acceptance.
+## DeepSeek
 
-## Current Boundaries
+Open Settings in the app, save a DeepSeek API key and enable “Сложные вопросы”.
+The key is encrypted with Android Keystore. It is never stored in source, Gradle
+properties, logs or chat history.
 
-- Linux CLI is not a deliverable.
-- Weather is mock/cache data unless an explicitly labelled online provider is added.
-- ASR, NLU, LLM and TTS are local; optional future calendar/email connectors must preserve that offline core.
-- Model readiness and runtime success are separate states and are visible in Debug/Settings.
-- The repository is a private prototype and has no project-level redistribution license. Third-party source, binaries and model assets retain their own licenses.
+DeepSeek receives only requests classified as `unknown`. It returns plain text over
+SSE. It cannot select an action, generate command JSON or generate UI.
 
-See [`AGENTS.md`](AGENTS.md) before changing routing, native model lifecycle, speech streaming or acceptance behavior.
+## Architecture
+
+The normative scope and routing rules are in
+[`docs/superpowers/specs/2026-07-29-core-assistant-scope.md`](docs/superpowers/specs/2026-07-29-core-assistant-scope.md).
+Physical-device acceptance is intentionally kept separate in
+[`docs/testing/core-device-acceptance.md`](docs/testing/core-device-acceptance.md).

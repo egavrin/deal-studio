@@ -6,7 +6,15 @@ from pathlib import Path
 
 DEFAULT_MIN_CONFIDENCE = 0.75
 STRICT_MIN_CONFIDENCE = 0.8
-STRICT_INTENTS = {"get_weather", "set_timer", "set_alarm", "calculate"}
+STRICT_INTENTS = {
+    "get_weather",
+    "set_timer",
+    "set_alarm",
+    "calculate",
+    "create_note",
+    "create_reminder",
+    "open_app",
+}
 
 
 def main():
@@ -52,13 +60,21 @@ def main():
     )
 
     failures = [result for result in results if result["gate"] and not result["exact"]]
+    metric_failures = metric_gate_failures(
+        metrics,
+        min_intent_accuracy=args.min_intent_accuracy,
+        min_macro_f1=args.min_macro_f1,
+        min_slot_f1=args.min_slot_f1,
+        min_validation_pass_rate=args.min_validation_pass_rate,
+    )
 
-    if failures:
+    if failures or metric_failures:
         summary = "; ".join(
             f"{item['text']}: intent={item['actual_intent']} confidence={item['confidence']:.3f} slots={item['actual_slots']}"
             for item in failures
         )
-        raise RuntimeError(f"RuBERT host export eval failed: {summary}")
+        details = "; ".join(part for part in (summary, "; ".join(metric_failures)) if part)
+        raise RuntimeError(f"RuBERT host export eval failed: {details}")
 
     print(
         f"rubert_host_eval cases={len(results)} exact={metrics['exact_match_count']} "
@@ -103,7 +119,10 @@ def evaluate_case(case, tokenizer, session, intent_labels, slot_labels, max_leng
     exact = (
         actual_intent == case["intent"]
         and confidence >= case["min_confidence"]
-        and all(actual_slots.get(key) == value for key, value in expected_slots.items())
+        and (
+            not case["require_slots"]
+            or all(actual_slots.get(key) == value for key, value in expected_slots.items())
+        )
     )
     return {
         "text": text,
@@ -156,6 +175,8 @@ def decode_slots(text, offsets, attention_mask, slot_logits, slot_labels):
     slots = {}
     for name, start, end in spans:
         raw = text[start:end].strip().rstrip("?.!,")
+        if not any(character.isalnum() for character in raw):
+            continue
         if name == "duration":
             value = normalize_duration_seconds(raw)
             if value:
@@ -176,6 +197,12 @@ def decode_slots(text, offsets, attention_mask, slot_logits, slot_labels):
             slots["reminder_text"] = raw
         elif name == "app_name":
             slots["app_name"] = raw
+        elif name == "percent":
+            value = first_int(raw)
+            if value is not None:
+                slots["percent"] = str(value)
+        else:
+            slots[name] = raw
     return slots
 
 
@@ -197,7 +224,7 @@ def normalize_duration_seconds(raw):
             number = 7
         elif "десять" in lower:
             number = 10
-        elif lower == "час":
+        elif "час" in lower:
             number = 1
     if number is None:
         return None
@@ -216,12 +243,20 @@ def normalize_time(raw):
 def normalize_expression(raw):
     import re
 
-    match = re.search(r"(\d+)\s*(умножить на|\*|плюс|\+|минус|-)\s*(\d+)", raw.lower())
+    match = re.search(
+        r"(\d+)\s*(умножить на|разделить на|поделить на|делить на|\*|/|÷|плюс|\+|минус|-)\s*(\d+)",
+        raw.lower(),
+    )
     if not match:
         return None
     operator = {
         "умножить на": "*",
         "*": "*",
+        "разделить на": "/",
+        "поделить на": "/",
+        "делить на": "/",
+        "/": "/",
+        "÷": "/",
         "плюс": "+",
         "+": "+",
         "минус": "-",
@@ -254,7 +289,8 @@ def load_eval_cases(path):
                     ),
                     "slots": normalize_expected_slots(row["intent"], raw_slots),
                     "raw_slots": raw_slots,
-                    "gate": row["intent"] in STRICT_INTENTS,
+                    "gate": row.get("gate", row["intent"] in STRICT_INTENTS),
+                    "require_slots": row.get("require_slots", True),
                     "line_number": line_number,
                 }
             )
@@ -282,12 +318,18 @@ def normalize_expected_slots(intent, raw_slots):
             expression = normalize_expression(value)
             if expression is not None:
                 normalized["expression"] = expression
-        elif name == "text" and intent == "create_note":
+        elif name in {"text", "note_text"} and intent == "create_note":
             normalized["text"] = value
-        elif name == "text" and intent == "create_reminder":
+        elif name in {"text", "reminder_text"} and intent == "create_reminder":
             normalized["reminder_text"] = value
         elif name == "app_name":
             normalized["app_name"] = value
+        elif name == "percent":
+            percent = first_int(value)
+            if percent is not None:
+                normalized["percent"] = str(percent)
+        else:
+            normalized[name] = value
     return normalized
 
 
@@ -334,7 +376,7 @@ def expected_slot_labels(intent, raw_slots, offsets, attention_mask):
 
 def dataset_slot_label(intent, name):
     if name == "text":
-        return "reminder_text" if intent == "create_reminder" else "note_text"
+        return "reminder_text" if intent == "create_reminder" else "text"
     if name == "datetime":
         return "date"
     return name
@@ -402,6 +444,26 @@ def ratio(numerator, denominator):
     return float(numerator) / float(denominator) if denominator else 0.0
 
 
+def metric_gate_failures(
+    metrics,
+    min_intent_accuracy=0.0,
+    min_macro_f1=0.0,
+    min_slot_f1=0.0,
+    min_validation_pass_rate=0.0,
+):
+    thresholds = {
+        "intent_accuracy": min_intent_accuracy,
+        "intent_macro_f1": min_macro_f1,
+        "slot_f1": min_slot_f1,
+        "validation_pass_rate": min_validation_pass_rate,
+    }
+    return [
+        f"{name}={metrics[name]:.3f} below {minimum:.3f}"
+        for name, minimum in thresholds.items()
+        if metrics[name] < minimum
+    ]
+
+
 def read_labels(path):
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -421,6 +483,10 @@ def parse_args():
     parser.add_argument("--output", type=Path, default=Path("build/rubert-host-eval.jsonl"))
     parser.add_argument("--metrics-output", type=Path)
     parser.add_argument("--max-length", type=int, default=64)
+    parser.add_argument("--min-intent-accuracy", type=float, default=0.0)
+    parser.add_argument("--min-macro-f1", type=float, default=0.0)
+    parser.add_argument("--min-slot-f1", type=float, default=0.0)
+    parser.add_argument("--min-validation-pass-rate", type=float, default=0.0)
     return parser.parse_args()
 
 

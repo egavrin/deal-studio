@@ -21,25 +21,20 @@ class ModelReadinessRepository(
         val assetMaterializationLock = Any()
     }
 
-    fun all(selectedVoiceModel: VoiceModel = VoiceModel.DEFAULT): List<ModelReadiness> = listOf(
-        voiceModel(selectedVoiceModel),
-        checkRubertBundle(),
-        checkFile(
-            name = ModelNames.QWEN,
-            relativePath = "models/qwen/qwen2.5-0.5b-instruct.gguf",
-            externalStagingFileName = "offline-assistant-qwen.gguf"
-        ),
-        checkSileroBundle()
-    ).map { readiness -> readiness.copy(runtime = telemetryStore.read(readiness.name)) }
+    fun all(): List<ModelReadiness> = buildList {
+        add(voiceModel())
+        add(checkRubertBundle())
+        add(checkSileroBundle())
+    }.map { readiness -> readiness.copy(runtime = telemetryStore.read(readiness.name)) }
 
-    fun voiceModel(model: VoiceModel): ModelReadiness = checkAssetBundle(
-        name = ModelNames.WHISPER,
-        requiredPaths = model.requiredPaths,
-        reportDirectory = model.requiredPaths.size > 1
+    fun voiceModel(): ModelReadiness = checkAssetBundle(
+        name = ModelNames.TONE,
+        requiredPaths = VoiceModel.requiredPaths,
+        reportDirectory = VoiceModel.requiredPaths.size > 1
     ).let { readiness ->
         readiness.copy(
-            detail = "${model.displayName}: ${readiness.detail}",
-            runtime = telemetryStore.read(ModelNames.WHISPER)
+            detail = "${VoiceModel.displayName}: ${readiness.detail}",
+            runtime = telemetryStore.read(ModelNames.TONE)
         )
     }
 
@@ -157,10 +152,16 @@ class ModelReadinessRepository(
         val appFile = File(context.filesDir, relativePath)
         val stagedFile = externalStagingFileName?.let { File(externalStagingRoot, it) }
         if (appFile.exists()) {
-            if (stagedFile != null && stagedFile.isFile && stagedFile.canRead() && stagedFile.length() != appFile.length()) {
+            if (
+                stagedFile != null &&
+                stagedFile.isFile &&
+                stagedFile.canRead() &&
+                externalStagingDiffers(appFile, stagedFile)
+            ) {
                 materializeExternalStagingFile(stagedFile, appFile, overwrite = true)
                 return ModelReadiness(name, true, appFile.absolutePath, "updated from external staging")
             }
+            stagedFile?.let { rememberVerifiedStagingDigest(appFile, it) }
             return ModelReadiness(name, true, appFile.absolutePath, "found in app files")
         }
         val assetMaterialized = materializeAsset(relativePath, appFile)
@@ -214,6 +215,7 @@ class ModelReadinessRepository(
                 tempFile.copyTo(appFile, overwrite = true)
                 tempFile.delete()
             }
+            rememberVerifiedStagingDigest(appFile, stagedFile)
             appFile.exists()
         }.getOrDefault(false)
     }
@@ -267,4 +269,21 @@ class ModelReadinessRepository(
             }
         }
     }
+
+    private fun externalStagingDiffers(appFile: File, stagedFile: File): Boolean {
+        if (appFile.length() != stagedFile.length()) return true
+        val stagedDigest = readStagingDigest(File(stagedFile.parentFile, "${stagedFile.name}.sha256"))
+        val installedDigest = readStagingDigest(File(appFile.parentFile, "${appFile.name}.staged.sha256"))
+        if (stagedDigest != null && stagedDigest == installedDigest) return false
+        return !sameFileContent(appFile, stagedFile)
+    }
+
+    private fun rememberVerifiedStagingDigest(appFile: File, stagedFile: File) {
+        val digest = readStagingDigest(File(stagedFile.parentFile, "${stagedFile.name}.sha256")) ?: return
+        File(appFile.parentFile, "${appFile.name}.staged.sha256").writeText("$digest\n")
+    }
+
+    private fun readStagingDigest(file: File): String? = runCatching { file.readText().trim().lowercase() }
+        .getOrNull()
+        ?.takeIf { digest -> digest.length == 64 && digest.all { it in '0'..'9' || it in 'a'..'f' } }
 }

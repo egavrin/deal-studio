@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 interface AssistantWidgetRenderer {
     val type: String
@@ -37,9 +38,9 @@ object WidgetActionNames {
     const val ERROR_SUGGESTION = "error_suggestion"
 }
 
-class WidgetRegistry(
-    private val renderers: Map<String, AssistantWidgetRenderer>
-) {
+class WidgetRegistry(renderers: Collection<AssistantWidgetRenderer>) {
+    private val renderers = renderers.associateBy(AssistantWidgetRenderer::type)
+
     fun rendererFor(type: String): AssistantWidgetRenderer? = renderers[type]
 }
 
@@ -57,7 +58,7 @@ val defaultWidgetRegistry = WidgetRegistry(
         PermissionCardRenderer,
         ErrorCardRenderer,
         GenericAnswerCardRenderer
-    ).associateBy { it.type }
+    )
 )
 
 @Composable
@@ -73,9 +74,9 @@ fun AssistantWidgetContainer(
         ErrorCardRenderer.Render(
             JsonObject(
                 mapOf(
-                    "title" to kotlinx.serialization.json.JsonPrimitive("Unknown widget"),
-                    "message" to kotlinx.serialization.json.JsonPrimitive(widget.type),
-                    "recoverable" to kotlinx.serialization.json.JsonPrimitive(false)
+                    "title" to JsonPrimitive("Неизвестная карточка"),
+                    "message" to JsonPrimitive(widget.type),
+                    "recoverable" to JsonPrimitive(false)
                 )
             ),
             onAction

@@ -14,7 +14,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.offlineassistant.app.R
-import com.offlineassistant.app.storage.SharedPreferencesReminderStore
+import com.offlineassistant.app.storage.SharedPreferencesAssistantStores
+import com.offlineassistant.core.storage.ReminderStore
 import java.time.OffsetDateTime
 
 private const val REMINDER_CHANNEL_ID = "offline_assistant_reminders"
@@ -23,8 +24,11 @@ private const val EXTRA_REMINDER_ID = "reminder_id"
 private const val EXTRA_REMINDER_TEXT = "reminder_text"
 
 class ReminderNotificationScheduler(
-    private val context: Context
+    context: Context,
+    private val reminders: ReminderStore = SharedPreferencesAssistantStores(context.applicationContext).reminders
 ) {
+    private val context = context.applicationContext
+
     fun schedule(reminderId: String, text: String, triggerAtMillis: Long): Boolean = runCatching {
         ensureChannel()
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -54,7 +58,7 @@ class ReminderNotificationScheduler(
 
     fun reschedulePersisted() {
         val now = System.currentTimeMillis()
-        SharedPreferencesReminderStore(context).list()
+        reminders.list()
             .asSequence()
             .filter { it.state == "scheduled" }
             .forEach { reminder ->
@@ -63,6 +67,10 @@ class ReminderNotificationScheduler(
                     ?: return@forEach
                 schedule(reminder.id, reminder.text, triggerAt.coerceAtLeast(now + 1_000L))
             }
+    }
+
+    fun markCompleted(reminderId: String) {
+        reminders.complete(reminderId)
     }
 
     fun ensureChannel() {
@@ -96,7 +104,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(reminderId.hashCode(), notification)
-        SharedPreferencesReminderStore(context).complete(reminderId)
+        ReminderNotificationScheduler(context).markCompleted(reminderId)
     }
 }
 

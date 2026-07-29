@@ -2,15 +2,14 @@
 .kotlin/
 .idea/
 .superpowers/
-.cxx/
-**/.cxx/
-**/.externalNativeBuild/
-
 build/
 **/build/
 captures/
 
 local.properties
+.env
+.env.*
+!.env.example
 *.iml
 *.apk
 *.aab

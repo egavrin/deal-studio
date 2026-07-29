@@ -18,6 +18,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
     private var activeSampleRate: Int? = null
     private var focusRequest: AudioFocusRequest? = null
     private var submittedFrames = 0L
+    private var lastUnderrunCount = 0
     private val playbackMarkers = ArrayDeque<PlaybackMarker>()
     private val callbackExecutor = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "assistant-audio-progress").apply { isDaemon = true }
@@ -104,6 +105,10 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
         synchronized(lock) { releaseActiveTrackLocked() }
     }
 
+    override fun transportUnderrunCount(): Int = synchronized(lock) {
+        activeTrack?.underrunCount ?: lastUnderrunCount
+    }
+
     override fun close() {
         stop()
         callbackExecutor.shutdownNow()
@@ -145,6 +150,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
         activeTrack = track
         activeSampleRate = sampleRate
         submittedFrames = 0L
+        lastUnderrunCount = 0
         playbackMarkers.clear()
         return track
     }
@@ -200,6 +206,7 @@ class AudioTrackPcmPlayer(context: Context) : PcmAudioPlayer {
 
     private fun releaseActiveTrackLocked() {
         activeTrack?.let { track ->
+            lastUnderrunCount = track.underrunCount
             runCatching { track.pause() }
             runCatching { track.flush() }
             runCatching { track.stop() }
