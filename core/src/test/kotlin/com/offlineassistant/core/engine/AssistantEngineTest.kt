@@ -23,6 +23,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -67,7 +68,7 @@ class AssistantEngineTest {
 
         assertEquals(listOf("Короткий ", "ответ."), tokens)
         assertEquals("Короткий ответ.", response.text)
-        assertEquals(WidgetTypes.GENERIC_ANSWER_CARD, response.widget?.type)
+        assertNull(response.widget)
         assertEquals("deepseek_answer", response.debug?.actionResult)
         assertEquals(1, answer.calls)
         assertTrue(response.debug?.cloudAnswerUsed == true)

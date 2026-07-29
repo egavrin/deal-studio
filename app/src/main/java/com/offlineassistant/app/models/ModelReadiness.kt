@@ -73,7 +73,8 @@ class ModelReadinessRepository(
             "models/rubert/rubert-tiny2-intent-slots.onnx",
             "models/rubert/vocab.txt",
             "models/rubert/intent_labels.txt",
-            "models/rubert/slot_labels.txt"
+            "models/rubert/slot_labels.txt",
+            "models/rubert/runtime-bundle.json"
         )
         val files = requiredPaths.associateWith { relativePath ->
             File(context.filesDir, relativePath)
@@ -89,12 +90,18 @@ class ModelReadinessRepository(
             val detail = if (hadCompleteBundle) "updated from external staging" else "installed from external staging"
             return ModelReadiness(ModelNames.RUBERT, true, modelFile.absolutePath, detail)
         }
+        val assetMaterialized = materializeVersionedAssetDirectory(
+            requiredPaths = requiredPaths,
+            targetFiles = files,
+            manifestPath = "models/rubert/runtime-bundle.json"
+        )
         if (files.all { it.value.isFile }) {
-            return ModelReadiness(ModelNames.RUBERT, true, modelFile.absolutePath, "found complete ONNX/tokenizer/labels bundle")
-        }
-        requiredPaths.forEach { relativePath -> materializeAsset(relativePath, files.getValue(relativePath)) }
-        if (files.all { it.value.isFile }) {
-            return ModelReadiness(ModelNames.RUBERT, true, modelFile.absolutePath, "installed from APK assets")
+            val detail = when {
+                assetMaterialized && hadCompleteBundle -> "updated from versioned APK bundle"
+                assetMaterialized -> "installed from versioned APK bundle"
+                else -> "found complete ONNX/tokenizer/labels bundle"
+            }
+            return ModelReadiness(ModelNames.RUBERT, true, modelFile.absolutePath, detail)
         }
         val missing = files.filterValues { !it.isFile }.keys
         return ModelReadiness(
@@ -196,6 +203,50 @@ class ModelReadinessRepository(
         }.getOrDefault(false)
     }
 
+    private fun materializeVersionedAssetDirectory(
+        requiredPaths: List<String>,
+        targetFiles: Map<String, File>,
+        manifestPath: String
+    ): Boolean = synchronized(assetMaterializationLock) {
+        val assetManifest = runCatching {
+            context.assets.open(manifestPath).use { it.readBytes() }
+        }.getOrNull() ?: return@synchronized false
+        val installedManifest = targetFiles.getValue(manifestPath)
+        val needsUpdate = requiredPaths.any { targetFiles.getValue(it).isFile.not() } ||
+            runCatching { installedManifest.readBytes() }
+                .getOrNull()
+                ?.contentEquals(assetManifest) != true
+        if (!needsUpdate) return@synchronized false
+
+        val allAssetsPresent = requiredPaths.all { relativePath ->
+            runCatching {
+                context.assets.open(relativePath).use { it.read() }
+            }.isSuccess
+        }
+        if (!allAssetsPresent) return@synchronized false
+
+        installedManifest.delete()
+        val copyOrder = requiredPaths.filterNot { it == manifestPath } + manifestPath
+        runCatching {
+            copyOrder.forEach { relativePath ->
+                val target = targetFiles.getValue(relativePath)
+                target.parentFile?.mkdirs()
+                val tempFile = File(target.parentFile, "${target.name}.tmp")
+                context.assets.open(relativePath).use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                if (!tempFile.renameTo(target)) {
+                    tempFile.copyTo(target, overwrite = true)
+                    tempFile.delete()
+                }
+            }
+        }.onFailure {
+            installedManifest.delete()
+        }.isSuccess
+    }
+
     private fun materializeExternalStagingFile(
         stagedFile: File,
         appFile: File,
@@ -227,11 +278,14 @@ class ModelReadinessRepository(
     ): Boolean = synchronized(assetMaterializationLock) {
         val stagedDirectory = File(externalStagingRoot, directoryName)
         if (!stagedDirectory.isDirectory || !stagedDirectory.canRead()) return@synchronized false
+        val stagedFiles = requiredPaths.associateWith { relativePath ->
+            File(stagedDirectory, relativePath.substringAfterLast('/'))
+        }
+        if (stagedFiles.values.any { !it.isFile || !it.canRead() }) return@synchronized false
         var copiedAny = false
         requiredPaths.forEach { relativePath ->
             val target = targetFiles.getValue(relativePath)
-            val source = File(stagedDirectory, relativePath.substringAfterLast('/'))
-            if (!source.isFile || !source.canRead()) return@forEach
+            val source = stagedFiles.getValue(relativePath)
             if (target.isFile && sameFileContent(target, source)) return@forEach
             runCatching {
                 target.parentFile?.mkdirs()

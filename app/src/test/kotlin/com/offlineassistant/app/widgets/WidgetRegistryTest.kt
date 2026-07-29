@@ -20,7 +20,6 @@ class WidgetRegistryTest {
                 WidgetTypes.CLARIFICATION_CARD,
                 WidgetTypes.PERMISSION_CARD,
                 WidgetTypes.ERROR_CARD,
-                WidgetTypes.GENERIC_ANSWER_CARD,
                 WidgetTypes.RESEARCH_CARD,
                 WidgetTypes.ACTION_CONFIRMATION_CARD
             ),

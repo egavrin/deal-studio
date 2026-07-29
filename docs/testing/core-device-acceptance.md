@@ -4,8 +4,10 @@ Run on an ARM64 phone after host checks pass.
 
 ## Setup
 
-1. Stage `models/generated/rubert/` to
-   `/data/local/tmp/offline-assistant-rubert/`.
+1. Verify the packaged RuBERT production bundle with
+   `python3 scripts/verify_rubert_bundle.py`. A complete
+   `/data/local/tmp/offline-assistant-rubert/` bundle is optional and overrides the
+   APK bundle for development.
 2. Stage `models/external/silero-v5_5-ru-xenia/android-bundle/` to
    `/data/local/tmp/offline-assistant-silero/`.
 3. Run `scripts/device_smoke_test.sh`.
@@ -87,17 +89,11 @@ screen context and barge-in.
 Record cold and warm gesture-to-overlay, gesture-to-listening, first ASR partial,
 RuBERT completion, first cloud token, first spoken audio and process PSS.
 
-## Final Gate
+## Presentation Evidence
 
-Record one self-contained demo showing:
-
-1. live microphone to T-one transcript;
-2. local RuBERT timer or note action;
-3. a grounded Exa Search + DeepSeek streaming answer;
-4. a background Exa Agent research card;
-5. local Silero playback;
-6. debug route labels distinguishing local and cloud execution.
-7. system gesture invocation and the compact assistant overlay.
+A self-contained demo may show the microphone-to-T-one transcript, local RuBERT
+action, DeepSeek/Exa routes, Silero playback and system overlay. It is optional
+presentation material and does not replace the automated or physical-device gates.
 
 ## Automated Device Checks
 
@@ -155,6 +151,15 @@ The same device passed both automated production-wiring checks on 2026-07-29:
 
 Additional OPPO CPH2765 regressions passed on 2026-07-29:
 
+- system invocation produced the compact overlay over Settings with optional
+  memory-only current-screen context visibly marked `ЭКРАН`;
+- ten alternating Settings/launcher invoke-dismiss sessions passed with no crash or
+  ANR signature; the reproducible report is produced by
+  `scripts/default_assistant_acceptance.sh`;
+- an open-ended voice query rendered one in-place DeepSeek answer with no duplicate
+  result card, and dismissal during the cloud route released the session;
+- the installed RuBERT ONNX and runtime manifest matched the packaged production
+  asset SHA-256 digests;
 - `Покажи фотографии Кривого Рога` classified as `unknown` at confidence `0.9868`,
   streamed one DeepSeek answer and loaded three attributed Wikimedia images;
 - the focused speaker-to-microphone test completed local weather TTS, returned to

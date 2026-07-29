@@ -1,7 +1,6 @@
 # Default Assistant Product Integration
 
-**Status:** implementation complete; focused OPPO regressions pass, full role
-acceptance remains
+**Status:** implementation and focused OPPO role acceptance complete
 **Date:** 2026-07-29  
 **Target:** Android 16 first, API 26 minimum, API 37 target
 
@@ -28,9 +27,11 @@ emulator acceptance confirms role selection, system-key invocation, the compact
 overlay, text submission through the shared RuBERT route, correct navigation-bar
 insets and five repeated invoke/dismiss cycles without an application crash.
 Focused OPPO CPH2765 checks now cover the production RuBERT/DeepSeek visual route,
-real Silero speaker-to-T-one microphone echo rejection and ColorOS IME placement.
-Full gesture/context coverage and long repeated-session stability remain
-physical-device acceptance gates.
+real Silero speaker-to-T-one microphone echo rejection, ColorOS IME placement,
+launcher/application invocation, current-screen context, DeepSeek dismissal and
+ten repeated invoke/dismiss sessions. The compact-to-expanded overlay has dedicated
+unit and instrumentation render tests. Broader release-matrix coverage remains in
+`docs/testing/core-device-acceptance.md`.
 
 ## Product Decision
 
@@ -434,7 +435,8 @@ Acceptance:
 - verify dynamic type, TalkBack, cutouts and one-handed reachability;
 - add baseline profiles and macrobenchmarks for system invocation;
 - run a 50-session mixed local/cloud stability test;
-- capture product screenshots and a demo after device acceptance.
+- capture product screenshots after device acceptance; a presentation demo is
+  optional and is not a correctness gate.
 
 Acceptance:
 

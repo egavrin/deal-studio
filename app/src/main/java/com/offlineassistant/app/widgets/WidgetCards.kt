@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TravelExplore
@@ -447,24 +446,6 @@ object ErrorCardRenderer : AssistantWidgetRenderer {
                 ) {
                     Text(suggestion)
                 }
-            }
-        }
-    }
-}
-
-object GenericAnswerCardRenderer : AssistantWidgetRenderer {
-    override val type = WidgetTypes.GENERIC_ANSWER_CARD
-
-    @Composable
-    override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) {
-        val answer = payload.text("answer")
-        if (answer.isNullOrBlank()) {
-            SourceChip("deepseek")
-        } else {
-            WidgetCard("generic_answer_card") {
-                WidgetHeader(Icons.Default.SmartToy, payload.text("title") ?: "Ответ")
-                Text(answer)
-                SourceChip(payload.text("source") ?: "deepseek")
             }
         }
     }

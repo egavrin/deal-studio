@@ -778,7 +778,6 @@ private fun AssistantMessageBubble(
                 )
             }
             message.widget
-                ?.deduplicateAnswerAlreadyShownInBubble(message.text)
                 ?.let { AssistantWidgetContainer(it, onAction = onWidgetAction) }
         }
     }
@@ -1358,17 +1357,6 @@ internal fun assistantRouteLabel(debug: DebugInfo?): String? {
 }
 
 fun transcriptPreviewLabel(preview: String): String = preview.removePrefix("Transcript preview: ").removePrefix("Транскрипт: ").trim()
-
-internal fun WidgetPayload.deduplicateAnswerAlreadyShownInBubble(bubbleText: String): WidgetPayload {
-    if (type != WidgetTypes.GENERIC_ANSWER_CARD) return this
-    val answer = payload["answer"]?.jsonPrimitive?.contentOrNull?.trim()
-    if (answer.isNullOrEmpty() || answer != bubbleText.trim()) return this
-    return copy(
-        payload = buildJsonObject {
-            payload.forEach { (key, value) -> if (key != "answer") put(key, value) }
-        }
-    )
-}
 
 private fun hasRecordAudioPermission(context: Context): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 

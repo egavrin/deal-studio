@@ -5,13 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 PACKAGE="com.offlineassistant.poc.debug"
-RUBERT_DIR="models/generated/rubert"
+RUBERT_DIR="app/src/main/assets/models/rubert"
 SILERO_DIR="models/external/silero-v5_5-ru-xenia/android-bundle"
 
 adb wait-for-device
 test "$(adb devices | awk 'NR > 1 && $2 == "device" {count++} END {print count + 0}')" -eq 1
 
-for file in rubert-tiny2-intent-slots.onnx vocab.txt intent_labels.txt slot_labels.txt; do
+for file in rubert-tiny2-intent-slots.onnx vocab.txt intent_labels.txt slot_labels.txt runtime-bundle.json; do
   test -s "$RUBERT_DIR/$file"
 done
 for file in predictors.onnx acoustic.onnx window.f32 frontend.json accentor.onnx \
@@ -25,7 +25,7 @@ python3 scripts/check_core_scope.py
 
 adb shell rm -rf /data/local/tmp/offline-assistant-rubert
 adb shell mkdir -p /data/local/tmp/offline-assistant-rubert
-for file in rubert-tiny2-intent-slots.onnx vocab.txt intent_labels.txt slot_labels.txt; do
+for file in rubert-tiny2-intent-slots.onnx vocab.txt intent_labels.txt slot_labels.txt runtime-bundle.json; do
   adb push "$RUBERT_DIR/$file" "/data/local/tmp/offline-assistant-rubert/$file"
 done
 adb shell mkdir -p /data/local/tmp/offline-assistant-silero

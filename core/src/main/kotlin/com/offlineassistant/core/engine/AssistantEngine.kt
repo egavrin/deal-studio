@@ -253,13 +253,7 @@ class AssistantEngine(
                     status = ResponseStatus.SUCCESS,
                     text = text,
                     intent = nluResult.intent,
-                    widget = result.widget ?: WidgetPayload(
-                        WidgetTypes.GENERIC_ANSWER_CARD,
-                        buildJsonObject {
-                            put("answer", text)
-                            put("source", result.source ?: "deepseek_cloud")
-                        }
-                    ),
+                    widget = result.widget,
                     media = result.media,
                     sources = result.sources,
                     followUpQuestions = result.followUpQuestions

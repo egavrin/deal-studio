@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "bundle_version": "rubert-tiny2-core-2026-07-29",
+  "base_model": "cointegrated/rubert-tiny2",
+  "base_model_revision": "e8ed3b0c8bbf4fb6984c3de043bf7d2f4e5969ae",
+  "dataset_sha256": "ecf6cda0a32ed171051ae28e30083f2694fdef8d36491ad7b894da73e0f95935",
+  "training_manifest_sha256": "f14bff9f8e7b3af694bacfe326beea78a862aa16802010f3e89113675fc82550",
+  "files": {
+    "rubert-tiny2-intent-slots.onnx": {
+      "bytes": 116553335,
+      "sha256": "57671758b64e33cb9e366d291d5983358c3a48b178ab58bb07b1e1d029ff3548"
+    },
+    "vocab.txt": {
+      "bytes": 1080667,
+      "sha256": "f056a69b097422652053bf87565c35543e5d81540ca4b7dddd28de4157a969e0"
+    },
+    "intent_labels.txt": {
+      "bytes": 260,
+      "sha256": "668a7b939c44747f2ce19f1dafe3831a7432adf55b9efe8f6af00c7f6e597a6a"
+    },
+    "slot_labels.txt": {
+      "bytes": 550,
+      "sha256": "ed6636b6db473e837579e83e87b455850d523b4a920274bbbaf104e1b805da4b"
+    }
+  }
+}

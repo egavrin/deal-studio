@@ -76,14 +76,18 @@ Install:
 ## Model Bundles
 
 - T-one RU is packaged under `app/src/main/assets/models/tone_ru/`.
-- RuBERT is trained/exported to `models/generated/rubert/` and staged on a device as
-  `/data/local/tmp/offline-assistant-rubert/`.
+- The production RuBERT export is packaged under
+  `app/src/main/assets/models/rubert/`. `runtime-bundle.json` pins its version,
+  sizes and SHA-256 digests; `scripts/verify_rubert_bundle.py` validates the bundle.
+  A complete `/data/local/tmp/offline-assistant-rubert/` bundle remains an optional
+  development override.
 - Silero Xenia is exported under
   `models/external/silero-v5_5-ru-xenia/android-bundle/` and staged as
   `/data/local/tmp/offline-assistant-silero/`.
 
-Model weights generated under `models/` are ignored by Git. The app materializes
-verified staged bundles into private app storage.
+Generated training outputs under `models/` are ignored by Git. Production ONNX
+assets use Git LFS. The app atomically materializes versioned APK assets or a
+complete verified development override into private app storage.
 
 Train the narrow RuBERT classifier:
 
@@ -162,8 +166,8 @@ The normative scope and routing rules are in
 [`docs/superpowers/specs/2026-07-29-core-assistant-scope.md`](docs/superpowers/specs/2026-07-29-core-assistant-scope.md).
 The optional system-assistant product integration is researched and staged in
 [`docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md`](docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md).
-The host implementation is complete; physical-device role and gesture acceptance
-remains in the device checklist.
+Host and OPPO CPH2765 physical-device role acceptance are complete; reproducible
+checks and remaining release-matrix items are tracked in the device checklist.
 The measured path from the current Russian classifier to multilingual or 200+
 intents is defined in
 [`docs/testing/intent-model-evaluation.md`](docs/testing/intent-model-evaluation.md).

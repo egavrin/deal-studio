@@ -43,7 +43,6 @@ EXPECTED_WIDGETS = {
     "CLARIFICATION_CARD",
     "PERMISSION_CARD",
     "ERROR_CARD",
-    "GENERIC_ANSWER_CARD",
     "RESEARCH_CARD",
     "ACTION_CONFIRMATION_CARD",
 }
@@ -185,9 +184,9 @@ def main() -> int:
 
     model_assets = ROOT / "app/src/main/assets/models"
     actual_model_directories = {path.name for path in model_assets.iterdir() if path.is_dir()}
-    if actual_model_directories != {"tone_ru"}:
+    if actual_model_directories != {"rubert", "tone_ru"}:
         failures.append(
-            f"packaged ASR assets mismatch: expected=['tone_ru'] "
+            f"packaged model assets mismatch: expected=['rubert', 'tone_ru'] "
             f"actual={sorted(actual_model_directories)}"
         )
 

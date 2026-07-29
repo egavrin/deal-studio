@@ -61,7 +61,7 @@ unknown or obsolete label outside the local action registry
   -> DeepSeek HTTPS/SSE
   -> bounded visible conversation history
   -> one streaming Markdown message
-  -> GenericAnswerCard source marker
+  -> route/source metadata outside the message body
 
 Explicit visual request
   -> Wikimedia Commons search after text generation
@@ -115,7 +115,7 @@ is implemented with keyword matching.
 | `help` | `help_card` |
 | `web_search` | DeepSeek Markdown + numbered source cards |
 | `web_research` | `research_card` + numbered source cards |
-| `unknown` | DeepSeek Markdown + `generic_answer_card` source |
+| `unknown` | one DeepSeek Markdown message |
 
 Infrastructure cards are `clarification_card`, `permission_card`, `error_card`,
 `research_card` and `action_confirmation_card`.
@@ -278,4 +278,4 @@ python3 scripts/check_core_scope.py
 ```
 
 Device acceptance is defined separately in `docs/testing/core-device-acceptance.md`.
-The final live microphone/demo recording remains the last manual gate.
+A demo recording is optional presentation evidence and is not a release gate.

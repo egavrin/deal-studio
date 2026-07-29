@@ -58,6 +58,7 @@ internal class OfflineAssistantVoiceInteractionSession(
     private val sessionScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val lifecycleOwner = AssistantSessionLifecycleOwner()
     private val screenContext = MutableStateFlow<String?>(null)
+    private val sessionMessageStartIndex = MutableStateFlow(coordinator.state.messages.size)
     private val recorder = AndroidAudioRecorder(context.applicationContext)
     private val voiceCapture = VoiceCaptureCoordinator(
         conversation = coordinator,
@@ -86,12 +87,25 @@ internal class OfflineAssistantVoiceInteractionSession(
                 val state by coordinator.stateFlow.collectAsState()
                 val playbackState by runtime.speechGateway.playbackState.collectAsState()
                 val currentScreenContext by screenContext.collectAsState()
+                val currentSessionMessageStartIndex by sessionMessageStartIndex.collectAsState()
                 AssistantSessionScreen(
                     state = state,
                     playbackState = playbackState,
                     hasScreenContext = currentScreenContext != null,
                     microphoneAvailable = hasMicrophonePermission(),
-                    voiceCapture = voiceCapture,
+                    sessionMessageStartIndex = currentSessionMessageStartIndex,
+                    voiceActions = AssistantSessionVoiceActions(
+                        onToggleRecording = {
+                            if (state.isRecording) {
+                                voiceCapture.stopRecording()
+                            } else {
+                                voiceCapture.startRecording(VoiceCaptureMode.CONVERSATION)
+                            }
+                        },
+                        onPlaybackCompleted = voiceCapture::handlePlaybackCompleted,
+                        onStartBargeInMonitor = voiceCapture::startBargeInMonitor,
+                        onStopBargeInMonitor = voiceCapture::stopBargeInMonitor
+                    ),
                     actions = AssistantSessionActions(
                         onInputChanged = coordinator::updateInput,
                         onSend = {
@@ -125,6 +139,7 @@ internal class OfflineAssistantVoiceInteractionSession(
         super.onShow(args, showFlags)
         handingOffToFullApp = false
         lifecycleOwner.show()
+        sessionMessageStartIndex.value = coordinator.state.messages.size
         runtime.speechGateway.setConversationModeActive(true)
         coordinator.startConversation()
         screenContextAllowedForSession = runtime.settings.assistantScreenContextEnabled

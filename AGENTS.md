@@ -165,8 +165,13 @@ python3 scripts/check_core_scope.py
 ./gradlew assembleDebug
 ```
 
-Use `scripts/device_smoke_test.sh` only with a connected device and staged RuBERT and
-Silero bundles. The final human microphone/demo recording is a separate last step.
+`scripts/run_core_acceptance.sh` verifies the packaged production RuBERT bundle.
+Use `scripts/device_smoke_test.sh` only with a connected device; RuBERT is packaged
+in the APK and a staged bundle is an optional development override, while Silero
+still requires its staged export. Use `scripts/default_assistant_acceptance.sh`
+when the debug package temporarily holds `ROLE_ASSISTANT`.
+
+A demo recording is optional presentation evidence, not a correctness gate.
 
 Gradle dependency verification is strict. Regenerate and review
 `gradle/verification-metadata.xml` after intentional dependency changes.
