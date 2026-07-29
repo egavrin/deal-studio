@@ -15,7 +15,11 @@ import com.offlineassistant.core.contracts.ResponseStatus
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.engine.AssistantEngine
+import com.offlineassistant.core.llm.AnswerEvent
 import com.offlineassistant.core.llm.CancellableAnswerProvider
+import com.offlineassistant.core.llm.ConversationRole
+import com.offlineassistant.core.llm.ConversationTurn
+import com.offlineassistant.core.llm.ResearchCancellableAnswerProvider
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.speech.AssistantSpeech
 import com.offlineassistant.core.speech.NoOpAssistantSpeech
@@ -30,6 +34,7 @@ import java.io.File
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
@@ -58,6 +63,7 @@ class ChatViewModel(
 ) : ViewModel() {
     private val responseAdapter = AndroidAssistantResponseAdapter(platformActions)
     private var activeProcessingJob: Job? = null
+    private val researchJobs = mutableMapOf<String, Job>()
     private var pendingNoteEditId: String? = null
 
     var state: ChatUiState = ChatUiState().let { initial ->
@@ -74,6 +80,7 @@ class ChatViewModel(
     fun sendTextAsync(onStateChanged: (ChatUiState) -> Unit): ChatUiState {
         val text = state.inputText.trim()
         if (text.isBlank() || state.isProcessing) return state
+        val history = conversationHistory()
         pendingNoteEditId?.let { noteId ->
             appendUserText(text)
             onStateChanged(state)
@@ -83,7 +90,7 @@ class ChatViewModel(
         }
         appendUserText(text)
         onStateChanged(state)
-        startAssistantRequest(text, onStateChanged)
+        startAssistantRequest(text, history, onStateChanged)
         return state
     }
 
@@ -93,18 +100,63 @@ class ChatViewModel(
         answerProvider.cancel()
         activeProcessingJob?.cancel()
         activeProcessingJob = null
-        state = state.copy(isProcessing = false, processingStage = null)
+        state = state.copy(
+            isProcessing = false,
+            processingStage = null,
+            conversationPhase = if (state.conversationActive) {
+                ConversationPhase.LISTENING
+            } else {
+                ConversationPhase.OFF
+            }
+        )
         persistHistory()
         return state
     }
 
-    fun startVoiceRecording(): ChatUiState {
+    fun startVoiceRecording(mode: VoiceCaptureMode = VoiceCaptureMode.DICTATION): ChatUiState {
         assistantSpeech.stop(SpeechStopReason.MICROPHONE_STARTED)
         state = state.copy(
             isRecording = true,
+            voiceCaptureMode = mode,
+            conversationActive = state.conversationActive || mode == VoiceCaptureMode.CONVERSATION,
+            conversationPhase = if (mode == VoiceCaptureMode.CONVERSATION) {
+                ConversationPhase.LISTENING
+            } else {
+                state.conversationPhase
+            },
             isProcessing = false,
             processingStage = null,
-            transcriptPreview = "Идет локальная запись...",
+            transcriptPreview = if (mode == VoiceCaptureMode.CONVERSATION) {
+                "Слушаю..."
+            } else {
+                "Диктовка..."
+            },
+            stableTranscriptPrefix = null
+        )
+        return state
+    }
+
+    fun startConversation(): ChatUiState {
+        state = state.copy(
+            conversationActive = true,
+            conversationPhase = ConversationPhase.LISTENING
+        )
+        return state
+    }
+
+    fun endConversation(): ChatUiState {
+        assistantSpeech.stop(SpeechStopReason.USER_REQUESTED)
+        answerProvider.cancel()
+        activeProcessingJob?.cancel()
+        activeProcessingJob = null
+        state = state.copy(
+            isRecording = false,
+            voiceCaptureMode = null,
+            conversationActive = false,
+            conversationPhase = ConversationPhase.OFF,
+            isProcessing = false,
+            processingStage = null,
+            transcriptPreview = null,
             stableTranscriptPrefix = null
         )
         return state
@@ -114,7 +166,12 @@ class ChatViewModel(
         state = state.copy(
             isRecording = false,
             isProcessing = true,
-            processingStage = ProcessingStage.FINALIZING_RECORDING
+            processingStage = ProcessingStage.FINALIZING_RECORDING,
+            conversationPhase = if (state.conversationActive) {
+                ConversationPhase.PROCESSING
+            } else {
+                state.conversationPhase
+            }
         )
         return state
     }
@@ -227,6 +284,8 @@ class ChatViewModel(
             WidgetActionNames.PERMISSION_NOT_NOW -> appendAssistantMessage("Хорошо, не сейчас.", null)
 
             WidgetActionNames.ERROR_SUGGESTION -> restorePreviousRequest()
+
+            WidgetActionNames.RESEARCH_CANCEL -> cancelResearch(action)
         }
         return state
     }
@@ -241,6 +300,8 @@ class ChatViewModel(
         answerProvider.cancel()
         activeProcessingJob?.cancel()
         activeProcessingJob = null
+        researchJobs.values.forEach(Job::cancel)
+        researchJobs.clear()
         assistantSpeech.stop(SpeechStopReason.CHAT_CLEARED)
         pendingNoteEditId = null
         state = ChatUiState()
@@ -259,21 +320,37 @@ class ChatViewModel(
     override fun onCleared() {
         answerProvider.cancel()
         activeProcessingJob?.cancel()
+        researchJobs.values.forEach(Job::cancel)
         assistantSpeech.stop(SpeechStopReason.VIEW_MODEL_CLEARED)
         super.onCleared()
     }
 
-    private fun startAssistantRequest(text: String, onStateChanged: (ChatUiState) -> Unit) {
-        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+    private fun startAssistantRequest(
+        text: String,
+        history: List<ConversationTurn>,
+        onStateChanged: (ChatUiState) -> Unit
+    ) {
+        var job: Job? = null
+        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             try {
-                val execution = executeStreaming(text, onStateChanged)
+                val execution = executeStreaming(
+                    text = text,
+                    history = history,
+                    onStateChanged = onStateChanged,
+                    onResearchDetached = { runId ->
+                        detachResearchJob(runId, job, onStateChanged)
+                    }
+                )
+                val ownsForeground = activeProcessingJob === job
                 appendFinalAssistantResponse(
                     execution.response.withFirstVisibleTokenLatency(execution.firstVisibleTokenMs),
-                    replaceMessageId = execution.messageId
+                    replaceMessageId = execution.messageId,
+                    completeForeground = ownsForeground
                 )
                 onStateChanged(state)
             } finally {
-                if (activeProcessingJob === coroutineContext[Job]) activeProcessingJob = null
+                if (activeProcessingJob === job) activeProcessingJob = null
+                researchJobs.entries.removeAll { it.value === job }
             }
         }
         activeProcessingJob = job
@@ -282,15 +359,46 @@ class ChatViewModel(
 
     private suspend fun executeStreaming(
         text: String,
-        onStateChanged: (ChatUiState) -> Unit
+        history: List<ConversationTurn>,
+        onStateChanged: (ChatUiState) -> Unit,
+        onResearchDetached: (String) -> Unit = {}
     ): StreamingExecution = coroutineScope {
         val startedAtNanos = System.nanoTime()
         val tokenBuffer = StreamingTokenBuffer()
+        val eventBuffer = AnswerEventBuffer()
         var streamingMessageId: String? = null
+        var researchRunId: String? = null
         var firstVisibleTokenMs: Long? = null
         val consumer = launch {
             while (true) {
                 delay(STREAM_UPDATE_INTERVAL_MS)
+                eventBuffer.drain().forEach { event ->
+                    when (event) {
+                        AnswerEvent.WebSearchStarted -> {
+                            state = state.copy(processingStage = ProcessingStage.SEARCHING)
+                            onStateChanged(state)
+                        }
+
+                        is AnswerEvent.WebSearchCompleted -> {
+                            state = state.copy(processingStage = ProcessingStage.GENERATING)
+                            onStateChanged(state)
+                        }
+
+                        is AnswerEvent.ResearchStarted -> {
+                            researchRunId = event.runId
+                            streamingMessageId = upsertResearchProgress(streamingMessageId, event)
+                            state = state.copy(processingStage = ProcessingStage.RESEARCHING)
+                            onStateChanged(state)
+                            onResearchDetached(event.runId)
+                        }
+
+                        is AnswerEvent.ResearchProgress -> {
+                            researchRunId = event.runId
+                            streamingMessageId = upsertResearchProgress(streamingMessageId, event)
+                            onStateChanged(state)
+                        }
+                    }
+                }
                 val delta = tokenBuffer.drain()
                 if (delta.isNotEmpty()) {
                     if (firstVisibleTokenMs == null) {
@@ -304,7 +412,7 @@ class ChatViewModel(
                     )
                     onStateChanged(state)
                 }
-                if (tokenBuffer.isClosedAndEmpty()) break
+                if (tokenBuffer.isClosedAndEmpty() && eventBuffer.isClosedAndEmpty()) break
             }
         }
         val response = try {
@@ -312,7 +420,9 @@ class ChatViewModel(
             withContext(ioDispatcher) {
                 assistantEngineProvider().handleText(
                     input = text,
+                    conversationHistory = history,
                     onAnswerToken = tokenBuffer::append,
+                    onAnswerEvent = eventBuffer::append,
                     isCancelled = { requestJob?.isCancelled == true }
                 )
             }
@@ -321,9 +431,10 @@ class ChatViewModel(
             processingErrorResponse(text)
         } finally {
             tokenBuffer.close()
+            eventBuffer.close()
             consumer.join()
         }
-        StreamingExecution(response, streamingMessageId, firstVisibleTokenMs)
+        StreamingExecution(response, streamingMessageId, firstVisibleTokenMs, researchRunId)
     }
 
     private fun processVoiceTranscriptionAsync(
@@ -338,33 +449,65 @@ class ChatViewModel(
             transcriptPreview = "Распознаю голос локально..."
         )
         onStateChanged(state)
-        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+        var job: Job? = null
+        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             try {
+                val captureMode = state.voiceCaptureMode ?: VoiceCaptureMode.DICTATION
                 val transcription = withContext(ioDispatcher) { transcribe() }
                 audioFile?.let(::deleteRecorderCacheFile)
                 val transcript = transcription.text?.trim().orEmpty()
                 if (transcript.isBlank()) {
-                    appendFinalAssistantResponse(
-                        voiceTranscriptionError(
-                            transcription.error ?: "Речь не распознана."
-                        ).withVoiceDebug(null, transcription.latencyMs)
-                    )
-                    state = state.copy(transcriptPreview = "Аудио обработано локально.")
+                    if (captureMode == VoiceCaptureMode.CONVERSATION) {
+                        appendFinalAssistantResponse(
+                            voiceTranscriptionError(
+                                transcription.error ?: "Речь не распознана."
+                            ).withVoiceDebug(null, transcription.latencyMs)
+                        )
+                    } else {
+                        state = state.copy(
+                            isProcessing = false,
+                            processingStage = null,
+                            voiceCaptureMode = null,
+                            transcriptPreview = transcription.error ?: "Речь не распознана."
+                        )
+                    }
                     onStateChanged(state)
                     return@launch
                 }
+                if (captureMode == VoiceCaptureMode.DICTATION) {
+                    state = state.copy(
+                        inputText = transcript,
+                        isProcessing = false,
+                        processingStage = null,
+                        voiceCaptureMode = null,
+                        transcriptPreview = "Текст готов к отправке",
+                        stableTranscriptPrefix = null
+                    )
+                    onStateChanged(state)
+                    return@launch
+                }
+                val history = conversationHistory()
                 appendUserText(transcript, "voice")
                 state = state.copy(
                     transcriptPreview = transcript,
                     stableTranscriptPrefix = transcript
                 )
                 onStateChanged(state)
-                val execution = executeStreaming(transcript, onStateChanged)
+                val execution = executeStreaming(
+                    text = transcript,
+                    history = history,
+                    onStateChanged = onStateChanged,
+                    onResearchDetached = { runId ->
+                        detachResearchJob(runId, job, onStateChanged)
+                    }
+                )
+                val ownsForeground = activeProcessingJob === job
                 appendFinalAssistantResponse(
                     execution.response
                         .withFirstVisibleTokenLatency(execution.firstVisibleTokenMs)
                         .withVoiceDebug(transcript, transcription.latencyMs),
-                    replaceMessageId = execution.messageId
+                    replaceMessageId = execution.messageId,
+                    completeForeground = ownsForeground
                 )
                 onStateChanged(state)
             } catch (error: Throwable) {
@@ -373,7 +516,8 @@ class ChatViewModel(
                 appendFinalAssistantResponse(voiceTranscriptionError("Локальное распознавание завершилось ошибкой."))
                 onStateChanged(state)
             } finally {
-                if (activeProcessingJob === coroutineContext[Job]) activeProcessingJob = null
+                if (activeProcessingJob === job) activeProcessingJob = null
+                researchJobs.entries.removeAll { it.value === job }
             }
         }
         activeProcessingJob = job
@@ -392,7 +536,12 @@ class ChatViewModel(
             ),
             inputText = "",
             isProcessing = true,
-            processingStage = ProcessingStage.UNDERSTANDING
+            processingStage = ProcessingStage.UNDERSTANDING,
+            conversationPhase = if (state.conversationActive) {
+                ConversationPhase.PROCESSING
+            } else {
+                state.conversationPhase
+            }
         )
         persistHistory()
     }
@@ -429,7 +578,8 @@ class ChatViewModel(
 
     private fun appendFinalAssistantResponse(
         response: AssistantResponse,
-        replaceMessageId: String? = null
+        replaceMessageId: String? = null,
+        completeForeground: Boolean = true
     ) {
         val displayResponse = responseAdapter.adapt(response)
         val assistant = ChatMessageUi.Assistant(
@@ -437,23 +587,52 @@ class ChatViewModel(
             Instant.now().toString(),
             displayResponse.text,
             displayResponse.widget,
-            displayResponse.debug
+            displayResponse.debug,
+            displayResponse.media,
+            displayResponse.sources
         )
-        assistantSpeech.finish(assistant.id, displayResponse.text)
+        if (completeForeground || !state.isProcessing) {
+            assistantSpeech.finish(assistant.id, displayResponse.text)
+        }
         state = state.copy(
             messages = if (replaceMessageId == null) {
                 state.messages + assistant
             } else {
                 state.messages.map { if (it.id == replaceMessageId) assistant else it }
             },
-            isProcessing = false,
-            processingStage = null,
+            isProcessing = if (completeForeground) false else state.isProcessing,
+            processingStage = if (completeForeground) null else state.processingStage,
+            voiceCaptureMode = if (completeForeground) null else state.voiceCaptureMode,
+            conversationPhase = if (
+                state.conversationActive &&
+                (completeForeground || !state.isProcessing)
+            ) {
+                ConversationPhase.SPEAKING
+            } else {
+                state.conversationPhase
+            },
             latestDebugInfo = displayResponse.debug,
             debugHistory = displayResponse.debug?.let { (state.debugHistory + it).takeLast(50) }
                 ?: state.debugHistory
         )
         persistHistory()
     }
+
+    private fun conversationHistory(): List<ConversationTurn> = state.messages
+        .asSequence()
+        .filterNot { it.id == WELCOME_MESSAGE_ID }
+        .mapNotNull { message ->
+            when (message) {
+                is ChatMessageUi.User -> ConversationTurn(ConversationRole.USER, message.text)
+
+                is ChatMessageUi.Assistant ->
+                    message.text
+                        .takeIf(String::isNotBlank)
+                        ?.let { ConversationTurn(ConversationRole.ASSISTANT, it) }
+            }
+        }
+        .toList()
+        .takeLast(MAX_CONVERSATION_TURNS)
 
     private fun appendAssistantMessage(text: String, widget: WidgetPayload?) {
         val id = UUID.randomUUID().toString()
@@ -466,6 +645,105 @@ class ChatViewModel(
                 widget,
                 null
             )
+        )
+        persistHistory()
+    }
+
+    private fun upsertResearchProgress(
+        messageId: String?,
+        event: AnswerEvent
+    ): String {
+        val runId = when (event) {
+            AnswerEvent.WebSearchStarted,
+            is AnswerEvent.WebSearchCompleted -> error("Search events do not create a research card")
+
+            is AnswerEvent.ResearchStarted -> event.runId
+
+            is AnswerEvent.ResearchProgress -> event.runId
+        }
+        val status = when (event) {
+            AnswerEvent.WebSearchStarted,
+            is AnswerEvent.WebSearchCompleted -> error("Search events do not create a research card")
+
+            is AnswerEvent.ResearchStarted -> "queued"
+
+            is AnswerEvent.ResearchProgress -> event.status.name.lowercase()
+        }
+        val sourceCount = (event as? AnswerEvent.ResearchProgress)?.sourceCount ?: 0
+        val id = messageId ?: UUID.randomUUID().toString()
+        val widget = WidgetPayload(
+            WidgetTypes.RESEARCH_CARD,
+            buildJsonObject {
+                put("run_id", runId)
+                put("state", "running")
+                put("stage", status)
+                put("source_count", sourceCount)
+            }
+        )
+        val message = ChatMessageUi.Assistant(
+            id = id,
+            createdAt = Instant.now().toString(),
+            text = "",
+            widget = widget,
+            debug = null
+        )
+        state = state.copy(
+            messages = if (messageId == null) {
+                state.messages + message
+            } else {
+                state.messages.map { if (it.id == id) message else it }
+            }
+        )
+        persistHistory()
+        return id
+    }
+
+    private fun detachResearchJob(
+        runId: String,
+        job: Job?,
+        onStateChanged: (ChatUiState) -> Unit
+    ) {
+        job?.let { researchJobs[runId] = it }
+        if (activeProcessingJob !== job) return
+        activeProcessingJob = null
+        state = state.copy(
+            isProcessing = false,
+            processingStage = if (state.conversationActive) ProcessingStage.RESEARCHING else null,
+            conversationPhase = if (state.conversationActive) {
+                ConversationPhase.PROCESSING
+            } else {
+                state.conversationPhase
+            }
+        )
+        onStateChanged(state)
+    }
+
+    private fun cancelResearch(action: WidgetAction) {
+        val runId = action.payload["run_id"].orEmpty()
+        if (runId.isBlank()) return
+        (answerProvider as? ResearchCancellableAnswerProvider)?.cancelResearch(runId)
+        researchJobs.remove(runId)?.cancel()
+        state = state.copy(
+            messages = state.messages.map { message ->
+                if (
+                    message is ChatMessageUi.Assistant &&
+                    message.widget?.type == WidgetTypes.RESEARCH_CARD &&
+                    message.widget.payload["run_id"]?.toString()?.trim('"') == runId
+                ) {
+                    message.copy(
+                        text = "Исследование отменено.",
+                        widget = WidgetPayload(
+                            WidgetTypes.RESEARCH_CARD,
+                            buildJsonObject {
+                                put("run_id", runId)
+                                put("state", "cancelled")
+                            }
+                        )
+                    )
+                } else {
+                    message
+                }
+            }
         )
         persistHistory()
     }
@@ -585,7 +863,7 @@ class ChatViewModel(
                 put("recoverable", true)
             }
         ),
-        DebugInfo(transcript = input, intent = Intents.UNKNOWN, actionResult = "error")
+        debug = DebugInfo(transcript = input, intent = Intents.UNKNOWN, actionResult = "error")
     )
 
     private fun voiceTranscriptionError(message: String) = AssistantResponse(
@@ -611,6 +889,8 @@ class ChatViewModel(
 
     private companion object {
         const val STREAM_UPDATE_INTERVAL_MS = 40L
+        const val WELCOME_MESSAGE_ID = "welcome"
+        const val MAX_CONVERSATION_TURNS = 12
     }
 }
 
@@ -623,8 +903,30 @@ private enum class TimerAction {
 private data class StreamingExecution(
     val response: AssistantResponse,
     val messageId: String?,
-    val firstVisibleTokenMs: Long?
+    val firstVisibleTokenMs: Long?,
+    val researchRunId: String? = null
 )
+
+private class AnswerEventBuffer {
+    private val events = ConcurrentLinkedQueue<AnswerEvent>()
+
+    @Volatile
+    private var closed = false
+
+    fun append(event: AnswerEvent) {
+        if (!closed) events += event
+    }
+
+    fun drain(): List<AnswerEvent> = buildList {
+        while (true) add(events.poll() ?: break)
+    }
+
+    fun close() {
+        closed = true
+    }
+
+    fun isClosedAndEmpty(): Boolean = closed && events.isEmpty()
+}
 
 private class StreamingTokenBuffer {
     private val lock = Any()

@@ -5,7 +5,18 @@ import androidx.core.content.edit
 
 class AssistantSettingsRepository(context: Context) {
     private val preferences = context.getSharedPreferences("offline_assistant_settings", Context.MODE_PRIVATE)
-    private val deepSeekApiKeyStore = DeepSeekApiKeyStore(context.applicationContext)
+    private val deepSeekApiKeyStore = EncryptedApiKeyStore(
+        context = context.applicationContext,
+        credentialId = "deepseek_api_key",
+        keyAlias = "offline_assistant_deepseek_byok_v1",
+        displayName = "DeepSeek"
+    )
+    private val exaApiKeyStore = EncryptedApiKeyStore(
+        context = context.applicationContext,
+        credentialId = "exa_api_key",
+        keyAlias = "offline_assistant_exa_byok_v1",
+        displayName = "Exa"
+    )
 
     var intentConfidenceThreshold: Double
         get() = preferences.getFloat(KEY_INTENT_CONFIDENCE_THRESHOLD, DEFAULT_INTENT_CONFIDENCE_THRESHOLD.toFloat()).toDouble()
@@ -30,6 +41,12 @@ class AssistantSettingsRepository(context: Context) {
             preferences.edit(commit = true) { putBoolean(KEY_DEEPSEEK_ENABLED, value) }
         }
 
+    var exaEnabled: Boolean
+        get() = preferences.getBoolean(KEY_EXA_ENABLED, exaApiKeyConfigured)
+        set(value) {
+            preferences.edit(commit = true) { putBoolean(KEY_EXA_ENABLED, value) }
+        }
+
     val deepSeekApiKeyConfigured: Boolean
         get() = deepSeekApiKeyStore.isConfigured()
 
@@ -43,9 +60,24 @@ class AssistantSettingsRepository(context: Context) {
         deepSeekApiKeyStore.clear()
     }
 
+    val exaApiKeyConfigured: Boolean
+        get() = exaApiKeyStore.isConfigured()
+
+    fun saveExaApiKey(value: String) {
+        exaApiKeyStore.save(value)
+        exaEnabled = true
+    }
+
+    fun exaApiKeyOrNull(): String? = exaApiKeyStore.readOrNull()
+
+    fun clearExaApiKey() {
+        exaApiKeyStore.clear()
+    }
+
     fun clear() {
         preferences.edit { clear() }
         deepSeekApiKeyStore.clear()
+        exaApiKeyStore.clear()
     }
 
     companion object {
@@ -56,5 +88,6 @@ class AssistantSettingsRepository(context: Context) {
         private const val KEY_INTENT_CONFIDENCE_THRESHOLD = "intent_confidence_threshold"
         private const val KEY_AUTOMATIC_SPEECH = "automatic_speech"
         private const val KEY_DEEPSEEK_ENABLED = "deepseek_enabled"
+        private const val KEY_EXA_ENABLED = "exa_enabled"
     }
 }

@@ -88,6 +88,10 @@ dependencies {
     implementation(libs.onnxruntime.android)
     implementation(libs.jtransforms)
     implementation(libs.androidx.profileinstaller)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.markdown.renderer)
+    implementation(libs.markdown.renderer.m3)
 
     baselineProfile(project(":benchmark"))
 

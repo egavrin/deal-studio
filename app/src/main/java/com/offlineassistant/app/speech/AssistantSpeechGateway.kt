@@ -13,22 +13,34 @@ class AssistantSpeechGateway :
     Closeable {
     private val lock = Any()
     private val _playbackRange = MutableStateFlow<SpeechPlaybackRange?>(null)
+    private val _playbackState = MutableStateFlow(SpeechPlaybackState())
 
     val playbackRange: StateFlow<SpeechPlaybackRange?> = _playbackRange.asStateFlow()
+    val playbackState: StateFlow<SpeechPlaybackState> = _playbackState.asStateFlow()
 
     @Volatile
     private var delegate: AssistantSpeech? = null
     private val pending = mutableListOf<SpeechEvent>()
     private var closed = false
     private var enabled = true
+    private var conversationModeActive = false
 
     fun setEnabled(enabled: Boolean) {
         val target = synchronized(lock) {
             this.enabled = enabled
-            if (!enabled) pending.clear()
+            if (!enabled && !conversationModeActive) pending.clear()
             delegate
         }
-        if (!enabled) target?.stop(SpeechStopReason.GENERATION_STOPPED)
+        if (!enabled && !conversationModeActive) target?.stop(SpeechStopReason.GENERATION_STOPPED)
+    }
+
+    fun setConversationModeActive(active: Boolean) {
+        val target = synchronized(lock) {
+            conversationModeActive = active
+            if (!active && !enabled) pending.clear()
+            delegate
+        }
+        if (!active && !enabled) target?.stop(SpeechStopReason.GENERATION_STOPPED)
     }
 
     fun install(speech: AssistantSpeech): Boolean {
@@ -49,11 +61,24 @@ class AssistantSpeechGateway :
             delegate.also { delegate = null }
         }
         _playbackRange.value = null
+        _playbackState.value = SpeechPlaybackState()
         previous?.closeIfOwned()
     }
 
     fun updatePlaybackRange(range: SpeechPlaybackRange?) {
         _playbackRange.value = range
+    }
+
+    fun updatePlaybackStarted(messageId: String) {
+        _playbackState.value = _playbackState.value.copy(activeMessageId = messageId)
+    }
+
+    fun updatePlaybackCompleted(messageId: String) {
+        val previous = _playbackState.value
+        _playbackState.value = SpeechPlaybackState(
+            completedMessageId = messageId,
+            completionSequence = previous.completionSequence + 1
+        )
     }
 
     override fun begin(messageId: String) = dispatch(SpeechEvent.Begin(messageId))
@@ -75,6 +100,9 @@ class AssistantSpeechGateway :
             delegate
         }
         _playbackRange.value = null
+        _playbackState.value = SpeechPlaybackState(
+            completionSequence = _playbackState.value.completionSequence
+        )
         target?.stop(reason)
     }
 
@@ -86,12 +114,13 @@ class AssistantSpeechGateway :
             delegate.also { delegate = null }
         }
         _playbackRange.value = null
+        _playbackState.value = SpeechPlaybackState()
         previous?.closeIfOwned()
     }
 
     private fun dispatch(event: SpeechEvent, requiresAutomaticSpeech: Boolean = true) {
         val target = synchronized(lock) {
-            if (closed || (requiresAutomaticSpeech && !enabled)) return
+            if (closed || (requiresAutomaticSpeech && !enabled && !conversationModeActive)) return
             delegate ?: run {
                 pending += event
                 return
@@ -136,3 +165,9 @@ class AssistantSpeechGateway :
         }
     }
 }
+
+data class SpeechPlaybackState(
+    val activeMessageId: String? = null,
+    val completedMessageId: String? = null,
+    val completionSequence: Long = 0
+)

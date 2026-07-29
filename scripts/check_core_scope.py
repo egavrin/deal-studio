@@ -17,6 +17,8 @@ EXPECTED_INTENTS = {
     "CALCULATE",
     "OPEN_APP",
     "HELP",
+    "WEB_SEARCH",
+    "WEB_RESEARCH",
     "UNKNOWN",
 }
 EXPECTED_WIDGETS = {
@@ -32,6 +34,7 @@ EXPECTED_WIDGETS = {
     "PERMISSION_CARD",
     "ERROR_CARD",
     "GENERIC_ANSWER_CARD",
+    "RESEARCH_CARD",
 }
 EXPECTED_MODULES = {
     ":app",
@@ -160,6 +163,8 @@ def main() -> int:
             "calculate",
             "open_app",
             "help",
+            "web_search",
+            "web_research",
             "unknown",
         }
         if actual_labels != expected_labels:

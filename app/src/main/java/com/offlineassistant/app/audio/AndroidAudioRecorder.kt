@@ -110,6 +110,21 @@ class AndroidAudioRecorder(
         return file
     }
 
+    @Synchronized
+    fun cancel() {
+        if (!isRecording.getAndSet(false)) return
+        val audioRecord = recorder
+        recorder = null
+        if (audioRecord != null) {
+            runCatching { audioRecord.stop() }
+        }
+        worker?.join(1_000)
+        worker = null
+        audioRecord?.release()
+        captureWav = true
+        synchronized(pcmBuffer) { pcmBuffer.reset() }
+    }
+
     private fun pcm16BytesToShorts(bytes: ByteArray, size: Int): ShortArray {
         val shorts = ShortArray(size / 2)
         for (index in shorts.indices) {

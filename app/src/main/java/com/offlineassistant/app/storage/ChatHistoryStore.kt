@@ -4,10 +4,17 @@ import android.content.Context
 import androidx.core.content.edit
 import com.offlineassistant.app.ui.ChatMessageUi
 import com.offlineassistant.core.contracts.DebugInfo
+import com.offlineassistant.core.contracts.MediaAttachment
+import com.offlineassistant.core.contracts.SourceCitation
 import com.offlineassistant.core.contracts.WidgetPayload
+import com.offlineassistant.core.contracts.WidgetTypes
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 interface ChatHistoryStore {
     fun load(): List<ChatMessageUi>
@@ -54,12 +61,23 @@ private data class StoredChatMessage(
     val text: String,
     val source: String? = null,
     val widget: WidgetPayload? = null,
+    val media: List<MediaAttachment> = emptyList(),
+    val sources: List<SourceCitation> = emptyList(),
     val debug: DebugInfo? = null
 ) {
     fun toUi(): ChatMessageUi = if (role == ROLE_USER) {
         ChatMessageUi.User(id, createdAt, text, source ?: "text")
     } else {
-        ChatMessageUi.Assistant(id, createdAt, text, widget, debug)
+        val restoredWidget = widget?.markInterruptedResearch()
+        ChatMessageUi.Assistant(
+            id,
+            createdAt,
+            if (restoredWidget !== widget && text.isBlank()) "Исследование было прервано." else text,
+            restoredWidget,
+            debug,
+            media,
+            sources
+        )
     }
 
     companion object {
@@ -81,8 +99,21 @@ private data class StoredChatMessage(
                 createdAt = message.createdAt,
                 text = message.text,
                 widget = message.widget,
+                media = message.media,
+                sources = message.sources,
                 debug = message.debug
             )
         }
     }
+}
+
+private fun WidgetPayload.markInterruptedResearch(): WidgetPayload {
+    if (type != WidgetTypes.RESEARCH_CARD) return this
+    if (payload["state"]?.jsonPrimitive?.contentOrNull != "running") return this
+    return copy(
+        payload = buildJsonObject {
+            payload.forEach(::put)
+            put("state", "interrupted")
+        }
+    )
 }

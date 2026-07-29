@@ -6,6 +6,10 @@ import com.offlineassistant.core.contracts.LatencyBreakdown
 import com.offlineassistant.core.contracts.ResponseStatus
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
+import com.offlineassistant.core.llm.AnswerEvent
+import com.offlineassistant.core.llm.AnswerRequest
+import com.offlineassistant.core.llm.AnswerRoute
+import com.offlineassistant.core.llm.ConversationTurn
 import com.offlineassistant.core.llm.StreamingAnswerProvider
 import com.offlineassistant.core.llm.UnavailableAnswerProvider
 import com.offlineassistant.core.nlu.Intents
@@ -22,6 +26,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 class AssistantEngine(
@@ -33,7 +39,9 @@ class AssistantEngine(
 ) {
     fun handleText(
         input: String,
+        conversationHistory: List<ConversationTurn> = emptyList(),
         onAnswerToken: ((String) -> Unit)? = null,
+        onAnswerEvent: ((AnswerEvent) -> Unit)? = null,
         isCancelled: () -> Boolean = { false }
     ): AssistantResponse {
         val started = System.currentTimeMillis()
@@ -51,18 +59,14 @@ class AssistantEngine(
                 actionResult = "rubert_unavailable"
             )
 
-            nluResult.intent == Intents.UNKNOWN -> answer(
+            nluResult.intent == Intents.UNKNOWN ||
+                nluResult.intent !in Intents.localActions -> answer(
                 input,
+                nluResult,
+                conversationHistory,
                 onAnswerToken,
+                onAnswerEvent,
                 isCancelled
-            )
-
-            nluResult.intent !in Intents.localActions -> EngineExecution(
-                error(
-                    "Команда не поддерживается",
-                    "Этот intent не входит в текущий локальный набор команд."
-                ),
-                actionResult = "unsupported_intent"
             )
 
             nluResult.confidence < confidenceThreshold -> EngineExecution(
@@ -84,10 +88,14 @@ class AssistantEngine(
                 normalizedCommand = execution.normalizedCommand,
                 cloudAnswerUsed = execution.answerUsed,
                 answerSource = execution.answerSource,
+                answerRoute = execution.answerRoute,
+                sourceCount = execution.response.sources.size,
+                researchRunId = execution.researchRunId,
                 actionResult = execution.actionResult,
                 latencyMs = LatencyBreakdown(
                     nlu = nluLatency,
                     cloudAnswer = execution.answerLatencyMs,
+                    webSearch = execution.searchLatencyMs,
                     normalization = execution.normalizationLatencyMs,
                     skillExecution = execution.skillLatencyMs,
                     total = totalLatency
@@ -159,17 +167,34 @@ class AssistantEngine(
 
     private fun answer(
         input: String,
+        nluResult: NluResult,
+        conversationHistory: List<ConversationTurn>,
         onAnswerToken: ((String) -> Unit)?,
+        onAnswerEvent: ((AnswerEvent) -> Unit)?,
         isCancelled: () -> Boolean
     ): EngineExecution {
         checkCancellation(isCancelled)
         val consumer: (String) -> Unit = { token ->
             if (!isCancelled()) onAnswerToken?.invoke(token)
         }
+        val request = AnswerRequest(
+            input = input,
+            history = conversationHistory,
+            mediaSearchQuery = nluResult.slots["query"]?.jsonPrimitive?.contentOrNull,
+            route = when (nluResult.intent) {
+                Intents.WEB_SEARCH -> AnswerRoute.WEB_SEARCH
+                Intents.WEB_RESEARCH -> AnswerRoute.WEB_RESEARCH
+                else -> AnswerRoute.DIRECT
+            }
+        )
         val result = if (onAnswerToken == null) {
-            answerProvider.answer(input)
+            answerProvider.answer(request)
+        } else if (onAnswerEvent != null) {
+            answerProvider.answer(request, consumer) { event ->
+                if (!isCancelled()) onAnswerEvent(event)
+            }
         } else {
-            answerProvider.answer(input, consumer)
+            answerProvider.answer(request, consumer)
         }
         checkCancellation(isCancelled)
         return if (result.successful) {
@@ -178,19 +203,28 @@ class AssistantEngine(
                 response = AssistantResponse(
                     status = ResponseStatus.SUCCESS,
                     text = text,
-                    intent = Intents.UNKNOWN,
-                    widget = WidgetPayload(
+                    intent = nluResult.intent,
+                    widget = result.widget ?: WidgetPayload(
                         WidgetTypes.GENERIC_ANSWER_CARD,
                         buildJsonObject {
                             put("answer", text)
                             put("source", result.source ?: "deepseek_cloud")
                         }
-                    )
+                    ),
+                    media = result.media,
+                    sources = result.sources
                 ),
                 answerUsed = true,
                 answerSource = result.source ?: "deepseek_cloud",
+                answerRoute = request.route.name.lowercase(),
                 answerLatencyMs = result.latencyMs,
-                actionResult = "deepseek_answer"
+                searchLatencyMs = result.searchLatencyMs,
+                researchRunId = result.researchRunId,
+                actionResult = when (request.route) {
+                    AnswerRoute.DIRECT -> "deepseek_answer"
+                    AnswerRoute.WEB_SEARCH -> "grounded_web_answer"
+                    AnswerRoute.WEB_RESEARCH -> "exa_research_answer"
+                }
             )
         } else {
             EngineExecution(
@@ -200,8 +234,15 @@ class AssistantEngine(
                 ),
                 answerUsed = true,
                 answerSource = result.source ?: "deepseek_cloud",
+                answerRoute = request.route.name.lowercase(),
                 answerLatencyMs = result.latencyMs,
-                actionResult = "deepseek_error"
+                searchLatencyMs = result.searchLatencyMs,
+                researchRunId = result.researchRunId,
+                actionResult = when (request.route) {
+                    AnswerRoute.DIRECT -> "deepseek_error"
+                    AnswerRoute.WEB_SEARCH -> "web_search_error"
+                    AnswerRoute.WEB_RESEARCH -> "web_research_error"
+                }
             )
         }
     }
@@ -245,7 +286,10 @@ private data class EngineExecution(
     val normalizedCommand: JsonObject? = null,
     val answerUsed: Boolean = false,
     val answerSource: String? = null,
+    val answerRoute: String? = null,
     val answerLatencyMs: Long? = null,
+    val searchLatencyMs: Long? = null,
+    val researchRunId: String? = null,
     val normalizationLatencyMs: Long? = null,
     val skillLatencyMs: Long = 0,
     val actionResult: String

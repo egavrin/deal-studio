@@ -54,6 +54,8 @@ class TrainingLayoutTest(unittest.TestCase):
             "calculate",
             "open_app",
             "help",
+            "web_search",
+            "web_research",
             "unknown",
         }
         counts = {intent: 0 for intent in expected}

@@ -45,7 +45,9 @@ data class SettingsUiState(
     val intentConfidenceThreshold: Double,
     val automaticSpeechEnabled: Boolean,
     val deepSeekEnabled: Boolean,
-    val deepSeekApiKeyConfigured: Boolean
+    val deepSeekApiKeyConfigured: Boolean,
+    val exaEnabled: Boolean,
+    val exaApiKeyConfigured: Boolean
 )
 
 data class SettingsActions(
@@ -54,6 +56,9 @@ data class SettingsActions(
     val onDeepSeekEnabledChanged: (Boolean) -> Unit,
     val onSaveDeepSeekApiKey: (String) -> Unit,
     val onClearDeepSeekApiKey: () -> Unit,
+    val onExaEnabledChanged: (Boolean) -> Unit,
+    val onSaveExaApiKey: (String) -> Unit,
+    val onClearExaApiKey: () -> Unit,
     val onRefreshReadiness: () -> Unit,
     val onClearChat: () -> Unit,
     val onClearCoreData: () -> Unit
@@ -65,8 +70,10 @@ fun SettingsScreen(
     state: SettingsUiState,
     actions: SettingsActions
 ) {
-    var apiKey by remember { mutableStateOf("") }
-    var saveError by remember { mutableStateOf<String?>(null) }
+    var deepSeekApiKey by remember { mutableStateOf("") }
+    var deepSeekSaveError by remember { mutableStateOf<String?>(null) }
+    var exaApiKey by remember { mutableStateOf("") }
+    var exaSaveError by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = modifier
@@ -136,7 +143,7 @@ fun SettingsScreen(
             SettingsSection("DeepSeek") {
                 ToggleRow(
                     label = "Сложные вопросы",
-                    detail = "Только intent unknown отправляется в DeepSeek. Команды и голос не отправляются.",
+                    detail = "Запросы вне локального набора команд отправляются в DeepSeek. Голос не отправляется.",
                     checked = state.deepSeekEnabled,
                     onCheckedChange = actions.onDeepSeekEnabledChanged
                 )
@@ -150,10 +157,10 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 OutlinedTextField(
-                    value = apiKey,
+                    value = deepSeekApiKey,
                     onValueChange = {
-                        apiKey = it
-                        saveError = null
+                        deepSeekApiKey = it
+                        deepSeekSaveError = null
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -162,16 +169,16 @@ fun SettingsScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true
                 )
-                saveError?.let {
+                deepSeekSaveError?.let {
                     Text(it, color = AssistantColors.Danger, style = MaterialTheme.typography.bodySmall)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        enabled = apiKey.isNotBlank(),
+                        enabled = deepSeekApiKey.isNotBlank(),
                         onClick = {
-                            runCatching { actions.onSaveDeepSeekApiKey(apiKey) }
-                                .onSuccess { apiKey = "" }
-                                .onFailure { saveError = it.message ?: "Не удалось сохранить ключ." }
+                            runCatching { actions.onSaveDeepSeekApiKey(deepSeekApiKey) }
+                                .onSuccess { deepSeekApiKey = "" }
+                                .onFailure { deepSeekSaveError = it.message ?: "Не удалось сохранить ключ." }
                         }
                     ) {
                         Text("Сохранить")
@@ -180,7 +187,63 @@ fun SettingsScreen(
                         enabled = state.deepSeekApiKeyConfigured,
                         onClick = {
                             actions.onClearDeepSeekApiKey()
-                            apiKey = ""
+                            deepSeekApiKey = ""
+                        }
+                    ) {
+                        Text("Удалить")
+                    }
+                }
+            }
+        }
+        item {
+            SettingsSection("Поиск Exa") {
+                ToggleRow(
+                    label = "Актуальные ответы и исследования",
+                    detail = "RuBERT отдельно выбирает быстрый Exa Search или фоновый Exa Agent. Локальные команды не отправляются в сеть.",
+                    checked = state.exaEnabled,
+                    onCheckedChange = actions.onExaEnabledChanged
+                )
+                Text(
+                    if (state.exaApiKeyConfigured) {
+                        "API-ключ сохранён в Android Keystore."
+                    } else {
+                        "API-ключ не настроен."
+                    },
+                    color = if (state.exaApiKeyConfigured) AssistantColors.Success else AssistantColors.Muted,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = exaApiKey,
+                    onValueChange = {
+                        exaApiKey = it
+                        exaSaveError = null
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("exa_api_key"),
+                    label = { Text("Exa API key") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+                exaSaveError?.let {
+                    Text(it, color = AssistantColors.Danger, style = MaterialTheme.typography.bodySmall)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = exaApiKey.isNotBlank(),
+                        onClick = {
+                            runCatching { actions.onSaveExaApiKey(exaApiKey) }
+                                .onSuccess { exaApiKey = "" }
+                                .onFailure { exaSaveError = it.message ?: "Не удалось сохранить ключ." }
+                        }
+                    ) {
+                        Text("Сохранить")
+                    }
+                    OutlinedButton(
+                        enabled = state.exaApiKeyConfigured,
+                        onClick = {
+                            actions.onClearExaApiKey()
+                            exaApiKey = ""
                         }
                     ) {
                         Text("Удалить")

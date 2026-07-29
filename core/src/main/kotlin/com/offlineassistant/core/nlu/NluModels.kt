@@ -32,6 +32,8 @@ object Intents {
     const val CALCULATE = "calculate"
     const val OPEN_APP = "open_app"
     const val HELP = "help"
+    const val WEB_SEARCH = "web_search"
+    const val WEB_RESEARCH = "web_research"
     const val UNKNOWN = "unknown"
 
     val supported: Set<String> = setOf(
@@ -44,8 +46,11 @@ object Intents {
         CALCULATE,
         OPEN_APP,
         HELP,
+        WEB_SEARCH,
+        WEB_RESEARCH,
         UNKNOWN
     )
 
-    val localActions: Set<String> = supported - UNKNOWN
+    val webAnswers: Set<String> = setOf(WEB_SEARCH, WEB_RESEARCH)
+    val localActions: Set<String> = supported - webAnswers - UNKNOWN
 }

@@ -16,5 +16,13 @@
 {"text":"Открой Telegram","intent":"open_app","slots":[{"name":"app_name","value":"Telegram","start":7,"end":15}]}
 {"text":"Покажи доступные команды","intent":"help","slots":[]}
 {"text":"Что ты умеешь?","intent":"help","slots":[]}
+{"text":"Найди последние новости об Android 17","intent":"web_search","slots":[],"gate":true}
+{"text":"Кто сейчас возглавляет OpenAI?","intent":"web_search","slots":[],"gate":true}
+{"text":"Проверь актуальный курс евро","intent":"web_search","slots":[],"gate":true}
+{"text":"Поищи официальную документацию по Kotlin coroutines","intent":"web_search","slots":[],"gate":true}
+{"text":"Проведи исследование рынка локальных голосовых ассистентов","intent":"web_research","slots":[],"gate":true}
+{"text":"Сравни по нескольким источникам современные ASR модели","intent":"web_research","slots":[],"gate":true}
+{"text":"Изучи рынок складных смартфонов и подготовь выводы","intent":"web_research","slots":[],"gate":true}
+{"text":"Собери подробный обзор конкурентов Perplexity","intent":"web_research","slots":[],"gate":true}
 {"text":"Почему небо синее?","intent":"unknown","slots":[]}
 {"text":"Объясни квантовую запутанность простыми словами","intent":"unknown","slots":[]}

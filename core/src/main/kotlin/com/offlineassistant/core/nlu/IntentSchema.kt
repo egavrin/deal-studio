@@ -73,7 +73,15 @@ data class IntentSchema(
                     "open_app",
                     WidgetTypes.OPEN_APP_CARD
                 ),
-                IntentDefinition(Intents.HELP, emptyList(), emptyList(), "help", WidgetTypes.HELP_CARD)
+                IntentDefinition(Intents.HELP, emptyList(), emptyList(), "help", WidgetTypes.HELP_CARD),
+                IntentDefinition(Intents.WEB_SEARCH, emptyList(), listOf("query"), "web_search"),
+                IntentDefinition(
+                    Intents.WEB_RESEARCH,
+                    emptyList(),
+                    listOf("query"),
+                    "web_research",
+                    WidgetTypes.RESEARCH_CARD
+                )
             )
         )
     }

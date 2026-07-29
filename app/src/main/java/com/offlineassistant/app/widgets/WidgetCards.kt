@@ -30,11 +30,14 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -467,6 +470,67 @@ object GenericAnswerCardRenderer : AssistantWidgetRenderer {
     }
 }
 
+object ResearchCardRenderer : AssistantWidgetRenderer {
+    override val type = WidgetTypes.RESEARCH_CARD
+
+    @Composable
+    override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("research_card") {
+        val state = payload.text("state") ?: "running"
+        val stage = payload.text("stage")
+        WidgetHeader(Icons.Default.TravelExplore, if (state == "completed") "Исследование" else "Ищу в интернете")
+        if (state == "running") {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(
+                when (stage) {
+                    "queued" -> "Запрос поставлен в очередь"
+                    "searching" -> "Ищу релевантные источники"
+                    "reading" -> "Читаю и сверяю источники"
+                    "writing" -> "Формирую итог"
+                    else -> "Исследование выполняется в фоне"
+                },
+                color = AssistantColors.Muted
+            )
+            val sourceCount = payload.int("source_count") ?: 0
+            if (sourceCount > 0) Text("Поисковых проходов: $sourceCount", color = AssistantColors.Muted)
+            OutlinedButton(
+                onClick = {
+                    onAction(
+                        WidgetAction(
+                            WidgetActionNames.RESEARCH_CANCEL,
+                            type,
+                            payload.text("run_id").asPayload("run_id")
+                        )
+                    )
+                }
+            ) {
+                Icon(Icons.Default.Stop, contentDescription = null)
+                Text("Остановить", modifier = Modifier.padding(start = 6.dp))
+            }
+        } else if (state == "cancelled" || state == "interrupted") {
+            Text(
+                if (state == "cancelled") "Исследование остановлено." else "Исследование было прервано.",
+                color = AssistantColors.Muted
+            )
+        } else {
+            payload.text("summary")?.takeIf(String::isNotBlank)?.let {
+                Text(it, style = MaterialTheme.typography.bodyLarge)
+            }
+            payload["findings"]?.jsonArray?.take(5)?.forEachIndexed { index, element ->
+                val finding = element.jsonObject
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "${index + 1}. ${finding.text("title").orEmpty()}",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(finding.text("detail").orEmpty(), color = AssistantColors.Muted)
+                }
+            }
+            val sourceCount = payload.int("source_count") ?: 0
+            SourceChip("exa_agent:$sourceCount")
+        }
+    }
+}
+
 @Composable
 private fun WidgetCard(tag: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(
@@ -536,10 +600,18 @@ private fun ForecastRow(forecast: JsonArray?) {
 private fun SourceChip(source: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = AssistantColors.PrimarySoft) {
         Text(
-            when (source.lowercase()) {
-                "mock" -> "mock data"
-                "cache" -> "cached"
-                "online" -> "online"
+            when {
+                source.equals("mock", ignoreCase = true) -> "mock data"
+
+                source.equals("cache", ignoreCase = true) -> "cached"
+
+                source.equals("online", ignoreCase = true) -> "online"
+
+                source.startsWith("exa_agent:", ignoreCase = true) ->
+                    "Exa Agent · ${source.substringAfter(':')} источников"
+
+                source.equals("exa_search+deepseek", ignoreCase = true) -> "Exa + DeepSeek"
+
                 else -> "DeepSeek · cloud"
             },
             color = AssistantColors.Primary,

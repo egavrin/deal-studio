@@ -40,6 +40,32 @@ class AssistantSpeechGatewayTest {
     }
 
     @Test
+    fun `conversation mode speaks while automatic speech setting is disabled`() {
+        val gateway = AssistantSpeechGateway()
+        val runtime = RecordingSpeech()
+        gateway.install(runtime)
+        gateway.setEnabled(false)
+        gateway.setConversationModeActive(true)
+
+        gateway.finish("conversation", "Голосовой ответ.")
+
+        assertEquals(listOf("finish:conversation:Голосовой ответ."), runtime.events)
+        gateway.close()
+    }
+
+    @Test
+    fun `publishes response playback lifecycle`() {
+        val gateway = AssistantSpeechGateway()
+
+        gateway.updatePlaybackStarted("answer")
+        assertEquals("answer", gateway.playbackState.value.activeMessageId)
+        gateway.updatePlaybackCompleted("answer")
+
+        assertEquals("answer", gateway.playbackState.value.completedMessageId)
+        assertEquals(1L, gateway.playbackState.value.completionSequence)
+    }
+
+    @Test
     fun `released runtime is closed and can be replaced`() {
         val gateway = AssistantSpeechGateway()
         val first = RecordingSpeech()

@@ -112,6 +112,8 @@ class AssistantSpeechController(
     private val onError: (Throwable) -> Unit = {},
     private val onFirstAudioReady: (messageId: String, latencyMs: Long) -> Unit = { _, _ -> },
     private val onPlaybackRangeChanged: (SpeechPlaybackRange?) -> Unit = {},
+    private val onResponsePlaybackStarted: (messageId: String) -> Unit = {},
+    private val onResponsePlaybackCompleted: (messageId: String) -> Unit = {},
     private val onPipelineEvent: (SpeechPipelineEvent) -> Unit = {}
 ) : AssistantSpeech,
     Closeable {
@@ -196,6 +198,7 @@ class AssistantSpeechController(
                                             }
                                         }
                                         if (startedAt != null) {
+                                            onResponsePlaybackStarted(job.messageId)
                                             onFirstAudioReady(
                                                 job.messageId,
                                                 (System.nanoTime() - startedAt) / 1_000_000L
@@ -239,6 +242,7 @@ class AssistantSpeechController(
                             }
                             playbackBuffer.clear()
                             onPlaybackRangeChanged(null)
+                            onResponsePlaybackCompleted(event.messageId)
                         }
                     }
                 }
@@ -335,11 +339,14 @@ class AssistantSpeechController(
     private fun enqueue(messageId: String, chunks: List<PlannedSpeechChunk>) {
         val currentGeneration = generation.get()
         chunks.forEach { chunk ->
-            val estimatedDurationMs = estimateDurationMs(chunk.text)
+            val speechText = markdownToSpeechText(chunk.text)
+            if (speechText.isBlank()) return@forEach
+            val speechChunk = chunk.copy(text = speechText)
+            val estimatedDurationMs = estimateDurationMs(speechText)
             playbackBuffer.enqueue(estimatedDurationMs)
             val result = synthesisQueue.trySend(
                 SynthesisEvent.Chunk(
-                    SpeechJob(currentGeneration, messageId, chunk, estimatedDurationMs)
+                    SpeechJob(currentGeneration, messageId, speechChunk, estimatedDurationMs)
                 )
             )
             if (result.isFailure) playbackBuffer.removeQueued(estimatedDurationMs)

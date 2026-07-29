@@ -25,6 +25,8 @@ INTENTS = [
     "calculate",
     "open_app",
     "help",
+    "web_search",
+    "web_research",
     "unknown",
 ]
 
@@ -54,6 +56,8 @@ EXPORT_INTENT_CHECKS = [
     ("Помощь", "help", 0.75, False),
     ("Напомни через час проверить духовку", "create_reminder", 0.75, True),
     ("Разбуди меня завтра", "set_alarm", 0.75, False),
+    ("Что нового в Android 17", "web_search", 0.75, False),
+    ("Проведи исследование конкурентов Perplexity", "web_research", 0.75, False),
 ]
 
 DEFAULT_BASE_MODEL = "cointegrated/rubert-tiny2"

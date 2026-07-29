@@ -3,7 +3,9 @@ package com.offlineassistant.core.engine
 import com.offlineassistant.core.contracts.ResponseStatus
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
+import com.offlineassistant.core.llm.AnswerRequest
 import com.offlineassistant.core.llm.AnswerResult
+import com.offlineassistant.core.llm.AnswerRoute
 import com.offlineassistant.core.llm.StreamingAnswerProvider
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluParser
@@ -61,7 +63,7 @@ class AssistantEngineTest {
         val response = engine(
             nluResult = nlu(Intents.UNKNOWN, confidence = 0.91),
             answerProvider = answer
-        ).handleText("Почему небо синее?", tokens::add)
+        ).handleText("Почему небо синее?", onAnswerToken = tokens::add)
 
         assertEquals(listOf("Короткий ", "ответ."), tokens)
         assertEquals("Короткий ответ.", response.text)
@@ -72,16 +74,22 @@ class AssistantEngineTest {
     }
 
     @Test
-    fun `unsupported legacy label fails closed instead of calling cloud`() {
-        val answer = RecordingAnswerProvider()
+    fun `non-core legacy label is treated as a complex cloud question`() {
+        val answer = RecordingAnswerProvider(resultText = "Облачный ответ.")
         val response = engine(
-            nluResult = nlu("create_task", confidence = 0.99),
+            nluResult = nlu(
+                "compose_widget",
+                confidence = 0.99,
+                slots = buildJsonObject { put("query", "Красной площади") }
+            ),
             answerProvider = answer
-        ).handleText("Создай задачу")
+        ).handleText("Покажи фотографии Красной площади")
 
-        assertEquals(ResponseStatus.ERROR, response.status)
-        assertEquals("unsupported_intent", response.debug?.actionResult)
-        assertEquals(0, answer.calls)
+        assertEquals(ResponseStatus.SUCCESS, response.status)
+        assertEquals("compose_widget", response.debug?.intent)
+        assertEquals("deepseek_answer", response.debug?.actionResult)
+        assertEquals(1, answer.calls)
+        assertEquals("Красной площади", answer.lastRequest?.mediaSearchQuery)
     }
 
     @Test
@@ -95,6 +103,30 @@ class AssistantEngineTest {
         assertEquals(ResponseStatus.ERROR, response.status)
         assertEquals("rubert_unavailable", response.debug?.actionResult)
         assertEquals(0, answer.calls)
+    }
+
+    @Test
+    fun `RuBERT web search label selects grounded search route`() {
+        val answer = RecordingAnswerProvider()
+
+        engine(
+            nluResult = nlu(Intents.WEB_SEARCH, confidence = 0.92),
+            answerProvider = answer
+        ).handleText("Что нового в Android 17?")
+
+        assertEquals(AnswerRoute.WEB_SEARCH, answer.lastRequest?.route)
+    }
+
+    @Test
+    fun `RuBERT research label selects Exa Agent route`() {
+        val answer = RecordingAnswerProvider()
+
+        engine(
+            nluResult = nlu(Intents.WEB_RESEARCH, confidence = 0.92),
+            answerProvider = answer
+        ).handleText("Исследуй рынок локальных ассистентов")
+
+        assertEquals(AnswerRoute.WEB_RESEARCH, answer.lastRequest?.route)
     }
 
     private fun engine(
@@ -137,14 +169,18 @@ class AssistantEngineTest {
     private fun nlu(
         intent: String,
         confidence: Double = 0.9,
-        source: NluSource = NluSource.RUBERT_TINY2
-    ) = NluResult(intent, confidence, JsonObject(emptyMap()), source)
+        source: NluSource = NluSource.RUBERT_TINY2,
+        slots: JsonObject = JsonObject(emptyMap())
+    ) = NluResult(intent, confidence, slots, source)
 }
 
 private class RecordingAnswerProvider(
     private val resultText: String = "Ответ."
 ) : StreamingAnswerProvider {
     var calls = 0
+        private set
+
+    var lastRequest: AnswerRequest? = null
         private set
 
     override fun answer(input: String): AnswerResult {
@@ -161,5 +197,15 @@ private class RecordingAnswerProvider(
             onToken(resultText)
         }
         return AnswerResult(resultText, latencyMs = 12, source = "deepseek_cloud")
+    }
+
+    override fun answer(request: AnswerRequest): AnswerResult {
+        lastRequest = request
+        return answer(request.input)
+    }
+
+    override fun answer(request: AnswerRequest, onToken: (String) -> Unit): AnswerResult {
+        lastRequest = request
+        return answer(request.input, onToken)
     }
 }

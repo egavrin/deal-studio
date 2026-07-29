@@ -80,6 +80,24 @@ class AssistantSpeechControllerTest {
         assertTrue(firstAudio.distinct().size == firstAudio.size)
         controller.close()
     }
+
+    @Test
+    fun `reports response playback completion after all chunks`() = runTest {
+        val events = mutableListOf<String>()
+        val controller = AssistantSpeechController(
+            synthesizer = RecordingSynthesizer(),
+            player = RecordingPlayer(),
+            dispatcher = UnconfinedTestDispatcher(testScheduler),
+            onResponsePlaybackStarted = { events += "started:$it" },
+            onResponsePlaybackCompleted = { events += "completed:$it" }
+        )
+
+        controller.begin("answer")
+        controller.finish("answer", "Готовый ответ.")
+
+        assertEquals(listOf("started:answer", "completed:answer"), events)
+        controller.close()
+    }
 }
 
 private class RecordingSynthesizer : SpeechSynthesizer {

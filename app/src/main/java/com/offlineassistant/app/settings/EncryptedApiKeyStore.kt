@@ -11,27 +11,34 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-class DeepSeekApiKeyStore(context: Context) {
+internal class EncryptedApiKeyStore(
+    context: Context,
+    private val credentialId: String,
+    private val keyAlias: String,
+    private val displayName: String
+) {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private val ciphertextKey = "${credentialId}_ciphertext"
+    private val ivKey = "${credentialId}_iv"
 
     @Synchronized
     fun save(value: String) {
         val normalized = value.trim()
-        require(normalized.isNotEmpty()) { "DeepSeek API key cannot be empty" }
+        require(normalized.isNotEmpty()) { "$displayName API key cannot be empty" }
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(Cipher.ENCRYPT_MODE, secretKey())
         }
         val encrypted = cipher.doFinal(normalized.encodeToByteArray())
         preferences.edit(commit = true) {
-            putString(KEY_CIPHERTEXT, Base64.encodeToString(encrypted, Base64.NO_WRAP))
-            putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            putString(ciphertextKey, Base64.encodeToString(encrypted, Base64.NO_WRAP))
+            putString(ivKey, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
         }
     }
 
     @Synchronized
     fun readOrNull(): String? {
-        val ciphertext = preferences.getString(KEY_CIPHERTEXT, null) ?: return null
-        val iv = preferences.getString(KEY_IV, null) ?: return null
+        val ciphertext = preferences.getString(ciphertextKey, null) ?: return null
+        val iv = preferences.getString(ivKey, null) ?: return null
         return runCatching {
             val cipher = Cipher.getInstance(TRANSFORMATION).apply {
                 init(
@@ -42,7 +49,7 @@ class DeepSeekApiKeyStore(context: Context) {
             }
             cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)).decodeToString()
         }.getOrElse {
-            preferences.edit(commit = true) { clear() }
+            removeEncryptedValue()
             null
         }
     }
@@ -51,17 +58,24 @@ class DeepSeekApiKeyStore(context: Context) {
 
     @Synchronized
     fun clear() {
-        preferences.edit(commit = true) { clear() }
-        runCatching { keyStore().deleteEntry(KEY_ALIAS) }
+        removeEncryptedValue()
+        runCatching { keyStore().deleteEntry(keyAlias) }
+    }
+
+    private fun removeEncryptedValue() {
+        preferences.edit(commit = true) {
+            remove(ciphertextKey)
+            remove(ivKey)
+        }
     }
 
     private fun secretKey(): SecretKey {
         val keyStore = keyStore()
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        (keyStore.getKey(keyAlias, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE).run {
             init(
                 KeyGenParameterSpec.Builder(
-                    KEY_ALIAS,
+                    keyAlias,
                     KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
                 )
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
@@ -77,9 +91,6 @@ class DeepSeekApiKeyStore(context: Context) {
 
     internal companion object {
         const val PREFERENCES_NAME = "offline_assistant_secure_cloud_credentials"
-        private const val KEY_CIPHERTEXT = "deepseek_api_key_ciphertext"
-        private const val KEY_IV = "deepseek_api_key_iv"
-        private const val KEY_ALIAS = "offline_assistant_deepseek_byok_v1"
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_BITS = 128

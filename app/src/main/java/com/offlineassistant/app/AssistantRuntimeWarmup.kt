@@ -72,6 +72,16 @@ internal fun WarmAssistantRuntimes(
                             speechGateway.updatePlaybackRange(range)
                         }
                     },
+                    onResponsePlaybackStarted = { messageId ->
+                        Handler(Looper.getMainLooper()).post {
+                            speechGateway.updatePlaybackStarted(messageId)
+                        }
+                    },
+                    onResponsePlaybackCompleted = { messageId ->
+                        Handler(Looper.getMainLooper()).post {
+                            speechGateway.updatePlaybackCompleted(messageId)
+                        }
+                    },
                     onPipelineEvent = SharedPreferencesSpeechPipelineTelemetryStore(appContext)::record
                 )
             }.onFailure { error ->

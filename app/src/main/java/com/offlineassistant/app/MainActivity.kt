@@ -79,7 +79,9 @@ private fun AssistantApp() {
     var threshold by remember { mutableDoubleStateOf(settings.intentConfidenceThreshold) }
     var automaticSpeech by remember { mutableStateOf(settings.automaticSpeechEnabled) }
     var deepSeekEnabled by remember { mutableStateOf(settings.deepSeekEnabled) }
+    var exaEnabled by remember { mutableStateOf(settings.exaEnabled) }
     var keyConfigured by remember { mutableStateOf(settings.deepSeekApiKeyConfigured) }
+    var exaKeyConfigured by remember { mutableStateOf(settings.exaApiKeyConfigured) }
     var readinessEpoch by remember { mutableIntStateOf(0) }
     val readiness = rememberModelReadiness(runtime.readiness, readinessEpoch)
     val chatHistory = remember(context) { SharedPreferencesChatHistoryStore(context.applicationContext) }
@@ -96,6 +98,7 @@ private fun AssistantApp() {
         )
     )
     val playbackRange by speechGateway.playbackRange.collectAsState()
+    val playbackState by speechGateway.playbackState.collectAsState()
 
     LaunchedEffect(automaticSpeech) {
         speechGateway.setEnabled(automaticSpeech)
@@ -145,7 +148,9 @@ private fun AssistantApp() {
                 modifier = Modifier.padding(contentPadding),
                 onOpenSettings = { selectedTab = AppTab.SETTINGS },
                 speechPlaybackRange = playbackRange,
+                speechPlaybackState = playbackState,
                 onStopSpeech = { speechGateway.stop(SpeechStopReason.USER_REQUESTED) },
+                onConversationModeChanged = speechGateway::setConversationModeActive,
                 sharedAudioTranscriberFactory = runtime.audioTranscribers
             )
 
@@ -156,7 +161,9 @@ private fun AssistantApp() {
                     intentConfidenceThreshold = threshold,
                     automaticSpeechEnabled = automaticSpeech,
                     deepSeekEnabled = deepSeekEnabled,
-                    deepSeekApiKeyConfigured = keyConfigured
+                    deepSeekApiKeyConfigured = keyConfigured,
+                    exaEnabled = exaEnabled,
+                    exaApiKeyConfigured = exaKeyConfigured
                 ),
                 actions = SettingsActions(
                     onIntentConfidenceThresholdChanged = {
@@ -178,6 +185,19 @@ private fun AssistantApp() {
                     onClearDeepSeekApiKey = {
                         settings.clearDeepSeekApiKey()
                         keyConfigured = false
+                    },
+                    onExaEnabledChanged = {
+                        exaEnabled = it
+                        settings.exaEnabled = it
+                    },
+                    onSaveExaApiKey = {
+                        settings.saveExaApiKey(it)
+                        exaEnabled = settings.exaEnabled
+                        exaKeyConfigured = settings.exaApiKeyConfigured
+                    },
+                    onClearExaApiKey = {
+                        settings.clearExaApiKey()
+                        exaKeyConfigured = false
                     },
                     onRefreshReadiness = { readinessEpoch++ },
                     onClearChat = chatViewModel::clearChatHistory,
