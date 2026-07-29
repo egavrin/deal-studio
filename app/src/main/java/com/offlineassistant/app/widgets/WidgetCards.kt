@@ -492,6 +492,13 @@ object ResearchCardRenderer : AssistantWidgetRenderer {
             )
             val sourceCount = payload.int("source_count") ?: 0
             if (sourceCount > 0) Text("Поисковых проходов: $sourceCount", color = AssistantColors.Muted)
+            payload["activities"]?.jsonArray?.takeLast(4)?.forEach { activity ->
+                Text(
+                    "• ${activity.jsonPrimitive.content}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AssistantColors.Muted
+                )
+            }
             OutlinedButton(
                 onClick = {
                     onAction(
@@ -527,6 +534,88 @@ object ResearchCardRenderer : AssistantWidgetRenderer {
             }
             val sourceCount = payload.int("source_count") ?: 0
             SourceChip("exa_agent:$sourceCount")
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    onAction(
+                        WidgetAction(
+                            WidgetActionNames.RESEARCH_OPEN_REPORT,
+                            type,
+                            payload.text("run_id").asPayload("run_id")
+                        )
+                    )
+                }
+            ) {
+                Text("Открыть отчёт")
+            }
+        }
+    }
+}
+
+object ActionConfirmationCardRenderer : AssistantWidgetRenderer {
+    override val type = WidgetTypes.ACTION_CONFIRMATION_CARD
+
+    @Composable
+    override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("action_confirmation_card") {
+        val state = payload.text("state") ?: "confirmation_required"
+        WidgetHeader(Icons.Default.Lock, payload.text("title") ?: "Действие на устройстве")
+        Text(payload.text("summary").orEmpty())
+        when (state) {
+            "completed" -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = AssistantColors.Success)
+                Text("Действие передано системе.", color = AssistantColors.Success)
+            }
+
+            "cancelled" -> Text("Отменено.", color = AssistantColors.Muted)
+
+            "error" -> Text(
+                payload.text("result_message") ?: "Не получилось выполнить действие.",
+                color = MaterialTheme.colorScheme.error
+            )
+
+            else -> {
+                Text(
+                    "Проверьте данные перед продолжением.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AssistantColors.Muted
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            onAction(
+                                WidgetAction(
+                                    WidgetActionNames.PLATFORM_ACTION_CONFIRM,
+                                    type,
+                                    payload.actionPayload()
+                                )
+                            )
+                        }
+                    ) {
+                        Text("Продолжить")
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            onAction(
+                                WidgetAction(
+                                    WidgetActionNames.PLATFORM_ACTION_CANCEL,
+                                    type,
+                                    payload.actionPayload()
+                                )
+                            )
+                        }
+                    ) {
+                        Text("Отмена")
+                    }
+                }
+            }
         }
     }
 }
@@ -656,4 +745,9 @@ private fun displayDateTime(value: String?): String = value?.let {
 private fun JsonObject.text(name: String): String? = this[name]?.jsonPrimitive?.content
 private fun JsonObject.int(name: String): Int? = this[name]?.jsonPrimitive?.intOrNull
 private fun JsonObject.long(name: String): Long? = this[name]?.jsonPrimitive?.longOrNull
+private fun JsonObject.actionPayload(): Map<String, String> = entries
+    .mapNotNull { (key, value) ->
+        value.jsonPrimitive.content.takeIf(String::isNotBlank)?.let { key to it }
+    }
+    .toMap()
 private fun String?.asPayload(key: String): Map<String, String> = if (this.isNullOrBlank()) emptyMap() else mapOf(key to this)

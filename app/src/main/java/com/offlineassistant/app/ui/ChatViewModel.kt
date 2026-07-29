@@ -46,7 +46,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 @Suppress("TooManyFunctions")
@@ -65,6 +69,7 @@ class ChatViewModel(
     private var activeProcessingJob: Job? = null
     private val researchJobs = mutableMapOf<String, Job>()
     private var pendingNoteEditId: String? = null
+    private var pendingResearchRunId: String? = null
 
     var state: ChatUiState = ChatUiState().let { initial ->
         chatHistoryStore.load().takeIf(List<ChatMessageUi>::isNotEmpty)
@@ -81,6 +86,8 @@ class ChatViewModel(
         val text = state.inputText.trim()
         if (text.isBlank() || state.isProcessing) return state
         val history = conversationHistory()
+        val previousResearchRunId = pendingResearchRunId
+        pendingResearchRunId = null
         pendingNoteEditId?.let { noteId ->
             appendUserText(text)
             onStateChanged(state)
@@ -90,7 +97,14 @@ class ChatViewModel(
         }
         appendUserText(text)
         onStateChanged(state)
-        startAssistantRequest(text, history, onStateChanged)
+        startAssistantRequest(text, history, previousResearchRunId, onStateChanged)
+        return state
+    }
+
+    fun prepareResearchContinuation(runId: String): ChatUiState {
+        if (runId.isBlank()) return state
+        pendingResearchRunId = runId
+        state = state.copy(inputText = "Уточни исследование: ")
         return state
     }
 
@@ -286,6 +300,10 @@ class ChatViewModel(
             WidgetActionNames.ERROR_SUGGESTION -> restorePreviousRequest()
 
             WidgetActionNames.RESEARCH_CANCEL -> cancelResearch(action)
+
+            WidgetActionNames.PLATFORM_ACTION_CONFIRM -> executePlatformAction(action)
+
+            WidgetActionNames.PLATFORM_ACTION_CANCEL -> cancelPlatformAction(action)
         }
         return state
     }
@@ -304,6 +322,7 @@ class ChatViewModel(
         researchJobs.clear()
         assistantSpeech.stop(SpeechStopReason.CHAT_CLEARED)
         pendingNoteEditId = null
+        pendingResearchRunId = null
         state = ChatUiState()
         chatHistoryStore.clear()
         return state
@@ -328,6 +347,7 @@ class ChatViewModel(
     private fun startAssistantRequest(
         text: String,
         history: List<ConversationTurn>,
+        previousResearchRunId: String?,
         onStateChanged: (ChatUiState) -> Unit
     ) {
         var job: Job? = null
@@ -336,6 +356,7 @@ class ChatViewModel(
                 val execution = executeStreaming(
                     text = text,
                     history = history,
+                    previousResearchRunId = previousResearchRunId,
                     onStateChanged = onStateChanged,
                     onResearchDetached = { runId ->
                         detachResearchJob(runId, job, onStateChanged)
@@ -360,6 +381,7 @@ class ChatViewModel(
     private suspend fun executeStreaming(
         text: String,
         history: List<ConversationTurn>,
+        previousResearchRunId: String? = null,
         onStateChanged: (ChatUiState) -> Unit,
         onResearchDetached: (String) -> Unit = {}
     ): StreamingExecution = coroutineScope {
@@ -418,13 +440,22 @@ class ChatViewModel(
         val response = try {
             val requestJob = coroutineContext[Job]
             withContext(ioDispatcher) {
-                assistantEngineProvider().handleText(
-                    input = text,
-                    conversationHistory = history,
-                    onAnswerToken = tokenBuffer::append,
-                    onAnswerEvent = eventBuffer::append,
-                    isCancelled = { requestJob?.isCancelled == true }
-                )
+                if (previousResearchRunId == null) {
+                    assistantEngineProvider().handleText(
+                        input = text,
+                        conversationHistory = history,
+                        onAnswerToken = tokenBuffer::append,
+                        onAnswerEvent = eventBuffer::append,
+                        isCancelled = { requestJob?.isCancelled == true }
+                    )
+                } else {
+                    assistantEngineProvider().continueResearch(
+                        input = text,
+                        previousRunId = previousResearchRunId,
+                        onAnswerEvent = eventBuffer::append,
+                        isCancelled = { requestJob?.isCancelled == true }
+                    )
+                }
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
@@ -589,7 +620,8 @@ class ChatViewModel(
             displayResponse.widget,
             displayResponse.debug,
             displayResponse.media,
-            displayResponse.sources
+            displayResponse.sources,
+            displayResponse.followUpQuestions
         )
         if (completeForeground || !state.isProcessing) {
             assistantSpeech.finish(assistant.id, displayResponse.text)
@@ -671,6 +703,19 @@ class ChatViewModel(
         }
         val sourceCount = (event as? AnswerEvent.ResearchProgress)?.sourceCount ?: 0
         val id = messageId ?: UUID.randomUUID().toString()
+        val previousActivities = state.messages
+            .filterIsInstance<ChatMessageUi.Assistant>()
+            .firstOrNull { it.id == id }
+            ?.widget
+            ?.payload
+            ?.get("activities")
+            ?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            .orEmpty()
+        val activity = (event as? AnswerEvent.ResearchProgress)?.activity
+        val activities = (previousActivities + listOfNotNull(activity))
+            .distinct()
+            .takeLast(MAX_RESEARCH_ACTIVITIES)
         val widget = WidgetPayload(
             WidgetTypes.RESEARCH_CARD,
             buildJsonObject {
@@ -678,6 +723,12 @@ class ChatViewModel(
                 put("state", "running")
                 put("stage", status)
                 put("source_count", sourceCount)
+                put(
+                    "activities",
+                    buildJsonArray {
+                        activities.forEach { add(JsonPrimitive(it)) }
+                    }
+                )
             }
         )
         val message = ChatMessageUi.Assistant(
@@ -840,6 +891,63 @@ class ChatViewModel(
         return if (platformActions.openApp(packageName, appName)) "Открываю $appName." else "Не нашел $appName."
     }
 
+    private fun executePlatformAction(action: WidgetAction) {
+        val platformAction = action.payload["action"] ?: return
+        val currentState = latestPlatformActionState(platformAction)
+        if (currentState != "confirmation_required" && currentState != "error") return
+        val result = platformActions.executePlatformAction(platformAction, action.payload)
+        updatePlatformActionCard(
+            platformAction = platformAction,
+            newState = if (result.successful) "completed" else "error",
+            resultMessage = result.message
+        )
+        appendAssistantMessage(result.message, null)
+    }
+
+    private fun cancelPlatformAction(action: WidgetAction) {
+        val platformAction = action.payload["action"] ?: return
+        if (latestPlatformActionState(platformAction) != "confirmation_required") return
+        updatePlatformActionCard(platformAction, "cancelled", "Отменено.")
+        appendAssistantMessage("Действие отменено.", null)
+    }
+
+    private fun latestPlatformActionState(platformAction: String): String? = state.messages
+        .asReversed()
+        .filterIsInstance<ChatMessageUi.Assistant>()
+        .firstOrNull {
+            it.widget?.type == WidgetTypes.ACTION_CONFIRMATION_CARD &&
+                it.widget.payload["action"]?.jsonPrimitive?.contentOrNull == platformAction
+        }
+        ?.widget
+        ?.payload
+        ?.get("state")
+        ?.jsonPrimitive
+        ?.contentOrNull
+
+    private fun updatePlatformActionCard(
+        platformAction: String,
+        newState: String,
+        resultMessage: String
+    ) {
+        val targetIndex = state.messages.indexOfLast {
+            it is ChatMessageUi.Assistant &&
+                it.widget?.type == WidgetTypes.ACTION_CONFIRMATION_CARD &&
+                it.widget.payload["action"]?.jsonPrimitive?.contentOrNull == platformAction
+        }
+        if (targetIndex < 0) return
+        val updated = state.messages.toMutableList()
+        val message = updated[targetIndex] as ChatMessageUi.Assistant
+        val widget = requireNotNull(message.widget)
+        val payload = buildJsonObject {
+            widget.payload.forEach { (key, value) -> put(key, value) }
+            put("state", newState)
+            put("result_message", resultMessage)
+        }
+        updated[targetIndex] = message.copy(widget = widget.copy(payload = payload))
+        state = state.copy(messages = updated)
+        persistHistory()
+    }
+
     private fun openSystemAlarms(): String = if (platformActions.openSystemAlarms()) "Открываю системный будильник." else "Не удалось открыть будильник."
 
     private fun restorePreviousRequest() {
@@ -891,6 +999,7 @@ class ChatViewModel(
         const val STREAM_UPDATE_INTERVAL_MS = 40L
         const val WELCOME_MESSAGE_ID = "welcome"
         const val MAX_CONVERSATION_TURNS = 12
+        const val MAX_RESEARCH_ACTIVITIES = 4
     }
 }
 

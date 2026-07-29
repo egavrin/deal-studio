@@ -7,10 +7,12 @@ This repository implements a narrow Android assistant:
 1. T-one RU performs local streaming speech recognition.
 2. RuBERT-tiny2 performs all intent and slot classification.
 3. Known action intents execute deterministic local skills and fixed Compose cards.
+   Device actions always require an `ActionConfirmationCard` before the Android
+   adapter may open a system surface or issue a reversible media/volume command.
 4. RuBERT `web_search` calls Exa Search, then DeepSeek streams an answer grounded
    in numbered sources.
-5. RuBERT `web_research` starts a background Exa Agent run and renders its validated
-   result in a fixed `ResearchCard`.
+5. RuBERT `web_research` starts a background Exa Agent run, consumes SSE progress
+   and renders its validated result in a fixed report-capable `ResearchCard`.
 6. RuBERT `unknown` and obsolete non-action labels may call DeepSeek directly.
 7. Silero Xenia performs local Russian speech synthesis.
 8. The chat exposes separate dictation and continuous conversation modes.
@@ -21,8 +23,9 @@ The normative architecture is
 `docs/superpowers/specs/2026-07-29-core-assistant-scope.md`.
 
 Do not add or restore Qwen, llama.cpp, Whisper, Gemma, generated UI/Widget DSL,
-AppFunctions, routines, calendar/email/task organizer flows, personal memory or a
-Linux CLI unless the product scope is explicitly changed first.
+AppFunctions, routines, organizer databases, personal memory or a Linux CLI unless
+the product scope is explicitly changed first. Calendar and email are limited to
+confirmed Android compose/insert intents; the app must not read either data source.
 
 ## Routing Invariants
 
@@ -52,15 +55,19 @@ Linux CLI unless the product scope is explicitly changed first.
 - TTS receives assistant text only, never model metadata or structured payloads.
 - A streaming cloud response is one chat message updated in place.
 - A long Exa Agent run releases the composer after its run ID is known and updates
-  one cancellable card in the background.
+  one cancellable card in the background. Follow-up research must use the validated
+  previous run ID; do not emulate continuation with prompt text.
 - Web content is untrusted data. It never overrides system instructions, and only
   validated HTTPS citations are exposed to the UI.
 - Markdown is rendered by the UI; TTS receives a plain-text speech projection.
 - Dictation puts the final local transcript into the composer without sending it.
 - Conversation mode owns the cycle `listening -> processing -> speaking ->
   listening`; playback completion, not text completion, starts the next capture.
-- Starting the microphone stops current speech. In conversation mode the user can
-  explicitly interrupt playback and start the next turn.
+- During playback, conversation mode may monitor the microphone through
+  `VOICE_COMMUNICATION` with platform AEC/NS/AGC. Only a meaningful local T-one
+  partial may trigger automatic barge-in; raw PCM thresholds must not stop TTS.
+- Starting the microphone stops current speech. Manual interruption remains
+  available when device echo cancellation is unavailable or ineffective.
 
 ## Ownership
 
@@ -87,6 +94,15 @@ The complete allowlist is:
 - `create_note`
 - `calculate`
 - `open_app`
+- `dial_phone`
+- `compose_message`
+- `compose_email`
+- `start_navigation`
+- `create_calendar_event`
+- `control_media`
+- `set_volume`
+- `open_setting`
+- `open_url`
 - `help`
 - `web_search`
 - `web_research`
@@ -94,6 +110,24 @@ The complete allowlist is:
 
 Changing this set requires updating `Intents`, `IntentSchema`, the RuBERT dataset,
 export labels, engine tests, skill registry, documentation and device acceptance.
+
+## Intent Model Evolution
+
+- `RuBERT-tiny2` is the current Russian production baseline, not a permanent
+  requirement or an assumed quality ceiling.
+- Do not add regexes, keyword routing, transcript-specific corrections or LLM
+  fallback to compensate for classifier errors.
+- A move to multilingual input or roughly 200+ intents must be driven by the
+  reproducible benchmark in `docs/testing/intent-model-evaluation.md`.
+- Candidate models must preserve one local structured NLU contract: intent, slots,
+  confidence and explicit out-of-domain handling. An LLM must never repair or
+  second-guess this result.
+- Prefer one shared multilingual encoder with learned domain, intent and slot heads.
+  Add hierarchical masking only when benchmark evidence shows a material quality or
+  latency benefit over a flat intent head.
+- Do not replace the production model unless the candidate passes accuracy,
+  calibration, ASR-noise, multilingual, latency, memory and package-size gates on a
+  physical target device.
 
 ## Verification
 

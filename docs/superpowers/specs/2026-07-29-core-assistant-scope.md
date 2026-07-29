@@ -6,7 +6,7 @@
 
 ## Goal
 
-Deliver a stable vertical assistant demo around nine capabilities:
+Deliver a stable vertical assistant demo around these capabilities:
 
 1. local speech recognition;
 2. local intent and slot classification;
@@ -17,6 +17,9 @@ Deliver a stable vertical assistant demo around nine capabilities:
 7. attributed image results for explicit visual requests.
 8. grounded current-information answers through Exa Search;
 9. explicit background research through Exa Agent.
+10. confirmed Android compose/navigation/settings/media actions;
+11. inline citations, source previews and related search questions;
+12. automatic foreground conversation barge-in with echo cancellation.
 
 The product is intentionally not a general personal operator or generated-UI
 platform.
@@ -45,9 +48,9 @@ web_search
   -> one streaming Markdown message + source cards
 
 web_research
-  -> Exa Agent asynchronous run / minimal effort
+  -> Exa Agent asynchronous run / low effort + SSE events
   -> fixed validated summary + findings schema
-  -> one background ResearchCard + source cards
+  -> one background ResearchCard + report + follow-up through previousRunId
 
 unknown or obsolete label outside the local action registry
   -> DeepSeek HTTPS/SSE
@@ -95,13 +98,22 @@ is implemented with keyword matching.
 | `create_note` | `note_card` |
 | `calculate` | `calculator_card` |
 | `open_app` | `open_app_card` |
+| `dial_phone` | confirmed system dialer |
+| `compose_message` | confirmed SMS composer |
+| `compose_email` | confirmed email composer |
+| `start_navigation` | confirmed system map route |
+| `create_calendar_event` | confirmed calendar insert surface |
+| `control_media` | confirmed media key |
+| `set_volume` | confirmed reversible stream-volume command |
+| `open_setting` | confirmed allowlisted system settings surface |
+| `open_url` | confirmed validated HTTPS browser intent |
 | `help` | `help_card` |
 | `web_search` | DeepSeek Markdown + numbered source cards |
 | `web_research` | `research_card` + numbered source cards |
 | `unknown` | DeepSeek Markdown + `generic_answer_card` source |
 
-Infrastructure cards are `clarification_card`, `permission_card`, `error_card` and
-`research_card`.
+Infrastructure cards are `clarification_card`, `permission_card`, `error_card`,
+`research_card` and `action_confirmation_card`.
 The registry contains no other widget types.
 
 ## Model Responsibilities
@@ -116,9 +128,16 @@ The registry contains no other widget types.
 ### RuBERT-tiny2
 
 - sole intent and slot classifier;
-- exact twelve-label export contract matching the allowlist above;
+- exact 21-label export contract matching the allowlist above;
 - runs locally through ONNX Runtime;
 - low confidence is handled deterministically.
+
+RuBERT-tiny2 is the current Russian production baseline, not a permanent model
+choice. Multilingual input or expansion toward 200+ intents requires a measured
+model migration under `docs/testing/intent-model-evaluation.md`. The runtime
+contract remains local intent + slots + calibrated confidence + explicit
+out-of-domain handling. No candidate may introduce keyword routing, transcript
+patches or LLM repair.
 
 ### DeepSeek
 
@@ -134,15 +153,19 @@ The registry contains no other widget types.
 - invoked only for the RuBERT `web_search` label;
 - uses `auto` retrieval with up to six bounded, primary-source-biased highlights;
 - passes source excerpts to DeepSeek as untrusted data;
-- shows only validated HTTPS citations and never executes page instructions.
+- shows only validated HTTPS citations and never executes page instructions;
+- exposes inline citation links, a bounded source preview and optional related
+  questions from a separate schema-constrained Exa request.
 
 ### Exa Agent
 
 - invoked only for the RuBERT `web_research` label;
-- uses asynchronous runs, `minimal` effort and bounded summary/findings output;
+- uses asynchronous runs, `low` effort, SSE progress and bounded summary/findings output;
 - releases the composer after a validated run ID is received;
 - exposes progress and independent cancellation through one fixed `ResearchCard`;
-- completed grounding is authoritative; no arbitrary Agent-generated widget is accepted.
+- completed grounding is authoritative; no arbitrary Agent-generated widget is accepted;
+- completed reports can be shared and continued only through a validated
+  `previousRunId`.
 
 ### Silero Xenia
 
@@ -170,7 +193,9 @@ The registry contains no other widget types.
 - microphone requires `RECORD_AUDIO`;
 - reminder notifications require `POST_NOTIFICATIONS`;
 - alarms use Android clock intents;
-- no calendar, contacts, camera, notification-listener or role permissions.
+- no contacts, camera, notification-listener, calendar-read or email-read permissions;
+- dial, SMS, email, map, calendar and browser flows open system-owned confirmation
+  or composition surfaces rather than sending data silently.
 
 ## UI
 
@@ -189,12 +214,14 @@ mode. Its state machine is:
 ```text
 listening -> finalizing/transcribing -> RuBERT routing -> processing
           -> streaming text -> local speech -> playback completed -> listening
+                                      \-> AEC + T-one partial -> barge-in -> listening
 ```
 
 The normal chat stays visible during the session. The conversation dock exposes
-current state, explicit interruption and End. Microphone capture restarts only
-after the final TTS audio chunk has completed, preventing the recognizer from
-capturing the assistant's own voice.
+current state, explicit interruption and End. During TTS, a foreground monitor uses
+Android `VOICE_COMMUNICATION` plus available AEC/NS/AGC. A meaningful local T-one
+partial interrupts playback and continues as the next utterance. On unsupported
+devices, explicit interruption and post-playback capture remain the fallback.
 
 The three images under `docs/design/references/` remain visual references. They are
 not evidence for removed generated-widget or organizer functionality.
@@ -206,7 +233,8 @@ not evidence for removed generated-widget or organizer functionality.
 - Gemma and local widget planning;
 - generated Widget DSL and arbitrary cloud widget generation;
 - AppFunctions and assistant-system role integration;
-- tasks, calendar, email, routines, notification digest and personal memory;
+- organizer databases, inbox/calendar reading, tasks, routines, notification digest
+  and personal memory;
 - Linux CLI.
 
 ## Acceptance

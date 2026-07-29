@@ -14,6 +14,15 @@
 {"text":"Сколько будет 18 плюс 24","intent":"calculate","slots":[{"name":"expression","value":"18 плюс 24","start":14,"end":24}]}
 {"text":"Запусти YouTube","intent":"open_app","slots":[{"name":"app_name","value":"YouTube","start":8,"end":15}]}
 {"text":"Открой Telegram","intent":"open_app","slots":[{"name":"app_name","value":"Telegram","start":7,"end":15}]}
+{"text":"Позвони по номеру +7 999 123-45-67","intent":"dial_phone","slots":[{"name":"phone_number","value":"+7 999 123-45-67","start":18,"end":34}]}
+{"text":"Подготовь сообщение: буду через десять минут","intent":"compose_message","slots":[{"name":"message_text","value":"буду через десять минут","start":21,"end":44}]}
+{"text":"Подготовь письмо: отправляю документы","intent":"compose_email","slots":[{"name":"email_body","value":"отправляю документы","start":18,"end":37}]}
+{"text":"Построй маршрут до Красной площади","intent":"start_navigation","slots":[{"name":"destination","value":"Красной площади","start":19,"end":34}]}
+{"text":"Добавь в календарь встреча с командой","intent":"create_calendar_event","slots":[{"name":"event_title","value":"встреча с командой","start":19,"end":37}]}
+{"text":"Музыка: следующий трек","intent":"control_media","slots":[{"name":"media_action","value":"следующий трек","start":8,"end":22}]}
+{"text":"Сделай громче","intent":"set_volume","slots":[{"name":"volume_action","value":"громче","start":7,"end":13}]}
+{"text":"Открой настройки Wi-Fi","intent":"open_setting","slots":[{"name":"setting","value":"Wi-Fi","start":17,"end":22}]}
+{"text":"Открой сайт https://developer.android.com","intent":"open_url","slots":[{"name":"url","value":"https://developer.android.com","start":12,"end":41}]}
 {"text":"Покажи доступные команды","intent":"help","slots":[]}
 {"text":"Что ты умеешь?","intent":"help","slots":[]}
 {"text":"Найди последние новости об Android 17","intent":"web_search","slots":[],"gate":true}

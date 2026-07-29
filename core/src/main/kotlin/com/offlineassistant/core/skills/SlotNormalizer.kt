@@ -39,6 +39,11 @@ class DeterministicSlotNormalizer(
                         .normalizeDateTime(originalText, clock())
                         ?.let { put("datetime", it) }
 
+                Intents.CREATE_CALENDAR_EVENT ->
+                    RussianDateTimeNormalizer
+                        .normalizeDateTime(originalText, clock())
+                        ?.let { put("datetime", it) }
+
                 Intents.SET_ALARM ->
                     RussianDateTimeNormalizer
                         .normalizeDate(originalText, clock())
@@ -74,6 +79,15 @@ class DeterministicSlotNormalizer(
                 "text" -> "Какой текст записать в заметку?"
                 "expression" -> "Какое выражение посчитать?"
                 "app_name" -> "Какое приложение открыть?"
+                "phone_number" -> "Какой номер набрать?"
+                "message_text" -> "Какой текст сообщения подготовить?"
+                "email_body" -> "Какой текст письма подготовить?"
+                "destination" -> "Куда построить маршрут?"
+                "event_title" -> "Какое событие добавить в календарь?"
+                "media_action" -> "Что сделать с воспроизведением?"
+                "volume_action" -> "Как изменить громкость?"
+                "setting" -> "Какой раздел настроек открыть?"
+                "url" -> "Какой адрес открыть?"
                 else -> "Уточните команду."
             },
             suggestions = when (expectedSlot) {
@@ -83,6 +97,15 @@ class DeterministicSlotNormalizer(
                 "text" -> listOf("Запиши заметку купить молоко")
                 "expression" -> listOf("Сколько будет 18 умножить на 3")
                 "app_name" -> listOf("Открой Telegram")
+                "phone_number" -> listOf("Позвони по номеру +7 999 123-45-67")
+                "message_text" -> listOf("Подготовь сообщение: буду через десять минут")
+                "email_body" -> listOf("Напиши письмо: отправляю документы")
+                "destination" -> listOf("Построй маршрут до Красной площади")
+                "event_title" -> listOf("Добавь встречу с командой завтра в 10:00")
+                "media_action" -> listOf("Поставь музыку на паузу")
+                "volume_action" -> listOf("Сделай громче")
+                "setting" -> listOf("Открой настройки Wi-Fi")
+                "url" -> listOf("Открой https://developer.android.com")
                 else -> emptyList()
             } + "Отмена",
             pendingIntent = intent,

@@ -77,7 +77,8 @@ sealed interface ChatMessageUi {
         val widget: WidgetPayload?,
         val debug: DebugInfo?,
         val media: List<MediaAttachment> = emptyList(),
-        val sources: List<SourceCitation> = emptyList()
+        val sources: List<SourceCitation> = emptyList(),
+        val followUpQuestions: List<String> = emptyList()
     ) : ChatMessageUi
 }
 
@@ -88,5 +89,6 @@ fun AssistantResponse.toAssistantMessage(): ChatMessageUi.Assistant = ChatMessag
     widget = widget,
     debug = debug,
     media = media,
-    sources = sources
+    sources = sources,
+    followUpQuestions = followUpQuestions
 )

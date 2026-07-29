@@ -13,6 +13,7 @@ data class AssistantResponse(
     val widget: WidgetPayload? = null,
     val media: List<MediaAttachment> = emptyList(),
     val sources: List<SourceCitation> = emptyList(),
+    val followUpQuestions: List<String> = emptyList(),
     val debug: DebugInfo? = null
 )
 
@@ -25,7 +26,8 @@ data class SourceCitation(
     val publishedAt: String? = null,
     val author: String? = null,
     val highlight: String? = null,
-    val faviconUrl: String? = null
+    val faviconUrl: String? = null,
+    val imageUrl: String? = null
 )
 
 @Serializable

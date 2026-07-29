@@ -26,9 +26,20 @@ class ExaAgentProviderTest {
     fun `request has bounded structured research schema`() {
         val body = ExaAgentProvider(apiKeyProvider = { "test" }).requestBody("Исследуй рынок")
 
-        assertEquals("minimal", body["effort"].toString().trim('"'))
+        assertEquals("low", body["effort"].toString().trim('"'))
         assertTrue(body["systemPrompt"].toString().contains("официальные источники"))
         assertTrue(body["outputSchema"].toString().contains("\"maxItems\":5"))
+    }
+
+    @Test
+    fun `continuation includes only a validated previous run id`() {
+        val provider = ExaAgentProvider(apiKeyProvider = { "test" })
+
+        val valid = provider.requestBody("Уточни выводы", "agent_run_123")
+        val invalid = provider.requestBody("Уточни выводы", "../../secret")
+
+        assertEquals("agent_run_123", valid["previousRunId"].toString().trim('"'))
+        assertTrue("previousRunId" !in invalid)
     }
 
     @Test

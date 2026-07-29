@@ -14,6 +14,8 @@ import com.offlineassistant.deepseek.DeepSeekAnswerProvider
 import com.offlineassistant.deepseek.ExaAgentProvider
 import com.offlineassistant.deepseek.ExaSearchProvider
 import com.offlineassistant.deepseek.WikimediaImageSearchProvider
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 class ConfiguredDeepSeekAnswerProvider(
     private val context: Context,
@@ -23,6 +25,7 @@ class ConfiguredDeepSeekAnswerProvider(
     ResearchCancellableAnswerProvider {
     private val delegate = DeepSeekAnswerProvider(apiKeyProvider = settings::deepSeekApiKeyOrNull)
     private val search = ExaSearchProvider(apiKeyProvider = settings::exaApiKeyOrNull)
+    private val relatedQuestions = ExaSearchProvider(apiKeyProvider = settings::exaApiKeyOrNull)
     private val research = ExaAgentProvider(apiKeyProvider = settings::exaApiKeyOrNull)
     private val imageSearch = WikimediaImageSearchProvider()
 
@@ -52,6 +55,7 @@ class ConfiguredDeepSeekAnswerProvider(
     override fun cancel() {
         delegate.cancel()
         search.cancel()
+        relatedQuestions.cancel()
         research.cancel()
         imageSearch.cancel()
     }
@@ -77,7 +81,11 @@ class ConfiguredDeepSeekAnswerProvider(
 
         AnswerRoute.WEB_RESEARCH -> {
             unavailableSearchReason(requireDeepSeek = false)?.let(::unavailableResearch)
-                ?: research.research(request.input, onEvent)
+                ?: research.research(
+                    query = request.input,
+                    previousRunId = request.previousResearchRunId,
+                    onEvent = onEvent
+                )
         }
     }
 
@@ -102,8 +110,17 @@ class ConfiguredDeepSeekAnswerProvider(
                 latencyMs = searchResult.latencyMs
             )
         )
-        return generateDeepSeek(request.copy(sources = searchResult.sources), onToken)
-            .copy(searchLatencyMs = searchResult.latencyMs)
+        val relatedFuture = CompletableFuture.supplyAsync {
+            relatedQuestions.suggestRelatedQuestions(request.input)
+        }
+        val generated = generateDeepSeek(request.copy(sources = searchResult.sources), onToken)
+        val suggestions = runCatching {
+            relatedFuture.get(RELATED_QUESTIONS_GRACE_MS, TimeUnit.MILLISECONDS)
+        }.getOrDefault(emptyList())
+        return generated.copy(
+            searchLatencyMs = searchResult.latencyMs,
+            followUpQuestions = suggestions
+        )
     }
 
     private fun generateDeepSeek(
@@ -157,6 +174,7 @@ class ConfiguredDeepSeekAnswerProvider(
 
     private companion object {
         const val IMAGE_LIMIT = 3
+        const val RELATED_QUESTIONS_GRACE_MS = 250L
     }
 }
 

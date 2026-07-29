@@ -12,6 +12,7 @@ data class AnswerResult(
     val source: String? = null,
     val media: List<MediaAttachment> = emptyList(),
     val sources: List<SourceCitation> = emptyList(),
+    val followUpQuestions: List<String> = emptyList(),
     val widget: WidgetPayload? = null,
     val researchRunId: String? = null
 ) {
@@ -24,7 +25,8 @@ data class AnswerRequest(
     val history: List<ConversationTurn> = emptyList(),
     val mediaSearchQuery: String? = null,
     val route: AnswerRoute = AnswerRoute.DIRECT,
-    val sources: List<SourceCitation> = emptyList()
+    val sources: List<SourceCitation> = emptyList(),
+    val previousResearchRunId: String? = null
 )
 
 enum class AnswerRoute {
@@ -48,7 +50,8 @@ sealed interface AnswerEvent {
     data class ResearchProgress(
         val runId: String,
         val status: ResearchStatus,
-        val sourceCount: Int = 0
+        val sourceCount: Int = 0,
+        val activity: String? = null
     ) : AnswerEvent
 }
 

@@ -35,6 +35,7 @@ fun createBuiltInSkillRegistry(
         NoteSkill(clock, noteStore),
         CalculatorSkill(),
         OpenAppSkill(),
+        PlatformActionSkill(),
         HelpSkill()
     )
 )
@@ -243,6 +244,96 @@ class OpenAppSkill : Skill {
             )
         )
     }
+}
+
+class PlatformActionSkill : Skill {
+    override val id = "platform_action"
+    override val supportedIntents = setOf(
+        Intents.DIAL_PHONE,
+        Intents.COMPOSE_MESSAGE,
+        Intents.COMPOSE_EMAIL,
+        Intents.START_NAVIGATION,
+        Intents.CREATE_CALENDAR_EVENT,
+        Intents.CONTROL_MEDIA,
+        Intents.SET_VOLUME,
+        Intents.OPEN_SETTING,
+        Intents.OPEN_URL
+    )
+
+    override suspend fun execute(command: NormalizedCommand): SkillResult {
+        val presentation = actionPresentation(command)
+        return success(
+            text = presentation.summary,
+            widget = WidgetPayload(
+                WidgetTypes.ACTION_CONFIRMATION_CARD,
+                buildJsonObject {
+                    put("action", command.intent)
+                    put("state", "confirmation_required")
+                    put("title", presentation.title)
+                    put("summary", presentation.summary)
+                    command.slots.forEach { (name, value) -> put(name, value) }
+                }
+            )
+        )
+    }
+
+    private fun actionPresentation(command: NormalizedCommand): ActionPresentation = when (command.intent) {
+        Intents.DIAL_PHONE -> ActionPresentation(
+            "Телефонный звонок",
+            "Открыть набор номера ${command.slots.string("phone_number").orEmpty()}?"
+        )
+
+        Intents.COMPOSE_MESSAGE -> ActionPresentation(
+            "Сообщение",
+            command.slots.string("recipient")
+                ?.let { "Подготовить сообщение для $it?" }
+                ?: "Подготовить новое сообщение?"
+        )
+
+        Intents.COMPOSE_EMAIL -> ActionPresentation(
+            "Электронная почта",
+            command.slots.string("recipient")
+                ?.let { "Подготовить письмо для $it?" }
+                ?: "Подготовить новое письмо?"
+        )
+
+        Intents.START_NAVIGATION -> ActionPresentation(
+            "Маршрут",
+            "Построить маршрут: ${command.slots.string("destination").orEmpty()}?"
+        )
+
+        Intents.CREATE_CALENDAR_EVENT -> ActionPresentation(
+            "Событие календаря",
+            "Добавить «${command.slots.string("event_title").orEmpty()}» в календарь?"
+        )
+
+        Intents.CONTROL_MEDIA -> ActionPresentation(
+            "Управление воспроизведением",
+            "Выполнить команду «${command.slots.string("media_action").orEmpty()}»?"
+        )
+
+        Intents.SET_VOLUME -> ActionPresentation(
+            "Громкость",
+            "Изменить громкость: ${command.slots.string("volume_action").orEmpty()}?"
+        )
+
+        Intents.OPEN_SETTING -> ActionPresentation(
+            "Настройки устройства",
+            "Открыть раздел «${command.slots.string("setting").orEmpty()}»?"
+        )
+
+        Intents.OPEN_URL -> ActionPresentation(
+            "Веб-страница",
+            "Открыть ${command.slots.string("url").orEmpty()}?"
+        )
+
+        else -> ActionPresentation("Действие", "Выполнить действие?")
+    }
+
+    private data class ActionPresentation(
+        val title: String,
+        val summary: String
+    )
 }
 
 class HelpSkill : Skill {

@@ -37,6 +37,9 @@ object WidgetActionNames {
     const val PERMISSION_NOT_NOW = "permission_not_now"
     const val ERROR_SUGGESTION = "error_suggestion"
     const val RESEARCH_CANCEL = "research_cancel"
+    const val RESEARCH_OPEN_REPORT = "research_open_report"
+    const val PLATFORM_ACTION_CONFIRM = "platform_action_confirm"
+    const val PLATFORM_ACTION_CANCEL = "platform_action_cancel"
 }
 
 class WidgetRegistry(renderers: Collection<AssistantWidgetRenderer>) {
@@ -59,7 +62,8 @@ val defaultWidgetRegistry = WidgetRegistry(
         PermissionCardRenderer,
         ErrorCardRenderer,
         GenericAnswerCardRenderer,
-        ResearchCardRenderer
+        ResearchCardRenderer,
+        ActionConfirmationCardRenderer
     )
 )
 
@@ -99,5 +103,6 @@ fun expectedWidgetTypes(): List<String> = listOf(
     WidgetTypes.PERMISSION_CARD,
     WidgetTypes.ERROR_CARD,
     WidgetTypes.GENERIC_ANSWER_CARD,
-    WidgetTypes.RESEARCH_CARD
+    WidgetTypes.RESEARCH_CARD,
+    WidgetTypes.ACTION_CONFIRMATION_CARD
 )

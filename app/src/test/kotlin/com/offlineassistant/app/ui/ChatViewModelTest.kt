@@ -2,6 +2,8 @@ package com.offlineassistant.app.ui
 
 import com.offlineassistant.app.voice.AudioTranscription
 import com.offlineassistant.app.voice.StreamingTranscriptionSession
+import com.offlineassistant.app.widgets.WidgetAction
+import com.offlineassistant.app.widgets.WidgetActionNames
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.engine.AssistantEngine
@@ -17,6 +19,7 @@ import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
 import com.offlineassistant.core.skills.DeterministicSlotNormalizer
+import com.offlineassistant.core.skills.PlatformActionSkill
 import com.offlineassistant.core.skills.SkillRegistry
 import com.offlineassistant.core.storage.InMemoryNoteStore
 import com.offlineassistant.core.storage.InMemoryReminderStore
@@ -151,17 +154,54 @@ class ChatViewModelTest {
         assertEquals("exa_research_answer", viewModel.state.latestDebugInfo?.actionResult)
     }
 
+    @Test
+    fun `confirmed platform action executes once and seals its card`() = runTest(dispatcher) {
+        val platformActions = RecordingPlatformActions()
+        val phoneNumber = "+7 999 123-45-67"
+        val viewModel = viewModel(
+            provider = FakeStreamingProvider(),
+            intent = Intents.DIAL_PHONE,
+            slots = buildJsonObject { put("phone_number", phoneNumber) },
+            platformActions = platformActions
+        )
+        viewModel.updateInput("Позвони по номеру $phoneNumber")
+
+        viewModel.sendTextAsync {}
+        advanceUntilIdle()
+        val confirmation = WidgetAction(
+            WidgetActionNames.PLATFORM_ACTION_CONFIRM,
+            WidgetTypes.ACTION_CONFIRMATION_CARD,
+            mapOf("action" to Intents.DIAL_PHONE, "phone_number" to phoneNumber)
+        )
+        viewModel.handleWidgetAction(confirmation)
+        viewModel.handleWidgetAction(confirmation)
+
+        assertEquals(1, platformActions.calls)
+        val actionCard = viewModel.state.messages
+            .filterIsInstance<ChatMessageUi.Assistant>()
+            .last { it.widget?.type == WidgetTypes.ACTION_CONFIRMATION_CARD }
+        assertEquals("completed", actionCard.widget?.payload?.get("state")?.jsonPrimitive?.content)
+    }
+
     private fun viewModel(
         provider: FakeAnswerProvider,
-        intent: String = Intents.UNKNOWN
+        intent: String = Intents.UNKNOWN,
+        slots: JsonObject = JsonObject(emptyMap()),
+        platformActions: PlatformActions = NoOpPlatformActions
     ): ChatViewModel {
         val engine = AssistantEngine(
             nlu = NluParser {
-                NluResult(intent, 0.99, JsonObject(emptyMap()), NluSource.RUBERT_TINY2)
+                NluResult(intent, 0.99, slots, NluSource.RUBERT_TINY2)
             },
             answerProvider = provider,
             slotNormalizer = DeterministicSlotNormalizer(),
-            skillRegistry = SkillRegistry(emptyList())
+            skillRegistry = SkillRegistry(
+                if (intent in PlatformActionSkill().supportedIntents) {
+                    listOf(PlatformActionSkill())
+                } else {
+                    emptyList()
+                }
+            )
         )
         return ChatViewModel(
             assistantEngineProvider = { engine },
@@ -169,8 +209,29 @@ class ChatViewModelTest {
             noteStore = InMemoryNoteStore(),
             reminderStore = InMemoryReminderStore(),
             timerStore = InMemoryTimerStore(),
+            platformActions = platformActions,
             ioDispatcher = dispatcher
         )
+    }
+}
+
+private class RecordingPlatformActions : PlatformActions {
+    var calls = 0
+
+    override fun copyText(label: String, text: String) = false
+    override fun findLaunchableApps(appName: String) = emptyList<AppCandidate>()
+    override fun openApp(packageName: String?, appName: String?) = false
+    override fun hasPermission(permission: String) = true
+    override fun scheduleReminderNotification(reminderId: String, text: String, triggerAtMillis: Long) = false
+    override fun canCreateSystemTimer() = false
+    override fun createSystemTimer(durationSeconds: Int, label: String?) = false
+    override fun canCreateSystemAlarm() = false
+    override fun createSystemAlarm(hour: Int, minute: Int, label: String) = false
+    override fun openSystemAlarms() = false
+
+    override fun executePlatformAction(action: String, payload: Map<String, String>): PlatformActionResult {
+        calls += 1
+        return PlatformActionResult(true, "Открыл набор номера.")
     }
 }
 

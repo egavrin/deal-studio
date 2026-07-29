@@ -8,13 +8,17 @@ import java.net.URI
 import java.net.URL
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 data class ExaSearchResult(
@@ -39,7 +43,7 @@ class ExaSearchProvider(
         if (apiKey.isEmpty()) return error("Ключ Exa не настроен.", started)
         if (query.isBlank()) return error("Пустой поисковый запрос.", started)
         return try {
-            val response = execute(query.trim(), apiKey)
+            val response = execute(requestBody(query.trim()), apiKey)
             val sources = parseSources(response)
             if (sources.isEmpty()) {
                 error("Exa не нашёл подходящих источников.", started)
@@ -55,6 +59,20 @@ class ExaSearchProvider(
         } catch (error: IllegalArgumentException) {
             Log.w(TAG, "Exa Search response parse failure: ${error.javaClass.simpleName}")
             error("Не удалось разобрать результаты Exa.", started)
+        }
+    }
+
+    fun suggestRelatedQuestions(query: String): List<String> {
+        val apiKey = apiKeyProvider()?.trim().orEmpty()
+        if (apiKey.isEmpty() || query.isBlank()) return emptyList()
+        return try {
+            parseRelatedQuestions(execute(relatedQuestionsRequestBody(query.trim()), apiKey))
+        } catch (error: IOException) {
+            Log.w(TAG, "Exa related questions transport failure: ${error.javaClass.simpleName}")
+            emptyList()
+        } catch (error: IllegalArgumentException) {
+            Log.w(TAG, "Exa related questions parse failure: ${error.javaClass.simpleName}")
+            emptyList()
         }
     }
 
@@ -82,6 +100,34 @@ class ExaSearchProvider(
         }
     }
 
+    internal fun relatedQuestionsRequestBody(query: String) = buildJsonObject {
+        put("query", query)
+        put("type", "instant")
+        put("numResults", RELATED_SEARCH_RESULTS)
+        put(
+            "systemPrompt",
+            "Сформулируй на русском языке три коротких самостоятельных вопроса, которые естественно продолжают исходный запрос. " +
+                "Не повторяй исходный вопрос, не предлагай действия на телефоне и не добавляй пояснений."
+        )
+        putJsonObject("outputSchema") {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("questions") {
+                    put("type", "array")
+                    put("minItems", MIN_RELATED_QUESTIONS)
+                    put("maxItems", MAX_RELATED_QUESTIONS)
+                    putJsonObject("items") {
+                        put("type", "string")
+                    }
+                }
+            }
+            putJsonArray("required") {
+                add(JsonPrimitive("questions"))
+            }
+            put("additionalProperties", false)
+        }
+    }
+
     internal fun parseSources(response: JsonObject): List<SourceCitation> = response["results"]
         ?.jsonArray
         .orEmpty()
@@ -105,7 +151,8 @@ class ExaSearchProvider(
                 publishedAt = item.text("publishedDate"),
                 author = item.text("author")?.take(MAX_AUTHOR_CHARS),
                 highlight = highlight,
-                faviconUrl = item.text("favicon")?.takeIf(::isHttpsUrl)
+                faviconUrl = item.text("favicon")?.takeIf(::isHttpsUrl),
+                imageUrl = item.text("image")?.takeIf(::isHttpsUrl)
             )
         }
         .distinctBy(SourceCitation::url)
@@ -113,7 +160,22 @@ class ExaSearchProvider(
         .mapIndexed { index, source -> source.copy(index = index + 1) }
         .toList()
 
-    private fun execute(query: String, apiKey: String): JsonObject {
+    internal fun parseRelatedQuestions(response: JsonObject): List<String> {
+        val content = response["output"]?.jsonObject?.get("content") ?: return emptyList()
+        val structured = content.toStructuredObject() ?: return emptyList()
+        return (structured["questions"] as? JsonArray)
+            .orEmpty()
+            .mapNotNull { item ->
+                item.jsonPrimitive.contentOrNull
+                    ?.trim()
+                    ?.replace(Regex("""\s+"""), " ")
+                    ?.takeIf { it.length in MIN_RELATED_QUESTION_CHARS..MAX_RELATED_QUESTION_CHARS }
+            }
+            .distinct()
+            .take(MAX_RELATED_QUESTIONS)
+    }
+
+    private fun execute(body: JsonObject, apiKey: String): JsonObject {
         val connection = (endpointUrl.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = CONNECT_TIMEOUT_MS
@@ -126,10 +188,10 @@ class ExaSearchProvider(
         }
         activeConnection.set(connection)
         try {
-            val body = requestBody(query).toString().encodeToByteArray()
-            require(body.size <= MAX_REQUEST_BYTES)
-            connection.setFixedLengthStreamingMode(body.size)
-            connection.outputStream.use { it.write(body) }
+            val encodedBody = body.toString().encodeToByteArray()
+            require(encodedBody.size <= MAX_REQUEST_BYTES)
+            connection.setFixedLengthStreamingMode(encodedBody.size)
+            connection.outputStream.use { it.write(encodedBody) }
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw ExaHttpException(connection.responseCode)
             }
@@ -162,6 +224,11 @@ class ExaSearchProvider(
         const val MAX_SOURCE_CHARS = 1_200
         const val MAX_TITLE_CHARS = 240
         const val MAX_AUTHOR_CHARS = 160
+        const val RELATED_SEARCH_RESULTS = 3
+        const val MIN_RELATED_QUESTIONS = 2
+        const val MAX_RELATED_QUESTIONS = 3
+        const val MIN_RELATED_QUESTION_CHARS = 8
+        const val MAX_RELATED_QUESTION_CHARS = 140
         const val NANOS_PER_MILLISECOND = 1_000_000
         val json = Json { ignoreUnknownKeys = true }
 
@@ -178,6 +245,16 @@ class ExaSearchProvider(
             uri.scheme == "https" && !uri.host.isNullOrBlank()
         }.getOrDefault(false)
     }
+}
+
+private fun JsonElement.toStructuredObject(): JsonObject? = when (this) {
+    is JsonObject -> this
+
+    is JsonPrimitive ->
+        contentOrNull
+            ?.let { encoded -> runCatching { Json.parseToJsonElement(encoded).jsonObject }.getOrNull() }
+
+    else -> null
 }
 
 internal class ExaHttpException(

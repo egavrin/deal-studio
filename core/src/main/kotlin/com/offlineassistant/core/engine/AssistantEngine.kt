@@ -104,6 +104,48 @@ class AssistantEngine(
         )
     }
 
+    fun continueResearch(
+        input: String,
+        previousRunId: String,
+        onAnswerEvent: ((AnswerEvent) -> Unit)? = null,
+        isCancelled: () -> Boolean = { false }
+    ): AssistantResponse {
+        val started = System.currentTimeMillis()
+        val nluResult = NluResult(
+            intent = Intents.WEB_RESEARCH,
+            confidence = 1.0,
+            slots = JsonObject(emptyMap()),
+            source = NluSource.STUB
+        )
+        val execution = answer(
+            input = input,
+            nluResult = nluResult,
+            conversationHistory = emptyList(),
+            onAnswerToken = {},
+            onAnswerEvent = onAnswerEvent,
+            isCancelled = isCancelled,
+            previousResearchRunId = previousRunId
+        )
+        return execution.response.copy(
+            debug = DebugInfo(
+                transcript = input,
+                intent = Intents.WEB_RESEARCH,
+                confidence = 1.0,
+                nluSource = NluSource.STUB,
+                cloudAnswerUsed = true,
+                answerSource = execution.answerSource,
+                answerRoute = AnswerRoute.WEB_RESEARCH.name.lowercase(),
+                sourceCount = execution.response.sources.size,
+                researchRunId = execution.researchRunId,
+                actionResult = execution.actionResult,
+                latencyMs = LatencyBreakdown(
+                    cloudAnswer = execution.answerLatencyMs,
+                    total = System.currentTimeMillis() - started
+                )
+            )
+        )
+    }
+
     private fun executeLocal(
         input: String,
         nluResult: NluResult,
@@ -171,7 +213,8 @@ class AssistantEngine(
         conversationHistory: List<ConversationTurn>,
         onAnswerToken: ((String) -> Unit)?,
         onAnswerEvent: ((AnswerEvent) -> Unit)?,
-        isCancelled: () -> Boolean
+        isCancelled: () -> Boolean,
+        previousResearchRunId: String? = null
     ): EngineExecution {
         checkCancellation(isCancelled)
         val consumer: (String) -> Unit = { token ->
@@ -185,7 +228,8 @@ class AssistantEngine(
                 Intents.WEB_SEARCH -> AnswerRoute.WEB_SEARCH
                 Intents.WEB_RESEARCH -> AnswerRoute.WEB_RESEARCH
                 else -> AnswerRoute.DIRECT
-            }
+            },
+            previousResearchRunId = previousResearchRunId
         )
         val result = if (onAnswerToken == null) {
             answerProvider.answer(request)
@@ -212,7 +256,8 @@ class AssistantEngine(
                         }
                     ),
                     media = result.media,
-                    sources = result.sources
+                    sources = result.sources,
+                    followUpQuestions = result.followUpQuestions
                 ),
                 answerUsed = true,
                 answerSource = result.source ?: "deepseek_cloud",

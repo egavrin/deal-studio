@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import androidx.core.content.ContextCompat
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -23,10 +26,15 @@ class AndroidAudioRecorder(
     private var worker: Thread? = null
     private val pcmBuffer = ByteArrayOutputStream()
     private var captureWav = true
+    private var acousticEchoCanceler: AcousticEchoCanceler? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
+    private var automaticGainControl: AutomaticGainControl? = null
+    private var voiceProcessingState = VoiceProcessingState()
 
     @Synchronized
     fun start(
         captureWav: Boolean = true,
+        enableVoiceProcessing: Boolean = false,
         onPcmChunk: ((ShortArray) -> Unit)? = null
     ): Boolean {
         if (isRecording.get()) return true
@@ -42,7 +50,11 @@ class AndroidAudioRecorder(
 
         @SuppressLint("MissingPermission")
         val audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            if (enableVoiceProcessing) {
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            } else {
+                MediaRecorder.AudioSource.VOICE_RECOGNITION
+            },
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
@@ -56,6 +68,7 @@ class AndroidAudioRecorder(
         pcmBuffer.reset()
         this.captureWav = captureWav
         recorder = audioRecord
+        configureVoiceProcessing(audioRecord, enableVoiceProcessing)
         isRecording.set(true)
         audioRecord.startRecording()
         worker = thread(name = "offline-assistant-audio-recorder") {
@@ -88,6 +101,7 @@ class AndroidAudioRecorder(
         }
         worker?.join(1_000)
         worker = null
+        releaseVoiceProcessing()
         audioRecord?.release()
 
         val shouldWriteWav = captureWav
@@ -120,9 +134,55 @@ class AndroidAudioRecorder(
         }
         worker?.join(1_000)
         worker = null
+        releaseVoiceProcessing()
         audioRecord?.release()
         captureWav = true
         synchronized(pcmBuffer) { pcmBuffer.reset() }
+    }
+
+    @Synchronized
+    fun currentVoiceProcessingState(): VoiceProcessingState = voiceProcessingState
+
+    private fun configureVoiceProcessing(audioRecord: AudioRecord, enabled: Boolean) {
+        releaseVoiceProcessing()
+        if (!enabled) return
+        acousticEchoCanceler = createAndEnableEffect(
+            available = AcousticEchoCanceler.isAvailable(),
+            create = { AcousticEchoCanceler.create(audioRecord.audioSessionId) }
+        )
+        noiseSuppressor = createAndEnableEffect(
+            available = NoiseSuppressor.isAvailable(),
+            create = { NoiseSuppressor.create(audioRecord.audioSessionId) }
+        )
+        automaticGainControl = createAndEnableEffect(
+            available = AutomaticGainControl.isAvailable(),
+            create = { AutomaticGainControl.create(audioRecord.audioSessionId) }
+        )
+        voiceProcessingState = VoiceProcessingState(
+            acousticEchoCancellation = acousticEchoCanceler?.enabled == true,
+            noiseSuppression = noiseSuppressor?.enabled == true,
+            automaticGainControl = automaticGainControl?.enabled == true
+        )
+    }
+
+    private fun <T : android.media.audiofx.AudioEffect> createAndEnableEffect(
+        available: Boolean,
+        create: () -> T?
+    ): T? {
+        if (!available) return null
+        return runCatching {
+            create()?.also { it.enabled = true }
+        }.getOrNull()
+    }
+
+    private fun releaseVoiceProcessing() {
+        runCatching { acousticEchoCanceler?.release() }
+        runCatching { noiseSuppressor?.release() }
+        runCatching { automaticGainControl?.release() }
+        acousticEchoCanceler = null
+        noiseSuppressor = null
+        automaticGainControl = null
+        voiceProcessingState = VoiceProcessingState()
     }
 
     private fun pcm16BytesToShorts(bytes: ByteArray, size: Int): ShortArray {
@@ -135,3 +195,9 @@ class AndroidAudioRecorder(
         return shorts
     }
 }
+
+data class VoiceProcessingState(
+    val acousticEchoCancellation: Boolean = false,
+    val noiseSuppression: Boolean = false,
+    val automaticGainControl: Boolean = false
+)

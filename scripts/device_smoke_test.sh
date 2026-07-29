@@ -23,13 +23,17 @@ done
 python3 scripts/check_core_scope.py
 ./gradlew assembleDebug
 
+adb shell rm -rf /data/local/tmp/offline-assistant-rubert
 adb shell mkdir -p /data/local/tmp/offline-assistant-rubert
-adb push "$RUBERT_DIR/." /data/local/tmp/offline-assistant-rubert/
+for file in rubert-tiny2-intent-slots.onnx vocab.txt intent_labels.txt slot_labels.txt; do
+  adb push "$RUBERT_DIR/$file" "/data/local/tmp/offline-assistant-rubert/$file"
+done
 adb shell mkdir -p /data/local/tmp/offline-assistant-silero
 adb push "$SILERO_DIR/." /data/local/tmp/offline-assistant-silero/
 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO
+adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || \
+  echo "RECORD_AUDIO must be granted through the device UI on this OEM build."
 adb shell pm grant "$PACKAGE" android.permission.POST_NOTIFICATIONS || true
 adb shell am force-stop "$PACKAGE"
 adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null

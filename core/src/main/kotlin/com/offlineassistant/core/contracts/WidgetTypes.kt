@@ -14,4 +14,5 @@ object WidgetTypes {
     const val ERROR_CARD = "error_card"
     const val GENERIC_ANSWER_CARD = "generic_answer_card"
     const val RESEARCH_CARD = "research_card"
+    const val ACTION_CONFIRMATION_CARD = "action_confirmation_card"
 }

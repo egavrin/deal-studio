@@ -63,6 +63,7 @@ private data class StoredChatMessage(
     val widget: WidgetPayload? = null,
     val media: List<MediaAttachment> = emptyList(),
     val sources: List<SourceCitation> = emptyList(),
+    val followUpQuestions: List<String> = emptyList(),
     val debug: DebugInfo? = null
 ) {
     fun toUi(): ChatMessageUi = if (role == ROLE_USER) {
@@ -76,7 +77,8 @@ private data class StoredChatMessage(
             restoredWidget,
             debug,
             media,
-            sources
+            sources,
+            followUpQuestions
         )
     }
 
@@ -101,6 +103,7 @@ private data class StoredChatMessage(
                 widget = message.widget,
                 media = message.media,
                 sources = message.sources,
+                followUpQuestions = message.followUpQuestions,
                 debug = message.debug
             )
         }

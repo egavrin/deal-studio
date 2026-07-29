@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.offlineassistant.app.ui
 
 import android.Manifest
@@ -43,14 +45,25 @@ import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +79,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -94,7 +109,6 @@ import com.offlineassistant.app.models.SharedPreferencesModelRuntimeTelemetrySto
 import com.offlineassistant.app.speech.SpeechPlaybackRange
 import com.offlineassistant.app.speech.SpeechPlaybackState
 import com.offlineassistant.app.ui.theme.AssistantColors
-import com.offlineassistant.app.voice.StreamingTranscriptionSession
 import com.offlineassistant.app.widgets.AssistantWidgetContainer
 import com.offlineassistant.app.widgets.WidgetActionNames
 import com.offlineassistant.core.contracts.DebugInfo
@@ -103,11 +117,10 @@ import com.offlineassistant.core.contracts.SourceCitation
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
 import com.offlineassistant.core.nlu.NluSource
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
@@ -131,13 +144,27 @@ fun MainChatScreen(
         sharedAudioTranscriberFactory ?: AudioTranscriberFactory(readiness, telemetry)
     }
     var uiState by remember { mutableStateOf(viewModel.state) }
-    var streamingSession by remember { mutableStateOf<StreamingTranscriptionSession?>(null) }
+    var selectedSource by remember { mutableStateOf<SourceCitation?>(null) }
+    var selectedResearchReport by remember { mutableStateOf<ResearchReportUi?>(null) }
     var pendingPermission by remember { mutableStateOf(PermissionNames.RECORD_AUDIO) }
     val recorder = remember(appContext) { AndroidAudioRecorder(appContext) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
     val listState = rememberLazyListState()
+    val voiceCapture = remember(viewModel, recorder, transcriberFactory, scope) {
+        VoiceCaptureCoordinator(
+            viewModel = viewModel,
+            recorder = recorder,
+            transcriber = transcriberFactory::get,
+            scope = scope,
+            onStateChanged = { uiState = it },
+            onStopSpeech = onStopSpeech,
+            onCaptureFeedback = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+        )
+    }
     val latestTextLength = when (val latest = uiState.messages.lastOrNull()) {
         is ChatMessageUi.Assistant -> latest.text.length
         is ChatMessageUi.User -> latest.text.length
@@ -149,72 +176,35 @@ fun MainChatScreen(
         uiState = viewModel.handlePermissionResult(pendingPermission, grants.values.all { it })
     }
 
-    fun stopRecording() {
-        if (!viewModel.state.isRecording) return
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        val session = streamingSession
-        streamingSession = null
-        uiState = viewModel.beginVoiceFinalization()
-        scope.launch {
-            val audioFile = withContext(Dispatchers.IO) { recorder.stop() }
-            if (session == null) {
-                viewModel.handleVoiceRecordingAsync(audioFile, transcriberFactory.get()) { uiState = it }
-            } else {
-                viewModel.handleStreamingVoiceRecordingAsync(session) { uiState = it }
-            }
+    val stopRecording = {
+        voiceCapture.stopRecording()
+    }
+
+    val startRecording: (VoiceCaptureMode) -> Unit = { mode ->
+        if (!hasRecordAudioPermission(context)) {
+            pendingPermission = PermissionNames.RECORD_AUDIO
+            permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+        } else {
+            voiceCapture.startRecording(mode)
         }
     }
 
-    fun startRecording(mode: VoiceCaptureMode) {
-        when {
-            !hasRecordAudioPermission(context) -> {
-                pendingPermission = PermissionNames.RECORD_AUDIO
-                permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
-            }
-
-            viewModel.state.isRecording -> stopRecording()
-
-            else -> {
-                val session = transcriberFactory.get().startStreaming(
-                    onPartialTranscript = { partial ->
-                        scope.launch { uiState = viewModel.updateStreamingTranscript(partial) }
-                    },
-                    onEndpointDetected = { scope.launch { stopRecording() } }
-                )
-                val started = recorder.start(
-                    captureWav = session == null,
-                    onPcmChunk = { samples -> session?.acceptPcm16(samples, 16_000) }
-                )
-                if (started) {
-                    streamingSession = session
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    uiState = viewModel.startVoiceRecording(mode)
-                } else {
-                    session?.cancel()
-                    uiState = viewModel.showMicrophonePermissionCard()
-                }
-            }
-        }
-    }
-
-    fun endConversation() {
-        streamingSession?.cancel()
-        streamingSession = null
-        recorder.cancel()
+    val endConversation = {
+        voiceCapture.cancelCapture()
         onStopSpeech()
         uiState = viewModel.endConversation()
         onConversationModeChanged(false)
     }
 
-    fun startConversation() {
+    val startConversation = {
         if (!hasRecordAudioPermission(context)) {
             pendingPermission = PermissionNames.RECORD_AUDIO
             permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
-            return
+        } else {
+            uiState = viewModel.startConversation()
+            onConversationModeChanged(true)
+            startRecording(VoiceCaptureMode.CONVERSATION)
         }
-        uiState = viewModel.startConversation()
-        onConversationModeChanged(true)
-        startRecording(VoiceCaptureMode.CONVERSATION)
     }
 
     LaunchedEffect(
@@ -230,7 +220,29 @@ fun MainChatScreen(
             uiState.conversationActive &&
             uiState.conversationPhase == ConversationPhase.SPEAKING
         ) {
-            startRecording(VoiceCaptureMode.CONVERSATION)
+            voiceCapture.handlePlaybackCompleted()
+        }
+    }
+
+    LaunchedEffect(
+        speechPlaybackState.activeMessageId,
+        uiState.conversationActive,
+        uiState.conversationPhase
+    ) {
+        if (
+            speechPlaybackState.activeMessageId != null &&
+            uiState.conversationActive &&
+            uiState.conversationPhase == ConversationPhase.SPEAKING
+        ) {
+            voiceCapture.startBargeInMonitor()
+        } else if (uiState.conversationPhase != ConversationPhase.SPEAKING) {
+            voiceCapture.stopBargeInMonitor()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            voiceCapture.close()
         }
     }
 
@@ -273,8 +285,17 @@ fun MainChatScreen(
                                 viewModel.replayAssistantMessage(message.id, message.text)
                             }
                         },
+                        onSourceSelected = { selectedSource = it },
+                        onFollowUpSelected = { question ->
+                            viewModel.updateInput(question)
+                            uiState = viewModel.state
+                        },
                         onWidgetAction = { action ->
-                            if (action.name == WidgetActionNames.PERMISSION_ALLOW) {
+                            if (action.name == WidgetActionNames.RESEARCH_OPEN_REPORT) {
+                                message.widget?.payload?.let { payload ->
+                                    selectedResearchReport = ResearchReportUi(payload, message.sources)
+                                }
+                            } else if (action.name == WidgetActionNames.PERMISSION_ALLOW) {
                                 val permission = action.payload["permission"].orEmpty()
                                 pendingPermission = permission
                                 permission.toAndroidPermissions()
@@ -346,7 +367,7 @@ fun MainChatScreen(
                         ConversationPhase.OFF -> startConversation()
                     }
                 },
-                onEnd = ::endConversation
+                onEnd = endConversation
             )
         } else {
             ChatComposer(
@@ -367,9 +388,30 @@ fun MainChatScreen(
                     }
                 },
                 onStopProcessing = { uiState = viewModel.stopProcessing() },
-                onStartConversation = ::startConversation
+                onStartConversation = startConversation
             )
         }
+    }
+
+    selectedSource?.let { source ->
+        SourcePreviewSheet(
+            source = source,
+            onDismiss = { selectedSource = null }
+        )
+    }
+    selectedResearchReport?.let { report ->
+        ResearchReportSheet(
+            report = report,
+            onDismiss = { selectedResearchReport = null },
+            onContinue = { runId ->
+                selectedResearchReport = null
+                uiState = viewModel.prepareResearchContinuation(runId)
+            },
+            onSourceSelected = { source ->
+                selectedResearchReport = null
+                selectedSource = source
+            }
+        )
     }
 }
 
@@ -602,8 +644,28 @@ private fun AssistantMessageBubble(
     message: ChatMessageUi.Assistant,
     speechPlaybackRange: SpeechPlaybackRange?,
     onSpeak: () -> Unit,
+    onSourceSelected: (SourceCitation) -> Unit,
+    onFollowUpSelected: (String) -> Unit,
     onWidgetAction: (com.offlineassistant.app.widgets.WidgetAction) -> Unit
 ) {
+    val context = LocalContext.current
+    val sourceByIndex = remember(message.sources) { message.sources.associateBy(SourceCitation::index) }
+    val citationUriHandler = remember(sourceByIndex, onSourceSelected) {
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                val sourceIndex = uri
+                    .takeIf { it.startsWith(SOURCE_URI_PREFIX) }
+                    ?.removePrefix(SOURCE_URI_PREFIX)
+                    ?.toIntOrNull()
+                val source = sourceIndex?.let(sourceByIndex::get)
+                if (source != null) {
+                    onSourceSelected(source)
+                } else {
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri.toUri())) }
+                }
+            }
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -623,12 +685,14 @@ private fun AssistantMessageBubble(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (speechPlaybackRange == null || message.text.hasMarkdownSyntax()) {
-                            Markdown(
-                                content = message.text,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(start = 14.dp, top = 11.dp, bottom = 11.dp)
-                            )
+                            CompositionLocalProvider(LocalUriHandler provides citationUriHandler) {
+                                Markdown(
+                                    content = message.text.withInlineSourceLinks(message.sources),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 14.dp, top = 11.dp, bottom = 11.dp)
+                                )
+                            }
                         } else {
                             Text(
                                 text = highlightedSpeechText(message.text, speechPlaybackRange),
@@ -657,7 +721,13 @@ private fun AssistantMessageBubble(
                 AssistantMediaStrip(message.media)
             }
             if (message.sources.isNotEmpty()) {
-                AssistantSourceStrip(message.sources)
+                AssistantSourceStrip(message.sources, onSourceSelected)
+            }
+            if (message.followUpQuestions.isNotEmpty()) {
+                RelatedQuestions(
+                    questions = message.followUpQuestions,
+                    onSelected = onFollowUpSelected
+                )
             }
             assistantRouteLabel(message.debug)?.let { route ->
                 Text(
@@ -674,6 +744,29 @@ private fun AssistantMessageBubble(
     }
 }
 
+private const val SOURCE_URI_PREFIX = "assistant-source://"
+
+internal fun String.withInlineSourceLinks(sources: List<SourceCitation>): String {
+    if (sources.isEmpty()) return this
+    val validIndexes = sources.mapTo(mutableSetOf(), SourceCitation::index)
+    var insideCodeFence = false
+    return lineSequence().joinToString("\n") { line ->
+        if (line.trimStart().startsWith("```")) {
+            insideCodeFence = !insideCodeFence
+            return@joinToString line
+        }
+        if (insideCodeFence) return@joinToString line
+        line.replace(Regex("""\[(\d+)](?!\()""")) { match ->
+            val index = match.groupValues[1].toIntOrNull()
+            if (index in validIndexes) {
+                "[${match.groupValues[1]}]($SOURCE_URI_PREFIX${match.groupValues[1]})"
+            } else {
+                match.value
+            }
+        }
+    }
+}
+
 private fun String.hasMarkdownSyntax(): Boolean = lineSequence().any { line ->
     val trimmed = line.trimStart()
     trimmed.startsWith("#") ||
@@ -686,8 +779,10 @@ private fun String.hasMarkdownSyntax(): Boolean = lineSequence().any { line ->
     contains(Regex("""\[[^]]+]\(https?://[^)]+\)"""))
 
 @Composable
-private fun AssistantSourceStrip(sources: List<SourceCitation>) {
-    val context = LocalContext.current
+private fun AssistantSourceStrip(
+    sources: List<SourceCitation>,
+    onSourceSelected: (SourceCitation) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             "Источники",
@@ -702,25 +797,41 @@ private fun AssistantSourceStrip(sources: List<SourceCitation>) {
                 Surface(
                     modifier = Modifier
                         .widthIn(min = 190.dp, max = 240.dp)
-                        .clickable {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, source.url.toUri())
-                                )
-                            }
-                        },
+                        .clickable { onSourceSelected(source) },
                     color = AssistantColors.Surface,
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, AssistantColors.Border)
                 ) {
                     Column(
-                        modifier = Modifier.padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        source.imageUrl?.let { imageUrl ->
+                            AsyncImage(
+                                model = sourceImageRequest(imageUrl),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 7f)
+                                    .background(AssistantColors.PrimarySoft)
+                            )
+                        }
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 10.dp, end = 10.dp, top = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            source.faviconUrl?.let { faviconUrl ->
+                                AsyncImage(
+                                    model = sourceImageRequest(faviconUrl),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .padding(end = 6.dp)
+                                        .size(16.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                )
+                            }
                             Text(
                                 "${source.index} · ${source.domain}",
                                 modifier = Modifier.weight(1f),
@@ -741,19 +852,307 @@ private fun AssistantSourceStrip(sources: List<SourceCitation>) {
                             style = MaterialTheme.typography.bodySmall,
                             color = AssistantColors.Text,
                             maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 10.dp)
                         )
                         source.publishedAt?.let {
                             Text(
                                 it.take(10),
                                 style = MaterialTheme.typography.labelSmall,
+                                color = AssistantColors.Muted,
+                                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
+                            )
+                        }
+                        if (source.publishedAt == null) Spacer(Modifier.height(6.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelatedQuestions(
+    questions: List<String>,
+    onSelected: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            "Продолжить",
+            style = MaterialTheme.typography.labelLarge,
+            color = AssistantColors.Muted
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(questions, key = { it }) { question ->
+                AssistChip(
+                    onClick = { onSelected(question) },
+                    label = {
+                        Text(
+                            question,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun SourcePreviewSheet(
+    source: SourceCitation,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = AssistantColors.Surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            source.imageUrl?.let { imageUrl ->
+                AsyncImage(
+                    model = sourceImageRequest(imageUrl),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 8f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AssistantColors.PrimarySoft)
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                source.faviconUrl?.let { faviconUrl ->
+                    AsyncImage(
+                        model = sourceImageRequest(faviconUrl),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                    )
+                } ?: Icon(
+                    Icons.Default.Public,
+                    contentDescription = null,
+                    tint = AssistantColors.Primary
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        source.domain,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = AssistantColors.Primary
+                    )
+                    listOfNotNull(source.author, source.publishedAt?.take(10))
+                        .takeIf(List<String>::isNotEmpty)
+                        ?.let { metadata ->
+                            Text(
+                                metadata.joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = AssistantColors.Muted
+                            )
+                        }
+                }
+            }
+            Text(
+                source.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = AssistantColors.Text
+            )
+            source.highlight?.let { highlight ->
+                HorizontalDivider(color = AssistantColors.Border)
+                Text(
+                    highlight,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AssistantColors.Muted
+                )
+            }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, source.url.toUri()))
+                    }
+                }
+            ) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                Text("Открыть оригинал", modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+}
+
+private data class ResearchReportUi(
+    val payload: kotlinx.serialization.json.JsonObject,
+    val sources: List<SourceCitation>
+)
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ResearchReportSheet(
+    report: ResearchReportUi,
+    onDismiss: () -> Unit,
+    onContinue: (String) -> Unit,
+    onSourceSelected: (SourceCitation) -> Unit
+) {
+    val context = LocalContext.current
+    val summary = report.payload["summary"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    val findings = report.payload["findings"]
+        ?.jsonArray
+        .orEmpty()
+        .mapNotNull { element ->
+            val item = element.jsonObject
+            val title = item["title"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val detail = item["detail"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            if (title.isBlank() || detail.isBlank()) null else title to detail
+        }
+    val markdown = remember(summary, findings, report.sources) {
+        buildString {
+            appendLine("# Исследование")
+            appendLine()
+            appendLine(summary)
+            findings.forEach { (title, detail) ->
+                appendLine()
+                appendLine("## $title")
+                appendLine(detail)
+            }
+            if (report.sources.isNotEmpty()) {
+                appendLine()
+                appendLine("## Источники")
+                report.sources.forEach { source ->
+                    appendLine("${source.index}. [${source.title}](${source.url})")
+                }
+            }
+        }.trim()
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = AssistantColors.Screen
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("research_report"),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Text(
+                    "Исследование",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AssistantColors.Text
+                )
+            }
+            if (summary.isNotBlank()) {
+                item {
+                    Text(
+                        summary,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = AssistantColors.Text
+                    )
+                }
+            }
+            items(findings, key = { it.first }) { (title, detail) ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AssistantColors.Text
+                    )
+                    Text(detail, color = AssistantColors.Muted)
+                }
+            }
+            if (report.sources.isNotEmpty()) {
+                item {
+                    HorizontalDivider(color = AssistantColors.Border)
+                    Text(
+                        "Источники",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                items(report.sources, key = SourceCitation::url) { source ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSourceSelected(source) },
+                        color = AssistantColors.Surface,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, AssistantColors.Border)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                "${source.index} · ${source.domain}",
+                                color = AssistantColors.Primary,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                            Text(
+                                source.title,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
             }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/markdown"
+                                putExtra(Intent.EXTRA_TEXT, markdown)
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Поделиться отчётом"))
+                        }
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null)
+                        Text("Поделиться", modifier = Modifier.padding(start = 6.dp))
+                    }
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            report.payload["run_id"]
+                                ?.jsonPrimitive
+                                ?.contentOrNull
+                                ?.let(onContinue)
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Text("Уточнить", modifier = Modifier.padding(start = 6.dp))
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun sourceImageRequest(url: String): ImageRequest {
+    val context = LocalContext.current
+    return remember(context, url) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .httpHeaders(
+                NetworkHeaders.Builder()
+                    .set("User-Agent", "OfflineAssistantPoC/0.1 source-preview")
+                    .build()
+            )
+            .build()
     }
 }
 

@@ -53,7 +53,13 @@ class ExaSearchProviderTest {
             """
             {
               "results": [
-                {"title":"Official docs","url":"https://developer.android.com/about/versions/17","highlights":["First fact"]},
+                {
+                  "title":"Official docs",
+                  "url":"https://developer.android.com/about/versions/17",
+                  "image":"https://developer.android.com/images/android-logo.png",
+                  "favicon":"https://developer.android.com/favicon.ico",
+                  "highlights":["First fact"]
+                },
                 {"title":"Duplicate","url":"https://developer.android.com/about/versions/17","highlights":["Second fact"]},
                 {"title":"Unsafe","url":"http://example.com","highlights":["Ignored"]}
               ]
@@ -67,5 +73,28 @@ class ExaSearchProviderTest {
         assertEquals(1, sources.single().index)
         assertEquals("developer.android.com", sources.single().domain)
         assertEquals("First fact", sources.single().highlight)
+        assertEquals("https://developer.android.com/images/android-logo.png", sources.single().imageUrl)
+        assertEquals("https://developer.android.com/favicon.ico", sources.single().faviconUrl)
+    }
+
+    @Test
+    fun `related question schema is bounded and parser accepts object or encoded object`() {
+        val provider = ExaSearchProvider(apiKeyProvider = { "test" })
+        val body = provider.relatedQuestionsRequestBody("Android 17")
+        val direct = Json.parseToJsonElement(
+            """
+            {"output":{"content":{"questions":["Какие устройства поддерживаются?","Что изменилось для разработчиков?"]}}}
+            """.trimIndent()
+        ).jsonObject
+        val encoded = Json.parseToJsonElement(
+            """
+            {"output":{"content":"{\"questions\":[\"Когда выйдет обновление?\",\"Какие функции самые важные?\"]}"}}
+            """.trimIndent()
+        ).jsonObject
+
+        assertEquals("instant", body["type"].toString().trim('"'))
+        assertTrue(body["outputSchema"].toString().contains("\"maxItems\":3"))
+        assertEquals(2, provider.parseRelatedQuestions(direct).size)
+        assertEquals("Когда выйдет обновление?", provider.parseRelatedQuestions(encoded).first())
     }
 }

@@ -12,11 +12,17 @@ interface PlatformActions {
     fun canCreateSystemAlarm(): Boolean
     fun createSystemAlarm(hour: Int, minute: Int, label: String): Boolean
     fun openSystemAlarms(): Boolean
+    fun executePlatformAction(action: String, payload: Map<String, String>): PlatformActionResult
 }
 
 data class AppCandidate(
     val appName: String,
     val packageName: String
+)
+
+data class PlatformActionResult(
+    val successful: Boolean,
+    val message: String
 )
 
 object NoOpPlatformActions : PlatformActions {
@@ -30,4 +36,8 @@ object NoOpPlatformActions : PlatformActions {
     override fun canCreateSystemAlarm(): Boolean = false
     override fun createSystemAlarm(hour: Int, minute: Int, label: String): Boolean = false
     override fun openSystemAlarms(): Boolean = false
+    override fun executePlatformAction(action: String, payload: Map<String, String>) = PlatformActionResult(
+        false,
+        "Действие недоступно на этой платформе."
+    )
 }

@@ -17,16 +17,24 @@ Run on an ARM64 phone after host checks pass.
 - Composer microphone leaves the final transcript editable and does not send it.
 - Waveform action starts conversation mode and auto-submits each finalized turn.
 - After local speech finishes, conversation mode returns to listening.
-- Interrupting speech stops playback and starts the next listening turn.
+- Saying “стоп” or a new request during speech stops playback through the AEC/T-one
+  barge-in path and keeps the same conversation; manual interruption also works.
 - “Поставь таймер на 5 минут” routes through local RuBERT and shows TimerCard.
 - “Запиши заметку купить молоко” shows NoteCard and survives restart.
 - “Сколько будет 18 умножить на 3” shows CalculatorCard with 54.
+- “Построй маршрут до Красной площади” shows a confirmation card and opens maps
+  only after Continue is tapped; tapping twice executes once.
+- “Подготовь сообщение: буду через десять минут” opens a populated system composer
+  after confirmation and does not send the message.
 - Low-confidence action returns clarification without network use.
 - Open-ended question routes to DeepSeek only when enabled and streams one message.
 - “Что нового в Android 17?” routes RuBERT → Exa Search → DeepSeek, streams
-  Markdown and shows tappable numbered sources.
+  Markdown, inline citations, visual source cards, a source preview and related
+  questions.
 - “Исследуй рынок локальных голосовых ассистентов” starts Exa Agent, releases the
-  composer, updates one `ResearchCard` and can be cancelled independently.
+  composer, updates one `ResearchCard` from SSE and can be cancelled independently.
+- Completed research opens a report, shares Markdown and accepts a follow-up tied
+  to the original Exa run.
 - A follow-up open-ended question uses earlier visible turns as context.
 - “Покажи фотографии Красной площади” renders attributed Wikimedia images and
   opens the Commons source page when tapped.
@@ -47,6 +55,25 @@ Record one self-contained demo showing:
 4. a background Exa Agent research card;
 5. local Silero playback;
 6. debug route labels distinguishing local and cloud execution.
+
+## Automated Device Checks
+
+The following focused checks use production runtime wiring and do not call Exa or
+DeepSeek:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.offlineassistant.app.acceptance.LocalActionsRouteTest
+
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.offlineassistant.app.audio.VoiceProcessingDeviceTest
+```
+
+`LocalActionsRouteTest` submits a navigation command through the installed ONNX
+RuBERT model and requires the local route label plus `ActionConfirmationCard`.
+`VoiceProcessingDeviceTest` starts a real `VOICE_COMMUNICATION` capture and requires
+working acoustic echo cancellation. It reports NS/AGC availability but does not
+replace the final human speak-over-TTS barge-in check.
 
 ## Latest Live Cloud Evidence
 
@@ -69,6 +96,13 @@ pipeline and encrypted BYOK values:
   - the completed `ResearchCard` contained a summary, findings and five sources;
   - a previously interrupted run restored as `interrupted` instead of resuming
     stale work.
+
+The same device passed both automated production-wiring checks on 2026-07-29:
+
+- the installed 21-label RuBERT export classified
+  `Построй маршрут до Красной площади` locally and rendered a confirmation card;
+- `VOICE_COMMUNICATION` initialized and platform acoustic echo cancellation was
+  enabled.
 
 The live tests are opt-in and do not run in CI:
 
