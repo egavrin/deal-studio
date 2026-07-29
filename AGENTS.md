@@ -24,12 +24,21 @@ This repository implements a narrow Android assistant:
 
 The normative architecture is
 `docs/superpowers/specs/2026-07-29-core-assistant-scope.md`.
+The ordered productization program is
+`docs/superpowers/plans/2026-07-29-productization-roadmap.md`.
 
 Do not add or restore Qwen, llama.cpp, Whisper, Gemma, generated UI/Widget DSL,
 AppFunctions, Accessibility-based UI automation, routines, organizer databases,
 personal memory or a Linux CLI unless the product scope is explicitly changed
 first. Calendar and email are limited to confirmed Android compose/insert intents;
 the app must not read either data source.
+
+Productization may add contacts, calendar, tasks, user-selected photos, media,
+email or messaging connectors only milestone by milestone under the roadmap. Each
+connector must use an official Android/provider surface, least-privilege consent,
+read previews and confirmation for writes. Never infer these rights from
+`ROLE_ASSISTANT`, and never replace them with Accessibility or notification
+scraping.
 
 ## Routing Invariants
 
@@ -102,6 +111,14 @@ the app must not read either data source.
   T-one, RuBERT and Silero are created only in the Activity/session process.
 - Skills return data-only `WidgetPayload`; Compose owns rendering through
   `WidgetRegistry`.
+- First-run completion is versioned. Text chat must remain usable when optional
+  permissions, cloud keys or local voice assets are unavailable.
+- Every remotely delivered model must have a stable catalog identity, version,
+  compatibility range and verified digest. Never replace a last-known-good bundle
+  with an unverified or partially downloaded artifact.
+- Conversation context is structured core data with expiry and explicit reset.
+  It may resolve slots or references but may never change the RuBERT action family
+  or use cloud history to authorize an action.
 
 Keep production code out of test source sets and test doubles out of production.
 Prefer the existing contracts over UI callbacks or Android dependencies in `:core`.
@@ -172,6 +189,9 @@ still requires its staged export. Use `scripts/default_assistant_acceptance.sh`
 when the debug package temporarily holds `ROLE_ASSISTANT`.
 
 A demo recording is optional presentation evidence, not a correctness gate.
+
+Before enabling a new product milestone, update its status and acceptance evidence
+in `docs/superpowers/plans/2026-07-29-productization-roadmap.md`.
 
 Gradle dependency verification is strict. Regenerate and review
 `gradle/verification-metadata.xml` after intentional dependency changes.

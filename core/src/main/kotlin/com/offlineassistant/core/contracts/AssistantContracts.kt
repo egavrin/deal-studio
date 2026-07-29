@@ -81,6 +81,8 @@ data class DebugInfo(
     val answerRoute: String? = null,
     val sourceCount: Int = 0,
     val researchRunId: String? = null,
+    val searchCacheHit: Boolean = false,
+    val groundingStatus: String? = null,
     val actionResult: String? = null,
     val latencyMs: LatencyBreakdown? = null
 )

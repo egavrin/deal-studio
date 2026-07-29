@@ -26,6 +26,7 @@ class LiveDeepSeekCaptureTest {
     fun captureVisualDeepSeekAnswer() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         assumeTrue(InstrumentationRegistry.getArguments().getString("liveCapture") == "true")
+        compose.completeOnboardingIfPresent()
 
         compose.onNodeWithTag("chat_input")
             .performTextInput("Покажи фотографии Кривого Рога")

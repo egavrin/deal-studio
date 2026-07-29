@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "name": "core-ru-immutable-baseline-v1",
+  "dataset": "training/data/eval_set.jsonl",
+  "sha256": "37c92f671496f2c5c5e495592208ee9057d6a16a0b278f26d76588963f4eef0b",
+  "languages": [
+    "ru"
+  ],
+  "expected_intents": [
+    "calculate",
+    "compose_email",
+    "compose_message",
+    "control_media",
+    "create_calendar_event",
+    "create_note",
+    "create_reminder",
+    "dial_phone",
+    "get_current_time",
+    "get_weather",
+    "help",
+    "open_app",
+    "open_setting",
+    "open_url",
+    "set_alarm",
+    "set_timer",
+    "set_volume",
+    "start_navigation",
+    "unknown",
+    "web_research",
+    "web_search"
+  ],
+  "minimum_examples_per_intent": 2,
+  "quality_gates": {
+    "intent_accuracy": 0.95,
+    "intent_macro_f1": 0.9,
+    "slot_f1": 0.85,
+    "validation_pass_rate": 0.85
+  },
+  "promotion_requires": [
+    "clean_text",
+    "real_asr",
+    "synthetic_asr",
+    "ambiguity",
+    "out_of_domain",
+    "calibration",
+    "physical_device"
+  ]
+}

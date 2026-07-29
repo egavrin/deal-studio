@@ -34,8 +34,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.offlineassistant.app.assistant.DefaultAssistantStatus
-import com.offlineassistant.app.models.ModelNames
+import com.offlineassistant.app.models.ModelInventoryItem
 import com.offlineassistant.app.models.ModelReadiness
+import com.offlineassistant.app.models.ProductionModelCatalog
+import com.offlineassistant.app.models.formatStorageSize
 import com.offlineassistant.app.settings.AssistantSettingsRepository
 import com.offlineassistant.app.settings.VoiceModel
 import com.offlineassistant.app.ui.theme.AssistantColors
@@ -67,6 +69,7 @@ data class SettingsActions(
     val onAssistantScreenContextChanged: (Boolean) -> Unit,
     val onRequestMicrophonePermission: () -> Unit,
     val onRefreshReadiness: () -> Unit,
+    val onRunSetupAgain: () -> Unit,
     val onClearChat: () -> Unit,
     val onClearCoreData: () -> Unit
 )
@@ -77,6 +80,12 @@ fun SettingsScreen(
     state: SettingsUiState,
     actions: SettingsActions
 ) {
+    val modelInventory = remember(state.readiness) {
+        ProductionModelCatalog.inventory(state.readiness)
+    }
+    val modelStorage = remember(modelInventory) {
+        ProductionModelCatalog.storageSummary(modelInventory)
+    }
     var deepSeekApiKey by remember { mutableStateOf("") }
     var deepSeekSaveError by remember { mutableStateOf<String?>(null) }
     var exaApiKey by remember { mutableStateOf("") }
@@ -144,17 +153,24 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Все голосовые данные обрабатываются на устройстве.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AssistantColors.Muted,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Все голосовые данные обрабатываются на устройстве.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = AssistantColors.Muted
+                        )
+                        Text(
+                            "${modelStorage.readyCount} из ${modelStorage.totalCount} готовы · " +
+                                modelStorage.installedBytes.formatStorageSize(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AssistantColors.Muted
+                        )
+                    }
                     IconButton(onClick = actions.onRefreshReadiness) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить состояние моделей")
                     }
                 }
-                state.readiness.forEach { ModelStatusRow(it) }
+                modelInventory.forEach { ModelStatusRow(it) }
             }
         }
         item {
@@ -309,6 +325,18 @@ fun SettingsScreen(
             }
         }
         item {
+            SettingsSection("Настройка приложения") {
+                Text(
+                    "Повторно проверить границы local/cloud, модели, микрофон и системную роль.",
+                    color = AssistantColors.Muted,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedButton(onClick = actions.onRunSetupAgain) {
+                    Text("Запустить настройку снова")
+                }
+            }
+        }
+        item {
             SettingsSection("Локальные данные") {
                 Text(
                     "История чата хранится отдельно от заметок, напоминаний и таймеров.",
@@ -370,31 +398,29 @@ private fun ToggleRow(
 }
 
 @Composable
-private fun ModelStatusRow(model: ModelReadiness) {
+private fun ModelStatusRow(model: ModelInventoryItem) {
+    val ready = model.status == com.offlineassistant.app.models.ModelInstallStatus.READY
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top
     ) {
         Icon(
-            if (model.ready) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+            if (ready) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
             contentDescription = null,
-            tint = if (model.ready) AssistantColors.Success else AssistantColors.Danger
+            tint = if (ready) AssistantColors.Success else AssistantColors.Danger
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(modelDisplayName(model.name), fontWeight = FontWeight.SemiBold)
+            Text(model.catalog.displayName, fontWeight = FontWeight.SemiBold)
             Text(
-                if (model.ready) "Готово" else model.detail,
+                if (ready) {
+                    "Готово · ${model.catalog.version} · ${model.installedBytes.formatStorageSize()}"
+                } else {
+                    model.detail
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = AssistantColors.Muted
             )
         }
     }
-}
-
-private fun modelDisplayName(name: String): String = when (name) {
-    ModelNames.TONE -> "T-one RU · streaming ASR"
-    ModelNames.RUBERT -> "RuBERT-tiny2 · intent + slots"
-    ModelNames.SILERO_TTS -> "Silero Xenia · local TTS"
-    else -> name
 }

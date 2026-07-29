@@ -30,6 +30,13 @@ it is adopted only if it beats a flat head on the same immutable set.
 
 ## Dataset
 
+The current immutable Russian baseline is pinned by
+`training/data/evaluation_manifest.json`. `scripts/check_nlu_eval_manifest.py`
+verifies its digest, complete intent coverage, minimum support and slot offsets on
+every PR. The manifest contains the pre-declared host metric floors; changing the
+dataset or a floor is a reviewed benchmark-version change, not an incidental
+training edit.
+
 Maintain three non-overlapping groups:
 
 - training and development utterances;
@@ -44,6 +51,11 @@ The evaluation set must cover:
 - supported product languages with native, independently reviewed utterances;
 - confusable intent pairs and unknown requests;
 - a projected 200+ intent taxonomy, without duplicating templates across splits.
+
+The current v1 baseline has two or more examples for every production label. It is
+a regression gate, not yet the final product corpus: real-ASR, accent, ambiguity,
+calibration and multilingual partitions in the manifest remain promotion
+requirements.
 
 MASSIVE may seed multilingual intent representations, but product actions and slots
 still require product-owned data. Generated data cannot be the only source of the

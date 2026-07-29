@@ -23,6 +23,15 @@
 {"text":"Сделай громче","intent":"set_volume","slots":[{"name":"volume_action","value":"громче","start":7,"end":13}]}
 {"text":"Открой настройки Wi-Fi","intent":"open_setting","slots":[{"name":"setting","value":"Wi-Fi","start":17,"end":22}]}
 {"text":"Открой сайт https://developer.android.com","intent":"open_url","slots":[{"name":"url","value":"https://developer.android.com","start":12,"end":41}]}
+{"text":"Позвони по номеру 8 916 555-12-12","intent":"dial_phone","slots":[{"name":"phone_number","value":"8 916 555-12-12","start":18,"end":33}]}
+{"text":"Составь сообщение: встреча переносится на завтра","intent":"compose_message","slots":[{"name":"message_text","value":"встреча переносится на завтра","start":19,"end":48}]}
+{"text":"Хочу отправить письмо жду обратную связь","intent":"compose_email","slots":[{"name":"email_body","value":"жду обратную связь","start":22,"end":40}]}
+{"text":"Как проехать до Большого театра","intent":"start_navigation","slots":[{"name":"destination","value":"Большого театра","start":16,"end":31}]}
+{"text":"Создай запись в календаре родительское собрание","intent":"create_calendar_event","slots":[{"name":"event_title","value":"родительское собрание","start":26,"end":47}]}
+{"text":"Сделай с музыкой продолжить","intent":"control_media","slots":[{"name":"media_action","value":"продолжить","start":17,"end":27}]}
+{"text":"Мне нужно volume down","intent":"set_volume","slots":[{"name":"volume_action","value":"volume down","start":10,"end":21}]}
+{"text":"Перейди к параметрам экрана","intent":"open_setting","slots":[{"name":"setting","value":"экрана","start":21,"end":27}]}
+{"text":"Открой в интернете https://exa.ai","intent":"open_url","slots":[{"name":"url","value":"https://exa.ai","start":19,"end":33}]}
 {"text":"Покажи доступные команды","intent":"help","slots":[]}
 {"text":"Что ты умеешь?","intent":"help","slots":[]}
 {"text":"Найди последние новости об Android 17","intent":"web_search","slots":[],"gate":true}

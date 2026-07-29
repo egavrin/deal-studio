@@ -19,6 +19,7 @@ object AssistantColors {
     val Muted = Color(0xFF697386)
     val Border = Color(0xFFE6EAF0)
     val Success = Color(0xFF16845B)
+    val Warning = Color(0xFF9A6700)
     val Danger = Color(0xFFC2414B)
 }
 

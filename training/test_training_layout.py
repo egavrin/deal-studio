@@ -38,6 +38,23 @@ class TrainingLayoutTest(unittest.TestCase):
         self.assertTrue(any(record["intent"] == "get_weather" for record in records))
         self.assertTrue(any(record["slots"] for record in records))
 
+    def test_eval_manifest_pins_complete_production_baseline(self):
+        manifest = json.loads(
+            (ROOT / "data" / "evaluation_manifest.json").read_text(encoding="utf-8")
+        )
+        records = [
+            json.loads(line)
+            for line in (ROOT / "data" / "eval_set.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        counts = {
+            intent: sum(record["intent"] == intent for record in records)
+            for intent in manifest["expected_intents"]
+        }
+
+        self.assertEqual(set(manifest["expected_intents"]), {record["intent"] for record in records})
+        self.assertGreaterEqual(min(counts.values()), manifest["minimum_examples_per_intent"])
+
     def test_training_set_matches_core_allowlist(self):
         records = [
             json.loads(line)

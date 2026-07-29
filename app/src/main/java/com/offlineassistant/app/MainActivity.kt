@@ -38,9 +38,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.offlineassistant.app.assistant.DefaultAssistantSettingsLauncher
 import com.offlineassistant.app.assistant.DefaultAssistantStatusRepository
+import com.offlineassistant.app.models.ProductionModelCatalog
+import com.offlineassistant.app.settings.OnboardingStep
 import com.offlineassistant.app.ui.ChatViewModel
 import com.offlineassistant.app.ui.ChatViewModelFactory
 import com.offlineassistant.app.ui.MainChatScreen
+import com.offlineassistant.app.ui.OnboardingActions
+import com.offlineassistant.app.ui.OnboardingScreen
+import com.offlineassistant.app.ui.OnboardingUiState
 import com.offlineassistant.app.ui.SettingsActions
 import com.offlineassistant.app.ui.SettingsScreen
 import com.offlineassistant.app.ui.SettingsUiState
@@ -72,6 +77,8 @@ private fun AssistantApp() {
     val settings = runtime.settings
     val speechGateway = runtime.speechGateway
     var selectedTab by remember { mutableStateOf(AppTab.CHAT) }
+    var onboardingCompleted by remember { mutableStateOf(settings.onboardingCompleted) }
+    var onboardingStep by remember { mutableStateOf(settings.onboardingStep) }
     var threshold by remember { mutableDoubleStateOf(settings.intentConfidenceThreshold) }
     var automaticSpeech by remember { mutableStateOf(settings.automaticSpeechEnabled) }
     var deepSeekEnabled by remember { mutableStateOf(settings.deepSeekEnabled) }
@@ -135,6 +142,62 @@ private fun AssistantApp() {
         automaticSpeechEnabled = automaticSpeech,
         onComplete = { readinessEpoch++ }
     )
+
+    if (!onboardingCompleted) {
+        val inventory = remember(readiness) { ProductionModelCatalog.inventory(readiness) }
+        OnboardingScreen(
+            state = OnboardingUiState(
+                step = onboardingStep,
+                inventory = inventory,
+                storage = ProductionModelCatalog.storageSummary(inventory),
+                microphoneGranted = microphoneGranted,
+                automaticSpeechEnabled = automaticSpeech,
+                deepSeekApiKeyConfigured = keyConfigured,
+                exaApiKeyConfigured = exaKeyConfigured,
+                defaultAssistantStatus = defaultAssistantStatus
+            ),
+            actions = OnboardingActions(
+                onBack = {
+                    onboardingStep = onboardingStep.previous()
+                    settings.onboardingStep = onboardingStep
+                },
+                onNext = {
+                    if (onboardingStep == OnboardingStep.READY) {
+                        settings.completeOnboarding()
+                        onboardingCompleted = true
+                    } else {
+                        onboardingStep = onboardingStep.next()
+                        settings.onboardingStep = onboardingStep
+                    }
+                },
+                onRequestMicrophonePermission = {
+                    microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                },
+                onAutomaticSpeechChanged = {
+                    automaticSpeech = it
+                    settings.automaticSpeechEnabled = it
+                },
+                onSaveDeepSeekApiKey = {
+                    settings.saveDeepSeekApiKey(it)
+                    keyConfigured = settings.deepSeekApiKeyConfigured
+                    deepSeekEnabled = true
+                    settings.deepSeekEnabled = true
+                },
+                onSaveExaApiKey = {
+                    settings.saveExaApiKey(it)
+                    exaKeyConfigured = settings.exaApiKeyConfigured
+                    exaEnabled = true
+                },
+                onOpenDefaultAssistantSettings = {
+                    defaultAssistantStatusRepository.selectionIntent()
+                        ?.let(defaultAssistantRoleLauncher::launch)
+                        ?: defaultAssistantSettingsLauncher.open()
+                },
+                onRefreshModels = { readinessEpoch++ }
+            )
+        )
+        return
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -233,8 +296,16 @@ private fun AssistantApp() {
                         microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onRefreshReadiness = { readinessEpoch++ },
+                    onRunSetupAgain = {
+                        settings.restartOnboarding()
+                        onboardingStep = OnboardingStep.PRIVACY
+                        onboardingCompleted = false
+                    },
                     onClearChat = chatViewModel::clearChatHistory,
-                    onClearCoreData = chatViewModel::clearAssistantData
+                    onClearCoreData = {
+                        chatViewModel.clearAssistantData()
+                        runtime.answerProvider.clearSearchCache()
+                    }
                 )
             )
         }

@@ -59,7 +59,11 @@ class DeepSeekAnswerProvider(
                     text = sanitizedAnswer,
                     latencyMs = elapsedMillis(started),
                     source = if (request.sources.isEmpty()) SOURCE else GROUNDED_SOURCE,
-                    sources = request.sources
+                    sources = request.sources,
+                    groundingStatus = CitationCoverageEvaluator.evaluate(
+                        sanitizedAnswer,
+                        request.sources.size
+                    )
                 )
             }
         } catch (_: IOException) {
@@ -268,6 +272,34 @@ private fun String.removeInvalidCitations(sourceCount: Int): String {
         val index = match.groupValues[1].toIntOrNull()
         if (index != null && index in 1..sourceCount) match.value else ""
     }.replace(Regex("""[ \t]{2,}"""), " ")
+}
+
+internal object CitationCoverageEvaluator {
+    fun evaluate(answer: String, sourceCount: Int): String? {
+        if (sourceCount <= 0) return null
+        val validCitation = Regex("""\[(\d{1,3})]""")
+        val paragraphs = answer
+            .split(Regex("""\n\s*\n"""))
+            .map(String::trim)
+            .filter { paragraph ->
+                paragraph.length >= MIN_FACTUAL_PARAGRAPH_CHARS &&
+                    !paragraph.startsWith("#") &&
+                    !paragraph.startsWith("```")
+            }
+        val citedParagraphs = paragraphs.count { paragraph ->
+            validCitation.findAll(paragraph).any { match ->
+                match.groupValues[1].toIntOrNull() in 1..sourceCount
+            }
+        }
+        return when {
+            paragraphs.isEmpty() -> "uncited"
+            citedParagraphs == paragraphs.size -> "structurally_cited"
+            citedParagraphs > 0 -> "partially_cited"
+            else -> "uncited"
+        }
+    }
+
+    private const val MIN_FACTUAL_PARAGRAPH_CHARS = 40
 }
 
 private fun List<ConversationTurn>.sanitizeHistory(

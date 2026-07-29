@@ -22,6 +22,9 @@ Deliver a stable vertical assistant demo around these capabilities:
 12. automatic foreground conversation barge-in with echo cancellation.
 13. optional Android default-assistant invocation through a compact
     `VoiceInteractionSession` that reuses the same pipeline.
+14. resumable first-run setup with explicit local/cloud boundaries and recoverable
+    model/permission states;
+15. a versioned production model inventory and bounded Exa source cache.
 
 The product is intentionally not a general personal operator or generated-UI
 platform.
@@ -161,6 +164,10 @@ patches or LLM repair.
 - shows only validated HTTPS citations and never executes page instructions;
 - exposes inline citation links, a bounded source preview and optional related
   questions from a separate schema-constrained Exa request.
+- caches a bounded successful source set for 30 minutes under a normalized query;
+- labels cache use and structural paragraph-to-citation coverage. This is not a
+  semantic truth claim; unsupported or contradictory facts still require the
+  later verifier defined by the productization roadmap.
 
 ### Exa Agent
 
@@ -201,10 +208,19 @@ patches or LLM repair.
 - no contacts, camera, notification-listener, calendar-read or email-read permissions;
 - dial, SMS, email, map, calendar and browser flows open system-owned confirmation
   or composition surfaces rather than sending data silently.
+- first-run completion and current step are versioned settings; restarting setup
+  does not clear chat, commands or BYOK;
+- model inventory records role, delivery type, version, readiness and installed
+  bytes. Remote delivery is not enabled until a signed catalog and trusted artifact
+  host exist;
+- successful Exa source sets use a private 30-minute, 20-entry cache which is
+  cleared with local assistant data.
 
 ## UI
 
-The app has two destinations: Chat and Settings.
+Before its two destinations, the app has a resumable first-run flow for privacy,
+models, voice, optional cloud setup and optional system-assistant selection. The
+normal destinations remain Chat and Settings.
 
 Chat includes message history, partial transcript, processing route, composer,
 dictation, continuous conversation, auto-scroll, rendered Markdown, TTS replay,
@@ -271,10 +287,12 @@ Host:
 
 ```bash
 python3 scripts/check_core_scope.py
+python3 scripts/check_nlu_eval_manifest.py
+python3 scripts/check_release_contract.py
 ./gradlew testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
 ./gradlew :app:compileDebugAndroidTestKotlin
 ./gradlew ktlintCheck detekt lintDebug
-./gradlew assembleDebug
+./gradlew assembleDebug bundleRelease
 ```
 
 Device acceptance is defined separately in `docs/testing/core-device-acceptance.md`.

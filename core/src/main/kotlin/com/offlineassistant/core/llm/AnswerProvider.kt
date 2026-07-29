@@ -14,7 +14,9 @@ data class AnswerResult(
     val sources: List<SourceCitation> = emptyList(),
     val followUpQuestions: List<String> = emptyList(),
     val widget: WidgetPayload? = null,
-    val researchRunId: String? = null
+    val researchRunId: String? = null,
+    val searchCacheHit: Boolean = false,
+    val groundingStatus: String? = null
 ) {
     val successful: Boolean
         get() = !text.isNullOrBlank() && error == null
@@ -41,7 +43,8 @@ sealed interface AnswerEvent {
 
     data class WebSearchCompleted(
         val sourceCount: Int,
-        val latencyMs: Long
+        val latencyMs: Long,
+        val cacheHit: Boolean = false
     ) : AnswerEvent
 
     data class ResearchStarted(

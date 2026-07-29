@@ -18,6 +18,7 @@ class ConversationEchoLoopTest {
 
     @Test
     fun spokenLocalAnswerDoesNotBecomeNextUserTurn() {
+        compose.completeOnboardingIfPresent()
         val runtime = (compose.activity.application as OfflineAssistantApplication).assistantRuntime
         val coordinator = runtime.conversationCoordinator
         val initialUserMessageCount = coordinator.state.messages.count { it is ChatMessageUi.User }

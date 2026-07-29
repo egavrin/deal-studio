@@ -75,7 +75,10 @@ jobs:
           sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
       - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
       - name: Check narrow architecture
-        run: python3 scripts/check_core_scope.py
+        run: |
+          python3 scripts/check_core_scope.py
+          python3 scripts/check_nlu_eval_manifest.py
+          python3 scripts/check_release_contract.py
       - name: Unit, static and AndroidTest compilation
         run: >-
           ./gradlew --no-daemon --stacktrace
@@ -122,6 +125,33 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
+  release-like:
+    name: minified release-like AAB
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          lfs: true
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+      - name: Install Android toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+      - name: Build unsigned minified artifact
+        run: ./gradlew --no-daemon --stacktrace bundleRelease lintRelease
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-like-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/outputs/bundle/release/app-release.aab
+          retention-days: 7
+
   rubert-training:
     name: RuBERT export contract
     needs: scope
@@ -160,6 +190,7 @@ jobs:
     needs:
       - quality
       - apk
+      - release-like
       - rubert-training
     runs-on: ubuntu-latest
     steps:
@@ -167,8 +198,10 @@ jobs:
         env:
           QUALITY: ${{ needs.quality.result }}
           APK: ${{ needs.apk.result }}
+          RELEASE_LIKE: ${{ needs.release-like.result }}
           RUBERT: ${{ needs.rubert-training.result }}
         run: |
           test "$QUALITY" = success
           test "$APK" = success
+          test "$RELEASE_LIKE" = success
           test "$RUBERT" = success -o "$RUBERT" = skipped

@@ -93,6 +93,8 @@ class AssistantEngine(
                 answerRoute = execution.answerRoute,
                 sourceCount = execution.response.sources.size,
                 researchRunId = execution.researchRunId,
+                searchCacheHit = execution.searchCacheHit,
+                groundingStatus = execution.groundingStatus,
                 actionResult = execution.actionResult,
                 latencyMs = LatencyBreakdown(
                     nlu = nluLatency,
@@ -264,6 +266,8 @@ class AssistantEngine(
                 answerLatencyMs = result.latencyMs,
                 searchLatencyMs = result.searchLatencyMs,
                 researchRunId = result.researchRunId,
+                searchCacheHit = result.searchCacheHit,
+                groundingStatus = result.groundingStatus,
                 actionResult = when (request.route) {
                     AnswerRoute.DIRECT -> "deepseek_answer"
                     AnswerRoute.WEB_SEARCH -> "grounded_web_answer"
@@ -334,6 +338,8 @@ private data class EngineExecution(
     val answerLatencyMs: Long? = null,
     val searchLatencyMs: Long? = null,
     val researchRunId: String? = null,
+    val searchCacheHit: Boolean = false,
+    val groundingStatus: String? = null,
     val normalizationLatencyMs: Long? = null,
     val skillLatencyMs: Long = 0,
     val actionResult: String

@@ -41,6 +41,12 @@ provides independent BYOK keys.
 - attributed Wikimedia Commons image results for explicit visual requests;
 - local Russian TTS with Silero Xenia;
 - independent encrypted DeepSeek and Exa BYOK storage through Android Keystore.
+- resumable first-run setup for privacy boundaries, model readiness, microphone,
+  optional cloud keys and the system-assistant role;
+- versioned local model inventory with role, delivery source, installed bytes and
+  explicit required/optional readiness;
+- a 30-minute bounded Exa result cache plus visible structural citation coverage;
+- minified unsigned release-like AAB verification on every PR.
 
 Qwen, llama.cpp, Whisper, Gemma, generated Widget DSL, AppFunctions and organizer
 features are intentionally outside the current scope.
@@ -62,9 +68,12 @@ Prerequisites: JDK 17, Android SDK/Build Tools 37 and an ARM64 Android device fo
 connected validation.
 
 ```bash
+python3 scripts/check_core_scope.py
+python3 scripts/check_nlu_eval_manifest.py
+python3 scripts/check_release_contract.py
 ./gradlew testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
 ./gradlew ktlintCheck detekt lintDebug
-./gradlew assembleDebug
+./gradlew assembleDebug bundleRelease
 ```
 
 Install:
@@ -88,6 +97,11 @@ Install:
 Generated training outputs under `models/` are ignored by Git. Production ONNX
 assets use Git LFS. The app atomically materializes versioned APK assets or a
 complete verified development override into private app storage.
+
+The current catalog exposes bundled/staged lifecycle state and disk use. Remote
+model downloads remain disabled until a signed catalog and trusted artifact host
+are available; a partial or unverified download must never replace a working
+bundle.
 
 Train the narrow RuBERT classifier:
 
@@ -123,6 +137,8 @@ logs or chat history.
 
 - `web_search`: Exa `auto` retrieves up to six bounded, primary-source-biased
   highlights; DeepSeek streams a Russian answer grounded in those numbered sources.
+  Successful source sets are cached for 30 minutes, and the UI distinguishes cached
+  retrieval and incomplete structural citation coverage.
 - `web_research`: Exa Agent runs asynchronously with `low` effort, SSE progress and
   a bounded summary/findings schema. The composer is released after the run starts;
   its `ResearchCard` remains cancellable and opens a shareable report. Follow-up
@@ -164,6 +180,9 @@ captured.
 
 The normative scope and routing rules are in
 [`docs/superpowers/specs/2026-07-29-core-assistant-scope.md`](docs/superpowers/specs/2026-07-29-core-assistant-scope.md).
+The ordered first-run, model lifecycle, NLU, context, phone-connector, search, UI
+and release program is in
+[`docs/superpowers/plans/2026-07-29-productization-roadmap.md`](docs/superpowers/plans/2026-07-29-productization-roadmap.md).
 The optional system-assistant product integration is researched and staged in
 [`docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md`](docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md).
 Host and OPPO CPH2765 physical-device role acceptance are complete; reproducible

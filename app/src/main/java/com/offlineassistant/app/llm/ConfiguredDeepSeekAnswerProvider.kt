@@ -3,6 +3,7 @@ package com.offlineassistant.app.llm
 import android.content.Context
 import com.offlineassistant.app.platform.hasValidatedInternet
 import com.offlineassistant.app.settings.AssistantSettingsRepository
+import com.offlineassistant.app.storage.SharedPreferencesSearchResultCache
 import com.offlineassistant.core.llm.AnswerEvent
 import com.offlineassistant.core.llm.AnswerRequest
 import com.offlineassistant.core.llm.AnswerResult
@@ -25,6 +26,7 @@ class ConfiguredDeepSeekAnswerProvider(
     ResearchCancellableAnswerProvider {
     private val delegate = DeepSeekAnswerProvider(apiKeyProvider = settings::deepSeekApiKeyOrNull)
     private val search = ExaSearchProvider(apiKeyProvider = settings::exaApiKeyOrNull)
+    private val searchCache = SharedPreferencesSearchResultCache(context.applicationContext)
     private val relatedQuestions = ExaSearchProvider(apiKeyProvider = settings::exaApiKeyOrNull)
     private val research = ExaAgentProvider(apiKeyProvider = settings::exaApiKeyOrNull)
     private val imageSearch = WikimediaImageSearchProvider()
@@ -64,6 +66,10 @@ class ConfiguredDeepSeekAnswerProvider(
         research.cancelResearch(runId)
     }
 
+    fun clearSearchCache() {
+        searchCache.clear()
+    }
+
     private fun answerPrepared(
         request: AnswerRequest,
         onToken: ((String) -> Unit)?,
@@ -95,7 +101,12 @@ class ConfiguredDeepSeekAnswerProvider(
         onEvent: (AnswerEvent) -> Unit
     ): AnswerResult {
         onEvent(AnswerEvent.WebSearchStarted)
-        val searchResult = search.search(request.input)
+        val cachedSources = searchCache.read(request.input)
+        val searchResult = cachedSources?.let { sources ->
+            com.offlineassistant.deepseek.ExaSearchResult(sources = sources)
+        } ?: search.search(request.input).also { result ->
+            if (result.successful) searchCache.write(request.input, result.sources)
+        }
         if (!searchResult.successful) {
             return AnswerResult(
                 error = searchResult.error,
@@ -107,7 +118,8 @@ class ConfiguredDeepSeekAnswerProvider(
         onEvent(
             AnswerEvent.WebSearchCompleted(
                 sourceCount = searchResult.sources.size,
-                latencyMs = searchResult.latencyMs
+                latencyMs = searchResult.latencyMs,
+                cacheHit = cachedSources != null
             )
         )
         val relatedFuture = CompletableFuture.supplyAsync {
@@ -119,7 +131,8 @@ class ConfiguredDeepSeekAnswerProvider(
         }.getOrDefault(emptyList())
         return generated.copy(
             searchLatencyMs = searchResult.latencyMs,
-            followUpQuestions = suggestions
+            followUpQuestions = suggestions,
+            searchCacheHit = cachedSources != null
         )
     }
 

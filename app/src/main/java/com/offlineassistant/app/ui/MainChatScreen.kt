@@ -761,7 +761,12 @@ private fun AssistantMessageBubble(
                 AssistantMediaStrip(message.media)
             }
             if (message.sources.isNotEmpty()) {
-                AssistantSourceStrip(message.sources, onSourceSelected)
+                AssistantSourceStrip(
+                    sources = message.sources,
+                    cacheHit = message.debug?.searchCacheHit == true,
+                    groundingStatus = message.debug?.groundingStatus,
+                    onSourceSelected = onSourceSelected
+                )
             }
             if (message.followUpQuestions.isNotEmpty()) {
                 RelatedQuestions(
@@ -820,11 +825,13 @@ private fun String.hasMarkdownSyntax(): Boolean = lineSequence().any { line ->
 @Composable
 private fun AssistantSourceStrip(
     sources: List<SourceCitation>,
+    cacheHit: Boolean,
+    groundingStatus: String?,
     onSourceSelected: (SourceCitation) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "Источники",
+            if (cacheHit) "Сохранённые источники" else "Источники",
             style = MaterialTheme.typography.labelLarge,
             color = AssistantColors.Muted
         )
@@ -906,6 +913,20 @@ private fun AssistantSourceStrip(
                     }
                 }
             }
+        }
+        when (groundingStatus) {
+            "structurally_cited" -> Text(
+                "Ссылки расставлены по ответу",
+                style = MaterialTheme.typography.labelMedium,
+                color = AssistantColors.Success
+            )
+
+            "partially_cited",
+            "uncited" -> Text(
+                "Не все утверждения снабжены ссылками",
+                style = MaterialTheme.typography.labelMedium,
+                color = AssistantColors.Warning
+            )
         }
     }
 }
@@ -1340,7 +1361,11 @@ internal fun assistantRouteLabel(debug: DebugInfo?): String? {
 
         "deepseek_error" -> "DeepSeek · ошибка"
 
-        "grounded_web_answer" -> "RuBERT → Exa Search → DeepSeek"
+        "grounded_web_answer" -> if (debug.searchCacheHit) {
+            "RuBERT → Exa cache → DeepSeek"
+        } else {
+            "RuBERT → Exa Search → DeepSeek"
+        }
 
         "web_search_error" -> "Exa Search · ошибка"
 

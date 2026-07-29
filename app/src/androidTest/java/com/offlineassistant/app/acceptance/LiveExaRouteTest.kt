@@ -62,6 +62,7 @@ class LiveExaRouteTest {
     }
 
     private fun submit(query: String) {
+        compose.completeOnboardingIfPresent()
         compose.onNodeWithTag("chat_input").performTextInput(query)
         compose.onNodeWithTag("primary_chat_action").performClick()
     }

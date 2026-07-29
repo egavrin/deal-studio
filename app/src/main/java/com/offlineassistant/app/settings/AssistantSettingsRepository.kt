@@ -53,6 +53,33 @@ class AssistantSettingsRepository(context: Context) {
             preferences.edit { putBoolean(KEY_ASSISTANT_SCREEN_CONTEXT, value) }
         }
 
+    val onboardingCompleted: Boolean
+        get() = preferences.getInt(KEY_ONBOARDING_VERSION, 0) >= OnboardingPolicy.CURRENT_VERSION
+
+    var onboardingStep: OnboardingStep
+        get() = OnboardingStep.entries.getOrElse(
+            preferences.getInt(KEY_ONBOARDING_STEP, OnboardingStep.PRIVACY.ordinal)
+        ) {
+            OnboardingStep.PRIVACY
+        }
+        set(value) {
+            preferences.edit { putInt(KEY_ONBOARDING_STEP, value.ordinal) }
+        }
+
+    fun completeOnboarding() {
+        preferences.edit(commit = true) {
+            putInt(KEY_ONBOARDING_VERSION, OnboardingPolicy.CURRENT_VERSION)
+            putInt(KEY_ONBOARDING_STEP, OnboardingStep.READY.ordinal)
+        }
+    }
+
+    fun restartOnboarding() {
+        preferences.edit(commit = true) {
+            remove(KEY_ONBOARDING_VERSION)
+            putInt(KEY_ONBOARDING_STEP, OnboardingStep.PRIVACY.ordinal)
+        }
+    }
+
     val deepSeekApiKeyConfigured: Boolean
         get() = deepSeekApiKeyStore.isConfigured()
 
@@ -96,5 +123,7 @@ class AssistantSettingsRepository(context: Context) {
         private const val KEY_DEEPSEEK_ENABLED = "deepseek_enabled"
         private const val KEY_EXA_ENABLED = "exa_enabled"
         private const val KEY_ASSISTANT_SCREEN_CONTEXT = "assistant_screen_context"
+        private const val KEY_ONBOARDING_VERSION = "onboarding_version"
+        private const val KEY_ONBOARDING_STEP = "onboarding_step"
     }
 }

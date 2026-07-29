@@ -24,6 +24,7 @@ class LocalActionsRouteTest {
 
     @Test
     fun navigationUsesProductionRubertAndRequiresConfirmation() {
+        compose.completeOnboardingIfPresent()
         compose.onNodeWithTag("chat_input").performTextInput("Построй маршрут до Красной площади")
         compose.onNodeWithTag("primary_chat_action").performClick()
 
