@@ -1,0 +1,72 @@
+{
+  "artifacts": {
+    "catalog_sha256": "194f2a5703b4edc11918531b3a845df7195409e615934f51c952a41c9c031bee",
+    "signatures_sha256": "38b9b85aa565ff48ac2a5f9a65e1c9e6ca4fc3fc920875e62a99ee45a9c6dfe7",
+    "teacher_response_schema_sha256": "3e59e438304e2f2c5d9e4a0cdd738eca331f102aeae074fe7783f69413d51130",
+    "ui_blueprint_schema_sha256": "0bbd78bd1c9c18a72620a3dd2f75943caa566d36d8a70ad373911cdb9781687d"
+  },
+  "catalog_ids": [
+    "https://offline-assistant.local/catalogs/a2ui-basic-derived/v1",
+    "https://offline-assistant.local/catalogs/assistant/v1"
+  ],
+  "component_count": 31,
+  "components": [
+    "Text",
+    "Image",
+    "Icon",
+    "Video",
+    "AudioPlayer",
+    "Row",
+    "Column",
+    "List",
+    "Card",
+    "Tabs",
+    "Modal",
+    "Divider",
+    "Button",
+    "TextField",
+    "CheckBox",
+    "ChoicePicker",
+    "Slider",
+    "DateTimeInput",
+    "Badge",
+    "Progress",
+    "Metric",
+    "KeyValue",
+    "Grid",
+    "DataTable",
+    "Chart",
+    "Timeline",
+    "ImageGallery",
+    "SourceList",
+    "MapPreview",
+    "CodeBlock",
+    "InteractiveSurface"
+  ],
+  "express_profile": "assistant-express-v1-keyword-topological",
+  "function_count": 14,
+  "functions": [
+    "and",
+    "email",
+    "formatCurrency",
+    "formatDate",
+    "formatNumber",
+    "formatString",
+    "length",
+    "not",
+    "numeric",
+    "openUrl",
+    "or",
+    "pluralize",
+    "regex",
+    "required"
+  ],
+  "manifest_version": 1,
+  "protocol_profile": "a2ui-v1.0-candidate-internal",
+  "upstream": {
+    "basic_catalog_id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+    "basic_catalog_sha256": "29e01ac2cf69dc5860ad060f5a60c67fa5cdaa8a78ecab1018f531b178fa5c00",
+    "commit": "7541f953050cd58b80f0bf5d85fe2d63192af305",
+    "repository": "a2ui-project/a2ui"
+  }
+}

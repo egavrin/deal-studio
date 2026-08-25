@@ -2,6 +2,7 @@ package com.offlineassistant.app.settings
 
 import android.content.Context
 import androidx.core.content.edit
+import com.offlineassistant.app.BuildConfig
 
 class AssistantSettingsRepository(context: Context) {
     private val preferences = context.getSharedPreferences("offline_assistant_settings", Context.MODE_PRIVATE)
@@ -17,6 +18,10 @@ class AssistantSettingsRepository(context: Context) {
         keyAlias = "offline_assistant_exa_byok_v1",
         displayName = "Exa"
     )
+
+    init {
+        provisionEmbeddedDeepSeekApiKey()
+    }
 
     var intentConfidenceThreshold: Double
         get() = preferences.getFloat(KEY_INTENT_CONFIDENCE_THRESHOLD, DEFAULT_INTENT_CONFIDENCE_THRESHOLD.toFloat()).toDouble()
@@ -108,9 +113,35 @@ class AssistantSettingsRepository(context: Context) {
     }
 
     fun clear() {
-        preferences.edit { clear() }
+        preferences.edit {
+            clear()
+            BuildConfig.EMBEDDED_DEEPSEEK_API_KEY_REVISION
+                .takeIf(String::isNotBlank)
+                ?.let { putString(KEY_EMBEDDED_DEEPSEEK_REVISION, it) }
+        }
         deepSeekApiKeyStore.clear()
         exaApiKeyStore.clear()
+    }
+
+    private fun provisionEmbeddedDeepSeekApiKey() {
+        val embeddedKey = BuildConfig.EMBEDDED_DEEPSEEK_API_KEY.trim()
+        val embeddedRevision = BuildConfig.EMBEDDED_DEEPSEEK_API_KEY_REVISION
+        val installedRevision = preferences.getString(KEY_EMBEDDED_DEEPSEEK_REVISION, null)
+        if (!EmbeddedCredentialProvisioningPolicy.shouldProvision(
+                embeddedKey = embeddedKey,
+                embeddedRevision = embeddedRevision,
+                installedRevision = installedRevision
+            )
+        ) {
+            return
+        }
+        runCatching { deepSeekApiKeyStore.save(embeddedKey) }
+            .onSuccess {
+                preferences.edit(commit = true) {
+                    putString(KEY_EMBEDDED_DEEPSEEK_REVISION, embeddedRevision)
+                    putBoolean(KEY_DEEPSEEK_ENABLED, true)
+                }
+            }
     }
 
     companion object {
@@ -121,9 +152,20 @@ class AssistantSettingsRepository(context: Context) {
         private const val KEY_INTENT_CONFIDENCE_THRESHOLD = "intent_confidence_threshold"
         private const val KEY_AUTOMATIC_SPEECH = "automatic_speech"
         private const val KEY_DEEPSEEK_ENABLED = "deepseek_enabled"
+        private const val KEY_EMBEDDED_DEEPSEEK_REVISION = "embedded_deepseek_revision"
         private const val KEY_EXA_ENABLED = "exa_enabled"
         private const val KEY_ASSISTANT_SCREEN_CONTEXT = "assistant_screen_context"
         private const val KEY_ONBOARDING_VERSION = "onboarding_version"
         private const val KEY_ONBOARDING_STEP = "onboarding_step"
     }
+}
+
+internal object EmbeddedCredentialProvisioningPolicy {
+    fun shouldProvision(
+        embeddedKey: String,
+        embeddedRevision: String,
+        installedRevision: String?
+    ): Boolean = embeddedKey.isNotBlank() &&
+        embeddedRevision.isNotBlank() &&
+        embeddedRevision != installedRevision
 }

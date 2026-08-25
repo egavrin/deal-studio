@@ -161,18 +161,18 @@ class ConfiguredDeepSeekAnswerProvider(
     }
 
     private fun unavailableDeepSeekReason(): String? = when {
-        !settings.deepSeekEnabled -> "DeepSeek выключен в настройках."
-        !settings.deepSeekApiKeyConfigured -> "Ключ DeepSeek не настроен."
-        !context.hasValidatedInternet() -> "Нет доступного интернет-соединения."
+        !settings.deepSeekEnabled -> "DeepSeek is disabled in Settings."
+        !settings.deepSeekApiKeyConfigured -> "DeepSeek API key is not configured."
+        !context.hasValidatedInternet() -> "No internet connection is available."
         else -> null
     }
 
     private fun unavailableSearchReason(requireDeepSeek: Boolean): String? = when {
-        !settings.exaEnabled -> "Веб-поиск Exa выключен в настройках."
-        !settings.exaApiKeyConfigured -> "Ключ Exa не настроен."
-        requireDeepSeek && !settings.deepSeekEnabled -> "DeepSeek выключен в настройках."
-        requireDeepSeek && !settings.deepSeekApiKeyConfigured -> "Ключ DeepSeek не настроен."
-        !context.hasValidatedInternet() -> "Нет доступного интернет-соединения."
+        !settings.exaEnabled -> "Exa web search is disabled in Settings."
+        !settings.exaApiKeyConfigured -> "Exa API key is not configured."
+        requireDeepSeek && !settings.deepSeekEnabled -> "DeepSeek is disabled in Settings."
+        requireDeepSeek && !settings.deepSeekApiKeyConfigured -> "DeepSeek API key is not configured."
+        !context.hasValidatedInternet() -> "No internet connection is available."
         else -> null
     }
 

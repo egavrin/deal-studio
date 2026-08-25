@@ -40,13 +40,13 @@ class ExaSearchProvider(
     fun search(query: String): ExaSearchResult {
         val started = System.nanoTime()
         val apiKey = apiKeyProvider()?.trim().orEmpty()
-        if (apiKey.isEmpty()) return error("Ключ Exa не настроен.", started)
-        if (query.isBlank()) return error("Пустой поисковый запрос.", started)
+        if (apiKey.isEmpty()) return error("Exa API key is not configured.", started)
+        if (query.isBlank()) return error("The search query is empty.", started)
         return try {
             val response = execute(requestBody(query.trim()), apiKey)
             val sources = parseSources(response)
             if (sources.isEmpty()) {
-                error("Exa не нашёл подходящих источников.", started)
+                error("Exa did not find relevant sources.", started)
             } else {
                 ExaSearchResult(sources = sources, latencyMs = elapsedMillis(started))
             }
@@ -55,10 +55,10 @@ class ExaSearchProvider(
             error(httpErrorMessage(error.statusCode), started)
         } catch (error: IOException) {
             Log.w(TAG, "Exa Search transport failure: ${error.javaClass.simpleName}")
-            error("Поиск Exa недоступен. Проверьте подключение и повторите запрос.", started)
+            error("Exa Search is unavailable. Check the connection and try again.", started)
         } catch (error: IllegalArgumentException) {
             Log.w(TAG, "Exa Search response parse failure: ${error.javaClass.simpleName}")
-            error("Не удалось разобрать результаты Exa.", started)
+            error("Could not parse the Exa results.", started)
         }
     }
 
@@ -106,8 +106,8 @@ class ExaSearchProvider(
         put("numResults", RELATED_SEARCH_RESULTS)
         put(
             "systemPrompt",
-            "Сформулируй на русском языке три коротких самостоятельных вопроса, которые естественно продолжают исходный запрос. " +
-                "Не повторяй исходный вопрос, не предлагай действия на телефоне и не добавляй пояснений."
+            "Write three short, standalone English questions that naturally follow the original query. " +
+                "Do not repeat the original question, suggest phone actions, or add explanations."
         )
         putJsonObject("outputSchema") {
             put("type", "object")
@@ -264,13 +264,13 @@ internal class ExaHttpException(
 internal fun httpErrorMessage(statusCode: Int): String = when (statusCode) {
     HttpURLConnection.HTTP_UNAUTHORIZED,
     HttpURLConnection.HTTP_FORBIDDEN ->
-        "Exa отклонил запрос. Проверьте API-ключ и доступность Exa через текущую сеть или VPN."
+        "Exa rejected the request. Check the API key and Exa availability on the current network or VPN."
 
-    HttpURLConnection.HTTP_PAYMENT_REQUIRED -> "На аккаунте Exa недостаточно средств."
+    HttpURLConnection.HTTP_PAYMENT_REQUIRED -> "The Exa account has insufficient credit."
 
-    429 -> "Exa временно ограничил частоту запросов. Повторите позже."
+    429 -> "Exa temporarily rate-limited requests. Try again later."
 
-    else -> "Сервис Exa вернул ошибку HTTP $statusCode."
+    else -> "Exa returned HTTP error $statusCode."
 }
 
 internal fun isAllowedExaSourceUrl(value: String): Boolean = runCatching {

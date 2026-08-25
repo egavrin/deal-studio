@@ -18,7 +18,7 @@ data class ChatUiState(
         ChatMessageUi.Assistant(
             id = "welcome",
             createdAt = Instant.now().toString(),
-            text = "Напишите команду или нажмите микрофон.",
+            text = "Type a command or tap the microphone.",
             widget = null,
             debug = null
         )

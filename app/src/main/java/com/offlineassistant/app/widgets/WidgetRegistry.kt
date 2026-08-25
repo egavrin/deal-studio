@@ -79,7 +79,7 @@ fun AssistantWidgetContainer(
         ErrorCardRenderer.Render(
             JsonObject(
                 mapOf(
-                    "title" to JsonPrimitive("Неизвестная карточка"),
+                    "title" to JsonPrimitive("Unknown card"),
                     "message" to JsonPrimitive(widget.type),
                     "recoverable" to JsonPrimitive(false)
                 )

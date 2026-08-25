@@ -73,7 +73,7 @@ private data class StoredChatMessage(
         ChatMessageUi.Assistant(
             id,
             createdAt,
-            if (restoredWidget !== widget && text.isBlank()) "Исследование было прервано." else text,
+            if (restoredWidget !== widget && text.isBlank()) "Research was interrupted." else text,
             restoredWidget,
             debug,
             media,

@@ -54,8 +54,8 @@ class AssistantEngine(
         val execution = when {
             nluResult.source == NluSource.UNAVAILABLE -> EngineExecution(
                 error(
-                    "Классификатор команд недоступен",
-                    "Проверьте локальную модель RuBERT в настройках и попробуйте снова."
+                    "Command classifier unavailable",
+                    "Check the on-device RuBERT model in Settings and try again."
                 ),
                 actionResult = "rubert_unavailable"
             )
@@ -205,7 +205,7 @@ class AssistantEngine(
             )
 
             is NormalizationResult.Error -> EngineExecution(
-                error("Не получилось выполнить команду", normalized.error.message),
+                error("Could not complete the command", normalized.error.message),
                 normalizationLatencyMs = normalizationLatency,
                 actionResult = "normalization_error"
             )
@@ -277,8 +277,8 @@ class AssistantEngine(
         } else {
             EngineExecution(
                 response = error(
-                    "Не получилось получить ответ",
-                    result.error ?: "DeepSeek вернул пустой ответ."
+                    "Could not get an answer",
+                    result.error ?: "DeepSeek returned an empty answer."
                 ),
                 answerUsed = true,
                 answerSource = result.source ?: "deepseek_cloud",
@@ -297,13 +297,13 @@ class AssistantEngine(
 
     private fun clarification(intent: String) = AssistantResponse(
         status = ResponseStatus.CLARIFICATION_REQUIRED,
-        text = "Я не уверен, что правильно понял действие. Переформулируйте команду.",
+        text = "I am not sure I understood the action. Rephrase the command.",
         intent = intent,
         widget = WidgetPayload(
             WidgetTypes.CLARIFICATION_CARD,
             buildJsonObject {
-                put("question", "Я не уверен, что правильно понял действие. Переформулируйте команду.")
-                put("suggestions", buildJsonArray { add(JsonPrimitive("Отмена")) })
+                put("question", "I am not sure I understood the action. Rephrase the command.")
+                put("suggestions", buildJsonArray { add(JsonPrimitive("Cancel")) })
                 put("pending_intent", intent)
             }
         )
@@ -319,7 +319,7 @@ class AssistantEngine(
                 put("title", title)
                 put("message", message)
                 put("recoverable", true)
-                put("suggestions", buildJsonArray { add(JsonPrimitive("Открыть настройки")) })
+                put("suggestions", buildJsonArray { add(JsonPrimitive("Open settings")) })
             }
         )
     )

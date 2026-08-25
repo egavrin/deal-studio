@@ -492,7 +492,7 @@ private fun ChatComposer(
                     decorationBox = { input ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (state.inputText.isBlank()) {
-                                Text("Введите сообщение...", color = AssistantColors.Muted)
+                                Text("Type a message...", color = AssistantColors.Muted)
                             }
                             input()
                         }
@@ -504,9 +504,9 @@ private fun ChatComposer(
                         .testTag("dictation_action")
                         .semantics {
                             contentDescription = if (state.isRecording) {
-                                "Завершить диктовку"
+                                "Finish dictation"
                             } else {
-                                "Продиктовать сообщение"
+                                "Dictate a message"
                             }
                         },
                     enabled = !state.isProcessing,
@@ -521,9 +521,9 @@ private fun ChatComposer(
             }
         }
         val actionDescription = when {
-            state.isProcessing -> "Остановить ответ"
-            state.inputText.isNotBlank() -> "Отправить"
-            else -> "Начать голосовой диалог"
+            state.isProcessing -> "Stop response"
+            state.inputText.isNotBlank() -> "Send"
+            else -> "Start voice conversation"
         }
         Surface(
             shape = CircleShape,
@@ -566,21 +566,21 @@ private fun ConversationDock(
     onEnd: () -> Unit
 ) {
     val title = when (state.conversationPhase) {
-        ConversationPhase.LISTENING -> "Слушаю"
-        ConversationPhase.PROCESSING -> "Думаю"
-        ConversationPhase.SPEAKING -> if (isPlaying) "Отвечаю голосом" else "Готовлю голос"
-        ConversationPhase.OFF -> "Голосовой диалог"
+        ConversationPhase.LISTENING -> "Listening"
+        ConversationPhase.PROCESSING -> "Thinking"
+        ConversationPhase.SPEAKING -> if (isPlaying) "Speaking" else "Preparing voice"
+        ConversationPhase.OFF -> "Voice conversation"
     }
     val detail = when (state.conversationPhase) {
         ConversationPhase.LISTENING -> state.transcriptPreview?.takeIf {
-            it != "Слушаю..."
-        } ?: "Говорите, пауза завершит реплику"
+            it != "Listening..."
+        } ?: "Speak naturally; a pause ends your turn"
 
         ConversationPhase.PROCESSING -> processingStageLabel(state.processingStage)
 
-        ConversationPhase.SPEAKING -> "Нажмите микрофон, чтобы перебить"
+        ConversationPhase.SPEAKING -> "Tap the microphone to interrupt"
 
-        ConversationPhase.OFF -> "Нажмите, чтобы начать"
+        ConversationPhase.OFF -> "Tap to start"
     }
     Surface(
         modifier = Modifier
@@ -626,10 +626,10 @@ private fun ConversationDock(
                     .testTag("conversation_primary_action")
                     .semantics {
                         contentDescription = when (state.conversationPhase) {
-                            ConversationPhase.LISTENING -> "Завершить реплику"
-                            ConversationPhase.PROCESSING -> "Остановить и говорить"
-                            ConversationPhase.SPEAKING -> "Перебить ответ"
-                            ConversationPhase.OFF -> "Начать диалог"
+                            ConversationPhase.LISTENING -> "Finish turn"
+                            ConversationPhase.PROCESSING -> "Stop and speak"
+                            ConversationPhase.SPEAKING -> "Interrupt response"
+                            ConversationPhase.OFF -> "Start conversation"
                         }
                     },
                 onClick = onPrimaryAction
@@ -649,7 +649,7 @@ private fun ConversationDock(
                     modifier = Modifier
                         .size(44.dp)
                         .testTag("conversation_end")
-                        .semantics { contentDescription = "Завершить голосовой диалог" },
+                        .semantics { contentDescription = "End voice conversation" },
                     onClick = onEnd
                 ) {
                     Icon(Icons.Default.CallEnd, contentDescription = null, tint = Color.White)
@@ -746,7 +746,7 @@ private fun AssistantMessageBubble(
                             onClick = onSpeak,
                             modifier = Modifier
                                 .size(42.dp)
-                                .semantics { contentDescription = "Озвучить ответ" }
+                                .semantics { contentDescription = "Read response aloud" }
                         ) {
                             Icon(
                                 if (speechPlaybackRange == null) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.Close,
@@ -831,7 +831,7 @@ private fun AssistantSourceStrip(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            if (cacheHit) "Сохранённые источники" else "Источники",
+            if (cacheHit) "Cached sources" else "Sources",
             style = MaterialTheme.typography.labelLarge,
             color = AssistantColors.Muted
         )
@@ -888,7 +888,7 @@ private fun AssistantSourceStrip(
                             )
                             Icon(
                                 Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = "Открыть источник",
+                                contentDescription = "Open source",
                                 tint = AssistantColors.Muted,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -916,14 +916,14 @@ private fun AssistantSourceStrip(
         }
         when (groundingStatus) {
             "structurally_cited" -> Text(
-                "Ссылки расставлены по ответу",
+                "Claims are linked to sources",
                 style = MaterialTheme.typography.labelMedium,
                 color = AssistantColors.Success
             )
 
             "partially_cited",
             "uncited" -> Text(
-                "Не все утверждения снабжены ссылками",
+                "Some claims are missing citations",
                 style = MaterialTheme.typography.labelMedium,
                 color = AssistantColors.Warning
             )
@@ -938,7 +938,7 @@ private fun RelatedQuestions(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            "Продолжить",
+            "Follow up",
             style = MaterialTheme.typography.labelLarge,
             color = AssistantColors.Muted
         )
@@ -1044,7 +1044,7 @@ private fun SourcePreviewSheet(
                 }
             ) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                Text("Открыть оригинал", modifier = Modifier.padding(start = 8.dp))
+                Text("Open original", modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
@@ -1076,7 +1076,7 @@ private fun ResearchReportSheet(
         }
     val markdown = remember(summary, findings, report.sources) {
         buildString {
-            appendLine("# Исследование")
+            appendLine("# Research")
             appendLine()
             appendLine(summary)
             findings.forEach { (title, detail) ->
@@ -1086,7 +1086,7 @@ private fun ResearchReportSheet(
             }
             if (report.sources.isNotEmpty()) {
                 appendLine()
-                appendLine("## Источники")
+                appendLine("## Sources")
                 report.sources.forEach { source ->
                     appendLine("${source.index}. [${source.title}](${source.url})")
                 }
@@ -1106,7 +1106,7 @@ private fun ResearchReportSheet(
         ) {
             item {
                 Text(
-                    "Исследование",
+                    "Research",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = AssistantColors.Text
@@ -1136,7 +1136,7 @@ private fun ResearchReportSheet(
                 item {
                     HorizontalDivider(color = AssistantColors.Border)
                     Text(
-                        "Источники",
+                        "Sources",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1177,11 +1177,11 @@ private fun ResearchReportSheet(
                                 type = "text/markdown"
                                 putExtra(Intent.EXTRA_TEXT, markdown)
                             }
-                            context.startActivity(Intent.createChooser(sendIntent, "Поделиться отчётом"))
+                            context.startActivity(Intent.createChooser(sendIntent, "Share report"))
                         }
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null)
-                        Text("Поделиться", modifier = Modifier.padding(start = 6.dp))
+                        Text("Share", modifier = Modifier.padding(start = 6.dp))
                     }
                     Button(
                         modifier = Modifier.weight(1f),
@@ -1193,7 +1193,7 @@ private fun ResearchReportSheet(
                         }
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null)
-                        Text("Уточнить", modifier = Modifier.padding(start = 6.dp))
+                        Text("Refine", modifier = Modifier.padding(start = 6.dp))
                     }
                 }
             }
@@ -1343,23 +1343,23 @@ private fun highlightedSpeechText(
 }
 
 internal fun processingStageLabel(stage: ProcessingStage?): String = when (stage) {
-    ProcessingStage.FINALIZING_RECORDING -> "Завершаю запись…"
-    ProcessingStage.TRANSCRIBING -> "T-one распознаёт речь локально…"
-    ProcessingStage.UNDERSTANDING -> "RuBERT определяет intent локально…"
-    ProcessingStage.SEARCHING -> "Exa ищет актуальные источники…"
-    ProcessingStage.RESEARCHING -> "Exa Agent исследует вопрос в фоне…"
-    ProcessingStage.EXECUTING -> "Выполняю локальное действие…"
-    ProcessingStage.GENERATING -> "DeepSeek отвечает…"
-    ProcessingStage.STOPPING -> "Останавливаю…"
-    null -> "Обрабатываю…"
+    ProcessingStage.FINALIZING_RECORDING -> "Finalizing recording…"
+    ProcessingStage.TRANSCRIBING -> "T-one is transcribing on device…"
+    ProcessingStage.UNDERSTANDING -> "RuBERT is routing on device…"
+    ProcessingStage.SEARCHING -> "Exa is finding current sources…"
+    ProcessingStage.RESEARCHING -> "Exa Agent is researching in the background…"
+    ProcessingStage.EXECUTING -> "Running an on-device action…"
+    ProcessingStage.GENERATING -> "DeepSeek is answering…"
+    ProcessingStage.STOPPING -> "Stopping…"
+    null -> "Processing…"
 }
 
 internal fun assistantRouteLabel(debug: DebugInfo?): String? {
     if (!BuildConfig.DEBUG || debug == null) return null
     return when (debug.actionResult) {
-        "deepseek_answer" -> "DeepSeek · облачный ответ"
+        "deepseek_answer" -> "DeepSeek · cloud answer"
 
-        "deepseek_error" -> "DeepSeek · ошибка"
+        "deepseek_error" -> "DeepSeek · error"
 
         "grounded_web_answer" -> if (debug.searchCacheHit) {
             "RuBERT → Exa cache → DeepSeek"
@@ -1367,15 +1367,15 @@ internal fun assistantRouteLabel(debug: DebugInfo?): String? {
             "RuBERT → Exa Search → DeepSeek"
         }
 
-        "web_search_error" -> "Exa Search · ошибка"
+        "web_search_error" -> "Exa Search · error"
 
         "exa_research_answer" -> "RuBERT → Exa Agent"
 
-        "web_research_error" -> "Exa Agent · ошибка"
+        "web_research_error" -> "Exa Agent · error"
 
         else -> when (debug.nluSource) {
-            NluSource.RUBERT_TINY2 -> "RuBERT · локальный intent"
-            NluSource.UNAVAILABLE -> "RuBERT · недоступен"
+            NluSource.RUBERT_TINY2 -> "RuBERT · on-device intent"
+            NluSource.UNAVAILABLE -> "RuBERT · unavailable"
             else -> null
         }
     }

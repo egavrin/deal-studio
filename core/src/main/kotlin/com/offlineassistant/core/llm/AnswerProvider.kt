@@ -112,7 +112,7 @@ object UnavailableAnswerProvider : StreamingAnswerProvider {
     override fun answer(input: String, onToken: (String) -> Unit): AnswerResult = unavailable()
 
     private fun unavailable() = AnswerResult(
-        error = "DeepSeek недоступен. Проверьте подключение и ключ API.",
+        error = "DeepSeek is unavailable. Check the connection and API key.",
         source = "deepseek_cloud"
     )
 }

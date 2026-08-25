@@ -39,7 +39,7 @@ class CachingWeatherProvider(
         .getOrElse { error ->
             cache.read(location)?.copy(source = "cache")
                 ?: throw WeatherUnavailableException(
-                    "Свежую погоду офлайн узнать нельзя, а сохраненного прогноза нет.",
+                    "Current weather is unavailable offline and there is no cached forecast.",
                     error
                 )
         }
@@ -53,7 +53,7 @@ class MockWeatherProvider(
     override fun currentWeather(location: String): WeatherResult = WeatherResult(
         location = location,
         temperatureC = 21,
-        condition = "Облачно",
+        condition = "Cloudy",
         feelsLikeC = 20,
         humidityPercent = 64,
         windMps = 3,

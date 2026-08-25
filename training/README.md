@@ -1,7 +1,9 @@
 # RuBERT Training
 
-This directory owns the single trainable local model in the current product:
-RuBERT-tiny2 joint intent and BIO slot classification.
+This directory owns RuBERT-tiny2 joint intent and BIO slot classification for the
+production assistant. The isolated Generated App Studio also has experimental
+training pipelines under `generated_app/` and `generated_ui/`; those models never
+participate in production assistant routing or actions.
 
 The production contract contains exactly ten labels:
 
@@ -62,3 +64,13 @@ python3 training/rubert/ci_export_smoke.py --output-dir build/rubert-ci
 ```
 
 No LLM, widget planner or synthetic runtime fallback is part of this pipeline.
+
+## Generated UI Experiment
+
+`generated_ui/` contains the schema-first A2UI dataset pipeline. Its teacher emits
+a strict transport blueprint; deterministic tooling validates it, removes checked
+transport indexes, and compiles the canonical AST into internal A2UI Express and
+wire targets before leakage-safe splitting. The emitted catalogs are project-owned
+derived profiles and do not claim upstream wire conformance. See
+`generated_ui/README.md` and
+`docs/superpowers/plans/2026-08-25-a2ui-dataset-and-constrained-decoding.md`.

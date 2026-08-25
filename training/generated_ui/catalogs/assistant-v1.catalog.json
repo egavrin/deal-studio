@@ -1,0 +1,1011 @@
+{
+  "catalog_ids": [
+    "https://offline-assistant.local/catalogs/a2ui-basic-derived/v1",
+    "https://offline-assistant.local/catalogs/assistant/v1"
+  ],
+  "components": [
+    {
+      "catalog": "basic",
+      "description": "Text content with renderer-owned typography.",
+      "name": "Text",
+      "properties": [
+        {
+          "kind": "display_value",
+          "name": "text",
+          "required": true
+        },
+        {
+          "enum": [
+            "display",
+            "h1",
+            "h2",
+            "h3",
+            "title",
+            "body",
+            "caption",
+            "label"
+          ],
+          "kind": "enum",
+          "name": "variant",
+          "required": false
+        },
+        {
+          "enum": [
+            "default",
+            "muted",
+            "primary",
+            "positive",
+            "warning",
+            "critical",
+            "inverse"
+          ],
+          "kind": "enum",
+          "name": "tone",
+          "required": false
+        },
+        {
+          "enum": [
+            "start",
+            "center",
+            "end"
+          ],
+          "kind": "enum",
+          "name": "align",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Attributed image or a controlled unavailable state.",
+      "name": "Image",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "url",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        },
+        {
+          "enum": [
+            "contain",
+            "cover",
+            "fill"
+          ],
+          "kind": "enum",
+          "name": "fit",
+          "required": false
+        },
+        {
+          "enum": [
+            "square",
+            "portrait",
+            "landscape",
+            "wide"
+          ],
+          "kind": "enum",
+          "name": "aspect",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Catalog icon. Icon-only actions require an accessible description.",
+      "name": "Icon",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "name",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": false
+        },
+        {
+          "enum": [
+            "sm",
+            "md",
+            "lg"
+          ],
+          "kind": "enum",
+          "name": "size",
+          "required": false
+        },
+        {
+          "enum": [
+            "default",
+            "muted",
+            "primary",
+            "positive",
+            "warning",
+            "critical",
+            "inverse"
+          ],
+          "kind": "enum",
+          "name": "tone",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Video result with explicit description and controls.",
+      "name": "Video",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "url",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "poster_url",
+          "required": false
+        },
+        {
+          "kind": "boolean_value",
+          "name": "controls",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Audio result with accessible title and description.",
+      "name": "AudioPlayer",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "url",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "title",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Horizontal layout.",
+      "name": "Row",
+      "properties": [
+        {
+          "kind": "children",
+          "name": "children",
+          "required": true
+        },
+        {
+          "enum": [
+            "none",
+            "xs",
+            "sm",
+            "md",
+            "lg"
+          ],
+          "kind": "enum",
+          "name": "gap",
+          "required": false
+        },
+        {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "kind": "enum",
+          "name": "align",
+          "required": false
+        },
+        {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround"
+          ],
+          "kind": "enum",
+          "name": "justify",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Vertical layout.",
+      "name": "Column",
+      "properties": [
+        {
+          "kind": "children",
+          "name": "children",
+          "required": true
+        },
+        {
+          "enum": [
+            "none",
+            "xs",
+            "sm",
+            "md",
+            "lg"
+          ],
+          "kind": "enum",
+          "name": "gap",
+          "required": false
+        },
+        {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "kind": "enum",
+          "name": "align",
+          "required": false
+        },
+        {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround"
+          ],
+          "kind": "enum",
+          "name": "justify",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Dynamic bound list with a relative-binding template.",
+      "name": "List",
+      "properties": [
+        {
+          "kind": "binding",
+          "name": "items",
+          "required": true
+        },
+        {
+          "kind": "child",
+          "name": "template",
+          "required": true
+        },
+        {
+          "kind": "child",
+          "name": "empty_state",
+          "required": false
+        },
+        {
+          "enum": [
+            "vertical",
+            "horizontal"
+          ],
+          "kind": "enum",
+          "name": "direction",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Bounded visual group.",
+      "name": "Card",
+      "properties": [
+        {
+          "kind": "child",
+          "name": "child",
+          "required": true
+        },
+        {
+          "enum": [
+            "plain",
+            "soft",
+            "accent",
+            "dark",
+            "critical"
+          ],
+          "kind": "enum",
+          "name": "tone",
+          "required": false
+        },
+        {
+          "enum": [
+            "none",
+            "sm",
+            "md",
+            "lg"
+          ],
+          "kind": "enum",
+          "name": "padding",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "State-preserving tab navigation.",
+      "name": "Tabs",
+      "properties": [
+        {
+          "kind": "tabs",
+          "name": "tabs",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "selected",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Modal whose trigger and content are explicit child references.",
+      "name": "Modal",
+      "properties": [
+        {
+          "kind": "child",
+          "name": "trigger",
+          "required": true
+        },
+        {
+          "kind": "child",
+          "name": "content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Visual separator.",
+      "name": "Divider",
+      "properties": [
+        {
+          "enum": [
+            "soft",
+            "strong"
+          ],
+          "kind": "enum",
+          "name": "tone",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "User action. Privileged effects remain host-confirmed.",
+      "name": "Button",
+      "properties": [
+        {
+          "kind": "child",
+          "name": "child",
+          "required": true
+        },
+        {
+          "kind": "action",
+          "name": "action",
+          "required": true
+        },
+        {
+          "enum": [
+            "filled",
+            "tonal",
+            "outline",
+            "text",
+            "critical"
+          ],
+          "kind": "enum",
+          "name": "variant",
+          "required": false
+        },
+        {
+          "kind": "boolean_value",
+          "name": "enabled",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "icon_only",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "accessibility_label",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Bound text input with optional client validation.",
+      "name": "TextField",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "value",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "placeholder",
+          "required": false
+        },
+        {
+          "enum": [
+            "text",
+            "email",
+            "number",
+            "url",
+            "password",
+            "search"
+          ],
+          "kind": "enum",
+          "name": "input_type",
+          "required": false
+        },
+        {
+          "kind": "validation_rules",
+          "name": "validation",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Bound boolean input.",
+      "name": "CheckBox",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "checked",
+          "required": true
+        },
+        {
+          "kind": "boolean_value",
+          "name": "enabled",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Single or multiple choice input.",
+      "name": "ChoicePicker",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "value",
+          "required": true
+        },
+        {
+          "kind": "options",
+          "name": "options",
+          "required": true
+        },
+        {
+          "kind": "boolean",
+          "name": "multiple",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Bound numeric input.",
+      "name": "Slider",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "value",
+          "required": true
+        },
+        {
+          "kind": "number",
+          "name": "min",
+          "required": true
+        },
+        {
+          "kind": "number",
+          "name": "max",
+          "required": true
+        },
+        {
+          "kind": "number",
+          "name": "step",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "basic",
+      "description": "Bound date/time input.",
+      "name": "DateTimeInput",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "value",
+          "required": true
+        },
+        {
+          "enum": [
+            "date",
+            "time",
+            "datetime"
+          ],
+          "kind": "enum",
+          "name": "mode",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "min",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "max",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Compact status or source label.",
+      "name": "Badge",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "text",
+          "required": true
+        },
+        {
+          "enum": [
+            "neutral",
+            "info",
+            "positive",
+            "warning",
+            "critical"
+          ],
+          "kind": "enum",
+          "name": "tone",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "icon",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Progress indicator.",
+      "name": "Progress",
+      "properties": [
+        {
+          "kind": "numeric_value",
+          "name": "value",
+          "required": false
+        },
+        {
+          "kind": "numeric_value",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": false
+        },
+        {
+          "enum": [
+            "determinate",
+            "indeterminate",
+            "paused",
+            "complete",
+            "error"
+          ],
+          "kind": "enum",
+          "name": "state",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Prominent metric value.",
+      "name": "Metric",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "display_value",
+          "name": "value",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "unit",
+          "required": false
+        },
+        {
+          "kind": "display_value",
+          "name": "trend",
+          "required": false
+        },
+        {
+          "enum": [
+            "neutral",
+            "positive",
+            "warning",
+            "critical"
+          ],
+          "kind": "enum",
+          "name": "tone",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Compact fact row.",
+      "name": "KeyValue",
+      "properties": [
+        {
+          "kind": "text_value",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "display_value",
+          "name": "value",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "icon",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Responsive static grid.",
+      "name": "Grid",
+      "properties": [
+        {
+          "kind": "children",
+          "name": "children",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "columns",
+          "required": true
+        },
+        {
+          "enum": [
+            "none",
+            "xs",
+            "sm",
+            "md",
+            "lg"
+          ],
+          "kind": "enum",
+          "name": "gap",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Dense bound records with renderer-owned sorting UI.",
+      "name": "DataTable",
+      "properties": [
+        {
+          "kind": "table_columns",
+          "name": "columns",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "rows",
+          "required": true
+        },
+        {
+          "kind": "binding",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Bound bounded chart with a required textual description.",
+      "name": "Chart",
+      "properties": [
+        {
+          "kind": "binding",
+          "name": "series",
+          "required": true
+        },
+        {
+          "enum": [
+            "line",
+            "bar",
+            "area"
+          ],
+          "kind": "enum",
+          "name": "variant",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "title",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "x_label",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "y_label",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Ordered event or schedule collection.",
+      "name": "Timeline",
+      "properties": [
+        {
+          "kind": "binding",
+          "name": "items",
+          "required": true
+        },
+        {
+          "kind": "child",
+          "name": "template",
+          "required": true
+        },
+        {
+          "kind": "child",
+          "name": "empty_state",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Attributed image collection.",
+      "name": "ImageGallery",
+      "properties": [
+        {
+          "kind": "binding",
+          "name": "items",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "columns",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        },
+        {
+          "kind": "action",
+          "name": "select_action",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Citation and source previews.",
+      "name": "SourceList",
+      "properties": [
+        {
+          "kind": "binding",
+          "name": "sources",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "title",
+          "required": false
+        },
+        {
+          "kind": "action",
+          "name": "open_action",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Delegated or noninteractive map result.",
+      "name": "MapPreview",
+      "properties": [
+        {
+          "kind": "binding",
+          "name": "markers",
+          "required": true
+        },
+        {
+          "enum": [
+            "mock",
+            "system",
+            "online"
+          ],
+          "kind": "enum",
+          "name": "provider",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        },
+        {
+          "kind": "action",
+          "name": "open_action",
+          "required": false
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Renderer-owned code presentation; content is never executed.",
+      "name": "CodeBlock",
+      "properties": [
+        {
+          "kind": "text",
+          "name": "language",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "content",
+          "required": true
+        },
+        {
+          "kind": "action",
+          "name": "copy_action",
+          "required": false
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        }
+      ]
+    },
+    {
+      "catalog": "assistant",
+      "description": "Validated bridge to an isolated DEAL module.",
+      "name": "InteractiveSurface",
+      "properties": [
+        {
+          "kind": "text",
+          "name": "module_id",
+          "required": true
+        },
+        {
+          "enum": [
+            "scene",
+            "square",
+            "wide"
+          ],
+          "kind": "enum",
+          "name": "aspect",
+          "required": true
+        },
+        {
+          "enum": [
+            "tap",
+            "grid",
+            "pointer",
+            "realtime"
+          ],
+          "kind": "enum",
+          "name": "input_mode",
+          "required": true
+        },
+        {
+          "kind": "text_value",
+          "name": "description",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "functions": [
+    "and",
+    "email",
+    "formatCurrency",
+    "formatDate",
+    "formatNumber",
+    "formatString",
+    "length",
+    "not",
+    "numeric",
+    "openUrl",
+    "or",
+    "pluralize",
+    "regex",
+    "required"
+  ],
+  "protocol_version": "1.0-internal",
+  "upstream_basic_catalog_id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+}

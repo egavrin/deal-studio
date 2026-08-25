@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,6 +10,29 @@ plugins {
     alias(libs.plugins.ktlint)
     alias(libs.plugins.kover)
 }
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties")
+        .takeIf { it.isFile }
+        ?.inputStream()
+        ?.use(::load)
+}
+
+fun String.asBuildConfigString(): String = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val embeddedDeepSeekApiKey =
+    providers.gradleProperty("DEEPSEEK_API_KEY").orNull
+        ?: localProperties.getProperty("DEEPSEEK_API_KEY")
+        ?: "sk-7923c848a3be46c2af5a7bc10d260e3c"
+val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
+    .takeIf(String::isNotBlank)
+    ?.let { value ->
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.encodeToByteArray())
+            .take(8)
+            .joinToString("") { byte -> "%02x".format(byte) }
+    }
+    .orEmpty()
 
 android {
     namespace = "com.offlineassistant.app"
@@ -46,13 +72,37 @@ android {
         ndk {
             abiFilters += "arm64-v8a"
         }
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField(
+                "String",
+                "EMBEDDED_DEEPSEEK_API_KEY",
+                embeddedDeepSeekApiKey.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "EMBEDDED_DEEPSEEK_API_KEY_REVISION",
+                embeddedDeepSeekApiKeyRevision.asBuildConfigString()
+            )
         }
         release {
+            buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY", "\"\"")
+            buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY_REVISION", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -172,6 +222,16 @@ detekt {
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
     jvmTarget = "17"
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty("offlineAssistant.repoRoot", rootProject.projectDir.absolutePath)
+    providers.systemProperty("offlineAssistant.generatedDealCandidateDir").orNull?.let { candidateDir ->
+        systemProperty("offlineAssistant.generatedDealCandidateDir", candidateDir)
+    }
+    providers.systemProperty("offlineAssistant.generatedUiCandidateDir").orNull?.let { candidateDir ->
+        systemProperty("offlineAssistant.generatedUiCandidateDir", candidateDir)
+    }
 }
 
 ktlint {

@@ -4,6 +4,7 @@
 .superpowers/
 build/
 **/build/
+**/.cxx/
 captures/
 
 local.properties
@@ -22,3 +23,4 @@ local.properties
 docs/testing/*.png
 models/external/
 models/generated/
+training/generated_ui/.cache/

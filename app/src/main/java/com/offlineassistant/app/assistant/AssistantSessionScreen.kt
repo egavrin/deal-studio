@@ -226,7 +226,7 @@ private fun CompactSessionSurface(
                         .padding(horizontal = 12.dp)
                 ) {
                     Text(
-                        "Ассистент",
+                        "Assistant",
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
@@ -245,7 +245,7 @@ private fun CompactSessionSurface(
                 IconButton(onClick = onFinish) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Закрыть ассистента",
+                        contentDescription = "Close assistant",
                         tint = COMPACT_MUTED
                     )
                 }
@@ -264,7 +264,7 @@ private fun CompactSessionSurface(
                     val transcript = state.transcriptPreview?.trim().orEmpty()
                     Text(
                         text = transcript.ifBlank {
-                            if (microphoneAvailable) "Говорите, я слушаю" else "Разрешите доступ к микрофону"
+                            if (microphoneAvailable) "Speak, I am listening" else "Allow microphone access"
                         },
                         color = if (transcript.isBlank()) COMPACT_MUTED else Color.White,
                         style = MaterialTheme.typography.bodyLarge,
@@ -275,7 +275,7 @@ private fun CompactSessionSurface(
                 IconButton(onClick = onOpenApp) {
                     Icon(
                         Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = "Открыть полный чат",
+                        contentDescription = "Open full chat",
                         tint = COMPACT_MUTED
                     )
                 }
@@ -384,7 +384,7 @@ private fun SessionHeader(
                 .padding(horizontal = 10.dp)
         ) {
             Text(
-                "Ассистент",
+                "Assistant",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -399,15 +399,15 @@ private fun SessionHeader(
         if (hasScreenContext) {
             AssistChip(
                 onClick = onDisableScreenContext,
-                label = { Text("ЭКРАН ×", style = MaterialTheme.typography.labelMedium) }
+                label = { Text("SCREEN ×", style = MaterialTheme.typography.labelMedium) }
             )
         }
         latestRouteLabel(state)?.let { RouteBadge(it) }
         IconButton(onClick = onOpenApp) {
-            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Открыть полный чат")
+            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open full chat")
         }
         IconButton(onClick = onFinish) {
-            Icon(Icons.Default.Close, contentDescription = "Закрыть ассистента")
+            Icon(Icons.Default.Close, contentDescription = "Close assistant")
         }
     }
 }
@@ -438,7 +438,7 @@ private fun CompactContextButton(onDisableScreenContext: () -> Unit) {
         color = COMPACT_ACCENT_SOFT
     ) {
         Text(
-            "ЭКРАН ×",
+            "SCREEN ×",
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
             color = COMPACT_ACCENT,
             style = MaterialTheme.typography.labelMedium,
@@ -458,7 +458,7 @@ private fun VoiceControlButton(
         modifier = Modifier
             .size(58.dp)
             .semantics {
-                contentDescription = if (active) "Остановить запись" else "Начать запись"
+                contentDescription = if (active) "Stop recording" else "Start recording"
             },
         onClick = onToggleRecording,
         enabled = microphoneAvailable,
@@ -575,7 +575,7 @@ private fun SessionComposer(
                 decorationBox = { input ->
                     Box {
                         if (state.inputText.isBlank()) {
-                            Text("Спросите что-нибудь", color = AssistantColors.Muted)
+                            Text("Ask anything", color = AssistantColors.Muted)
                         }
                         input()
                     }
@@ -586,14 +586,14 @@ private fun SessionComposer(
             SessionActionButton(
                 onClick = onSend,
                 enabled = !state.isProcessing,
-                contentDescription = "Отправить"
+                contentDescription = "Send"
             ) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
             }
         } else if (state.isProcessing) {
             SessionActionButton(
                 onClick = onStopProcessing,
-                contentDescription = "Остановить ответ"
+                contentDescription = "Stop response"
             ) {
                 Icon(Icons.Default.Stop, contentDescription = null)
             }
@@ -601,7 +601,7 @@ private fun SessionComposer(
             SessionActionButton(
                 onClick = onToggleRecording,
                 enabled = microphoneAvailable,
-                contentDescription = if (state.isRecording) "Остановить запись" else "Начать запись",
+                contentDescription = if (state.isRecording) "Stop recording" else "Start recording",
                 danger = state.isRecording
             ) {
                 Icon(
@@ -662,15 +662,15 @@ private fun RouteBadge(label: String) {
 }
 
 private fun sessionStatus(state: ChatUiState): String = when {
-    state.isRecording -> "Локальное распознавание речи"
-    state.processingStage == ProcessingStage.TRANSCRIBING -> "T-one распознаёт голос"
-    state.processingStage == ProcessingStage.UNDERSTANDING -> "RuBERT выбирает маршрут"
-    state.processingStage == ProcessingStage.SEARCHING -> "Exa ищет источники"
-    state.processingStage == ProcessingStage.RESEARCHING -> "Exa исследует тему"
-    state.processingStage == ProcessingStage.GENERATING -> "DeepSeek отвечает"
-    state.isProcessing -> "Обрабатываю запрос"
-    state.conversationActive -> "Диалоговый режим"
-    else -> "Готов"
+    state.isRecording -> "On-device speech recognition"
+    state.processingStage == ProcessingStage.TRANSCRIBING -> "T-one is transcribing"
+    state.processingStage == ProcessingStage.UNDERSTANDING -> "RuBERT is routing"
+    state.processingStage == ProcessingStage.SEARCHING -> "Exa is finding sources"
+    state.processingStage == ProcessingStage.RESEARCHING -> "Exa is researching"
+    state.processingStage == ProcessingStage.GENERATING -> "DeepSeek is answering"
+    state.isProcessing -> "Processing request"
+    state.conversationActive -> "Conversation mode"
+    else -> "Ready"
 }
 
 private fun latestRouteLabel(state: ChatUiState): String? {

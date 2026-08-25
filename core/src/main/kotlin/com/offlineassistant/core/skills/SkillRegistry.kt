@@ -27,7 +27,7 @@ class SkillRegistry(skills: List<Skill>) {
         val skill = skillFor(command.intent)
             ?: return SkillResult(
                 status = SkillStatus.ERROR,
-                text = "Нет локального навыка для команды ${command.intent}.",
+                text = "No on-device skill is available for ${command.intent}.",
                 actionResult = "missing_skill"
             )
         return skill.execute(command)

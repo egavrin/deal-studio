@@ -121,38 +121,38 @@ class AndroidPlatformAdapters(
         Intents.SET_VOLUME -> setVolume(payload)
         Intents.OPEN_SETTING -> openSetting(payload)
         Intents.OPEN_URL -> openUrl(payload)
-        else -> PlatformActionResult(false, "Это действие не поддерживается.")
+        else -> PlatformActionResult(false, "This action is not supported.")
     }
 
     private fun dialPhone(payload: Map<String, String>): PlatformActionResult {
         val number = payload["phone_number"]
             ?.filter { it.isDigit() || it in "+*#" }
             ?.takeIf { it.count(Char::isDigit) >= MIN_PHONE_DIGITS }
-            ?: return PlatformActionResult(false, "Не удалось проверить номер телефона.")
+            ?: return PlatformActionResult(false, "Could not validate the phone number.")
         return launch(
             Intent(Intent.ACTION_DIAL, "tel:$number".toUri()),
-            "Открыл набор номера.",
-            "Не нашёл приложение для звонков."
+            "Opened the dialer.",
+            "No phone app was found."
         )
     }
 
     private fun composeMessage(payload: Map<String, String>): PlatformActionResult {
         val text = payload["message_text"]?.trim()?.takeIf(String::isNotEmpty)
-            ?: return PlatformActionResult(false, "Не указан текст сообщения.")
+            ?: return PlatformActionResult(false, "No message text was provided.")
         val recipient = payload["recipient"].orEmpty()
             .filter { it.isDigit() || it in "+*#" }
         return launch(
             Intent(Intent.ACTION_SENDTO, "smsto:$recipient".toUri()).apply {
                 putExtra("sms_body", text)
             },
-            "Открыл редактор сообщения.",
-            "Не нашёл приложение для сообщений."
+            "Opened the message composer.",
+            "No messaging app was found."
         )
     }
 
     private fun composeEmail(payload: Map<String, String>): PlatformActionResult {
         val body = payload["email_body"]?.trim()?.takeIf(String::isNotEmpty)
-            ?: return PlatformActionResult(false, "Не указан текст письма.")
+            ?: return PlatformActionResult(false, "No email body was provided.")
         val recipient = payload["recipient"]?.trim().orEmpty()
         val uri = Uri.Builder()
             .scheme("mailto")
@@ -162,24 +162,24 @@ class AndroidPlatformAdapters(
             .build()
         return launch(
             Intent(Intent.ACTION_SENDTO, uri),
-            "Открыл редактор письма.",
-            "Не нашёл почтовое приложение."
+            "Opened the email composer.",
+            "No email app was found."
         )
     }
 
     private fun startNavigation(payload: Map<String, String>): PlatformActionResult {
         val destination = payload["destination"]?.trim()?.takeIf(String::isNotEmpty)
-            ?: return PlatformActionResult(false, "Не указано место назначения.")
+            ?: return PlatformActionResult(false, "No destination was provided.")
         return launch(
             Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(destination)}".toUri()),
-            "Открыл маршрут.",
-            "Не нашёл приложение с картами."
+            "Opened navigation.",
+            "No maps app was found."
         )
     }
 
     private fun createCalendarEvent(payload: Map<String, String>): PlatformActionResult {
         val title = payload["event_title"]?.trim()?.takeIf(String::isNotEmpty)
-            ?: return PlatformActionResult(false, "Не указано название события.")
+            ?: return PlatformActionResult(false, "No event title was provided.")
         val beginMillis = payload["datetime"]
             ?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
         val intent = Intent(Intent.ACTION_INSERT)
@@ -192,8 +192,8 @@ class AndroidPlatformAdapters(
         }
         return launch(
             intent,
-            "Открыл событие в календаре.",
-            "Не нашёл приложение календаря."
+            "Opened the event in Calendar.",
+            "No calendar app was found."
         )
     }
 
@@ -203,31 +203,31 @@ class AndroidPlatformAdapters(
             "продолжить", "play", "воспроизвести" -> KeyEvent.KEYCODE_MEDIA_PLAY
             "следующий", "next", "следующий трек" -> KeyEvent.KEYCODE_MEDIA_NEXT
             "предыдущий", "previous", "предыдущий трек" -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
-            else -> return PlatformActionResult(false, "Неизвестная команда воспроизведения.")
+            else -> return PlatformActionResult(false, "Unknown media command.")
         }
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            ?: return PlatformActionResult(false, "Системное управление звуком недоступно.")
+            ?: return PlatformActionResult(false, "System audio controls are unavailable.")
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
-        return PlatformActionResult(true, "Команда воспроизведения выполнена.")
+        return PlatformActionResult(true, "Media command completed.")
     }
 
     private fun setVolume(payload: Map<String, String>): PlatformActionResult {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            ?: return PlatformActionResult(false, "Системное управление звуком недоступно.")
+            ?: return PlatformActionResult(false, "System audio controls are unavailable.")
         val direction = when (payload["volume_action"]?.lowercase()?.trim()) {
             "громче", "увеличить", "увеличить громкость", "volume up" -> AudioManager.ADJUST_RAISE
             "тише", "уменьшить", "уменьшить громкость", "volume down" -> AudioManager.ADJUST_LOWER
             "выключить", "без звука", "mute" -> AudioManager.ADJUST_MUTE
             "включить звук", "unmute" -> AudioManager.ADJUST_UNMUTE
-            else -> return PlatformActionResult(false, "Неизвестная команда громкости.")
+            else -> return PlatformActionResult(false, "Unknown volume command.")
         }
         audioManager.adjustStreamVolume(
             AudioManager.STREAM_MUSIC,
             direction,
             AudioManager.FLAG_SHOW_UI
         )
-        return PlatformActionResult(true, "Громкость изменена.")
+        return PlatformActionResult(true, "Volume changed.")
     }
 
     private fun openSetting(payload: Map<String, String>): PlatformActionResult {
@@ -257,24 +257,24 @@ class AndroidPlatformAdapters(
         }
         return launch(
             Intent(action),
-            "Открыл настройки.",
-            "Не получилось открыть настройки."
+            "Opened Settings.",
+            "Could not open Settings."
         )
     }
 
     private fun openUrl(payload: Map<String, String>): PlatformActionResult {
         val raw = payload["url"]?.trim()?.takeIf(String::isNotEmpty)
-            ?: return PlatformActionResult(false, "Не указан веб-адрес.")
+            ?: return PlatformActionResult(false, "No web address was provided.")
         val normalized = if ("://" in raw) raw else "https://$raw"
         val valid = runCatching {
             val uri = URI(normalized)
             uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null
         }.getOrDefault(false)
-        if (!valid) return PlatformActionResult(false, "Разрешены только безопасные HTTPS-адреса.")
+        if (!valid) return PlatformActionResult(false, "Only secure HTTPS addresses are allowed.")
         return launch(
             Intent(Intent.ACTION_VIEW, normalized.toUri()),
-            "Открыл веб-страницу.",
-            "Не нашёл браузер."
+            "Opened the web page.",
+            "No browser was found."
         )
     }
 

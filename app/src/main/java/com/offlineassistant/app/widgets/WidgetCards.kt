@@ -76,21 +76,21 @@ object WeatherCardRenderer : AssistantWidgetRenderer {
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("weather_card") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            WidgetHeader(Icons.Default.Cloud, payload.text("location") ?: "Погода")
-            Text("Сейчас", color = AssistantColors.Muted)
+            WidgetHeader(Icons.Default.Cloud, payload.text("location") ?: "Weather")
+            Text("Now", color = AssistantColors.Muted)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("${payload.int("temperature_c") ?: 0}°", fontSize = 46.sp, fontWeight = FontWeight.Bold)
             Column {
                 Text(payload.text("condition").orEmpty(), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Ощущается как ${payload.int("feels_like_c") ?: 0}°",
+                    "Feels like ${payload.int("feels_like_c") ?: 0}°",
                     color = AssistantColors.Muted
                 )
             }
         }
         Text(
-            "Влажность ${payload.int("humidity_percent") ?: 0}% · ветер ${payload.int("wind_mps") ?: 0} м/с",
+            "Humidity ${payload.int("humidity_percent") ?: 0}% · wind ${payload.int("wind_mps") ?: 0} m/s",
             color = AssistantColors.Muted
         )
         ForecastRow(payload["forecast"] as? JsonArray)
@@ -117,11 +117,11 @@ object TimerCardRenderer : AssistantWidgetRenderer {
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            WidgetHeader(Icons.Default.Timer, "Таймер")
-            Text(payload.text("label") ?: "Без названия", fontWeight = FontWeight.SemiBold)
+            WidgetHeader(Icons.Default.Timer, "Timer")
+            Text(payload.text("label") ?: "Untitled", fontWeight = FontWeight.SemiBold)
         }
         if (payload.text("mode") == "system_passive") {
-            Text("Таймер создан в системном приложении.", color = AssistantColors.Muted)
+            Text("Timer was created in the system app.", color = AssistantColors.Muted)
             return@WidgetCard
         }
         val duration = (payload.int("duration_seconds") ?: remaining).coerceAtLeast(1)
@@ -164,7 +164,7 @@ object TimerCardRenderer : AssistantWidgetRenderer {
                     if (state == "paused") Icons.Default.PlayArrow else Icons.Default.Pause,
                     contentDescription = null
                 )
-                Text(if (state == "paused") "Продолжить" else "Пауза")
+                Text(if (state == "paused") "Resume" else "Pause")
             }
             OutlinedButton(
                 onClick = {
@@ -180,7 +180,7 @@ object TimerCardRenderer : AssistantWidgetRenderer {
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(Icons.Default.Delete, contentDescription = null, tint = AssistantColors.Danger)
-                Text("Отмена", color = AssistantColors.Danger)
+                Text("Cancel", color = AssistantColors.Danger)
             }
         }
     }
@@ -191,10 +191,10 @@ object AlarmCardRenderer : AssistantWidgetRenderer {
 
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("alarm_card") {
-        WidgetHeader(Icons.Default.AccessAlarm, "Будильник")
+        WidgetHeader(Icons.Default.AccessAlarm, "Alarm")
         Text(payload.text("time") ?: "--:--", fontSize = 44.sp, fontWeight = FontWeight.Bold)
         Text(
-            "${payload.text("date") ?: "завтра"} · ${payload.text("label") ?: "будильник"}",
+            "${payload.text("date") ?: "tomorrow"} · ${payload.text("label") ?: "alarm"}",
             color = AssistantColors.Muted
         )
         Text(stateLabel(payload.text("state")), color = AssistantColors.Success)
@@ -202,7 +202,7 @@ object AlarmCardRenderer : AssistantWidgetRenderer {
             onClick = { onAction(WidgetAction(WidgetActionNames.ALARM_OPEN_SYSTEM, type)) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Открыть системный будильник")
+            Text("Open system alarms")
         }
     }
 }
@@ -213,8 +213,8 @@ object ReminderCardRenderer : AssistantWidgetRenderer {
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("reminder_card") {
         val id = payload.text("reminder_id")
-        WidgetHeader(Icons.Default.Notifications, "Напоминание")
-        Text(payload.text("text") ?: "Напоминание", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        WidgetHeader(Icons.Default.Notifications, "Reminder")
+        Text(payload.text("text") ?: "Reminder", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(displayDateTime(payload.text("datetime")), color = AssistantColors.Muted)
         Text(stateLabel(payload.text("state")), color = AssistantColors.Success)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -225,7 +225,7 @@ object ReminderCardRenderer : AssistantWidgetRenderer {
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(Icons.Default.Check, contentDescription = null)
-                Text("Готово")
+                Text("Complete")
             }
             OutlinedButton(
                 onClick = {
@@ -233,7 +233,7 @@ object ReminderCardRenderer : AssistantWidgetRenderer {
                 },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Удалить")
+                Text("Delete")
             }
         }
     }
@@ -245,17 +245,17 @@ object NoteCardRenderer : AssistantWidgetRenderer {
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("note_card") {
         val id = payload.text("note_id")
-        WidgetHeader(Icons.AutoMirrored.Filled.StickyNote2, "Заметка")
-        Text(payload.text("text") ?: "Заметка", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        WidgetHeader(Icons.AutoMirrored.Filled.StickyNote2, "Note")
+        Text(payload.text("text") ?: "Note", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(displayDateTime(payload.text("created_at")), color = AssistantColors.Muted)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            WidgetIconButton(Icons.Default.ContentCopy, "Скопировать заметку") {
+            WidgetIconButton(Icons.Default.ContentCopy, "Copy note") {
                 onAction(WidgetAction(WidgetActionNames.NOTE_COPY, type, id.asPayload("note_id")))
             }
-            WidgetIconButton(Icons.Default.Edit, "Изменить заметку") {
+            WidgetIconButton(Icons.Default.Edit, "Edit note") {
                 onAction(WidgetAction(WidgetActionNames.NOTE_EDIT, type, id.asPayload("note_id")))
             }
-            WidgetIconButton(Icons.Default.Delete, "Удалить заметку", AssistantColors.Danger) {
+            WidgetIconButton(Icons.Default.Delete, "Delete note", AssistantColors.Danger) {
                 onAction(WidgetAction(WidgetActionNames.NOTE_DELETE, type, id.asPayload("note_id")))
             }
         }
@@ -268,7 +268,7 @@ object CalculatorCardRenderer : AssistantWidgetRenderer {
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("calculator_card") {
         val result = payload.text("result")
-        WidgetHeader(Icons.Default.Calculate, "Калькулятор")
+        WidgetHeader(Icons.Default.Calculate, "Calculator")
         Text(
             payload.text("display_expression") ?: payload.text("expression").orEmpty(),
             fontSize = 20.sp
@@ -280,7 +280,7 @@ object CalculatorCardRenderer : AssistantWidgetRenderer {
             }
         ) {
             Icon(Icons.Default.ContentCopy, contentDescription = null)
-            Text("Копировать")
+            Text("Copy")
         }
     }
 }
@@ -292,7 +292,7 @@ object OpenAppCardRenderer : AssistantWidgetRenderer {
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("open_app_card") {
         val name = payload.text("app_name")
         val packageName = payload.text("package_name")
-        WidgetHeader(Icons.Default.Apps, name ?: "Приложение")
+        WidgetHeader(Icons.Default.Apps, name ?: "App")
         Text(appStateLabel(payload.text("state")), color = AssistantColors.Muted)
         val alternatives = payload["alternatives"]?.jsonArray.orEmpty()
         if (alternatives.isEmpty()) {
@@ -308,7 +308,7 @@ object OpenAppCardRenderer : AssistantWidgetRenderer {
                     )
                 }
             ) {
-                Text("Открыть")
+                Text("Open")
             }
         } else {
             alternatives.forEach { alternative ->
@@ -325,7 +325,7 @@ object OpenAppCardRenderer : AssistantWidgetRenderer {
                         )
                     }
                 ) {
-                    Text(app.text("app_name") ?: "Приложение")
+                    Text(app.text("app_name") ?: "App")
                 }
             }
         }
@@ -337,7 +337,7 @@ object HelpCardRenderer : AssistantWidgetRenderer {
 
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("help_card") {
-        WidgetHeader(Icons.AutoMirrored.Filled.HelpOutline, "Что можно попросить")
+        WidgetHeader(Icons.AutoMirrored.Filled.HelpOutline, "What you can ask")
         payload["sections"]?.jsonArray?.forEach { section ->
             val item = section.jsonObject
             Text(item.text("title").orEmpty(), fontWeight = FontWeight.Bold)
@@ -367,8 +367,8 @@ object ClarificationCardRenderer : AssistantWidgetRenderer {
 
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("clarification_card") {
-        WidgetHeader(Icons.AutoMirrored.Filled.HelpOutline, "Нужно уточнение")
-        Text(payload.text("question") ?: "Уточните команду", fontWeight = FontWeight.SemiBold)
+        WidgetHeader(Icons.AutoMirrored.Filled.HelpOutline, "Clarification needed")
+        Text(payload.text("question") ?: "Please clarify the command", fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             payload["suggestions"]?.jsonArray?.take(3)?.forEach { element ->
                 val suggestion = element.jsonPrimitive.content
@@ -395,7 +395,7 @@ object PermissionCardRenderer : AssistantWidgetRenderer {
 
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("permission_card") {
-        WidgetHeader(Icons.Default.Lock, "Требуется разрешение")
+        WidgetHeader(Icons.Default.Lock, "Permission required")
         Text(payload.text("reason").orEmpty())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -409,12 +409,12 @@ object PermissionCardRenderer : AssistantWidgetRenderer {
                     )
                 }
             ) {
-                Text("Разрешить")
+                Text("Allow")
             }
             OutlinedButton(
                 onClick = { onAction(WidgetAction(WidgetActionNames.PERMISSION_NOT_NOW, type)) }
             ) {
-                Text("Не сейчас")
+                Text("Not now")
             }
         }
     }
@@ -425,7 +425,7 @@ object ErrorCardRenderer : AssistantWidgetRenderer {
 
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("error_card") {
-        WidgetHeader(Icons.Default.ErrorOutline, payload.text("title") ?: "Не получилось")
+        WidgetHeader(Icons.Default.ErrorOutline, payload.text("title") ?: "Something went wrong")
         Text(payload.text("message").orEmpty())
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             payload["suggestions"]?.jsonArray?.take(3)?.forEach { element ->
@@ -438,7 +438,13 @@ object ErrorCardRenderer : AssistantWidgetRenderer {
                                 type,
                                 mapOf(
                                     "text" to suggestion,
-                                    "target" to if (suggestion.lowercase().contains("настрой")) "settings" else "retry"
+                                    "target" to if (
+                                        suggestion.lowercase().let { "settings" in it || "настрой" in it }
+                                    ) {
+                                        "settings"
+                                    } else {
+                                        "retry"
+                                    }
                                 )
                             )
                         )
@@ -458,21 +464,21 @@ object ResearchCardRenderer : AssistantWidgetRenderer {
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("research_card") {
         val state = payload.text("state") ?: "running"
         val stage = payload.text("stage")
-        WidgetHeader(Icons.Default.TravelExplore, if (state == "completed") "Исследование" else "Ищу в интернете")
+        WidgetHeader(Icons.Default.TravelExplore, if (state == "completed") "Research" else "Searching the web")
         if (state == "running") {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Text(
                 when (stage) {
-                    "queued" -> "Запрос поставлен в очередь"
-                    "searching" -> "Ищу релевантные источники"
-                    "reading" -> "Читаю и сверяю источники"
-                    "writing" -> "Формирую итог"
-                    else -> "Исследование выполняется в фоне"
+                    "queued" -> "Request queued"
+                    "searching" -> "Finding relevant sources"
+                    "reading" -> "Reading and comparing sources"
+                    "writing" -> "Writing the result"
+                    else -> "Research is running in the background"
                 },
                 color = AssistantColors.Muted
             )
             val sourceCount = payload.int("source_count") ?: 0
-            if (sourceCount > 0) Text("Поисковых проходов: $sourceCount", color = AssistantColors.Muted)
+            if (sourceCount > 0) Text("Search passes: $sourceCount", color = AssistantColors.Muted)
             payload["activities"]?.jsonArray?.takeLast(4)?.forEach { activity ->
                 Text(
                     "• ${activity.jsonPrimitive.content}",
@@ -492,11 +498,11 @@ object ResearchCardRenderer : AssistantWidgetRenderer {
                 }
             ) {
                 Icon(Icons.Default.Stop, contentDescription = null)
-                Text("Остановить", modifier = Modifier.padding(start = 6.dp))
+                Text("Stop", modifier = Modifier.padding(start = 6.dp))
             }
         } else if (state == "cancelled" || state == "interrupted") {
             Text(
-                if (state == "cancelled") "Исследование остановлено." else "Исследование было прервано.",
+                if (state == "cancelled") "Research stopped." else "Research was interrupted.",
                 color = AssistantColors.Muted
             )
         } else {
@@ -527,7 +533,7 @@ object ResearchCardRenderer : AssistantWidgetRenderer {
                     )
                 }
             ) {
-                Text("Открыть отчёт")
+                Text("Open report")
             }
         }
     }
@@ -539,7 +545,7 @@ object ActionConfirmationCardRenderer : AssistantWidgetRenderer {
     @Composable
     override fun Render(payload: JsonObject, onAction: (WidgetAction) -> Unit) = WidgetCard("action_confirmation_card") {
         val state = payload.text("state") ?: "confirmation_required"
-        WidgetHeader(Icons.Default.Lock, payload.text("title") ?: "Действие на устройстве")
+        WidgetHeader(Icons.Default.Lock, payload.text("title") ?: "On-device action")
         Text(payload.text("summary").orEmpty())
         when (state) {
             "completed" -> Row(
@@ -547,19 +553,19 @@ object ActionConfirmationCardRenderer : AssistantWidgetRenderer {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(Icons.Default.Check, contentDescription = null, tint = AssistantColors.Success)
-                Text("Действие передано системе.", color = AssistantColors.Success)
+                Text("Action handed off to the system.", color = AssistantColors.Success)
             }
 
-            "cancelled" -> Text("Отменено.", color = AssistantColors.Muted)
+            "cancelled" -> Text("Cancelled.", color = AssistantColors.Muted)
 
             "error" -> Text(
-                payload.text("result_message") ?: "Не получилось выполнить действие.",
+                payload.text("result_message") ?: "Could not complete the action.",
                 color = MaterialTheme.colorScheme.error
             )
 
             else -> {
                 Text(
-                    "Проверьте данные перед продолжением.",
+                    "Review the details before continuing.",
                     style = MaterialTheme.typography.bodySmall,
                     color = AssistantColors.Muted
                 )
@@ -579,7 +585,7 @@ object ActionConfirmationCardRenderer : AssistantWidgetRenderer {
                             )
                         }
                     ) {
-                        Text("Продолжить")
+                        Text("Continue")
                     }
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
@@ -593,7 +599,7 @@ object ActionConfirmationCardRenderer : AssistantWidgetRenderer {
                             )
                         }
                     ) {
-                        Text("Отмена")
+                        Text("Cancel")
                     }
                 }
             }
@@ -678,7 +684,7 @@ private fun SourceChip(source: String) {
                 source.equals("online", ignoreCase = true) -> "online"
 
                 source.startsWith("exa_agent:", ignoreCase = true) ->
-                    "Exa Agent · ${source.substringAfter(':')} источников"
+                    "Exa Agent · ${source.substringAfter(':')} sources"
 
                 source.equals("exa_search+deepseek", ignoreCase = true) -> "Exa + DeepSeek"
 
@@ -697,24 +703,24 @@ private fun currentRemainingSeconds(state: String, stored: Int, endsAt: Long?): 
 }
 
 private fun timerStatusLabel(state: String, remaining: Int): String = when {
-    state == "cancelled" -> "отменён"
-    state == "paused" -> "на паузе"
-    remaining == 0 -> "завершён"
-    else -> "до завершения"
+    state == "cancelled" -> "cancelled"
+    state == "paused" -> "paused"
+    remaining == 0 -> "finished"
+    else -> "remaining"
 }
 
 private fun stateLabel(state: String?): String = when (state) {
-    "scheduled" -> "Запланировано"
-    "completed" -> "Выполнено"
-    "cancelled" -> "Отменено"
+    "scheduled" -> "Scheduled"
+    "completed" -> "Completed"
+    "cancelled" -> "Cancelled"
     else -> state.orEmpty()
 }
 
 private fun appStateLabel(state: String?): String = when (state) {
-    "opened" -> "Приложение открыто"
-    "confirmation_required" -> "Нужно выбрать приложение"
-    "not_found" -> "Приложение не найдено"
-    else -> "Готово к открытию"
+    "opened" -> "App opened"
+    "confirmation_required" -> "Choose an app"
+    "not_found" -> "App not found"
+    else -> "Ready to open"
 }
 
 private fun displayDateTime(value: String?): String = value?.let {

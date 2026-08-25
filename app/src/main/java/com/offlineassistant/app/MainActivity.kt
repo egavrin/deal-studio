@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +39,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.offlineassistant.app.assistant.DefaultAssistantSettingsLauncher
 import com.offlineassistant.app.assistant.DefaultAssistantStatusRepository
+import com.offlineassistant.app.generatedapp.GeneratedAppStudioRoute
 import com.offlineassistant.app.models.ProductionModelCatalog
 import com.offlineassistant.app.settings.OnboardingStep
 import com.offlineassistant.app.ui.ChatViewModel
@@ -65,6 +67,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class AppTab {
     CHAT,
+    STUDIO,
     SETTINGS
 }
 
@@ -203,7 +206,15 @@ private fun AssistantApp() {
         modifier = Modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (selectedTab == AppTab.CHAT) "Ассистент" else "Настройки") }
+                title = {
+                    Text(
+                        when (selectedTab) {
+                            AppTab.CHAT -> "Assistant"
+                            AppTab.STUDIO -> "Studio"
+                            AppTab.SETTINGS -> "Settings"
+                        }
+                    )
+                }
             )
         },
         bottomBar = {
@@ -212,13 +223,19 @@ private fun AssistantApp() {
                     selected = selectedTab == AppTab.CHAT,
                     onClick = { selectedTab = AppTab.CHAT },
                     icon = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null) },
-                    label = { Text("Чат") }
+                    label = { Text("Chat") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == AppTab.STUDIO,
+                    onClick = { selectedTab = AppTab.STUDIO },
+                    icon = { Icon(Icons.Default.DataObject, contentDescription = null) },
+                    label = { Text("Studio") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == AppTab.SETTINGS,
                     onClick = { selectedTab = AppTab.SETTINGS },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Настройки") }
+                    label = { Text("Settings") }
                 )
             }
         }
@@ -233,6 +250,12 @@ private fun AssistantApp() {
                 onStopSpeech = { speechGateway.stop(SpeechStopReason.USER_REQUESTED) },
                 onConversationModeChanged = speechGateway::setConversationModeActive,
                 sharedAudioTranscriberFactory = runtime.audioTranscribers
+            )
+
+            AppTab.STUDIO -> GeneratedAppStudioRoute(
+                deepSeekApiKeyConfigured = keyConfigured,
+                onOpenSettings = { selectedTab = AppTab.SETTINGS },
+                modifier = Modifier.padding(contentPadding)
             )
 
             AppTab.SETTINGS -> SettingsScreen(

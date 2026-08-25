@@ -153,7 +153,7 @@ jobs:
           retention-days: 7
 
   rubert-training:
-    name: RuBERT export contract
+    name: Training contracts
     needs: scope
     if: needs.scope.outputs.training == 'true'
     runs-on: ubuntu-latest
@@ -166,17 +166,21 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: training/rubert/requirements.txt
+          cache-dependency-path: |
+            training/rubert/requirements.txt
+            training/generated_ui/requirements.txt
       - name: Install pinned training stack
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r training/rubert/requirements.txt
+          python -m pip install -r training/generated_ui/requirements.txt
           python -m pip check
       - name: Validate training code and ONNX contract
         run: |
           for test_script in training/test_*.py; do
             PYTHONPATH=. python "$test_script"
           done
+          python training/generated_ui/build_artifacts.py --check
           python training/rubert/ci_export_smoke.py --output-dir build/rubert-ci
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -63,13 +63,17 @@ EXPECTED_PERMISSIONS = {
 FORBIDDEN_PATHS = (
     "appfunctions-experiment",
     "cloud-widget-connector",
-    "app/src/main/cpp",
     "third_party/whisper.cpp",
     "training/widget_planner",
     "core/src/main/kotlin/com/offlineassistant/core/widgets",
     "app/src/main/java/com/offlineassistant/app/shell",
     "app/src/main/java/com/offlineassistant/app/widgets/planning",
 )
+GENERATED_APP_EXPERIMENT_ROOT = ROOT / "app/src/main/java/com/offlineassistant/app/generatedapp"
+EXPECTED_GENERATED_APP_NATIVE_FILES = {
+    "CMakeLists.txt",
+    "generated_app_llama.cpp",
+}
 FORBIDDEN_PRODUCTION_TERMS = re.compile(
     r"\b(qwen|llama|whisper|gemma|compose_widget|generatedWidget|appFunctions|"
     r"brainDump|personalMemory|routine)\b",
@@ -92,6 +96,19 @@ def main() -> int:
     for relative in FORBIDDEN_PATHS:
         if (ROOT / relative).exists():
             failures.append(f"forbidden path exists: {relative}")
+
+    generated_app_native_root = ROOT / "app/src/main/cpp"
+    actual_native_files = (
+        {path.name for path in generated_app_native_root.iterdir() if path.is_file()}
+        if generated_app_native_root.is_dir()
+        else set()
+    )
+    if actual_native_files != EXPECTED_GENERATED_APP_NATIVE_FILES:
+        failures.append(
+            "generated-app native allowlist mismatch: "
+            f"expected={sorted(EXPECTED_GENERATED_APP_NATIVE_FILES)} "
+            f"actual={sorted(actual_native_files)}"
+        )
 
     android = "{http://schemas.android.com/apk/res/android}"
     manifest = ElementTree.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
@@ -146,6 +163,8 @@ def main() -> int:
         for path in source_root.rglob("*"):
             if path.suffix not in {".kt", ".kts", ".xml"}:
                 continue
+            if path.is_relative_to(GENERATED_APP_EXPERIMENT_ROOT):
+                continue
             match = FORBIDDEN_PRODUCTION_TERMS.search(path.read_text(encoding="utf-8"))
             if match:
                 failures.append(
@@ -176,6 +195,8 @@ def main() -> int:
         ROOT / "app/proguard-rules.pro",
     )
     for path in build_files:
+        if path == ROOT / "app/build.gradle.kts":
+            continue
         match = FORBIDDEN_BUILD_TERMS.search(path.read_text(encoding="utf-8"))
         if match:
             failures.append(

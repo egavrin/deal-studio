@@ -21,17 +21,26 @@ This repository implements a narrow Android assistant:
 10. On supported Android devices the user may select the app for `ROLE_ASSISTANT`.
     A `VoiceInteractionSession` reuses the same local/cloud pipeline in a compact
     system-invoked surface; the role is an entry point, not a privilege escalation.
+11. Debug builds contain an isolated Generated App Studio experiment. Its UI and
+    logic roles are selected independently: local Gemma 270M / Qwen2.5-Coder 0.5B,
+    DeepSeek V4 Flash or DeepSeek V4 Pro. Every route produces the same compact UI
+    DSL and restricted DEAL generated-app profile. The Studio is not part of
+    assistant routing and generated code may not execute assistant actions.
+12. The user-facing app, Studio prompts, generated labels, cloud answers and system
+    overlay are English. Russian strings remain only in input normalization,
+    compatibility parsing and Russian speech-model internals.
 
 The normative architecture is
 `docs/superpowers/specs/2026-07-29-core-assistant-scope.md`.
 The ordered productization program is
 `docs/superpowers/plans/2026-07-29-productization-roadmap.md`.
 
-Do not add or restore Qwen, llama.cpp, Whisper, Gemma, generated UI/Widget DSL,
-AppFunctions, Accessibility-based UI automation, routines, organizer databases,
-personal memory or a Linux CLI unless the product scope is explicitly changed
-first. Calendar and email are limited to confirmed Android compose/insert intents;
-the app must not read either data source.
+Outside `app.generatedapp` and its exact native runtime allowlist, do not add or
+restore Qwen, llama.cpp, Whisper, Gemma, generated UI/Widget DSL, AppFunctions,
+Accessibility-based UI automation, routines, organizer databases, personal memory
+or a Linux CLI unless the product scope is explicitly changed first. Calendar and
+email are limited to confirmed Android compose/insert intents; the app must not
+read either data source.
 
 Productization may add contacts, calendar, tasks, user-selected photos, media,
 email or messaging connectors only milestone by milestone under the roadmap. Each
@@ -97,6 +106,67 @@ scraping.
   state grows into an anchored response panel for text, sources and fixed widgets.
   It may learn from Alice and ChatGPT interaction patterns but must retain its own
   identity and must not reproduce competitor branding.
+- Generated App Studio is a separate internal route. Assistant text, RuBERT labels,
+  ordinary assistant DeepSeek responses and Exa data must never enter its compiler
+  or authorize its actions. Only an explicit Studio generator selection may send
+  the Studio request to its restricted DeepSeek generation client.
+- Studio output is generated data, never trusted source. UI DSL and DEAL must pass
+  strict parsers, ABI validation, resource limits and deterministic smoke actions
+  before rendering becomes interactive. Partial, cancelled or repaired-but-invalid
+  output is never executed.
+- Do not add runtime app-family switches, canned reducers, prebuilt game state or a
+  fallback generated app. Both UI structure and behavior source must come from the
+  two explicitly selected generators. Training examples are allowed; production
+  templates are not.
+- UI and logic start their first generation pass in parallel. Local UI uses Gemma;
+  local logic uses Qwen. Either role may instead use explicit DeepSeek V4 Flash or
+  Pro. The two role choices are persisted independently, never silently fall back,
+  and release the corresponding local llama.cpp session when cloud is selected.
+  The UI generator composes around exactly one generic `surface.app`; it does not
+  select the executable interaction profile. The logic generator emits one complete
+  `GRID` or `REALTIME_CANVAS` module. Invalid DEAL may trigger one repair pass on the
+  same selected backend; repair may not select a canned module or skip validation.
+- Studio generation budgets are ceilings, not target lengths: Gemma may emit up to
+  512 tokens and Qwen up to 1,536 tokens for both the first pass and repair. Do not
+  restore a 64-token output cap. Raising these limits also requires adjusting the
+  native cap, source-size gate, context budget and device latency/thermal acceptance.
+- Generated apps use exactly one `GRID` or `REALTIME_CANVAS` interaction surface.
+  Real-time state, movement, collision, score, lives and reset behavior belong to
+  generated DEAL. Compose only renders bounded generic shapes and forwards capped
+  frame and pointer events.
+- `pong`, `arkanoid`, `tank_duel` and all other app names are forbidden as runtime
+  branches. They may exist in training/evaluation data only. Keep at least one
+  real-time family held out from train and compile every target with production
+  parsers before training.
+- Call the executable language `DEAL generated-app profile`. It is intentionally
+  smaller than canonical DEAL v1.2 and must not be presented as conformant DEAL.
+- Generated UI training uses the catalog and pipeline in `training/generated_ui`.
+  In that broad A2UI dataset pipeline DeepSeek is a host-only teacher; it must emit
+  the closed `UiBlueprintV1` schema and never writes a trusted runtime DSL directly.
+  The separate internal Studio may request its older compact DSL from DeepSeek, but
+  that output remains untrusted and must pass the production parser. The canonical
+  training blueprint is the source of truth, and A2UI Express/wire targets are
+  deterministic derived artifacts.
+- The generated-UI runtime catalog IDs are project-owned derived profiles. Preserve
+  the pinned upstream A2UI ID/commit/digest as provenance, but never claim upstream
+  wire conformance until its conformance suite passes.
+- Teacher correction is bounded and fail-closed: non-thinking generation, optional
+  minimal-reasoning correction, then one final non-thinking correction. Corrections
+  receive the rejected candidate and exact diagnostics; they never invoke a
+  deterministic semantic repair or admit an invalid record.
+- DeepSeek dataset keys are process environment only. Never put a key in source,
+  fixtures, cache keys, generation reports, shell history or committed config.
+- No generated UI sample enters train merely because its JSON parses. It must pass
+  schema, catalog, graph, binding, action, URL and accessibility validation. Render,
+  interaction and screenshot gates are additionally required before promoting a
+  full dataset or model, even when the checked-in host fixture passes.
+- Dataset splits are assigned after canonicalization by a structural template hash
+  that ignores visible literals and teacher-chosen component/action identifiers.
+  One template cluster may occur in exactly one split. Do not restore random row
+  splitting or use prompt uniqueness as evidence of target diversity.
+- Catalog changes require regenerating and reviewing `catalog-manifest.json`, the
+  closed blueprint schema and prompt signatures. Model, grammar and renderer
+  compatibility must reference the resulting content digests.
 
 ## Ownership
 
@@ -105,6 +175,8 @@ scraping.
 - `:deepseek-connector` owns restricted DeepSeek HTTPS/SSE, Exa Search/Agent and
   allowlisted Wikimedia transports.
 - `AssistantRuntimeContainer` is the production composition root.
+- `app.generatedapp` owns the isolated Studio, compact UI parser, restricted DEAL
+  interpreter and local llama.cpp bridge. It must not be referenced from `:core`.
 - `AssistantConversationCoordinator` owns the reusable request/session state
   machine. Activity and `VoiceInteractionSession` surfaces are adapters.
 - The always-running `VoiceInteractionService` entry process stays model-free.
@@ -177,6 +249,7 @@ Run before handing off:
 ```bash
 python3 scripts/check_core_scope.py
 ./gradlew testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
+./gradlew :app:testDebugUnitTest --tests 'com.offlineassistant.app.generatedapp.*'
 ./gradlew :app:compileDebugAndroidTestKotlin
 ./gradlew ktlintCheck detekt lintDebug
 ./gradlew assembleDebug
@@ -199,9 +272,18 @@ Gradle dependency verification is strict. Regenerate and review
 ## Security
 
 - Never commit API keys, bearer tokens or device credentials.
+- Generated App Studio GGUF files are staged into app-private storage for internal
+  builds. Do not package them in the APK or download them from an untrusted URL.
 - DeepSeek and Exa use independent AES-GCM credentials backed by Android Keystore.
   Read them only at request time through `AssistantSettingsRepository`; never copy
-  them into source, Gradle properties, `BuildConfig`, logs or chat history.
+  production credentials into source, Gradle properties, `BuildConfig`, logs or chat
+  history. The internal debug build may temporarily embed an explicitly disposable
+  demo key when the product owner requests a self-contained test APK. Release builds
+  must always expose an empty embedded credential, and the demo key must be rotated
+  before any public distribution.
+- Studio may reuse the DeepSeek BYOK only after the user explicitly selects a cloud
+  backend. It must keep UI and logic model IDs on a closed enum, disable thinking,
+  use the same validated output ceilings, and never persist generated credentials.
 - Never add a production fallback endpoint. DeepSeek transport accepts only
   `https://api.deepseek.com/chat/completions`; image search accepts only the
   Wikimedia Commons API and `upload.wikimedia.org` media.

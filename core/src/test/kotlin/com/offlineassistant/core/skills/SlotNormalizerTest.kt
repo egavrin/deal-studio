@@ -46,7 +46,7 @@ class SlotNormalizerTest {
         val clarification = (result as NormalizationResult.Clarification).request
         assertEquals("time", clarification.expectedSlot)
         assertEquals(Intents.SET_ALARM, clarification.pendingIntent)
-        assertTrue(clarification.suggestions.contains("Отмена"))
+        assertTrue(clarification.suggestions.contains("Cancel"))
     }
 
     @Test

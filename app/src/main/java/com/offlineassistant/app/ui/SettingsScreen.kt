@@ -97,12 +97,12 @@ fun SettingsScreen(
             .testTag("settings_screen")
     ) {
         item {
-            SettingsSection("Системный ассистент") {
+            SettingsSection("System assistant") {
                 Text(
                     when (state.defaultAssistantStatus) {
-                        DefaultAssistantStatus.SELECTED -> "Выбран системным ассистентом"
-                        DefaultAssistantStatus.NOT_SELECTED -> "Не выбран системным ассистентом"
-                        DefaultAssistantStatus.UNAVAILABLE -> "Роль ассистента недоступна"
+                        DefaultAssistantStatus.SELECTED -> "Selected as system assistant"
+                        DefaultAssistantStatus.NOT_SELECTED -> "Not selected as system assistant"
+                        DefaultAssistantStatus.UNAVAILABLE -> "Assistant role unavailable"
                     },
                     style = MaterialTheme.typography.titleMedium,
                     color = if (state.defaultAssistantStatus == DefaultAssistantStatus.SELECTED) {
@@ -112,7 +112,7 @@ fun SettingsScreen(
                     }
                 )
                 Text(
-                    "Системный жест откроет локальный голосовой диалог поверх текущего приложения.",
+                    "A system gesture opens the on-device voice conversation over the current app.",
                     color = AssistantColors.Muted,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -122,32 +122,32 @@ fun SettingsScreen(
                 ) {
                     Text(
                         if (state.defaultAssistantStatus == DefaultAssistantStatus.SELECTED) {
-                            "Изменить системного ассистента"
+                            "Change system assistant"
                         } else {
-                            "Выбрать системным ассистентом"
+                            "Set as system assistant"
                         }
                     )
                 }
                 if (!state.microphoneGranted) {
                     OutlinedButton(onClick = actions.onRequestMicrophonePermission) {
-                        Text("Разрешить микрофон")
+                        Text("Allow microphone")
                     }
                     Text(
-                        "Без доступа к микрофону системный overlay доступен только для текста.",
+                        "Without microphone access, the system overlay supports text only.",
                         color = AssistantColors.Danger,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
                 ToggleRow(
-                    label = "Использовать текущий экран",
-                    detail = "Текст экрана хранится только во время системной сессии и явно отмечается в интерфейсе.",
+                    label = "Use current screen",
+                    detail = "Screen text is kept only for the current system session and is clearly marked in the interface.",
                     checked = state.assistantScreenContextEnabled,
                     onCheckedChange = actions.onAssistantScreenContextChanged
                 )
             }
         }
         item {
-            SettingsSection("Локальные модели") {
+            SettingsSection("On-device models") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -155,26 +155,26 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Все голосовые данные обрабатываются на устройстве.",
+                            "All voice data is processed on device.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = AssistantColors.Muted
                         )
                         Text(
-                            "${modelStorage.readyCount} из ${modelStorage.totalCount} готовы · " +
+                            "${modelStorage.readyCount} of ${modelStorage.totalCount} ready · " +
                                 modelStorage.installedBytes.formatStorageSize(),
                             style = MaterialTheme.typography.bodySmall,
                             color = AssistantColors.Muted
                         )
                     }
                     IconButton(onClick = actions.onRefreshReadiness) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Обновить состояние моделей")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh model status")
                     }
                 }
                 modelInventory.forEach { ModelStatusRow(it) }
             }
         }
         item {
-            SettingsSection("Речь") {
+            SettingsSection("Speech") {
                 Text(
                     VoiceModel.displayName,
                     style = MaterialTheme.typography.titleMedium
@@ -185,22 +185,22 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 ToggleRow(
-                    label = "Озвучивать ответы",
-                    detail = "Silero Xenia синтезирует речь локально.",
+                    label = "Read responses aloud",
+                    detail = "Silero Xenia synthesizes speech on device.",
                     checked = state.automaticSpeechEnabled,
                     onCheckedChange = actions.onAutomaticSpeechChanged
                 )
             }
         }
         item {
-            SettingsSection("Распознавание команд") {
+            SettingsSection("Command recognition") {
                 val percentage = (state.intentConfidenceThreshold * 100).roundToInt()
                 Text(
-                    "Порог уверенности RuBERT: $percentage%",
+                    "RuBERT confidence threshold: $percentage%",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    "Низкая уверенность для action-intent всегда вызывает уточнение, а не облачную модель.",
+                    "Low-confidence action intents always ask for clarification instead of using a cloud model.",
                     color = AssistantColors.Muted,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -215,16 +215,16 @@ fun SettingsScreen(
         item {
             SettingsSection("DeepSeek") {
                 ToggleRow(
-                    label = "Сложные вопросы",
-                    detail = "Запросы вне локального набора команд отправляются в DeepSeek. Голос не отправляется.",
+                    label = "Complex questions",
+                    detail = "Requests outside the on-device command set are sent to DeepSeek. Voice audio is never sent.",
                     checked = state.deepSeekEnabled,
                     onCheckedChange = actions.onDeepSeekEnabledChanged
                 )
                 Text(
                     if (state.deepSeekApiKeyConfigured) {
-                        "API-ключ сохранён в Android Keystore."
+                        "API key is stored in Android Keystore."
                     } else {
-                        "API-ключ не настроен."
+                        "API key is not configured."
                     },
                     color = if (state.deepSeekApiKeyConfigured) AssistantColors.Success else AssistantColors.Muted,
                     style = MaterialTheme.typography.bodyMedium
@@ -251,10 +251,10 @@ fun SettingsScreen(
                         onClick = {
                             runCatching { actions.onSaveDeepSeekApiKey(deepSeekApiKey) }
                                 .onSuccess { deepSeekApiKey = "" }
-                                .onFailure { deepSeekSaveError = it.message ?: "Не удалось сохранить ключ." }
+                                .onFailure { deepSeekSaveError = it.message ?: "Could not save the key." }
                         }
                     ) {
-                        Text("Сохранить")
+                        Text("Save")
                     }
                     OutlinedButton(
                         enabled = state.deepSeekApiKeyConfigured,
@@ -263,24 +263,24 @@ fun SettingsScreen(
                             deepSeekApiKey = ""
                         }
                     ) {
-                        Text("Удалить")
+                        Text("Remove")
                     }
                 }
             }
         }
         item {
-            SettingsSection("Поиск Exa") {
+            SettingsSection("Exa Search") {
                 ToggleRow(
-                    label = "Актуальные ответы и исследования",
-                    detail = "RuBERT отдельно выбирает быстрый Exa Search или фоновый Exa Agent. Локальные команды не отправляются в сеть.",
+                    label = "Current answers and research",
+                    detail = "RuBERT routes separately to fast Exa Search or background Exa Agent. On-device commands are not sent online.",
                     checked = state.exaEnabled,
                     onCheckedChange = actions.onExaEnabledChanged
                 )
                 Text(
                     if (state.exaApiKeyConfigured) {
-                        "API-ключ сохранён в Android Keystore."
+                        "API key is stored in Android Keystore."
                     } else {
-                        "API-ключ не настроен."
+                        "API key is not configured."
                     },
                     color = if (state.exaApiKeyConfigured) AssistantColors.Success else AssistantColors.Muted,
                     style = MaterialTheme.typography.bodyMedium
@@ -307,10 +307,10 @@ fun SettingsScreen(
                         onClick = {
                             runCatching { actions.onSaveExaApiKey(exaApiKey) }
                                 .onSuccess { exaApiKey = "" }
-                                .onFailure { exaSaveError = it.message ?: "Не удалось сохранить ключ." }
+                                .onFailure { exaSaveError = it.message ?: "Could not save the key." }
                         }
                     ) {
-                        Text("Сохранить")
+                        Text("Save")
                     }
                     OutlinedButton(
                         enabled = state.exaApiKeyConfigured,
@@ -319,36 +319,36 @@ fun SettingsScreen(
                             exaApiKey = ""
                         }
                     ) {
-                        Text("Удалить")
+                        Text("Remove")
                     }
                 }
             }
         }
         item {
-            SettingsSection("Настройка приложения") {
+            SettingsSection("App setup") {
                 Text(
-                    "Повторно проверить границы local/cloud, модели, микрофон и системную роль.",
+                    "Review on-device and cloud boundaries, models, microphone access, and the system role.",
                     color = AssistantColors.Muted,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 OutlinedButton(onClick = actions.onRunSetupAgain) {
-                    Text("Запустить настройку снова")
+                    Text("Run setup again")
                 }
             }
         }
         item {
-            SettingsSection("Локальные данные") {
+            SettingsSection("Local data") {
                 Text(
-                    "История чата хранится отдельно от заметок, напоминаний и таймеров.",
+                    "Chat history is stored separately from notes, reminders, and timers.",
                     color = AssistantColors.Muted,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = actions.onClearChat) {
-                        Text("Очистить чат")
+                        Text("Clear chat")
                     }
                     OutlinedButton(onClick = actions.onClearCoreData) {
-                        Text("Очистить команды")
+                        Text("Clear command data")
                     }
                 }
             }
@@ -414,7 +414,7 @@ private fun ModelStatusRow(model: ModelInventoryItem) {
             Text(model.catalog.displayName, fontWeight = FontWeight.SemiBold)
             Text(
                 if (ready) {
-                    "Готово · ${model.catalog.version} · ${model.installedBytes.formatStorageSize()}"
+                    "Ready · ${model.catalog.version} · ${model.installedBytes.formatStorageSize()}"
                 } else {
                     model.detail
                 },

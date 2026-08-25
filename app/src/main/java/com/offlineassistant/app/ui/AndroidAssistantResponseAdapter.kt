@@ -31,13 +31,13 @@ internal class AndroidAssistantResponseAdapter(
         }
         return copy(
             status = ResponseStatus.PERMISSION_REQUIRED,
-            text = "Чтобы показать напоминание вовремя, нужно разрешение на уведомления.",
+            text = "Notification permission is required to show the reminder on time.",
             widget = WidgetPayload(
                 type = WidgetTypes.PERMISSION_CARD,
                 payload = JsonObject(
                     mapOf(
                         "permission" to JsonPrimitive(PermissionNames.POST_NOTIFICATIONS),
-                        "reason" to JsonPrimitive("Чтобы создавать напоминания, нужно разрешение на уведомления."),
+                        "reason" to JsonPrimitive("Notification permission is required to create reminders."),
                         "action" to JsonPrimitive("request_permission")
                     )
                 )
@@ -90,9 +90,9 @@ internal class AndroidAssistantResponseAdapter(
             }
         }
         val resolvedText = when (candidates.size) {
-            0 -> "Не нашел приложение $appName."
-            1 -> "Нашел ${candidates.single().appName}."
-            else -> "Нашел несколько приложений. Выберите нужное."
+            0 -> "I could not find $appName."
+            1 -> "Found ${candidates.single().appName}."
+            else -> "I found several apps. Choose one."
         }
         val currentDebug = debug
         return copy(
@@ -157,18 +157,18 @@ internal class AndroidAssistantResponseAdapter(
         val parts = time.split(":")
         val hour = parts.getOrNull(0)?.toIntOrNull() ?: return this
         val minute = parts.getOrNull(1)?.toIntOrNull() ?: return this
-        val label = alarmWidget.payload.string("label") ?: "будильник"
+        val label = alarmWidget.payload.string("label") ?: "alarm"
         return if (platformActions.createSystemAlarm(hour, minute, label)) {
             copy(
-                text = "Будильник создан в системном приложении.",
+                text = "Alarm was created in the system app.",
                 widget = alarmWidget.copy(payload = alarmWidget.payload.withPassiveSystemMode()),
                 debug = debug?.copy(actionResult = "success")
             )
         } else {
             systemActionError(
-                text = "Не получилось создать будильник.",
-                title = "Не получилось выполнить команду",
-                message = "Я понял команду, но не смог создать будильник."
+                text = "Could not create the alarm.",
+                title = "Could not complete the command",
+                message = "I understood the command but could not create the alarm."
             )
         }
     }

@@ -124,9 +124,9 @@ private fun OnboardingHeader(step: OnboardingStep) {
             .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Настройка ассистента", style = MaterialTheme.typography.titleLarge)
+        Text("Set up your assistant", style = MaterialTheme.typography.titleLarge)
         Text(
-            "Шаг ${step.ordinal + 1} из ${OnboardingStep.entries.size}",
+            "Step ${step.ordinal + 1} of ${OnboardingStep.entries.size}",
             style = MaterialTheme.typography.bodySmall,
             color = AssistantColors.Muted
         )
@@ -159,21 +159,21 @@ private fun OnboardingStepContent(
 @Composable
 private fun PrivacyStep() {
     StepTitle(
-        title = "Сначала — границы данных",
-        detail = "Голос, распознавание команд и озвучивание работают на устройстве. Облако подключается отдельно."
+        title = "Your data boundaries",
+        detail = "Voice, command recognition, and speech synthesis run on device. Cloud services are enabled separately."
     )
     CapabilityPanel(
         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = "Всегда локально",
-        detail = "Микрофонный звук → T-one, intent и slots → RuBERT, речь → Silero. Аудио не отправляется в сеть."
+        title = "Always on device",
+        detail = "Microphone audio → T-one, intents and slots → RuBERT, speech → Silero. Audio is never uploaded."
     )
     CapabilityPanel(
         icon = { Icon(Icons.Default.Cloud, contentDescription = null) },
-        title = "Только с вашего согласия",
-        detail = "Сложные вопросы могут уходить в DeepSeek, поиск — в Exa. Для каждого сервиса нужен отдельный BYOK."
+        title = "Only with your consent",
+        detail = "Complex questions can use DeepSeek and web search can use Exa. Each service needs its own API key."
     )
     Text(
-        "Локальные действия не передаются языковой модели. Низкая уверенность action-intent приводит к уточнению.",
+        "On-device actions are not sent to a language model. Low-confidence action intents ask for clarification.",
         style = MaterialTheme.typography.bodyMedium,
         color = AssistantColors.Muted
     )
@@ -185,8 +185,8 @@ private fun ModelsStep(
     onRefresh: () -> Unit
 ) {
     StepTitle(
-        title = "Проверка локальных моделей",
-        detail = "Текстовый чат требует RuBERT. Распознавание и озвучивание можно восстановить позже."
+        title = "Check on-device models",
+        detail = "Text chat requires RuBERT. Speech recognition and synthesis can be restored later."
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -195,17 +195,17 @@ private fun ModelsStep(
     ) {
         Column {
             Text(
-                "${state.storage.readyCount} из ${state.storage.totalCount} готовы",
+                "${state.storage.readyCount} of ${state.storage.totalCount} ready",
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                "Занято ${state.storage.installedBytes.formatStorageSize()}",
+                "Using ${state.storage.installedBytes.formatStorageSize()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = AssistantColors.Muted
             )
         }
         IconButton(onClick = onRefresh) {
-            Icon(Icons.Default.Refresh, contentDescription = "Повторить проверку моделей")
+            Icon(Icons.Default.Refresh, contentDescription = "Check models again")
         }
     }
     state.inventory.forEach { item ->
@@ -214,7 +214,7 @@ private fun ModelsStep(
     if (!OnboardingPolicy.canAdvance(OnboardingStep.MODELS, state.inventory)) {
         StatusMessage(
             error = true,
-            text = "RuBERT не готов. Повторите проверку. Повреждённый обязательный bundle не заменяется облаком."
+            text = "RuBERT is not ready. Check again. A corrupted required bundle cannot be replaced by the cloud."
         )
     }
 }
@@ -225,26 +225,26 @@ private fun VoiceStep(
     actions: OnboardingActions
 ) {
     StepTitle(
-        title = "Голос",
-        detail = "Разрешение на микрофон нужно только для диктовки и непрерывного диалога."
+        title = "Voice",
+        detail = "Microphone access is only used for dictation and continuous conversation."
     )
     CapabilityPanel(
         icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-        title = if (state.microphoneGranted) "Микрофон разрешён" else "Разрешить микрофон",
+        title = if (state.microphoneGranted) "Microphone allowed" else "Allow microphone",
         detail = if (state.microphoneGranted) {
-            "T-one сможет распознавать речь локально."
+            "T-one can transcribe speech on device."
         } else {
-            "Можно пропустить: текстовый чат останется доступен."
+            "You can skip this; text chat will remain available."
         }
     )
     if (!state.microphoneGranted) {
         Button(onClick = actions.onRequestMicrophonePermission) {
-            Text("Разрешить микрофон")
+            Text("Allow microphone")
         }
     }
     ToggleSetting(
-        title = "Озвучивать ответы",
-        detail = "Silero Xenia работает локально. Настройку можно изменить позже.",
+        title = "Read responses aloud",
+        detail = "Silero Xenia runs on device. You can change this later.",
         checked = state.automaticSpeechEnabled,
         onCheckedChange = actions.onAutomaticSpeechChanged
     )
@@ -259,8 +259,8 @@ private fun CloudStep(
     var exaKey by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     StepTitle(
-        title = "Облачные возможности — опционально",
-        detail = "Без ключей локальные команды, голос и озвучивание продолжают работать."
+        title = "Optional cloud capabilities",
+        detail = "On-device commands, voice recognition, and speech synthesis work without API keys."
     )
     CredentialSetup(
         label = "DeepSeek API key",
@@ -273,7 +273,7 @@ private fun CloudStep(
         onSave = {
             runCatching { actions.onSaveDeepSeekApiKey(deepSeekKey) }
                 .onSuccess { deepSeekKey = "" }
-                .onFailure { error = it.message ?: "Не удалось сохранить ключ." }
+                .onFailure { error = it.message ?: "Could not save the key." }
         }
     )
     CredentialSetup(
@@ -287,12 +287,12 @@ private fun CloudStep(
         onSave = {
             runCatching { actions.onSaveExaApiKey(exaKey) }
                 .onSuccess { exaKey = "" }
-                .onFailure { error = it.message ?: "Не удалось сохранить ключ." }
+                .onFailure { error = it.message ?: "Could not save the key." }
         }
     )
     error?.let { StatusMessage(error = true, text = it) }
     Text(
-        "Ключи шифруются отдельными ключами Android Keystore. Их можно добавить и удалить в настройках.",
+        "API keys are encrypted with separate Android Keystore keys. You can add or remove them in Settings.",
         style = MaterialTheme.typography.bodySmall,
         color = AssistantColors.Muted
     )
@@ -304,25 +304,25 @@ private fun SystemAssistantStep(
     actions: OnboardingActions
 ) {
     StepTitle(
-        title = "Системный вызов",
-        detail = "На поддерживаемом устройстве ассистента можно открывать жестом поверх других приложений."
+        title = "System invocation",
+        detail = "On supported devices, a system gesture can open the assistant over other apps."
     )
     CapabilityPanel(
         icon = { Icon(Icons.Default.PhoneAndroid, contentDescription = null) },
         title = when (state.defaultAssistantStatus) {
-            DefaultAssistantStatus.SELECTED -> "Уже выбран"
-            DefaultAssistantStatus.NOT_SELECTED -> "Выбрать системным ассистентом"
-            DefaultAssistantStatus.UNAVAILABLE -> "Роль недоступна"
+            DefaultAssistantStatus.SELECTED -> "Already selected"
+            DefaultAssistantStatus.NOT_SELECTED -> "Set as system assistant"
+            DefaultAssistantStatus.UNAVAILABLE -> "Role unavailable"
         },
-        detail = "Системная роль не даёт доступ к контактам, сообщениям, фото или экрану без отдельных разрешений."
+        detail = "The system role does not grant access to contacts, messages, photos, or the screen without separate permissions."
     )
     if (state.defaultAssistantStatus != DefaultAssistantStatus.UNAVAILABLE) {
         OutlinedButton(onClick = actions.onOpenDefaultAssistantSettings) {
             Text(
                 if (state.defaultAssistantStatus == DefaultAssistantStatus.SELECTED) {
-                    "Изменить выбор"
+                    "Change selection"
                 } else {
-                    "Открыть системный выбор"
+                    "Open system selection"
                 }
             )
         }
@@ -332,26 +332,26 @@ private fun SystemAssistantStep(
 @Composable
 private fun ReadyStep(state: OnboardingUiState) {
     StepTitle(
-        title = "Готово к работе",
-        detail = "Приложение начнёт с чата. Любой пропущенный шаг доступен в настройках."
+        title = "Ready to go",
+        detail = "The app will open in Chat. Any skipped step remains available in Settings."
     )
     StatusMessage(
         error = false,
         text = if (state.microphoneGranted) {
-            "Текст и локальный голос готовы."
+            "Text and on-device voice are ready."
         } else {
-            "Текст готов. Для голоса позже разрешите микрофон."
+            "Text is ready. Allow microphone access later to use voice."
         }
     )
     StatusMessage(
         error = false,
         text = when {
             state.deepSeekApiKeyConfigured && state.exaApiKeyConfigured ->
-                "Сложные ответы и поиск настроены."
+                "Complex answers and search are configured."
 
-            state.deepSeekApiKeyConfigured -> "Сложные ответы настроены; поиск можно подключить позже."
+            state.deepSeekApiKeyConfigured -> "Complex answers are configured; search can be enabled later."
 
-            else -> "Облако выключено; локальные команды работают независимо."
+            else -> "Cloud is off; on-device commands work independently."
         }
     )
 }
@@ -373,7 +373,7 @@ private fun OnboardingNavigation(
         ) {
             if (step != OnboardingStep.PRIVACY) {
                 OutlinedButton(onClick = onBack) {
-                    Text("Назад")
+                    Text("Back")
                 }
             } else {
                 Spacer(modifier = Modifier.weight(1f))
@@ -383,7 +383,7 @@ private fun OnboardingNavigation(
                 onClick = onNext,
                 modifier = Modifier.testTag("onboarding_primary_action")
             ) {
-                Text(if (step == OnboardingStep.READY) "Открыть чат" else "Продолжить")
+                Text(if (step == OnboardingStep.READY) "Open chat" else "Continue")
             }
         }
     }
@@ -469,7 +469,7 @@ private fun CredentialSetup(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            if (configured) "$label сохранён" else "$label не настроен",
+            if (configured) "$label saved" else "$label not configured",
             style = MaterialTheme.typography.titleMedium,
             color = if (configured) AssistantColors.Success else AssistantColors.Muted
         )
@@ -482,7 +482,7 @@ private fun CredentialSetup(
             visualTransformation = PasswordVisualTransformation()
         )
         Button(enabled = value.isNotBlank(), onClick = onSave) {
-            Text("Сохранить")
+            Text("Save")
         }
     }
 }
@@ -520,13 +520,13 @@ private fun StatusMessage(error: Boolean, text: String) {
 }
 
 private fun modelRoleLabel(role: ModelRole): String = when (role) {
-    ModelRole.SPEECH_RECOGNITION -> "Распознавание"
-    ModelRole.INTENT_CLASSIFICATION -> "Интенты"
-    ModelRole.SPEECH_SYNTHESIS -> "Озвучивание"
+    ModelRole.SPEECH_RECOGNITION -> "Speech recognition"
+    ModelRole.INTENT_CLASSIFICATION -> "Intents"
+    ModelRole.SPEECH_SYNTHESIS -> "Speech synthesis"
 }
 
 private fun deliveryLabel(delivery: ModelDelivery): String = when (delivery) {
-    ModelDelivery.BUNDLED -> "в приложении"
-    ModelDelivery.DEVELOPMENT_STAGED -> "локальный bundle"
-    ModelDelivery.REMOTE_MANAGED -> "загружаемая"
+    ModelDelivery.BUNDLED -> "bundled"
+    ModelDelivery.DEVELOPMENT_STAGED -> "local bundle"
+    ModelDelivery.REMOTE_MANAGED -> "downloadable"
 }

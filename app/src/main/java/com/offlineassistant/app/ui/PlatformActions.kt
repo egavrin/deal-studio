@@ -38,6 +38,6 @@ object NoOpPlatformActions : PlatformActions {
     override fun openSystemAlarms(): Boolean = false
     override fun executePlatformAction(action: String, payload: Map<String, String>) = PlatformActionResult(
         false,
-        "Действие недоступно на этой платформе."
+        "This action is unavailable on this platform."
     )
 }

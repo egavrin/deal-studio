@@ -47,14 +47,18 @@ provides independent BYOK keys.
   explicit required/optional readiness;
 - a 30-minute bounded Exa result cache plus visible structural citation coverage;
 - minified unsigned release-like AAB verification on every PR.
+- an isolated internal Generated App Studio with independently selectable local
+  Gemma/Qwen or cloud DeepSeek Flash/Pro generators for UI and interaction logic.
 
-Qwen, llama.cpp, Whisper, Gemma, generated Widget DSL, AppFunctions and organizer
-features are intentionally outside the current scope.
+Qwen, llama.cpp and Gemma are not part of the assistant request pipeline. Their
+only allowed use is the internal Generated App Studio described below. Whisper,
+AppFunctions and organizer features remain outside the current scope.
 
 ## Modules
 
 ```text
 app/                  Compose UI, T-one, RuBERT runtime, Silero, Android actions
+app/.../generatedapp  isolated hybrid generated-app Studio and validators
 core/                 platform-neutral contracts, routing, normalization and skills
 deepseek-connector/   restricted DeepSeek, Exa and Wikimedia transports
 benchmark/            startup, chat, microphone and streaming macrobenchmarks
@@ -93,6 +97,9 @@ Install:
 - Silero Xenia is exported under
   `models/external/silero-v5_5-ru-xenia/android-bundle/` and staged as
   `/data/local/tmp/offline-assistant-silero/`.
+- Studio models are not APK assets. Internal builds expect
+  `gemma-ui-q4-k-m.gguf` and `qwen-deal-app-0.5b-q4-k-m.gguf` under the app-private
+  `files/models/generated-app-studio/` directory.
 
 Generated training outputs under `models/` are ignored by Git. Production ONNX
 assets use Git LFS. The app atomically materializes versioned APK assets or a
@@ -102,6 +109,55 @@ The current catalog exposes bundled/staged lifecycle state and disk use. Remote
 model downloads remain disabled until a signed catalog and trusted artifact host
 are available; a partial or unverified download must never replace a working
 bundle.
+
+## Generated App Studio
+
+The internal Studio demonstrates generation of a small interactive app through two
+independently selected roles:
+
+```text
+English task
+    |-- UI:    Gemma 270M | DeepSeek Flash | DeepSeek Pro
+    |                       -> compact UI DSL -> strict parser -> progressive preview
+    `-- Logic: Qwen 0.5B  | DeepSeek Flash | DeepSeek Pro
+                            -> DEAL generated-app profile -> compiler/ABI/smoke checks
+                                                                  |
+                                                  generic Compose renderer + interpreter
+```
+
+Both passes start in parallel. The two choices are persisted independently, so a
+run can be fully local, fully cloud or mixed. Cloud selection releases the local
+session for that role; missing credentials fail closed and never trigger an implicit
+local fallback. One fully revalidated repair pass on the selected logic backend is
+allowed for invalid DEAL output.
+
+There are no runtime `tic_tac_toe` or `score_duel` branches and no canned behavior
+fallback. The selected models generate both artifacts. The renderer understands
+generic bound primitives (`column`, `row`, `stack`, `grid2`, `section`, text,
+decoration, `surface.app` and `control.button`). `GRID` modules expose cells and `onItem`.
+`REALTIME_CANVAS` modules expose bounded shape arrays plus `onTick` and `onPointer`;
+the generated DEAL source owns state, motion, collisions, score, lives and reset.
+The generation ceilings are 512 tokens for UI DSL and 1,536 tokens for DEAL, not
+64 tokens. Output still has to fit the bounded DSL/ABI and source-size gates.
+
+This is a constrained experiment, not arbitrary native code execution. Generated
+text is parsed rather than evaluated by Kotlin/JavaScript, loops and actions have
+budgets, only the fixed ABI is visible to Compose, and invalid or cancelled output
+never executes. The executable subset is named the **DEAL generated-app profile**;
+it is not canonical DEAL v1.2.
+
+Build the reproducible datasets and run their production-parser contract tests:
+
+```bash
+python3 training/generated_app/build_demo_dataset.py \
+  --output training/generated_app/data/deal \
+  --ui-output training/generated_app/data/ui
+./gradlew :app:testDebugUnitTest --tests 'com.offlineassistant.app.generatedapp.*'
+```
+
+Pong, Arkanoid and tank duel are training families. Runner is held out from train as
+the real-time generalization gate. Dataset sources never ship in the APK or
+participate in runtime selection.
 
 Train the narrow RuBERT classifier:
 
@@ -117,14 +173,20 @@ python3 training/rubert/evaluate_export.py \
 
 ## DeepSeek
 
-Open Settings in the app, save a DeepSeek API key and enable “Сложные вопросы”.
+Open Settings in the app, save a DeepSeek API key and enable “Complex questions”.
 The key is encrypted with Android Keystore. It is never stored in source, Gradle
-properties, logs or chat history.
+properties, logs or chat history in production. The internal debug build currently
+contains a disposable demo key so the cloud routes and Generated App Studio can be
+tested immediately after installation. On first launch it is copied into Android
+Keystore. Release builds always compile with an empty embedded key.
 
 DeepSeek receives requests classified as `unknown` or outside the current local
 action registry, plus a bounded window of the visible conversation. It returns
 Markdown over SSE. The UI renders that Markdown while Silero receives clean speech
-text. DeepSeek cannot select an action, generate command JSON or generate UI.
+text. In the assistant route DeepSeek cannot select an action, generate command JSON
+or generate UI. The isolated Generated App Studio has a separate explicit cloud
+generation mode; its output is never trusted and passes the same UI DSL and DEAL
+validators as local output.
 Explicit requests such as
 “Покажи фотографии Красной площади” may independently attach attributed Wikimedia
 Commons images to that answer.
@@ -136,7 +198,7 @@ Exa-specific Android Keystore alias and is never stored in source, Gradle proper
 logs or chat history.
 
 - `web_search`: Exa `auto` retrieves up to six bounded, primary-source-biased
-  highlights; DeepSeek streams a Russian answer grounded in those numbered sources.
+  highlights; DeepSeek streams an English answer grounded in those numbered sources.
   Successful source sets are cached for 30 minutes, and the UI distinguishes cached
   retrieval and incomplete structural citation coverage.
 - `web_research`: Exa Agent runs asynchronously with `low` effort, SSE progress and
@@ -165,15 +227,15 @@ only validated HTTPS links are shown, and the app does not use Exa `/answer`.
 On Android devices that expose the default digital-assistant role:
 
 1. Open Settings in the app.
-2. Under “Системный ассистент”, grant microphone access.
-3. Tap “Выбрать системным ассистентом” and confirm the Android role dialog or OEM
+2. Under “System assistant”, grant microphone access.
+3. Tap “Set as system assistant” and confirm the Android role dialog or OEM
    settings fallback.
 4. Invoke the configured power, home or corner assistant gesture.
 
 The compact overlay reuses the same process-level T-one, RuBERT, local skill,
 DeepSeek/Exa and Silero runtimes as the full chat. Route badges make local and
 network execution visible. Optional current-screen text is off by default,
-memory-only, sanitized and shown with an “ЭКРАН” indicator; screenshots are not
+memory-only, sanitized and shown with a “SCREEN” indicator; screenshots are not
 captured.
 
 ## Architecture

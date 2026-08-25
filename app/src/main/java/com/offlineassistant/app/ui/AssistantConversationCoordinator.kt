@@ -118,7 +118,7 @@ class AssistantConversationCoordinator(
     fun prepareResearchContinuation(runId: String): ChatUiState {
         if (runId.isBlank()) return state
         pendingResearchRunId = runId
-        state = state.copy(inputText = "Уточни исследование: ")
+        state = state.copy(inputText = "Refine the research: ")
         return state
     }
 
@@ -156,9 +156,9 @@ class AssistantConversationCoordinator(
             isProcessing = false,
             processingStage = null,
             transcriptPreview = if (mode == VoiceCaptureMode.CONVERSATION) {
-                "Слушаю..."
+                "Listening..."
             } else {
-                "Диктовка..."
+                "Dictation..."
             },
             stableTranscriptPrefix = null
         )
@@ -234,7 +234,12 @@ class AssistantConversationCoordinator(
     fun updateStreamingTranscript(transcript: String): ChatUiState {
         if (!state.isRecording || transcript.isBlank()) return state
         val previous = state.transcriptPreview
-            ?.takeUnless { it.startsWith("Идет локальная") || it.startsWith("Распознаю") }
+            ?.takeUnless {
+                it.startsWith("On-device") ||
+                    it.startsWith("Transcribing") ||
+                    it.startsWith("Идет локальная") ||
+                    it.startsWith("Распознаю")
+            }
             .orEmpty()
         state = state.copy(
             transcriptPreview = transcript,
@@ -252,7 +257,7 @@ class AssistantConversationCoordinator(
         onEchoRejected: () -> Unit = {}
     ): ChatUiState {
         if (audioFile == null) {
-            appendFinalAssistantResponse(voiceTranscriptionError("Не удалось сохранить запись."))
+            appendFinalAssistantResponse(voiceTranscriptionError("Could not save the recording."))
             onStateChanged(state)
             return state
         }
@@ -283,12 +288,12 @@ class AssistantConversationCoordinator(
 
     fun showMicrophonePermissionCard(): ChatUiState {
         appendAssistantMessage(
-            "Для голосовой команды нужен доступ к микрофону.",
+            "Microphone access is required for voice commands.",
             WidgetPayload(
                 WidgetTypes.PERMISSION_CARD,
                 buildJsonObject {
                     put("permission", PermissionNames.RECORD_AUDIO)
-                    put("reason", "Чтобы записать голосовую команду, нужно разрешение на микрофон.")
+                    put("reason", "Microphone permission is required to record a voice command.")
                     put("action", "request_permission")
                 }
             )
@@ -300,14 +305,14 @@ class AssistantConversationCoordinator(
         appendAssistantMessage(
             when {
                 granted && permission == PermissionNames.POST_NOTIFICATIONS ->
-                    "Уведомления разрешены. Можно создавать напоминания."
+                    "Notifications are allowed. Reminders can now be created."
 
-                granted -> "Доступ к микрофону разрешен."
+                granted -> "Microphone access granted."
 
                 permission == PermissionNames.POST_NOTIFICATIONS ->
-                    "Уведомления не разрешены. Напоминания не смогут сработать в фоне."
+                    "Notifications are not allowed. Reminders cannot run in the background."
 
-                else -> "Доступ к микрофону не разрешен."
+                else -> "Microphone access denied."
             },
             null
         )
@@ -341,14 +346,14 @@ class AssistantConversationCoordinator(
             WidgetActionNames.HELP_EXAMPLE,
             WidgetActionNames.CLARIFICATION_SUGGESTION -> {
                 val text = action.payload["text"].orEmpty()
-                if (text.equals("Отмена", ignoreCase = true)) {
-                    appendAssistantMessage("Отменено.", null)
+                if (text.equals("Cancel", ignoreCase = true) || text.equals("Отмена", ignoreCase = true)) {
+                    appendAssistantMessage("Cancelled.", null)
                 } else if (text.isNotBlank()) {
                     state = state.copy(inputText = text)
                 }
             }
 
-            WidgetActionNames.PERMISSION_NOT_NOW -> appendAssistantMessage("Хорошо, не сейчас.", null)
+            WidgetActionNames.PERMISSION_NOT_NOW -> appendAssistantMessage("Okay, not now.", null)
 
             WidgetActionNames.ERROR_SUGGESTION -> restorePreviousRequest()
 
@@ -385,7 +390,7 @@ class AssistantConversationCoordinator(
         noteStore.list().forEach { noteStore.delete(it.id) }
         reminderStore.list().forEach { reminderStore.delete(it.id) }
         timerStore.active().forEach { timerStore.cancel(it.id, OffsetDateTime.now().toString()) }
-        appendAssistantMessage("Заметки, напоминания и таймеры очищены.", null)
+        appendAssistantMessage("Notes, reminders, and timers were cleared.", null)
         return state
     }
 
@@ -536,7 +541,7 @@ class AssistantConversationCoordinator(
             isRecording = false,
             isProcessing = true,
             processingStage = ProcessingStage.TRANSCRIBING,
-            transcriptPreview = "Распознаю голос локально..."
+            transcriptPreview = "Transcribing on device..."
         )
         onStateChanged(state)
         var job: Job? = null
@@ -550,7 +555,7 @@ class AssistantConversationCoordinator(
                     if (captureMode == VoiceCaptureMode.CONVERSATION) {
                         appendFinalAssistantResponse(
                             voiceTranscriptionError(
-                                transcription.error ?: "Речь не распознана."
+                                transcription.error ?: "Speech was not recognized."
                             ).withVoiceDebug(null, transcription.latencyMs)
                         )
                     } else {
@@ -558,7 +563,7 @@ class AssistantConversationCoordinator(
                             isProcessing = false,
                             processingStage = null,
                             voiceCaptureMode = null,
-                            transcriptPreview = transcription.error ?: "Речь не распознана."
+                            transcriptPreview = transcription.error ?: "Speech was not recognized."
                         )
                     }
                     onStateChanged(state)
@@ -570,7 +575,7 @@ class AssistantConversationCoordinator(
                         isProcessing = false,
                         processingStage = null,
                         voiceCaptureMode = null,
-                        transcriptPreview = "Текст готов к отправке",
+                        transcriptPreview = "Text ready to send",
                         stableTranscriptPrefix = null
                     )
                     onStateChanged(state)
@@ -650,7 +655,7 @@ class AssistantConversationCoordinator(
             } catch (error: Throwable) {
                 audioFile?.let(::deleteRecorderCacheFile)
                 if (error is CancellationException) throw error
-                appendFinalAssistantResponse(voiceTranscriptionError("Локальное распознавание завершилось ошибкой."))
+                appendFinalAssistantResponse(voiceTranscriptionError("On-device transcription failed."))
                 onStateChanged(state)
             } finally {
                 if (activeProcessingJob === job) activeProcessingJob = null
@@ -888,7 +893,7 @@ class AssistantConversationCoordinator(
                     message.widget.payload["run_id"]?.toString()?.trim('"') == runId
                 ) {
                     message.copy(
-                        text = "Исследование отменено.",
+                        text = "Research cancelled.",
                         widget = WidgetPayload(
                             WidgetTypes.RESEARCH_CARD,
                             buildJsonObject {
@@ -906,7 +911,7 @@ class AssistantConversationCoordinator(
     }
 
     private fun updateTimer(action: WidgetAction, timerAction: TimerAction) {
-        val id = action.payload["timer_id"] ?: return appendAssistantMessage("Не нашел таймер.", null)
+        val id = action.payload["timer_id"] ?: return appendAssistantMessage("Timer not found.", null)
         val now = OffsetDateTime.now()
         val timer = when (timerAction) {
             TimerAction.PAUSE -> timerStore.pause(
@@ -920,13 +925,13 @@ class AssistantConversationCoordinator(
             TimerAction.CANCEL -> timerStore.cancel(id, now.toString())
         }
         if (timer == null) {
-            appendAssistantMessage("Таймер не найден.", null)
+            appendAssistantMessage("Timer not found.", null)
         } else {
             appendAssistantMessage(
                 when (timerAction) {
-                    TimerAction.PAUSE -> "Таймер поставлен на паузу."
-                    TimerAction.RESUME -> "Таймер продолжен."
-                    TimerAction.CANCEL -> "Таймер отменен."
+                    TimerAction.PAUSE -> "Timer paused."
+                    TimerAction.RESUME -> "Timer resumed."
+                    TimerAction.CANCEL -> "Timer cancelled."
                 },
                 timer.toWidget()
             )
@@ -936,12 +941,12 @@ class AssistantConversationCoordinator(
     private fun beginNoteEdit(action: WidgetAction) {
         val note = action.payload["note_id"]?.let(noteStore::find)
         if (note == null) {
-            appendAssistantMessage("Заметка не найдена.", null)
+            appendAssistantMessage("Note not found.", null)
             return
         }
         pendingNoteEditId = note.id
         state = state.copy(inputText = note.text)
-        appendAssistantMessage("Измените текст заметки и отправьте сообщение.", null)
+        appendAssistantMessage("Edit the note text and send the message.", null)
     }
 
     private fun updatePendingNote(noteId: String, text: String): AssistantResponse {
@@ -950,51 +955,51 @@ class AssistantConversationCoordinator(
             ?: return processingErrorResponse(text)
         return AssistantResponse(
             ResponseStatus.SUCCESS,
-            "Заметка обновлена.",
+            "Note updated.",
             Intents.CREATE_NOTE,
             note.toWidget()
         )
     }
 
     private fun copyNote(action: WidgetAction): String {
-        val note = action.payload["note_id"]?.let(noteStore::find) ?: return "Заметка не найдена."
-        return if (platformActions.copyText("Заметка", note.text)) "Заметка скопирована." else "Не удалось скопировать."
+        val note = action.payload["note_id"]?.let(noteStore::find) ?: return "Note not found."
+        return if (platformActions.copyText("Note", note.text)) "Note copied." else "Could not copy the note."
     }
 
     private fun deleteNote(action: WidgetAction): String {
-        val id = action.payload["note_id"] ?: return "Заметка не найдена."
-        return if (noteStore.delete(id)) "Заметка удалена." else "Заметка не найдена."
+        val id = action.payload["note_id"] ?: return "Note not found."
+        return if (noteStore.delete(id)) "Note deleted." else "Note not found."
     }
 
     private fun copyCalculatorResult(action: WidgetAction): String {
-        val result = action.payload["result"] ?: return "Результат не найден."
-        return if (platformActions.copyText("Результат", result)) "Результат скопирован." else "Не удалось скопировать."
+        val result = action.payload["result"] ?: return "Result not found."
+        return if (platformActions.copyText("Result", result)) "Result copied." else "Could not copy the result."
     }
 
     private fun completeReminder(action: WidgetAction): String {
-        val id = action.payload["reminder_id"] ?: return "Напоминание не найдено."
+        val id = action.payload["reminder_id"] ?: return "Reminder not found."
         return if (reminderStore.complete(id) != null) {
             platformActions.cancelReminderNotification(id)
-            "Напоминание выполнено."
+            "Reminder completed."
         } else {
-            "Напоминание не найдено."
+            "Reminder not found."
         }
     }
 
     private fun deleteReminder(action: WidgetAction): String {
-        val id = action.payload["reminder_id"] ?: return "Напоминание не найдено."
+        val id = action.payload["reminder_id"] ?: return "Reminder not found."
         return if (reminderStore.delete(id)) {
             platformActions.cancelReminderNotification(id)
-            "Напоминание удалено."
+            "Reminder deleted."
         } else {
-            "Напоминание не найдено."
+            "Reminder not found."
         }
     }
 
     private fun openApp(action: WidgetAction): String {
-        val appName = action.payload["app_name"] ?: "приложение"
+        val appName = action.payload["app_name"] ?: "app"
         val packageName = action.payload["package_name"]?.takeUnless { it == "unknown" }
-        return if (platformActions.openApp(packageName, appName)) "Открываю $appName." else "Не нашел $appName."
+        return if (platformActions.openApp(packageName, appName)) "Opening $appName." else "Could not find $appName."
     }
 
     private fun executePlatformAction(action: WidgetAction) {
@@ -1013,8 +1018,8 @@ class AssistantConversationCoordinator(
     private fun cancelPlatformAction(action: WidgetAction) {
         val platformAction = action.payload["action"] ?: return
         if (latestPlatformActionState(platformAction) != "confirmation_required") return
-        updatePlatformActionCard(platformAction, "cancelled", "Отменено.")
-        appendAssistantMessage("Действие отменено.", null)
+        updatePlatformActionCard(platformAction, "cancelled", "Cancelled.")
+        appendAssistantMessage("Action cancelled.", null)
     }
 
     private fun latestPlatformActionState(platformAction: String): String? = state.messages
@@ -1054,12 +1059,16 @@ class AssistantConversationCoordinator(
         persistHistory()
     }
 
-    private fun openSystemAlarms(): String = if (platformActions.openSystemAlarms()) "Открываю системный будильник." else "Не удалось открыть будильник."
+    private fun openSystemAlarms(): String = if (platformActions.openSystemAlarms()) {
+        "Opening system alarms."
+    } else {
+        "Could not open system alarms."
+    }
 
     private fun restorePreviousRequest() {
         val previous = state.messages.filterIsInstance<ChatMessageUi.User>().lastOrNull()?.text
         if (previous.isNullOrBlank()) {
-            appendAssistantMessage("Введите запрос еще раз.", null)
+            appendAssistantMessage("Enter the request again.", null)
         } else {
             state = state.copy(inputText = previous)
         }
@@ -1067,13 +1076,13 @@ class AssistantConversationCoordinator(
 
     private fun processingErrorResponse(input: String) = AssistantResponse(
         ResponseStatus.ERROR,
-        "Не получилось обработать команду.",
+        "Could not process the command.",
         Intents.UNKNOWN,
         WidgetPayload(
             WidgetTypes.ERROR_CARD,
             buildJsonObject {
-                put("title", "Не получилось обработать команду")
-                put("message", "Повторите запрос.")
+                put("title", "Could not process the command")
+                put("message", "Try the request again.")
                 put("recoverable", true)
             }
         ),
@@ -1082,11 +1091,11 @@ class AssistantConversationCoordinator(
 
     private fun voiceTranscriptionError(message: String) = AssistantResponse(
         ResponseStatus.ERROR,
-        "Не удалось распознать голосовую команду.",
+        "Could not recognize the voice command.",
         widget = WidgetPayload(
             WidgetTypes.ERROR_CARD,
             buildJsonObject {
-                put("title", "Не получилось распознать голос")
+                put("title", "Could not recognize speech")
                 put("message", message)
                 put("recoverable", true)
             }

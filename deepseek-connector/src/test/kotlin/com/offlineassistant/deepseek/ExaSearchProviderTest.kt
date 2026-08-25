@@ -14,7 +14,7 @@ class ExaSearchProviderTest {
         val result = ExaSearchProvider(apiKeyProvider = { null }).search("latest Android release")
 
         assertFalse(result.successful)
-        assertEquals("Ключ Exa не настроен.", result.error)
+        assertEquals("Exa API key is not configured.", result.error)
     }
 
     @Test
@@ -29,11 +29,11 @@ class ExaSearchProviderTest {
 
     @Test
     fun `http errors produce actionable messages without response bodies`() {
-        assertTrue(httpErrorMessage(401).contains("API-ключ"))
+        assertTrue(httpErrorMessage(401).contains("API key"))
         assertTrue(httpErrorMessage(403).contains("VPN"))
-        assertEquals("На аккаунте Exa недостаточно средств.", httpErrorMessage(402))
-        assertEquals("Exa временно ограничил частоту запросов. Повторите позже.", httpErrorMessage(429))
-        assertEquals("Сервис Exa вернул ошибку HTTP 500.", httpErrorMessage(500))
+        assertEquals("The Exa account has insufficient credit.", httpErrorMessage(402))
+        assertEquals("Exa temporarily rate-limited requests. Try again later.", httpErrorMessage(429))
+        assertEquals("Exa returned HTTP error 500.", httpErrorMessage(500))
     }
 
     @Test

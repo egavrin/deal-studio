@@ -86,7 +86,7 @@ object ProductionModelCatalog {
                 catalog = entry,
                 status = if (model?.ready == true) ModelInstallStatus.READY else ModelInstallStatus.MISSING,
                 installedBytes = model?.takeIf(ModelReadiness::ready)?.let(::installedBytes) ?: 0L,
-                detail = model?.detail ?: "Состояние модели ещё не проверено.",
+                detail = model?.detail ?: "Model status has not been checked yet.",
                 location = model?.location.orEmpty()
             )
         }
@@ -122,8 +122,8 @@ object ProductionModelCatalog {
 fun Long.formatStorageSize(): String {
     val megabytes = this / (1024.0 * 1024.0)
     return if (megabytes >= 1024.0) {
-        String.format(java.util.Locale.ROOT, "%.1f ГБ", megabytes / 1024.0)
+        String.format(java.util.Locale.ROOT, "%.1f GB", megabytes / 1024.0)
     } else {
-        String.format(java.util.Locale.ROOT, "%.0f МБ", megabytes)
+        String.format(java.util.Locale.ROOT, "%.0f MB", megabytes)
     }
 }

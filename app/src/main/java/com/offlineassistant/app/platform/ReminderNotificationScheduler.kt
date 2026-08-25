@@ -77,10 +77,10 @@ class ReminderNotificationScheduler(
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
-            "Напоминания",
+            "Reminders",
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Локальные напоминания Offline Assistant"
+            description = "On-device Offline Assistant reminders"
         }
         manager.createNotificationChannel(channel)
     }
@@ -96,10 +96,10 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             return
         }
         val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: "reminder"
-        val text = intent.getStringExtra(EXTRA_REMINDER_TEXT) ?: "Напоминание"
+        val text = intent.getStringExtra(EXTRA_REMINDER_TEXT) ?: "Reminder"
         val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Напоминание")
+            .setContentTitle("Reminder")
             .setContentText(text)
             .setAutoCancel(true)
             .build()

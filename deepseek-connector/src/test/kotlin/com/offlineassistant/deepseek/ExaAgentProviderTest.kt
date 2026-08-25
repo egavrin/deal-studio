@@ -27,7 +27,7 @@ class ExaAgentProviderTest {
         val body = ExaAgentProvider(apiKeyProvider = { "test" }).requestBody("Исследуй рынок")
 
         assertEquals("low", body["effort"].toString().trim('"'))
-        assertTrue(body["systemPrompt"].toString().contains("официальные источники"))
+        assertTrue(body["systemPrompt"].toString().contains("official sources"))
         assertTrue(body["outputSchema"].toString().contains("\"maxItems\":5"))
     }
 

@@ -7,13 +7,13 @@ class MarkdownSpeechTextTest {
     @Test
     fun `removes visual markdown but keeps readable content`() {
         val markdown = """
-            ## Итог
-            - **Первый** вывод
-            - [Второй вывод](https://example.com)
+            ## Summary
+            - **First** finding
+            - [Second finding](https://example.com)
         """.trimIndent()
 
         assertEquals(
-            "Итог\nПервый вывод\nВторой вывод",
+            "Summary\nFirst finding\nSecond finding",
             markdownToSpeechText(markdown)
         )
     }
@@ -21,8 +21,8 @@ class MarkdownSpeechTextTest {
     @Test
     fun `does not read code fences and raw urls`() {
         assertEquals(
-            "Смотрите документацию.\nФрагмент кода.",
-            markdownToSpeechText("Смотрите [документацию](https://example.com/docs).\n```kotlin\nprintln(1)\n```")
+            "Read the documentation.\nCode fragment.",
+            markdownToSpeechText("Read the [documentation](https://example.com/docs).\n```kotlin\nprintln(1)\n```")
         )
     }
 }

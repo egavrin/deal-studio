@@ -46,7 +46,9 @@ class TimeSkill(
     override val id = "time"
     override val supportedIntents = setOf(Intents.GET_CURRENT_TIME)
 
-    override suspend fun execute(command: NormalizedCommand): SkillResult = success("Сейчас ${clock().toLocalTime().withNano(0)}.")
+    override suspend fun execute(command: NormalizedCommand): SkillResult = success(
+        "It is ${clock().toLocalTime().withNano(0)}."
+    )
 }
 
 class WeatherSkill(
@@ -56,9 +58,9 @@ class WeatherSkill(
     override val supportedIntents = setOf(Intents.GET_WEATHER)
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
-        val weather = weatherProvider.currentWeather(command.slots.string("location") ?: "Москва")
+        val weather = weatherProvider.currentWeather(command.slots.string("location") ?: "Moscow")
         return success(
-            text = "Показываю ${weather.source}-прогноз для ${weather.location}.",
+            text = "Showing the ${weather.source} forecast for ${weather.location}.",
             widget = WidgetPayload(
                 WidgetTypes.WEATHER_CARD,
                 buildJsonObject {
@@ -99,12 +101,12 @@ class TimerSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val duration = command.slots.int("duration_seconds")
-            ?: return error("Не получилось поставить таймер", "Не указана длительность.")
+            ?: return error("Could not set the timer", "No duration was provided.")
         val label = command.slots.string("label")
         val now = clock()
         val timer = timerStore.create(duration, label, now.toString(), now.toInstant().toEpochMilli())
         return success(
-            text = "Поставил таймер на ${duration / 60} минут.",
+            text = "Set a timer for ${duration / 60} minutes.",
             widget = WidgetPayload(
                 WidgetTypes.TIMER_CARD,
                 buildJsonObject {
@@ -129,16 +131,16 @@ class AlarmSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val time = command.slots.string("time")
-            ?: return error("Не получилось поставить будильник", "Не указано время.")
+            ?: return error("Could not set the alarm", "No time was provided.")
         return success(
-            text = "Будильник поставлен на $time.",
+            text = "Alarm set for $time.",
             widget = WidgetPayload(
                 WidgetTypes.ALARM_CARD,
                 buildJsonObject {
                     put("alarm_id", "system")
                     put("time", time)
                     put("date", command.slots.string("date") ?: clock().plusDays(1).toLocalDate().toString())
-                    put("label", command.slots.string("label") ?: "будильник")
+                    put("label", command.slots.string("label") ?: "alarm")
                     put("state", "scheduled")
                     put("mode", "system_passive")
                 }
@@ -156,13 +158,13 @@ class ReminderSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val text = command.slots.string("reminder_text")
-            ?: return error("Не получилось создать напоминание", "Не указан текст.")
+            ?: return error("Could not create the reminder", "No reminder text was provided.")
         val reminder = reminderStore.create(
             text = text,
             datetime = command.slots.string("datetime") ?: clock().plusHours(1).toString()
         )
         return success(
-            text = "Создал напоминание: $text.",
+            text = "Created a reminder: $text.",
             widget = WidgetPayload(
                 WidgetTypes.REMINDER_CARD,
                 buildJsonObject {
@@ -185,10 +187,10 @@ class NoteSkill(
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val text = command.slots.string("text")
-            ?: return error("Не получилось создать заметку", "Не указан текст.")
+            ?: return error("Could not create the note", "No note text was provided.")
         val note = noteStore.create(text, clock().toString())
         return success(
-            text = "Записал заметку.",
+            text = "Saved the note.",
             widget = WidgetPayload(
                 WidgetTypes.NOTE_CARD,
                 buildJsonObject {
@@ -209,10 +211,10 @@ class CalculatorSkill : Skill {
         val expression = command.slots.string("expression")
         val result = expression?.let(ExpressionEvaluator::evaluate)
         if (expression == null || result == null) {
-            return error("Не получилось посчитать", "Я не смог разобрать выражение.")
+            return error("Could not calculate", "I could not parse the expression.")
         }
         return success(
-            text = "Получилось $result.",
+            text = "The result is $result.",
             widget = WidgetPayload(
                 WidgetTypes.CALCULATOR_CARD,
                 buildJsonObject {
@@ -231,9 +233,9 @@ class OpenAppSkill : Skill {
 
     override suspend fun execute(command: NormalizedCommand): SkillResult {
         val appName = command.slots.string("app_name")
-            ?: return error("Не получилось открыть приложение", "Не указано название.")
+            ?: return error("Could not open the app", "No app name was provided.")
         return success(
-            text = "Ищу $appName.",
+            text = "Looking for $appName.",
             widget = WidgetPayload(
                 WidgetTypes.OPEN_APP_CARD,
                 buildJsonObject {
@@ -279,55 +281,55 @@ class PlatformActionSkill : Skill {
 
     private fun actionPresentation(command: NormalizedCommand): ActionPresentation = when (command.intent) {
         Intents.DIAL_PHONE -> ActionPresentation(
-            "Телефонный звонок",
-            "Открыть набор номера ${command.slots.string("phone_number").orEmpty()}?"
+            "Phone call",
+            "Open the dialer with ${command.slots.string("phone_number").orEmpty()}?"
         )
 
         Intents.COMPOSE_MESSAGE -> ActionPresentation(
-            "Сообщение",
+            "Message",
             command.slots.string("recipient")
-                ?.let { "Подготовить сообщение для $it?" }
-                ?: "Подготовить новое сообщение?"
+                ?.let { "Compose a message to $it?" }
+                ?: "Compose a new message?"
         )
 
         Intents.COMPOSE_EMAIL -> ActionPresentation(
-            "Электронная почта",
+            "Email",
             command.slots.string("recipient")
-                ?.let { "Подготовить письмо для $it?" }
-                ?: "Подготовить новое письмо?"
+                ?.let { "Compose an email to $it?" }
+                ?: "Compose a new email?"
         )
 
         Intents.START_NAVIGATION -> ActionPresentation(
-            "Маршрут",
-            "Построить маршрут: ${command.slots.string("destination").orEmpty()}?"
+            "Navigation",
+            "Start navigation to ${command.slots.string("destination").orEmpty()}?"
         )
 
         Intents.CREATE_CALENDAR_EVENT -> ActionPresentation(
-            "Событие календаря",
-            "Добавить «${command.slots.string("event_title").orEmpty()}» в календарь?"
+            "Calendar event",
+            "Add “${command.slots.string("event_title").orEmpty()}” to the calendar?"
         )
 
         Intents.CONTROL_MEDIA -> ActionPresentation(
-            "Управление воспроизведением",
-            "Выполнить команду «${command.slots.string("media_action").orEmpty()}»?"
+            "Media control",
+            "Run the “${command.slots.string("media_action").orEmpty()}” command?"
         )
 
         Intents.SET_VOLUME -> ActionPresentation(
-            "Громкость",
-            "Изменить громкость: ${command.slots.string("volume_action").orEmpty()}?"
+            "Volume",
+            "Change volume: ${command.slots.string("volume_action").orEmpty()}?"
         )
 
         Intents.OPEN_SETTING -> ActionPresentation(
-            "Настройки устройства",
-            "Открыть раздел «${command.slots.string("setting").orEmpty()}»?"
+            "Device settings",
+            "Open “${command.slots.string("setting").orEmpty()}” settings?"
         )
 
         Intents.OPEN_URL -> ActionPresentation(
-            "Веб-страница",
-            "Открыть ${command.slots.string("url").orEmpty()}?"
+            "Web page",
+            "Open ${command.slots.string("url").orEmpty()}?"
         )
 
-        else -> ActionPresentation("Действие", "Выполнить действие?")
+        else -> ActionPresentation("Action", "Run this action?")
     }
 
     private data class ActionPresentation(
@@ -341,7 +343,7 @@ class HelpSkill : Skill {
     override val supportedIntents = setOf(Intents.HELP)
 
     override suspend fun execute(command: NormalizedCommand): SkillResult = success(
-        text = "Вот примеры локальных команд.",
+        text = "Here are examples of on-device commands.",
         widget = WidgetPayload(
             WidgetTypes.HELP_CARD,
             buildJsonObject {
@@ -349,26 +351,26 @@ class HelpSkill : Skill {
                     "sections",
                     buildJsonArray {
                         addSection(
-                            "Время",
+                            "Time",
                             listOf(
-                                "Сколько времени?",
-                                "Поставь таймер на 5 минут",
-                                "Разбуди меня завтра в 7:30"
+                                "What time is it?",
+                                "Set a timer for 5 minutes",
+                                "Wake me tomorrow at 7:30"
                             )
                         )
                         addSection(
-                            "Заметки и напоминания",
+                            "Notes and reminders",
                             listOf(
-                                "Запиши заметку купить молоко",
-                                "Напомни через час проверить духовку"
+                                "Save a note: buy milk",
+                                "Remind me in an hour to check the oven"
                             )
                         )
                         addSection(
-                            "Другое",
+                            "More",
                             listOf(
-                                "Сколько будет 18 умножить на 3?",
-                                "Открой Telegram",
-                                "Какая погода в Москве?"
+                                "What is 18 times 3?",
+                                "Open Telegram",
+                                "What is the weather in Moscow?"
                             )
                         )
                     }

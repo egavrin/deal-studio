@@ -5,7 +5,7 @@ package com.offlineassistant.app.speech
  * text untouched. This is intentionally a speech projection, not a Markdown parser.
  */
 internal fun markdownToSpeechText(value: String): String = value
-    .replace(FENCED_CODE, " Фрагмент кода. ")
+    .replace(FENCED_CODE, " Code fragment. ")
     .replace(MARKDOWN_IMAGE) { it.groupValues[1] }
     .replace(MARKDOWN_LINK) { it.groupValues[1] }
     .replace(RAW_URL, "")

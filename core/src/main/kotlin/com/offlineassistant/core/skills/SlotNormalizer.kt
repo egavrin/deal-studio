@@ -26,7 +26,7 @@ class DeterministicSlotNormalizer(
     override fun normalize(originalText: String, nlu: NluResult): NormalizationResult {
         val definition = schema.definitionFor(nlu.intent)
             ?: return NormalizationResult.Error(
-                ValidationError("Этот локальный intent не поддерживается.", nlu.intent, nlu.slots)
+                ValidationError("This on-device intent is not supported.", nlu.intent, nlu.slots)
             )
         val allowedSlots = (definition.requiredSlots + definition.optionalSlots).toSet()
         val normalizedSlots = buildJsonObject {
@@ -73,41 +73,41 @@ class DeterministicSlotNormalizer(
     ): NormalizationResult = NormalizationResult.Clarification(
         ClarificationRequest(
             question = when (expectedSlot) {
-                "duration_seconds" -> "На сколько поставить таймер?"
-                "time" -> "На какое время поставить будильник?"
-                "reminder_text" -> "Что напомнить?"
-                "text" -> "Какой текст записать в заметку?"
-                "expression" -> "Какое выражение посчитать?"
-                "app_name" -> "Какое приложение открыть?"
-                "phone_number" -> "Какой номер набрать?"
-                "message_text" -> "Какой текст сообщения подготовить?"
-                "email_body" -> "Какой текст письма подготовить?"
-                "destination" -> "Куда построить маршрут?"
-                "event_title" -> "Какое событие добавить в календарь?"
-                "media_action" -> "Что сделать с воспроизведением?"
-                "volume_action" -> "Как изменить громкость?"
-                "setting" -> "Какой раздел настроек открыть?"
-                "url" -> "Какой адрес открыть?"
-                else -> "Уточните команду."
+                "duration_seconds" -> "How long should the timer run?"
+                "time" -> "What time should the alarm be set for?"
+                "reminder_text" -> "What should I remind you about?"
+                "text" -> "What should the note say?"
+                "expression" -> "What expression should I calculate?"
+                "app_name" -> "Which app should I open?"
+                "phone_number" -> "Which number should I dial?"
+                "message_text" -> "What should the message say?"
+                "email_body" -> "What should the email say?"
+                "destination" -> "Where should I navigate?"
+                "event_title" -> "Which event should I add to the calendar?"
+                "media_action" -> "What should I do with playback?"
+                "volume_action" -> "How should I change the volume?"
+                "setting" -> "Which settings section should I open?"
+                "url" -> "Which address should I open?"
+                else -> "Please clarify the command."
             },
             suggestions = when (expectedSlot) {
-                "duration_seconds" -> listOf("Поставь таймер на 5 минут", "Поставь таймер на 10 минут")
-                "time" -> listOf("Поставь будильник на 7:30", "Поставь будильник завтра на 8:00")
-                "reminder_text" -> listOf("Напомни через час проверить духовку")
-                "text" -> listOf("Запиши заметку купить молоко")
-                "expression" -> listOf("Сколько будет 18 умножить на 3")
-                "app_name" -> listOf("Открой Telegram")
-                "phone_number" -> listOf("Позвони по номеру +7 999 123-45-67")
-                "message_text" -> listOf("Подготовь сообщение: буду через десять минут")
-                "email_body" -> listOf("Напиши письмо: отправляю документы")
-                "destination" -> listOf("Построй маршрут до Красной площади")
-                "event_title" -> listOf("Добавь встречу с командой завтра в 10:00")
-                "media_action" -> listOf("Поставь музыку на паузу")
-                "volume_action" -> listOf("Сделай громче")
-                "setting" -> listOf("Открой настройки Wi-Fi")
-                "url" -> listOf("Открой https://developer.android.com")
+                "duration_seconds" -> listOf("Set a timer for 5 minutes", "Set a timer for 10 minutes")
+                "time" -> listOf("Set an alarm for 7:30", "Set an alarm for 8:00 tomorrow")
+                "reminder_text" -> listOf("Remind me in an hour to check the oven")
+                "text" -> listOf("Save a note: buy milk")
+                "expression" -> listOf("What is 18 times 3?")
+                "app_name" -> listOf("Open Telegram")
+                "phone_number" -> listOf("Call +1 415 555 0100")
+                "message_text" -> listOf("Compose a message: I will be there in ten minutes")
+                "email_body" -> listOf("Compose an email: I am sending the documents")
+                "destination" -> listOf("Navigate to Central Park")
+                "event_title" -> listOf("Add a team meeting tomorrow at 10:00")
+                "media_action" -> listOf("Pause the music")
+                "volume_action" -> listOf("Turn up the volume")
+                "setting" -> listOf("Open Wi-Fi settings")
+                "url" -> listOf("Open https://developer.android.com")
                 else -> emptyList()
-            } + "Отмена",
+            } + "Cancel",
             pendingIntent = intent,
             partialSlots = slots,
             expectedSlot = expectedSlot
