@@ -34,13 +34,61 @@ class GeneratedAppBackendContractTest {
     }
 
     @Test
-    fun `cloud prompts request parser owned source instead of JSON or Markdown`() {
+    fun `cloud UI uses catalog driven A2UI while DEAL remains parser owned source`() {
         val uiInstructions = GeneratedAppPrompts.deepSeekUiInstructions()
         val dealInstructions = GeneratedAppPrompts.deepSeekDealInstructions()
+        val uiRepair = GeneratedAppPrompts.deepSeekRepairUiInput("Pong", "invalid", "diagnostic")
+        val dealRepair = GeneratedAppPrompts.deepSeekRepairDealInput(
+            request = "Pong",
+            profile = GeneratedAppProfile.REALTIME_CANVAS,
+            invalidSource = "invalid",
+            diagnostic = "diagnostic"
+        )
 
-        assertTrue(uiInstructions.contains("compact UI DSL expression"))
-        assertTrue(uiInstructions.contains("Do not use Markdown"))
-        assertTrue(dealInstructions.contains("DEAL generated-app profile source only"))
-        assertTrue(dealInstructions.contains("No prose, Markdown"))
+        assertTrue(uiInstructions.contains("A2UI JSON document"))
+        assertTrue(uiInstructions.contains(A2UiParser.ASSISTANT_CATALOG_ID))
+        assertTrue(uiInstructions.contains("InteractiveSurface"))
+        assertTrue(uiInstructions.contains("/app/title"))
+        assertTrue(uiInstructions.contains("TextField"))
+        assertTrue(uiInstructions.contains("ImageGallery"))
+        assertTrue(dealInstructions.contains("strict typed sandbox language"))
+        assertTrue(dealInstructions.contains("let name: type = expression;"))
+        assertTrue(dealInstructions.contains("Never use const, var, for"))
+        assertTrue(dealInstructions.contains("array.length"))
+        assertTrue(dealInstructions.contains("abs(int)"))
+        assertTrue(uiRepair.contains(GeneratedAppLanguageContracts.A2UI_VERSION))
+        assertTrue(dealRepair.contains(GeneratedAppLanguageContracts.VERSION))
+        assertTrue(dealRepair.contains("shapeKinds:string[]"))
+        assertTrue(dealRepair.contains("Complete valid REALTIME_CANVAS grammar reference"))
+    }
+
+    @Test
+    fun `language contract examples are accepted by production validators`() {
+        val grid = GeneratedDealCompiler.compileAndValidate(
+            GeneratedAppLanguageContracts.gridReference,
+            GeneratedAppProfile.GRID
+        )
+        val realtime = GeneratedDealCompiler.compileAndValidate(
+            GeneratedAppLanguageContracts.realtimeCanvasReference,
+            GeneratedAppProfile.REALTIME_CANVAS
+        )
+
+        assertTrue(grid.source.startsWith("let title: string"))
+        assertTrue(realtime.source.startsWith("let title: string"))
+    }
+
+    @Test
+    fun `complete cloud contracts fit the transport request budget`() {
+        val uiBytes = (
+            GeneratedAppPrompts.deepSeekUiInstructions() +
+                GeneratedAppPrompts.deepSeekUiInput("Build an Arkanoid game with bricks and touch controls")
+            ).encodeToByteArray().size
+        val dealBytes = (
+            GeneratedAppPrompts.deepSeekDealInstructions() +
+                GeneratedAppPrompts.deepSeekDealInput("Build an Arkanoid game with bricks and touch controls")
+            ).encodeToByteArray().size
+
+        assertTrue(uiBytes < 32 * 1024)
+        assertTrue(dealBytes < 32 * 1024)
     }
 }

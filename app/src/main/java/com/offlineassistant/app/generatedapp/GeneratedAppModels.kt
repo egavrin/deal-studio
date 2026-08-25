@@ -2,6 +2,16 @@ package com.offlineassistant.app.generatedapp
 
 internal sealed interface GeneratedUiNode
 
+internal sealed interface GeneratedUiArtifact
+
+internal data class CompactGeneratedUi(
+    val root: GeneratedUiNode
+) : GeneratedUiArtifact
+
+internal data class A2UiGeneratedUi(
+    val surface: A2UiSurface
+) : GeneratedUiArtifact
+
 internal data class GeneratedUiLayout(
     val kind: String,
     val children: List<GeneratedUiNode>,
@@ -21,14 +31,14 @@ internal data class GeneratedDealProgram(
 
 internal data class GeneratedUiDraft(
     val source: String,
-    val tree: GeneratedUiNode,
+    val ui: GeneratedUiArtifact,
     val latencyMs: Long
 )
 
 internal data class GeneratedAppBundle(
     val request: String,
     val uiSource: String,
-    val ui: GeneratedUiNode,
+    val ui: GeneratedUiArtifact,
     val deal: GeneratedDealProgram,
     val uiBackend: GeneratedModelBackend,
     val logicBackend: GeneratedModelBackend,
@@ -43,7 +53,8 @@ internal data class GeneratedAppSnapshot(
     val primaryLabel: String,
     val items: List<String> = emptyList(),
     val columns: Int = 1,
-    val canvas: GeneratedCanvasSnapshot? = null
+    val canvas: GeneratedCanvasSnapshot? = null,
+    val custom: Map<String, String> = emptyMap()
 )
 
 internal data class GeneratedCanvasSnapshot(

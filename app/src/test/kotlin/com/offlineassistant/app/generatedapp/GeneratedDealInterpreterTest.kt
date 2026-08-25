@@ -39,6 +39,46 @@ class GeneratedDealInterpreterTest {
     }
 
     @Test
+    fun `extracts typed deal module from a markdown code fence`() {
+        val wrapped = "Here is the module:\n```javascript\n$TIC_TAC_TOE_DEAL\n```\nDone"
+
+        val program = GeneratedDealCompiler.compileAndValidate(wrapped)
+
+        assertEquals(GeneratedAppProfile.GRID, program.profile)
+        assertTrue(program.source.startsWith("let title: string"))
+    }
+
+    @Test
+    fun `accepts safe single and doubled boolean and equality aliases`() {
+        val aliases = TIC_TAC_TOE_DEAL
+            .replace("finished | (items[index] !== \"\")", "finished || (items[index] != \"\")")
+            .replace("items[line[0]] === mark", "items[line[0]] == mark")
+            .replace("items[line[1]] === mark", "items[line[1]] == mark")
+            .replace("items[line[2]] === mark", "items[line[2]] == mark")
+            .replace("moves === 9", "moves == 9")
+            .replace("(items[line[0]] == mark) &&", "(items[line[0]] == mark) &")
+
+        val program = GeneratedDealCompiler.compileAndValidate(aliases)
+
+        assertEquals(GeneratedAppProfile.GRID, program.profile)
+    }
+
+    @Test
+    fun `detects repair profile from ABI identifiers rather than app names`() {
+        assertEquals(
+            GeneratedAppProfile.GRID,
+            GeneratedDealCompiler.detectProfile("let items = []; let columns = 3;")
+        )
+        assertEquals(
+            GeneratedAppProfile.REALTIME_CANVAS,
+            GeneratedDealCompiler.detectProfile(
+                "const canvasWidth = 1000; const canvasHeight = 600; const shapeKinds = [];"
+            )
+        )
+        assertEquals(null, GeneratedDealCompiler.detectProfile("function broken() {}"))
+    }
+
+    @Test
     fun `realtime canvas ticks handles pointers and resets without native code`() {
         val program = GeneratedDealCompiler.compileAndValidate(
             PONG_DEAL,
@@ -46,6 +86,7 @@ class GeneratedDealInterpreterTest {
         )
         val runtime = GeneratedDealCompiler.instantiate(program)
         val initial = requireNotNull(runtime.snapshot().canvas)
+        assertEquals("485", runtime.snapshot().custom["ballX"])
 
         runtime.invoke("onTick", 16)
         val ticked = requireNotNull(runtime.snapshot().canvas)
@@ -57,6 +98,37 @@ class GeneratedDealInterpreterTest {
 
         runtime.invoke("onPrimary")
         assertEquals(initial, runtime.snapshot().canvas)
+    }
+
+    @Test
+    fun `reports actionable diagnostic for an out of bounds generated array access`() {
+        val invalid = PONG_DEAL.replace("shapeX[2] = ballX;", "shapeX[99] = ballX;")
+
+        val error = runCatching { GeneratedDealCompiler.compileAndValidate(invalid) }.exceptionOrNull()
+
+        assertEquals("DEAL array index 99 is outside 0..3", error?.message)
+    }
+
+    @Test
+    fun `reports every parallel scene array size`() {
+        val invalid = PONG_DEAL.replace(
+            "let shapeLabels: string[] = [\"\", \"\", \"\", \"\"];",
+            "let shapeLabels: string[] = [\"\", \"\", \"\", \"\", \"extra\"];"
+        )
+
+        val error = runCatching { GeneratedDealCompiler.compileAndValidate(invalid) }.exceptionOrNull()
+
+        assertTrue(error?.message?.contains("shapeColors=4, shapeLabels=5") == true)
+    }
+
+    @Test
+    fun `accepts a general tap to activate realtime scene`() {
+        val program = GeneratedDealCompiler.compileAndValidate(
+            TAP_TO_START_DEAL,
+            GeneratedAppProfile.REALTIME_CANVAS
+        )
+
+        assertEquals(GeneratedAppProfile.REALTIME_CANVAS, program.profile)
     }
 
     private companion object {
@@ -157,6 +229,52 @@ class GeneratedDealInterpreterTest {
                 velocityX = 6;
                 velocityY = 4;
                 status = "Drag the left paddle";
+                return null;
+            }
+        """.trimIndent()
+
+        val TAP_TO_START_DEAL = """
+            let title: string = "Tap to start";
+            let status: string = "Ready";
+            let primaryLabel: string = "Reset";
+            let canvasWidth: int = 400;
+            let canvasHeight: int = 240;
+            let canvasBackground: string = "#0F172A";
+            let shapeKinds: string[] = ["circle"];
+            let shapeX: int[] = [190];
+            let shapeY: int[] = [110];
+            let shapeW: int[] = [20];
+            let shapeH: int[] = [20];
+            let shapeColors: string[] = ["#F8FAFC"];
+            let shapeLabels: string[] = [""];
+            let active: boolean = false;
+            let x: int = 190;
+
+            function onTick(deltaMs: int): null {
+                if (active) {
+                    x = x + (deltaMs / 4);
+                    shapeX[0] = x;
+                }
+                return null;
+            }
+
+            function onPointer(pointerX: int, pointerY: int, phase: int): null {
+                active = true;
+                status = "Running";
+                return null;
+            }
+
+            function onPrimary(): null {
+                shapeX = [190];
+                shapeY = [110];
+                shapeW = [20];
+                shapeH = [20];
+                shapeKinds = ["circle"];
+                shapeColors = ["#F8FAFC"];
+                shapeLabels = [""];
+                active = false;
+                x = 190;
+                status = "Ready";
                 return null;
             }
         """.trimIndent()

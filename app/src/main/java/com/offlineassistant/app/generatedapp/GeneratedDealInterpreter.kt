@@ -23,13 +23,30 @@ internal object GeneratedDealCompiler {
 
     fun instantiate(program: GeneratedDealProgram): GeneratedDealRuntime = GeneratedDealRuntime(program.source)
 
-    private fun cleanSource(raw: String): String = raw
-        .substringBefore("<|im_end|>")
-        .trim()
-        .removePrefix("```deal")
-        .removePrefix("```")
-        .removeSuffix("```")
-        .trim()
+    internal fun detectProfile(raw: String): GeneratedAppProfile? {
+        val identifiers = runCatching { DealLexer(raw).tokens() }
+            .getOrNull()
+            ?.filter { it.kind == DealTokenKind.IDENTIFIER }
+            ?.map(DealToken::text)
+            ?.toSet()
+            ?: raw.split(Regex("[^A-Za-z0-9_]+"))
+                .filter(String::isNotEmpty)
+                .toSet()
+        val gridMatches = GRID_PROFILE_MARKERS.count(identifiers::contains)
+        val canvasMatches = CANVAS_PROFILE_MARKERS.count(identifiers::contains)
+        return when {
+            canvasMatches >= 2 && canvasMatches > gridMatches -> GeneratedAppProfile.REALTIME_CANVAS
+            gridMatches == GRID_PROFILE_MARKERS.size && gridMatches > canvasMatches -> GeneratedAppProfile.GRID
+            else -> null
+        }
+    }
+
+    internal fun cleanSource(raw: String): String {
+        val bounded = raw.substringBefore("<|im_end|>").trim()
+        val fenced = CODE_FENCE.find(bounded)?.groupValues?.get(1) ?: bounded
+        val moduleStart = fenced.indexOf("let ").takeIf { it >= 0 } ?: 0
+        return fenced.substring(moduleStart).trim()
+    }
 
     private fun validateGrid(probe: GeneratedDealRuntime, initial: GeneratedAppSnapshot) {
         require(initial.items.isNotEmpty()) { "DEAL items must not be empty" }
@@ -44,25 +61,31 @@ internal object GeneratedDealCompiler {
 
     private fun validateRealtimeCanvas(probe: GeneratedDealRuntime, initial: GeneratedAppSnapshot) {
         val initialCanvas = requireNotNull(initial.canvas)
-        probe.invoke("onTick", 16)
-        val ticked = probe.snapshot()
-        require(ticked.canvas != initialCanvas || ticked.status != initial.status) {
-            "onTick(16) did not change generated scene"
-        }
         probe.invoke(
             "onPointer",
             listOf(initialCanvas.width / 2, initialCanvas.height - 24, POINTER_DOWN)
         )
         val pointed = probe.snapshot()
-        require(pointed.canvas != ticked.canvas || pointed.status != ticked.status) {
+        require(pointed.canvas != initialCanvas || pointed.status != initial.status || pointed.custom != initial.custom) {
             "onPointer did not change generated scene"
         }
+        probe.invoke("onTick", 16)
+        val ticked = probe.snapshot()
+        require(ticked.canvas != pointed.canvas || ticked.status != pointed.status || ticked.custom != pointed.custom) {
+            "onTick(16) did not change the activated generated scene"
+        }
         probe.invoke("onPrimary")
-        require(probe.snapshot().canvas == initialCanvas) { "onPrimary did not reset generated scene" }
+        val reset = probe.snapshot()
+        require(reset.canvas == initialCanvas && reset.status == initial.status && reset.custom == initial.custom) {
+            "onPrimary did not reset the complete generated scene and scalar state"
+        }
     }
 
     private const val MAX_SOURCE_LENGTH = 12_000
     private const val POINTER_DOWN = 0
+    private val GRID_PROFILE_MARKERS = setOf("items", "columns")
+    private val CANVAS_PROFILE_MARKERS = setOf("canvasWidth", "canvasHeight", "shapeKinds", "shapeX", "shapeY")
+    private val CODE_FENCE = Regex("```(?:deal|javascript|js)?\\s*([\\s\\S]*?)```")
 }
 
 internal class GeneratedDealRuntime(source: String) {
@@ -132,7 +155,14 @@ internal class GeneratedDealRuntime(source: String) {
         require(columns in 1..6 && items.size % columns == 0) {
             "DEAL columns $columns do not fit ${items.size} items"
         }
-        return GeneratedAppSnapshot(title, status, primaryLabel, items, columns)
+        return GeneratedAppSnapshot(
+            title = title,
+            status = status,
+            primaryLabel = primaryLabel,
+            items = items,
+            columns = columns,
+            custom = customScalars()
+        )
     }
 
     private fun canvasSnapshot(
@@ -151,7 +181,11 @@ internal class GeneratedDealRuntime(source: String) {
         val colors = globals.requireStringList("shapeColors")
         val labels = globals.requireStringList("shapeLabels")
         val sizes = setOf(kinds.size, x.size, y.size, widths.size, heights.size, colors.size, labels.size)
-        require(sizes.size == 1 && kinds.size in 1..48) { "DEAL scene arrays must have the same size in 1..48" }
+        require(sizes.size == 1 && kinds.size in 1..48) {
+            "DEAL scene arrays must have the same size in 1..48: " +
+                "shapeKinds=${kinds.size}, shapeX=${x.size}, shapeY=${y.size}, shapeW=${widths.size}, " +
+                "shapeH=${heights.size}, shapeColors=${colors.size}, shapeLabels=${labels.size}"
+        }
         require(width in 160..2_000 && height in 120..2_000) { "DEAL canvas dimensions are invalid" }
         require(background.isCanvasColor()) { "DEAL canvas background is invalid" }
         val shapes = kinds.indices.map { index ->
@@ -178,9 +212,21 @@ internal class GeneratedDealRuntime(source: String) {
             title = title,
             status = status,
             primaryLabel = primaryLabel,
-            canvas = GeneratedCanvasSnapshot(width, height, background, shapes)
+            canvas = GeneratedCanvasSnapshot(width, height, background, shapes),
+            custom = customScalars()
         )
     }
+
+    private fun customScalars(): Map<String, String> = globals.entries
+        .asSequence()
+        .filter { (name, value) ->
+            name !in RESERVED_SNAPSHOT_GLOBALS &&
+                name.matches(CUSTOM_GLOBAL_NAME) &&
+                (value is Int || value is Boolean || value is String)
+        }
+        .sortedBy(Map.Entry<String, Any?>::key)
+        .take(MAX_CUSTOM_GLOBALS)
+        .associate { (name, value) -> name to value.toString().take(MAX_CUSTOM_VALUE_LENGTH) }
 
     private fun call(name: String, arguments: List<Any?>): Any? {
         when (name) {
@@ -253,7 +299,11 @@ internal class GeneratedDealRuntime(source: String) {
 
         is DealExpression.Index -> {
             val values = evaluate(expression.target, environment).asList()
-            values[evaluate(expression.index, environment).asInt().also { require(it in values.indices) }]
+            val index = evaluate(expression.index, environment).asInt()
+            require(index in values.indices) {
+                "DEAL array index $index is outside 0..${values.lastIndex}"
+            }
+            values[index]
         }
 
         is DealExpression.Length -> evaluate(expression.target, environment).asList().size
@@ -273,7 +323,7 @@ internal class GeneratedDealRuntime(source: String) {
     }
 
     private fun evaluateBinary(expression: DealExpression.Binary, environment: DealEnvironment): Any? {
-        if (expression.operator == "&&") {
+        if (expression.operator in setOf("&", "&&")) {
             return evaluate(expression.left, environment).asBoolean() &&
                 evaluate(expression.right, environment).asBoolean()
         }
@@ -289,8 +339,8 @@ internal class GeneratedDealRuntime(source: String) {
             "*" -> left.asInt() * right.asInt()
             "/" -> left.asInt() / right.asInt()
             "%" -> left.asInt() % right.asInt()
-            "===" -> left == right
-            "!==" -> left != right
+            "==", "===" -> left == right
+            "!=", "!==" -> left != right
             "<" -> left.asInt() < right.asInt()
             "<=" -> left.asInt() <= right.asInt()
             ">" -> left.asInt() > right.asInt()
@@ -306,7 +356,9 @@ internal class GeneratedDealRuntime(source: String) {
             is DealExpression.Index -> {
                 val values = evaluate(target.target, environment).asMutableList()
                 val index = evaluate(target.index, environment).asInt()
-                require(index in values.indices) { "DEAL array index is outside bounds" }
+                require(index in values.indices) {
+                    "DEAL array index $index is outside 0..${values.lastIndex}"
+                }
                 values[index] = value
             }
 
@@ -345,6 +397,9 @@ internal class GeneratedDealRuntime(source: String) {
     private companion object {
         const val EXECUTION_BUDGET = 8_000
         const val MAX_CALL_DEPTH = 12
+        const val MAX_CUSTOM_GLOBALS = 32
+        const val MAX_CUSTOM_VALUE_LENGTH = 160
+        val CUSTOM_GLOBAL_NAME = Regex("[A-Za-z_][A-Za-z0-9_]{0,63}")
         val GRID_GLOBALS = setOf("items", "columns")
         val CANVAS_GLOBALS = setOf(
             "canvasWidth",
@@ -358,6 +413,7 @@ internal class GeneratedDealRuntime(source: String) {
             "shapeColors",
             "shapeLabels"
         )
+        val RESERVED_SNAPSHOT_GLOBALS = setOf("title", "status", "primaryLabel") + GRID_GLOBALS + CANVAS_GLOBALS
         val SHAPE_KINDS = setOf("rect", "circle", "line", "text")
     }
 }
@@ -501,8 +557,8 @@ private class DealParser(private val tokens: List<DealToken>) {
     private fun parseExpression(): DealExpression = parseOr()
 
     private fun parseOr(): DealExpression = binary(::parseAnd, setOf("|", "||"))
-    private fun parseAnd(): DealExpression = binary(::parseEquality, setOf("&&"))
-    private fun parseEquality(): DealExpression = binary(::parseComparison, setOf("===", "!=="))
+    private fun parseAnd(): DealExpression = binary(::parseEquality, setOf("&", "&&"))
+    private fun parseEquality(): DealExpression = binary(::parseComparison, setOf("==", "===", "!=", "!=="))
     private fun parseComparison(): DealExpression = binary(::parseTerm, setOf("<", "<=", ">", ">="))
     private fun parseTerm(): DealExpression = binary(::parseFactor, setOf("+", "-"))
     private fun parseFactor(): DealExpression = binary(::parseUnary, setOf("*", "/", "%"))
@@ -534,7 +590,9 @@ private class DealParser(private val tokens: List<DealToken>) {
 
                 match(".") -> {
                     val member = identifier()
-                    require(member == "length") { "Only .length is allowed in generated DEAL" }
+                    require(member == "length") {
+                        "Unsupported DEAL member .$member; only array.length is allowed"
+                    }
                     DealExpression.Length(expression)
                 }
 
@@ -701,13 +759,13 @@ private class DealLexer(private val source: String) {
     }
 
     private fun symbol(): DealToken {
-        val operators = listOf("!==", "===", "<=", ">=", "&&", "||")
+        val operators = listOf("!==", "===", "==", "!=", "<=", ">=", "&&", "||")
         operators.firstOrNull { source.startsWith(it, index) }?.let { operator ->
             index += operator.length
             return DealToken(DealTokenKind.SYMBOL, operator)
         }
         val symbol = source[index++].toString()
-        require(symbol[0] in "{}()[];,:.=+-*/%!<>|") { "Unsupported DEAL character: $symbol" }
+        require(symbol[0] in "{}()[];,:.=+-*/%!<>|&") { "Unsupported DEAL character: $symbol" }
         return DealToken(DealTokenKind.SYMBOL, symbol)
     }
 }

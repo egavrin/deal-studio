@@ -23,9 +23,11 @@ This repository implements a narrow Android assistant:
     system-invoked surface; the role is an entry point, not a privilege escalation.
 11. Debug builds contain an isolated Generated App Studio experiment. Its UI and
     logic roles are selected independently: local Gemma 270M / Qwen2.5-Coder 0.5B,
-    DeepSeek V4 Flash or DeepSeek V4 Pro. Every route produces the same compact UI
-    DSL and restricted DEAL generated-app profile. The Studio is not part of
-    assistant routing and generated code may not execute assistant actions.
+    DeepSeek V4 Flash or DeepSeek V4 Pro. Local Gemma currently emits the legacy
+    compact UI DSL; cloud UI emits the versioned project-owned A2UI wire profile.
+    Every logic route emits the same restricted DEAL generated-app profile. The
+    Studio is not part of assistant routing and generated code may not execute
+    assistant actions.
 12. The user-facing app, Studio prompts, generated labels, cloud answers and system
     overlay are English. Russian strings remain only in input normalization,
     compatibility parsing and Russian speech-model internals.
@@ -122,18 +124,36 @@ scraping.
   local logic uses Qwen. Either role may instead use explicit DeepSeek V4 Flash or
   Pro. The two role choices are persisted independently, never silently fall back,
   and release the corresponding local llama.cpp session when cloud is selected.
-  The UI generator composes around exactly one generic `surface.app`; it does not
-  select the executable interaction profile. The logic generator emits one complete
-  `GRID` or `REALTIME_CANVAS` module. Invalid DEAL may trigger one repair pass on the
-  same selected backend; repair may not select a canned module or skip validation.
+  The UI generator composes around exactly one generic interaction surface
+  (`surface.app` locally, `InteractiveSurface` in cloud A2UI); it does not select the
+  executable interaction profile. The logic generator emits one complete `GRID` or
+  `REALTIME_CANVAS` module. Invalid local output may trigger one repair; invalid cloud
+  output may trigger at most two diagnostic repair passes on the same selected
+  backend. Repair may not select a canned module or skip validation.
+- Regeneration is an atomic replacement. Keep the last fully validated bundle and
+  runtime interactive while a new pair is generated; never clear working state in
+  favor of a noninteractive skeleton. Swap only after both new artifacts pass.
 - Studio generation budgets are ceilings, not target lengths: Gemma may emit up to
-  512 tokens and Qwen up to 1,536 tokens for both the first pass and repair. Do not
-  restore a 64-token output cap. Raising these limits also requires adjusting the
-  native cap, source-size gate, context budget and device latency/thermal acceptance.
+  512 compact UI tokens; cloud A2UI, DEAL generation and repair may emit up to 4,096
+  tokens. Cloud and local logic use the same ceiling, while local Qwen uses an
+  8,192-token context.
+  Do not restore a 64-token output cap or raise the output ceiling beyond the
+  compiler's 10,000-character contract without jointly adjusting the native cap,
+  source-size gate, context budget and device latency/thermal acceptance.
+- `GeneratedAppLanguageContracts` is the single production source for the legacy
+  Compact UI grammar, project-owned A2UI wire profile, DEAL syntax, operators,
+  resource limits, `GRID`/`REALTIME_CANVAS` ABI and complete compiler-validated
+  reference modules. Initial and repair prompts for each backend must compose from
+  those versioned contracts.
+  Do not maintain abbreviated DeepSeek-only token lists or app-specific prompt
+  patches. Contract examples teach grammar; they are never selected at runtime.
 - Generated apps use exactly one `GRID` or `REALTIME_CANVAS` interaction surface.
   Real-time state, movement, collision, score, lives and reset behavior belong to
   generated DEAL. Compose only renders bounded generic shapes and forwards capped
-  frame and pointer events.
+  frame and pointer events. Realtime semantic smoke sends pointer input before its
+  required tick change so tap-to-start and paused initial states remain valid.
+  Bounded non-ABI scalar globals may be exposed read-only to A2UI as
+  `/app/custom/<name>`; never export arrays or platform objects.
 - `pong`, `arkanoid`, `tank_duel` and all other app names are forbidden as runtime
   branches. They may exist in training/evaluation data only. Keep at least one
   real-time family held out from train and compile every target with production
@@ -143,10 +163,11 @@ scraping.
 - Generated UI training uses the catalog and pipeline in `training/generated_ui`.
   In that broad A2UI dataset pipeline DeepSeek is a host-only teacher; it must emit
   the closed `UiBlueprintV1` schema and never writes a trusted runtime DSL directly.
-  The separate internal Studio may request its older compact DSL from DeepSeek, but
-  that output remains untrusted and must pass the production parser. The canonical
-  training blueprint is the source of truth, and A2UI Express/wire targets are
-  deterministic derived artifacts.
+  The internal Studio cloud UI path emits the same project-owned A2UI wire profile
+  directly and must pass the production catalog, graph, binding, action and URL
+  validator. Local Gemma remains a temporary compact-DSL compatibility path until a
+  trained A2UI model is promoted. The canonical training blueprint remains the
+  source of truth, and A2UI Express/wire targets are deterministic derived artifacts.
 - The generated-UI runtime catalog IDs are project-owned derived profiles. Preserve
   the pinned upstream A2UI ID/commit/digest as provenance, but never claim upstream
   wire conformance until its conformance suite passes.
@@ -175,8 +196,9 @@ scraping.
 - `:deepseek-connector` owns restricted DeepSeek HTTPS/SSE, Exa Search/Agent and
   allowlisted Wikimedia transports.
 - `AssistantRuntimeContainer` is the production composition root.
-- `app.generatedapp` owns the isolated Studio, compact UI parser, restricted DEAL
-  interpreter and local llama.cpp bridge. It must not be referenced from `:core`.
+- `app.generatedapp` owns the isolated Studio, compact and project-owned A2UI
+  parsers/renderers, restricted DEAL interpreter and local llama.cpp bridge. It must
+  not be referenced from `:core`.
 - `AssistantConversationCoordinator` owns the reusable request/session state
   machine. Activity and `VoiceInteractionSession` surfaces are adapters.
 - The always-running `VoiceInteractionService` entry process stays model-free.

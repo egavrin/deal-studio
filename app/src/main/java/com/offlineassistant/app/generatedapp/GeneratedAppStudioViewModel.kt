@@ -128,8 +128,6 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 gemma = ModelRunState(ModelPhase.GENERATING),
                 deal = ModelRunState(ModelPhase.GENERATING),
                 uiDraft = null,
-                bundle = null,
-                appState = null,
                 error = null,
                 selectedArtifact = GeneratedArtifact.PREVIEW
             )
@@ -141,9 +139,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     val uiJob = async(Dispatchers.IO) { generateUi(request, snapshot.uiBackend) }
                     val dealJob = async(Dispatchers.IO) { generateDeal(request, snapshot.logicBackend) }
 
-                    val ui = uiJob.await()
-                    val uiSource = CompactUiPlanParser.extractRoot(ui.output)
-                    val parsedUi = CompactUiPlanParser.parseAndValidate(uiSource)
+                    val firstUi = uiJob.await()
+                    val ui = validateOrRepairUi(snapshot.uiBackend, request, firstUi)
+                    val (uiSource, parsedUi) = parseUiArtifact(snapshot.uiBackend, ui.output)
                     mutableState.update {
                         it.copy(
                             gemma = it.gemma.copy(
@@ -294,7 +292,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         runCatching {
             LocalLlamaBridge.open(
                 model = file,
-                contextTokens = if (isGemma) 2_048 else 4_096,
+                contextTokens = if (isGemma) 2_048 else 8_192,
                 threads = if (isGemma) GEMMA_THREADS else DEAL_THREADS
             )
         }
@@ -342,11 +340,15 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
     }
 
-    private fun generateUi(request: String, backend: GeneratedModelBackend): ModelOutput = when (backend) {
+    private fun generateUi(
+        request: String,
+        backend: GeneratedModelBackend,
+        repair: UiRepairRequest? = null
+    ): ModelOutput = when (backend) {
         GeneratedModelBackend.LOCAL -> runLocalModel(
             session = requireNotNull(gemmaSession) { "Gemma is not loaded" },
             prompt = GeneratedAppPrompts.gemmaUi(request),
-            maxTokens = GEMMA_MAX_TOKENS,
+            maxTokens = LOCAL_UI_MAX_TOKENS,
             role = GeneratedGeneratorRole.UI
         )
 
@@ -354,8 +356,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             client = uiCloudClient,
             backend = backend,
             instructions = GeneratedAppPrompts.deepSeekUiInstructions(),
-            input = GeneratedAppPrompts.deepSeekUiInput(request),
-            maxTokens = GEMMA_MAX_TOKENS,
+            input = repair?.let {
+                GeneratedAppPrompts.deepSeekRepairUiInput(request, it.invalidSource, it.diagnostic)
+            } ?: GeneratedAppPrompts.deepSeekUiInput(request),
+            maxTokens = CLOUD_UI_MAX_TOKENS,
             role = GeneratedGeneratorRole.UI
         )
     }
@@ -368,9 +372,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         GeneratedModelBackend.LOCAL -> runLocalModel(
             session = requireNotNull(dealSession) { "Qwen is not loaded" },
             prompt = repair?.let {
-                GeneratedAppPrompts.repairDeal(request, null, it.invalidSource, it.diagnostic)
+                GeneratedAppPrompts.repairDeal(request, it.profile, it.invalidSource, it.diagnostic)
             } ?: GeneratedAppPrompts.qwenDeal(request),
-            maxTokens = if (repair == null) DEAL_MAX_TOKENS else DEAL_REPAIR_MAX_TOKENS,
+            maxTokens = if (repair == null) LOCAL_DEAL_MAX_TOKENS else LOCAL_DEAL_REPAIR_MAX_TOKENS,
             role = GeneratedGeneratorRole.LOGIC
         )
 
@@ -380,12 +384,12 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             instructions = if (repair == null) {
                 GeneratedAppPrompts.deepSeekDealInstructions()
             } else {
-                GeneratedAppPrompts.DEEPSEEK_REPAIR_DEAL_INSTRUCTIONS
+                GeneratedAppPrompts.deepSeekDealInstructions()
             },
             input = repair?.let {
-                GeneratedAppPrompts.deepSeekRepairDealInput(request, null, it.invalidSource, it.diagnostic)
+                GeneratedAppPrompts.deepSeekRepairDealInput(request, it.profile, it.invalidSource, it.diagnostic)
             } ?: GeneratedAppPrompts.deepSeekDealInput(request),
-            maxTokens = if (repair == null) DEAL_MAX_TOKENS else DEAL_REPAIR_MAX_TOKENS,
+            maxTokens = if (repair == null) CLOUD_DEAL_MAX_TOKENS else CLOUD_DEAL_REPAIR_MAX_TOKENS,
             role = GeneratedGeneratorRole.LOGIC
         )
     }
@@ -442,23 +446,82 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         request: String,
         first: ModelOutput
     ): ModelOutput {
-        currentCoroutineContext().ensureActive()
-        val diagnostic = runCatching { GeneratedDealCompiler.compileAndValidate(first.output) }
-            .exceptionOrNull()
-            ?.message
-            ?: return first
-        mutableState.update {
-            it.copy(deal = it.deal.copy(partial = "DEAL validation failed. Running one repair pass..."))
+        var current = first
+        var totalLatencyMs = first.latencyMs
+        val maxRepairs = if (backend.isLocal) 1 else CLOUD_REPAIR_ATTEMPTS
+        repeat(maxRepairs) { attempt ->
+            currentCoroutineContext().ensureActive()
+            val diagnostic = runCatching { GeneratedDealCompiler.compileAndValidate(current.output) }
+                .exceptionOrNull()
+                ?.message
+                ?: return current.copy(latencyMs = totalLatencyMs)
+            mutableState.update {
+                it.copy(
+                    deal = it.deal.copy(
+                        partial = "DEAL validation failed. Repair ${attempt + 1}/$maxRepairs..."
+                    )
+                )
+            }
+            val repaired = withContext(Dispatchers.IO) {
+                generateDeal(
+                    request = request,
+                    backend = backend,
+                    repair = RepairRequest(
+                        invalidSource = current.output,
+                        diagnostic = diagnostic,
+                        profile = GeneratedDealCompiler.detectProfile(current.output)
+                    )
+                )
+            }
+            totalLatencyMs += repaired.latencyMs
+            current = repaired
         }
-        val repaired = withContext(Dispatchers.IO) {
-            generateDeal(
-                request = request,
-                backend = backend,
-                repair = RepairRequest(first.output, diagnostic)
-            )
+        return current.copy(latencyMs = totalLatencyMs)
+    }
+
+    private suspend fun validateOrRepairUi(
+        backend: GeneratedModelBackend,
+        request: String,
+        first: ModelOutput
+    ): ModelOutput {
+        if (backend.isLocal) return first
+        var current = first
+        var totalLatencyMs = first.latencyMs
+        repeat(CLOUD_REPAIR_ATTEMPTS) { attempt ->
+            currentCoroutineContext().ensureActive()
+            val diagnostic = runCatching { parseUiArtifact(backend, current.output) }
+                .exceptionOrNull()
+                ?.message
+                ?: return current.copy(latencyMs = totalLatencyMs)
+            mutableState.update {
+                it.copy(
+                    gemma = it.gemma.copy(
+                        partial = "UI validation failed. Repair ${attempt + 1}/$CLOUD_REPAIR_ATTEMPTS..."
+                    )
+                )
+            }
+            val repaired = withContext(Dispatchers.IO) {
+                generateUi(
+                    request = request,
+                    backend = backend,
+                    repair = UiRepairRequest(current.output, diagnostic)
+                )
+            }
+            totalLatencyMs += repaired.latencyMs
+            current = repaired
         }
-        currentCoroutineContext().ensureActive()
-        return repaired.copy(latencyMs = first.latencyMs + repaired.latencyMs)
+        return current.copy(latencyMs = totalLatencyMs)
+    }
+
+    private fun parseUiArtifact(
+        backend: GeneratedModelBackend,
+        raw: String
+    ): Pair<String, GeneratedUiArtifact> = if (backend.isLocal) {
+        val source = CompactUiPlanParser.extractRoot(raw)
+        source to CompactGeneratedUi(CompactUiPlanParser.parseAndValidate(source))
+    } else {
+        val source = A2UiParser.extractDocument(raw)
+        source to A2UiGeneratedUi(A2UiParser.parseAndValidate(source))
     }
 
     private fun ModelRunState.readyAfterFailure(): ModelRunState = when (phase) {
@@ -474,15 +537,25 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     private data class ModelOutput(val output: String, val latencyMs: Long)
 
-    private data class RepairRequest(val invalidSource: String, val diagnostic: String)
+    private data class RepairRequest(
+        val invalidSource: String,
+        val diagnostic: String,
+        val profile: GeneratedAppProfile?
+    )
+
+    private data class UiRepairRequest(val invalidSource: String, val diagnostic: String)
 
     internal companion object {
         const val MODEL_DIRECTORY = "models/generated-app-studio"
         const val GEMMA_FILE = "gemma-ui-q4-k-m.gguf"
         const val DEAL_FILE = "qwen-deal-app-0.5b-q4-k-m.gguf"
-        private const val GEMMA_MAX_TOKENS = 512
-        private const val DEAL_MAX_TOKENS = 1_536
-        private const val DEAL_REPAIR_MAX_TOKENS = 1_536
+        private const val LOCAL_UI_MAX_TOKENS = 512
+        private const val CLOUD_UI_MAX_TOKENS = 4_096
+        private const val LOCAL_DEAL_MAX_TOKENS = 4_096
+        private const val LOCAL_DEAL_REPAIR_MAX_TOKENS = 4_096
+        private const val CLOUD_DEAL_MAX_TOKENS = 4_096
+        private const val CLOUD_DEAL_REPAIR_MAX_TOKENS = 4_096
+        private const val CLOUD_REPAIR_ATTEMPTS = 2
         private const val PARTIAL_LIMIT = 520
         private const val GEMMA_THREADS = 4
         private const val DEAL_THREADS = 4

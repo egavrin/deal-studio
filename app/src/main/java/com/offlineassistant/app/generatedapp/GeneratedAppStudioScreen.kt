@@ -227,7 +227,11 @@ internal fun GeneratedAppStudioScreen(
         state.error?.let { ErrorBanner(it) }
 
         state.uiDraft?.takeIf { state.bundle == null }?.let { draft ->
-            ProgressiveUiPreview(draft)
+            ProgressiveUiPreview(
+                draft = draft,
+                uiBackend = state.uiBackend,
+                logicBackend = state.logicBackend
+            )
         }
 
         state.bundle?.let { bundle ->
@@ -249,7 +253,8 @@ internal fun GeneratedAppStudioScreen(
                 )
 
                 GeneratedArtifact.UI_DSL -> SourcePanel(
-                    title = "${bundle.uiBackend.displayName(GeneratedGeneratorRole.UI)} · UI DSL",
+                    title = "${bundle.uiBackend.displayName(GeneratedGeneratorRole.UI)} · " +
+                        if (bundle.ui is A2UiGeneratedUi) "A2UI" else "Compact UI DSL",
                     source = bundle.uiSource
                 )
 
@@ -482,22 +487,26 @@ private fun ErrorBanner(message: String) {
 }
 
 @Composable
-private fun ProgressiveUiPreview(draft: GeneratedUiDraft) {
+private fun ProgressiveUiPreview(
+    draft: GeneratedUiDraft,
+    uiBackend: GeneratedModelBackend,
+    logicBackend: GeneratedModelBackend
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Interface ready", style = MaterialTheme.typography.titleMedium)
+            Text("Layout ready · interactions locked", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Gemma · ${draft.latencyMs} ms",
+                "${uiBackend.displayName(GeneratedGeneratorRole.UI)} · ${draft.latencyMs} ms",
                 style = MaterialTheme.typography.labelMedium,
                 color = AssistantColors.Primary
             )
         }
         Text(
-            "Qwen is generating state and action handlers",
+            "${logicBackend.displayName(GeneratedGeneratorRole.LOGIC)} is generating and validating behavior",
             style = MaterialTheme.typography.bodyMedium,
             color = AssistantColors.Muted
         )
@@ -507,7 +516,10 @@ private fun ProgressiveUiPreview(draft: GeneratedUiDraft) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(1.dp, AssistantColors.Border)
         ) {
-            GeneratedSkeletonNode(draft.tree, Modifier.padding(16.dp))
+            when (val ui = draft.ui) {
+                is CompactGeneratedUi -> GeneratedSkeletonNode(ui.root, Modifier.padding(16.dp))
+                is A2UiGeneratedUi -> A2UiSkeleton(ui.surface, Modifier.padding(16.dp))
+            }
         }
     }
 }
@@ -595,9 +607,12 @@ private fun GeneratedAppPreview(
     state: GeneratedAppSnapshot,
     onAction: (GeneratedAppAction) -> Unit
 ) {
-    val appSurface = bundle.ui.findComponent("surface.app")
-    LaunchedEffect(bundle.deal.source, appSurface) {
-        if (bundle.deal.profile != GeneratedAppProfile.REALTIME_CANVAS || appSurface == null) {
+    val hasInteractionSurface = when (val ui = bundle.ui) {
+        is CompactGeneratedUi -> ui.root.findComponent("surface.app") != null
+        is A2UiGeneratedUi -> ui.surface.components.values.any { it.type == "InteractiveSurface" }
+    }
+    LaunchedEffect(bundle.deal.source, hasInteractionSurface) {
+        if (bundle.deal.profile != GeneratedAppProfile.REALTIME_CANVAS || !hasInteractionSurface) {
             return@LaunchedEffect
         }
         var lastFrameNanos = 0L
@@ -621,12 +636,21 @@ private fun GeneratedAppPreview(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, AssistantColors.Border)
     ) {
-        GeneratedNode(
-            node = bundle.ui,
-            state = state,
-            onAction = onAction,
-            modifier = Modifier.padding(16.dp)
-        )
+        when (val ui = bundle.ui) {
+            is CompactGeneratedUi -> GeneratedNode(
+                node = ui.root,
+                state = state,
+                onAction = onAction,
+                modifier = Modifier.padding(16.dp)
+            )
+
+            is A2UiGeneratedUi -> A2UiSurfaceRenderer(
+                surface = ui.surface,
+                state = state,
+                onAction = onAction,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
     }
 }
 
@@ -857,7 +881,7 @@ private fun GeneratedPrimaryButton(
 }
 
 @Composable
-private fun GeneratedCanvas(
+internal fun GeneratedCanvas(
     scene: GeneratedCanvasSnapshot,
     pointerAction: String,
     frame: String?,
@@ -954,7 +978,7 @@ private fun GeneratedCanvas(
 }
 
 @Composable
-private fun GeneratedGrid(
+internal fun GeneratedGrid(
     state: GeneratedAppSnapshot,
     action: String,
     variant: String?,
