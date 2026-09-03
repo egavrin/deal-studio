@@ -1,259 +1,146 @@
-# Offline Assistant
+# DEAL Studio
 
-Android technology demo with one deliberately narrow assistant pipeline:
+DEAL Studio is an Android application that generates small interactive applications from a natural
+language brief. DeepSeek authors a typed DEAL behaviour program and a pure Deal UI view; the app
+compiles both with a pinned production toolchain and renders the checked result with native Compose.
 
-```text
-Microphone -> T-one RU -> transcript
-                         |
-Text --------------------+
-                         v
-                  RuBERT-tiny2
-             /        |          |          \
-      local action  search    research    unknown
-          |        Exa auto   Exa Agent   DeepSeek SSE
-      local skill      \       fixed card      |
-                       DeepSeek grounded -------+
-                              |
-              Markdown + sources + fixed cards
-                         |
-                  Silero Xenia TTS
-```
+The former offline voice assistant has been removed from the product APK. Its complete pre-split
+workspace is preserved on `egavrin/assistant-backup-2026-09-03`.
 
-Voice recognition, intent classification, slots, local actions, UI rendering and speech
-synthesis run on device. RuBERT also distinguishes direct chat, current web search
-and explicit research. Network routes run only after the user enables them and
-provides independent BYOK keys.
-
-## Core Features
-
-- streaming Russian ASR with T-one RU and sherpa-onnx;
-- local RuBERT-tiny2 intent and slot inference through ONNX Runtime;
-- time, weather mock/cache, timer, alarm, reminder, note, calculator, open-app and help;
-- confirmed dial, SMS/email compose, navigation, calendar insert, media, volume,
-  settings and HTTPS-link actions;
-- fixed Compose result cards for those commands plus clarification, permission and error;
-- streaming Markdown DeepSeek answers for open-ended questions;
-- primary-source-biased Exa Search retrieval followed by grounded DeepSeek synthesis;
-- cancellable SSE-driven Exa Agent research with a report view and follow-up runs;
-- inline citations, persisted visual source cards, source previews and related questions;
-- editable local voice dictation and a continuous listen-answer-speak conversation mode;
-- optional Android default-assistant mode with a compact system-invoked voice session;
-- attributed Wikimedia Commons image results for explicit visual requests;
-- local Russian TTS with Silero Xenia;
-- independent encrypted DeepSeek and Exa BYOK storage through Android Keystore.
-- resumable first-run setup for privacy boundaries, model readiness, microphone,
-  optional cloud keys and the system-assistant role;
-- versioned local model inventory with role, delivery source, installed bytes and
-  explicit required/optional readiness;
-- a 30-minute bounded Exa result cache plus visible structural citation coverage;
-- minified unsigned release-like AAB verification on every PR.
-- an isolated internal Generated App Studio with independently selectable local
-  Gemma/Qwen or cloud DeepSeek Flash/Pro generators for UI and interaction logic.
-
-Qwen, llama.cpp and Gemma are not part of the assistant request pipeline. Their
-only allowed use is the internal Generated App Studio described below. Whisper,
-AppFunctions and organizer features remain outside the current scope.
-
-## Modules
+## Product Flow
 
 ```text
-app/                  Compose UI, T-one, RuBERT runtime, Silero, Android actions
-app/.../generatedapp  isolated hybrid generated-app Studio and validators
-core/                 platform-neutral contracts, routing, normalization and skills
-deepseek-connector/   restricted DeepSeek, Exa and Wikimedia transports
-benchmark/            startup, chat, microphone and streaming macrobenchmarks
-training/             narrow RuBERT training/export/evaluation pipeline
-docs/                 current scope, device checklist and visual references
+user brief
+   |
+   v
+DeepSeek compiler tools
+   |
+   +-- create_deal_program       nominal state, actions, helpers, capabilities
+   +-- apply_deal_graph_patch    batched typed function-body fills
+   |
+   v
+production-checked app.deal
+   |
+   v
+extracted read-only AppInterfaceV1
+   |
+   v
+DeepSeek Deal UI compiler tool
+   |
+   v
+checked app.dealui -> portable IR -> native Compose
+   |
+   v
+interactive fullscreen runtime / local saved-app library
 ```
 
-## Build
+DEAL owns state and behaviour. Deal UI owns presentation and typed event bindings. There is no
+generated planner file, JSON AST or application template. Compiler tools accept compact semantic
+units and reject invalid updates before they become runnable.
 
-Prerequisites: JDK 17, Android SDK/Build Tools 37 and an ARM64 Android device for
-connected validation.
+## Current Capabilities
+
+- DeepSeek Flash and Pro can be selected independently for behaviour and UI; Flash is the default
+  for a fresh installation.
+- The cloud path generates DEAL first and Deal UI second from the exact verified interface.
+- Canonical applications run in a sandboxed native Compose renderer.
+- Fullscreen mode uses the same runtime and preserves state when returning to Studio.
+- Canonical `app.deal` and `app.dealui` can be saved with provenance and recompiled on restore.
+- Saved applications have live, noninteractive previews and reopen as interactive runtimes.
+- One natural-language refinement request is routed to narrow behaviour and UI edit agents; the
+  previous app remains active unless the complete revision validates.
+- Generic Deal UI pack v2 includes adaptive layout, semantic text/list/stat/status components,
+  controls, icons, HTTPS images, progress, navigation surfaces, overlays, clock and canvas input.
+- The local llama.cpp runtime remains available for future Gemma/Qwen evaluation; local model files
+  are not bundled in the APK.
+
+The debug APK is about 26 MB. It contains the native llama runtime and the pinned DEAL toolchain, but
+does not contain speech, TTS, RuBERT or assistant model assets.
+
+## Build And Install
+
+Prerequisites:
+
+- JDK 17;
+- Android SDK and Build Tools 37;
+- an ARM64 Android device for production-toolchain device tests.
 
 ```bash
-python3 scripts/check_core_scope.py
-python3 scripts/check_nlu_eval_manifest.py
-python3 scripts/check_release_contract.py
-./gradlew testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
-./gradlew ktlintCheck detekt lintDebug
-./gradlew assembleDebug bundleRelease
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.dealstudio.app.debug/com.offlineassistant.app.DealStudioActivity
 ```
 
-Install:
+The application id is `com.dealstudio.app`; debug builds use `com.dealstudio.app.debug`. The Kotlin
+package namespace remains temporarily unchanged.
+
+## DeepSeek Key
+
+Debug builds may provision the disposable development key from `local.properties` or the
+`DEEPSEEK_API_KEY` Gradle property. The first launch copies it into Android Keystore-backed encrypted
+storage. A user can replace or remove it from the key action in the top bar. Release builds compile
+with no embedded key and require BYOK.
+
+```properties
+DEEPSEEK_API_KEY=replace-with-development-key
+```
+
+Do not add a production credential to source control.
+
+## Validation
+
+Host checks:
 
 ```bash
-./gradlew installDebug
+./gradlew :app:testDebugUnitTest :deepseek-connector:testDebugUnitTest
+./gradlew :app:ktlintCheck :app:detekt :app:lintDebug
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 ```
 
-## Model Bundles
-
-- T-one RU is packaged under `app/src/main/assets/models/tone_ru/`.
-- The production RuBERT export is packaged under
-  `app/src/main/assets/models/rubert/`. `runtime-bundle.json` pins its version,
-  sizes and SHA-256 digests; `scripts/verify_rubert_bundle.py` validates the bundle.
-  A complete `/data/local/tmp/offline-assistant-rubert/` bundle remains an optional
-  development override.
-- Silero Xenia is exported under
-  `models/external/silero-v5_5-ru-xenia/android-bundle/` and staged as
-  `/data/local/tmp/offline-assistant-silero/`.
-- Studio models are not APK assets. Internal builds expect
-  `gemma-ui-q4-k-m.gguf` and `qwen-deal-app-0.5b-q4-k-m.gguf` under the app-private
-  `files/models/generated-app-studio/` directory.
-
-Generated training outputs under `models/` are ignored by Git. Production ONNX
-assets use Git LFS. The app atomically materializes versioned APK assets or a
-complete verified development override into private app storage.
-
-The current catalog exposes bundled/staged lifecycle state and disk use. Remote
-model downloads remain disabled until a signed catalog and trusted artifact host
-are available; a partial or unverified download must never replace a working
-bundle.
-
-## Generated App Studio
-
-The internal Studio demonstrates generation of a small interactive app through two
-independently selected roles:
-
-```text
-English task
-    |-- UI:    Gemma 270M | DeepSeek Flash | DeepSeek Pro
-    |                       -> compact UI DSL -> strict parser -> progressive preview
-    `-- Logic: Qwen 0.5B  | DeepSeek Flash | DeepSeek Pro
-                            -> DEAL generated-app profile -> compiler/ABI/smoke checks
-                                                                  |
-                                                  generic Compose renderer + interpreter
-```
-
-Both passes start in parallel. The two choices are persisted independently, so a
-run can be fully local, fully cloud or mixed. Cloud selection releases the local
-session for that role; missing credentials fail closed and never trigger an implicit
-local fallback. One fully revalidated repair pass on the selected logic backend is
-allowed for invalid DEAL output.
-
-There are no runtime `tic_tac_toe` or `score_duel` branches and no canned behavior
-fallback. The selected models generate both artifacts. The renderer understands
-generic bound primitives (`column`, `row`, `stack`, `grid2`, `section`, text,
-decoration, `surface.app` and `control.button`). `GRID` modules expose cells and `onItem`.
-`REALTIME_CANVAS` modules expose bounded shape arrays plus `onTick` and `onPointer`;
-the generated DEAL source owns state, motion, collisions, score, lives and reset.
-The generation ceilings are 512 tokens for UI DSL and 1,536 tokens for DEAL, not
-64 tokens. Output still has to fit the bounded DSL/ABI and source-size gates.
-
-This is a constrained experiment, not arbitrary native code execution. Generated
-text is parsed rather than evaluated by Kotlin/JavaScript, loops and actions have
-budgets, only the fixed ABI is visible to Compose, and invalid or cancelled output
-never executes. The executable subset is named the **DEAL generated-app profile**;
-it is not canonical DEAL v1.2.
-
-Build the reproducible datasets and run their production-parser contract tests:
+Focused connected checks:
 
 ```bash
-python3 training/generated_app/build_demo_dataset.py \
-  --output training/generated_app/data/deal \
-  --ui-output training/generated_app/data/ui
-./gradlew :app:testDebugUnitTest --tests 'com.offlineassistant.app.generatedapp.*'
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -r \
+  -e class 'com.offlineassistant.app.generatedapp.CanonicalDealToolchainDeviceTest,com.offlineassistant.app.generatedapp.CanonicalDealUiTouchDeviceTest' \
+  com.dealstudio.app.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-Pong, Arkanoid and tank duel are training families. Runner is held out from train as
-the real-time generalization gate. Dataset sources never ship in the APK or
-participate in runtime selection.
-
-Train the narrow RuBERT classifier:
-
-```bash
-python3 training/rubert/train_export.py \
-  --dataset training/rubert/synthetic_intents.jsonl \
-  --output-dir models/generated/rubert
-
-python3 training/rubert/evaluate_export.py \
-  --model-dir models/generated/rubert \
-  --output build/rubert-host-eval.jsonl
-```
-
-## DeepSeek
-
-Open Settings in the app, save a DeepSeek API key and enable “Complex questions”.
-The key is encrypted with Android Keystore. It is never stored in source, Gradle
-properties, logs or chat history in production. The internal debug build currently
-contains a disposable demo key so the cloud routes and Generated App Studio can be
-tested immediately after installation. On first launch it is copied into Android
-Keystore. Release builds always compile with an empty embedded key.
-
-DeepSeek receives requests classified as `unknown` or outside the current local
-action registry, plus a bounded window of the visible conversation. It returns
-Markdown over SSE. The UI renders that Markdown while Silero receives clean speech
-text. In the assistant route DeepSeek cannot select an action, generate command JSON
-or generate UI. The isolated Generated App Studio has a separate explicit cloud
-generation mode; its output is never trusted and passes the same UI DSL and DEAL
-validators as local output.
-Explicit requests such as
-“Покажи фотографии Красной площади” may independently attach attributed Wikimedia
-Commons images to that answer.
-
-## Exa Search And Research
-
-Settings contains an independent Exa API-key field. The value is encrypted with an
-Exa-specific Android Keystore alias and is never stored in source, Gradle properties,
-logs or chat history.
-
-- `web_search`: Exa `auto` retrieves up to six bounded, primary-source-biased
-  highlights; DeepSeek streams an English answer grounded in those numbered sources.
-  Successful source sets are cached for 30 minutes, and the UI distinguishes cached
-  retrieval and incomplete structural citation coverage.
-- `web_research`: Exa Agent runs asynchronously with `low` effort, SSE progress and
-  a bounded summary/findings schema. The composer is released after the run starts;
-  its `ResearchCard` remains cancellable and opens a shareable report. Follow-up
-  research continues through Exa `previousRunId`.
-
-Local action intents never use Exa. Source page contents are treated as untrusted,
-only validated HTTPS links are shown, and the app does not use Exa `/answer`.
-
-## Voice UX
-
-- Tap the microphone inside the composer to dictate. The local T-one transcript
-  stays in the composer for review and editing until Send is pressed.
-- Tap the waveform button to start a conversation. The app alternates between
-  listening, processing and local Silero playback while keeping the normal chat,
-  streamed text, fixed cards and images visible.
-- Tap the microphone in the conversation dock to end the current utterance or
-  interrupt speech; tap the red call button to leave conversation mode.
-- While Silero is speaking, a local T-one monitor uses Android
-  `VOICE_COMMUNICATION` with available AEC/NS/AGC. A meaningful ASR partial stops
-  speech and becomes the next turn; manual interruption remains available.
-
-## System Assistant
-
-On Android devices that expose the default digital-assistant role:
-
-1. Open Settings in the app.
-2. Under “System assistant”, grant microphone access.
-3. Tap “Set as system assistant” and confirm the Android role dialog or OEM
-   settings fallback.
-4. Invoke the configured power, home or corner assistant gesture.
-
-The compact overlay reuses the same process-level T-one, RuBERT, local skill,
-DeepSeek/Exa and Silero runtimes as the full chat. Route badges make local and
-network execution visible. Optional current-screen text is off by default,
-memory-only, sanitized and shown with a “SCREEN” indicator; screenshots are not
-captured.
+The product acceptance matrix is tic-tac-toe, Arkanoid, todo, weather, medication, exam, health and
+chess. A scenario passes only when generation, interaction, fullscreen state, save/restore,
+refinement, responsive layout, accessibility and screenshot quality all pass. Compiling alone is
+not sufficient.
 
 ## Architecture
 
-The normative scope and routing rules are in
-[`docs/superpowers/specs/2026-07-29-core-assistant-scope.md`](docs/superpowers/specs/2026-07-29-core-assistant-scope.md).
-The ordered first-run, model lifecycle, NLU, context, phone-connector, search, UI
-and release program is in
-[`docs/superpowers/plans/2026-07-29-productization-roadmap.md`](docs/superpowers/plans/2026-07-29-productization-roadmap.md).
-The optional system-assistant product integration is researched and staged in
-[`docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md`](docs/superpowers/plans/2026-07-29-default-assistant-product-integration.md).
-Host and OPPO CPH2765 physical-device role acceptance are complete; reproducible
-checks and remaining release-matrix items are tracked in the device checklist.
-The measured path from the current Russian classifier to multilingual or 200+
-intents is defined in
-[`docs/testing/intent-model-evaluation.md`](docs/testing/intent-model-evaluation.md).
-The complete MASSIVE-to-Android capability matrix and the distinction between the
-default assistant role and AppFunctions agent privileges are captured in
-[`docs/research/massive-android-appfunctions-reference.md`](docs/research/massive-android-appfunctions-reference.md).
-Physical-device acceptance is intentionally kept separate in
-[`docs/testing/core-device-acceptance.md`](docs/testing/core-device-acceptance.md).
+Important implementation areas:
+
+```text
+app/src/main/java/com/offlineassistant/app/DealStudioActivity.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealProgramGraphCompiler.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppCompiler.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiGraphCompiler.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiPack.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiRuntime.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppRefiner.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppLibrary.kt
+deepseek-connector/src/main/kotlin/com/offlineassistant/deepseek/DeepSeekGenerationClient.kt
+```
+
+The embedded production compiler is built by:
+
+```bash
+scripts/build_deal_android_toolchain.sh
+```
+
+The normative engineering rules are in [AGENTS.md](AGENTS.md). The compiler protocol and remaining
+acceptance work are tracked in
+[2026-09-03-deepseek-deal-ui-streaming-compiler.md](docs/superpowers/plans/2026-09-03-deepseek-deal-ui-streaming-compiler.md).
+
+## Safety Boundary
+
+Generated source is data, not trusted Android code. The app never evaluates arbitrary Kotlin,
+JavaScript or native code. DEAL and Deal UI pass strict parsers, type and capability checks, bounded
+resource validation and runtime smoke checks. Invalid, partial or cancelled output is not executed.
+Saved applications remain inside DEAL Studio; no arbitrary APK is emitted.

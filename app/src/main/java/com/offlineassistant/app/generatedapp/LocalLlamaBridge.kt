@@ -26,8 +26,9 @@ internal object LocalLlamaBridge {
         handle: Long,
         prompt: String,
         maxTokens: Int,
+        grammar: String?,
         callback: TokenCallback
-    ): String = nativeGenerate(handle, prompt, maxTokens, callback)
+    ): String = nativeGenerate(handle, prompt, maxTokens, grammar, callback)
 
     internal fun cancel(handle: Long) {
         nativeCancel(handle)
@@ -41,6 +42,7 @@ internal object LocalLlamaBridge {
         handle: Long,
         prompt: String,
         maxTokens: Int,
+        grammar: String?,
         callback: TokenCallback
     ): String
 
@@ -62,6 +64,7 @@ internal class LocalLlamaSession(handle: Long) : Closeable {
     fun generate(
         prompt: String,
         maxTokens: Int,
+        grammar: String? = null,
         onToken: (String) -> Unit
     ): String {
         val handle = nativeHandle.get()
@@ -70,6 +73,7 @@ internal class LocalLlamaSession(handle: Long) : Closeable {
             handle,
             prompt,
             maxTokens,
+            grammar,
             LocalLlamaBridge.TokenCallback(onToken)
         )
     }

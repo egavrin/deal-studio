@@ -3,21 +3,25 @@
   "created_at": "2026-08-25",
   "contract": {
     "ui_dsl": "compositional-v1",
-    "deal_profile": "generated-app-abi-v2",
+    "deal_profile": "generated-app-abi-v2-legacy",
+    "runtime_profile": "generated-app-language-v3",
+    "runtime_compatible": false,
+    "legacy_grid_compatible": true,
     "ui_max_output_tokens": 512,
     "deal_max_output_tokens": 1536,
     "deal_repair_max_output_tokens": 1536,
     "max_ui_components": 16,
     "max_ui_depth": 6,
     "max_deal_source_chars": 6000,
-    "max_canvas_shapes": 48
+    "max_canvas_shapes": 48,
+    "runtime_max_scene_nodes": 96
   },
   "runtime": {
     "engine": "llama.cpp",
     "backend": "CPU",
     "threads": 4,
     "android_arch": "armv8.6-a+dotprod+fp16+i8mm",
-    "sampling": "greedy"
+    "sampling": "greedy; host GBNF constrained decoding for compact UI"
   },
   "models": [
     {
@@ -84,6 +88,8 @@
     }
   ],
   "known_limits": [
+    "The recorded Qwen artifact is an ABI v2 legacy model. It may run only with the explicit GRID-only compatibility policy and must never be represented as Scene ABI v3.",
+    "The compact UI artifact requires the host GBNF grammar; its three-family presentation corpus is smoke coverage, not arbitrary UI generalization.",
     "The ABI supports bounded grid and 2D canvas mini-apps, not arbitrary native applications.",
     "The held-out runner evaluation does not yet demonstrate reliable behavior generalization.",
     "Qwen Q4_K_M generation latency is not product-ready on the tested CPU backend.",

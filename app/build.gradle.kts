@@ -63,7 +63,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.offlineassistant.poc"
+        applicationId = "com.dealstudio.app"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -143,10 +143,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
     implementation(project(":deepseek-connector"))
-    kover(project(":core"))
-    implementation(files("libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar"))
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -159,13 +156,9 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.onnxruntime.android)
-    implementation(libs.jtransforms)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.markdown.renderer)
-    implementation(libs.markdown.renderer.m3)
 
     baselineProfile(project(":benchmark"))
 
@@ -192,16 +185,9 @@ kover {
             filters {
                 excludes {
                     classes(
-                        "com.offlineassistant.app.MainActivity*",
-                        "com.offlineassistant.app.AssistantRuntimeContainer*",
-                        "com.offlineassistant.app.OfflineAssistantApplication*",
-                        "com.offlineassistant.app.audio.*",
-                        "com.offlineassistant.app.models.ModelReadinessRepository*",
-                        "com.offlineassistant.app.platform.*",
-                        "com.offlineassistant.app.storage.*",
-                        "com.offlineassistant.app.ui.*ScreenKt*",
+                        "com.offlineassistant.app.DealStudioActivity*",
                         "com.offlineassistant.app.ui.theme.*",
-                        "com.offlineassistant.app.widgets.*"
+                        "com.offlineassistant.app.generatedapp.GeneratedAppStudioScreenKt*"
                     )
                 }
             }

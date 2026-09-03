@@ -23,12 +23,17 @@ Own all state and rules. Board games require occupied guard, turns, win/draw and
 
 CANVAS_CONTRACT = """Profile: REALTIME_CANVAS. Coordinates are integer scene units.
 ABI globals: title:string; status:string; primaryLabel:string;
-canvasWidth:int; canvasHeight:int; canvasBackground:string;
-shapeKinds:string[]; shapeX:int[]; shapeY:int[]; shapeW:int[]; shapeH:int[];
-shapeColors:string[]; shapeLabels:string[]. All shape arrays have equal length, max 48.
-Kinds: rect,circle,line,text. Colors: #RRGGBB or #RRGGBBAA.
+canvasWidth:int; canvasHeight:int; canvasBackground:string; continuousAnimation:boolean.
+Use true only for periodic animation. Never declare parallel shape arrays.
+Build a retained scene of at most 96 nodes with sceneClear and sceneRect, sceneRoundRect,
+sceneCircle, sceneEllipse, sceneLine or sceneText. Creators take group,x,y,w,h,color and return handles;
+sceneRoundRect adds radius, sceneText adds label. Mutate nodes with sceneSetPosition, sceneMove,
+sceneSetSize, sceneSetColor, sceneSetStroke, sceneSetLabel, sceneSetVisible, sceneSetInteractive, sceneSetLayer,
+sceneSetRotation and sceneSetCornerRadius. Iterate repeated groups with sceneCount and sceneAt.
+Use sceneX/Y/W/H, sceneOverlaps, sceneContains, rectsOverlap, pointInRect or circlesOverlap for geometry.
+Mark at least one visible pointer target with sceneSetInteractive(handle,true).
 Actions: onTick(deltaMs:int):null; onPointer(x:int,y:int,phase:int):null; onPrimary():null.
-Pointer phases: 0 down, 1 move, 2 up. Update shape arrays in place. Reset the full scene in onPrimary.
+Pointer phases: 0 down, 1 move, 2 up. sceneClear resets handles deterministically. Reset the full scene in onPrimary.
 Implement movement, bounds, collisions, score/lives and win/lose state in DEAL."""
 
 PROFILE_SELECTION_CONTRACT = f"""Select exactly one profile from the request. Use GRID for turn-based, board, counter, or cell apps.
@@ -45,9 +50,10 @@ REQUEST_TEMPLATE = """Build this interactive mini-app:
 {request}
 
 {contract}
-Allowed: let/function/if/else/return/assignment, arrays/index/.length, literals,
-+ - * / % === !== && | < <= > >=. Builtins: abs, min, max, clamp.
-End actions with return null. Keep loops bounded. Complete source <=6000 chars."""
+Allowed: let/function/if/else/while/return/assignment, fixed arrays/index/.length, literals,
++ - * / % === !== && | < <= > >=. Core builtins: abs, min, max, clamp. REALTIME_CANVAS may
+use only the scene builtins in its contract. End actions with return null. Keep loops bounded.
+Complete source <=12000 chars."""
 
 UI_PROMPT_TEMPLATE = """task=compact_widget_plan
 intent=compose_widget
@@ -125,106 +131,90 @@ function onItem(index: int): null { if (items[index] === "") { items[index] = "â
 function onPrimary(): null { items = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]; status = "Tap cells to paint"; return null; }'''
 
 PONG = r'''let title: string = "Generated Pong";
-let status: string = "Drag the left paddle";
-let primaryLabel: string = "Restart";
-let canvasWidth: int = 1000; let canvasHeight: int = 600; let canvasBackground: string = "#0F172A";
-let shapeKinds: string[] = ["rect", "rect", "circle", "line"];
-let shapeX: int[] = [30, 940, 485, 499]; let shapeY: int[] = [250, 250, 285, 0];
-let shapeW: int[] = [30, 30, 30, 1]; let shapeH: int[] = [100, 100, 30, 600];
-let shapeColors: string[] = ["#38BDF8", "#F8FAFC", "#F8FAFC", "#334155"];
-let shapeLabels: string[] = ["", "", "", ""];
+let status: string = "Drag the left paddle"; let primaryLabel: string = "Restart";
+let canvasWidth: int = 1000; let canvasHeight: int = 600; let canvasBackground: string = "#0F172A"; let continuousAnimation: boolean = true;
+let player: int = 0; let opponent: int = 0; let ball: int = 0;
 let ballX: int = 485; let ballY: int = 285; let velocityX: int = 6; let velocityY: int = 4;
+function buildScene(): null {
+ sceneClear(); player = sceneRoundRect("paddles",30,250,30,100,"#38BDF8",8); sceneSetInteractive(player,true);
+ opponent = sceneRoundRect("paddles",940,250,30,100,"#F8FAFC",8);
+ ball = sceneCircle("ball",ballX,ballY,30,30,"#F8FAFC"); sceneSetLayer(ball,2);
+ sceneLine("court",499,0,0,600,"#334155"); return null;
+}
+buildScene();
 function onTick(deltaMs: int): null {
  ballX = ballX + velocityX * deltaMs / 16; ballY = ballY + velocityY * deltaMs / 16;
  if ((ballY <= 0) | (ballY >= 570)) { velocityY = -velocityY; }
  if ((ballX <= 60) | (ballX >= 910)) { velocityX = -velocityX; }
- ballX = clamp(ballX, 0, 970); ballY = clamp(ballY, 0, 570); shapeX[2] = ballX; shapeY[2] = ballY; return null;
+ ballX = clamp(ballX,0,970); ballY = clamp(ballY,0,570); sceneSetPosition(ball,ballX,ballY); return null;
 }
-function onPointer(x: int, y: int, phase: int): null { shapeY[0] = clamp(y - 50, 0, 500); status = "Paddle ready"; return null; }
-function onPrimary(): null { shapeX = [30, 940, 485, 499]; shapeY = [250, 250, 285, 0]; ballX = 485; ballY = 285; velocityX = 6; velocityY = 4; status = "Drag the left paddle"; return null; }'''
+function onPointer(x: int, y: int, phase: int): null { sceneSetPosition(player,30,clamp(y-50,0,500)); status = "Paddle ready"; return null; }
+function onPrimary(): null { ballX=485; ballY=285; velocityX=6; velocityY=4; status="Drag the left paddle"; buildScene(); return null; }'''
 
 ARKANOID = r'''let title: string = "Generated Arkanoid";
 let status: string = "Drag the paddle"; let primaryLabel: string = "Restart";
-let canvasWidth: int = 1000; let canvasHeight: int = 700; let canvasBackground: string = "#08111F";
-let shapeKinds: string[] = ["rect", "circle", "rect", "rect", "rect", "rect", "rect", "rect"];
-let shapeX: int[] = [400, 485, 90, 300, 510, 720, 195, 615]; let shapeY: int[] = [640, 585, 90, 90, 90, 90, 170, 170];
-let shapeW: int[] = [200, 30, 180, 180, 180, 180, 180, 180]; let shapeH: int[] = [24, 30, 48, 48, 48, 48, 48, 48];
-let shapeColors: string[] = ["#38BDF8", "#F8FAFC", "#F97316", "#EAB308", "#22C55E", "#A855F7", "#EF4444", "#14B8A6"];
-let shapeLabels: string[] = ["", "", "", "", "", "", "", ""];
-let ballX: int = 485; let ballY: int = 585; let velocityX: int = 5; let velocityY: int = -6; let bricks: int = 6; let lives: int = 3;
-function onTick(deltaMs: int): null {
- ballX = ballX + velocityX * deltaMs / 16; ballY = ballY + velocityY * deltaMs / 16;
- if ((ballX <= 0) | (ballX >= 970)) { velocityX = -velocityX; }
- if (ballY <= 0) { velocityY = abs(velocityY); }
- if ((ballY >= 610) && (ballY <= 665) && (ballX >= shapeX[0] - 20) && (ballX <= shapeX[0] + 200)) { velocityY = -abs(velocityY); }
- let i: int = 2; while (i < shapeKinds.length) {
-  if ((shapeW[i] > 0) && (ballX + 30 >= shapeX[i]) && (ballX <= shapeX[i] + shapeW[i]) && (ballY + 30 >= shapeY[i]) && (ballY <= shapeY[i] + shapeH[i])) { shapeW[i] = 0; shapeH[i] = 0; velocityY = -velocityY; bricks = bricks - 1; status = "Bricks left: " + bricks; }
-  i = i + 1;
+let canvasWidth: int = 1000; let canvasHeight: int = 700; let canvasBackground: string = "#08111F"; let continuousAnimation: boolean = true;
+let paddle: int = 0; let ball: int = 0; let ballX: int = 485; let ballY: int = 585;
+let velocityX: int = 5; let velocityY: int = -6; let bricks: int = 8; let lives: int = 3;
+function buildScene(): null {
+ sceneClear(); paddle=sceneRoundRect("paddle",400,640,200,24,"#38BDF8",12); sceneSetInteractive(paddle,true);
+ ball=sceneCircle("ball",ballX,ballY,30,30,"#F8FAFC"); sceneSetLayer(ball,2);
+ let row:int=0; let column:int=0; let brick:int=0; while (row<2) { column=0; while (column<4) {
+  brick=sceneRoundRect("bricks",90+column*210,90+row*80,180,48,"#F97316",10);
+  if (row===1) { sceneSetColor(brick,"#22C55E"); } column=column+1;
+ } row=row+1; } return null;
+}
+buildScene();
+function onTick(deltaMs:int):null {
+ ballX=ballX+velocityX*deltaMs/16; ballY=ballY+velocityY*deltaMs/16;
+ if ((ballX<=0)|(ballX>=970)) { velocityX=-velocityX; } if (ballY<=0) { velocityY=abs(velocityY); }
+ sceneSetPosition(ball,ballX,ballY);
+ if (sceneOverlaps(ball,paddle)) { velocityY=-abs(velocityY); }
+ let i:int=0; let brick:int=0; while (i<sceneCount("bricks")) { brick=sceneAt("bricks",i);
+  if (sceneVisible(brick)&&sceneOverlaps(ball,brick)) { sceneSetVisible(brick,false); velocityY=-velocityY; bricks=bricks-1; status="Bricks left: "+bricks; }
+  i=i+1;
  }
- if (ballY > 680) { lives = lives - 1; ballX = 485; ballY = 585; velocityY = -6; status = "Lives: " + lives; }
- if (bricks === 0) { status = "You cleared the board"; velocityX = 0; velocityY = 0; }
- shapeX[1] = ballX; shapeY[1] = ballY; return null;
+ if (ballY>680) { lives=lives-1; ballX=485; ballY=585; velocityY=-6; sceneSetPosition(ball,ballX,ballY); status="Lives: "+lives; }
+ if (bricks===0) { status="You cleared the board"; velocityX=0; velocityY=0; } return null;
 }
-function onPointer(x: int, y: int, phase: int): null { shapeX[0] = clamp(x - 100, 0, 800); status = "Paddle ready"; return null; }
-function onPrimary(): null { shapeX = [400, 485, 90, 300, 510, 720, 195, 615]; shapeY = [640, 585, 90, 90, 90, 90, 170, 170]; shapeW = [200, 30, 180, 180, 180, 180, 180, 180]; shapeH = [24, 30, 48, 48, 48, 48, 48, 48]; ballX = 485; ballY = 585; velocityX = 5; velocityY = -6; bricks = 6; lives = 3; status = "Drag the paddle"; return null; }'''
+function onPointer(x:int,y:int,phase:int):null { sceneSetPosition(paddle,clamp(x-100,0,800),640); status="Paddle ready"; return null; }
+function onPrimary():null { ballX=485; ballY=585; velocityX=5; velocityY=-6; bricks=8; lives=3; status="Drag the paddle"; buildScene(); return null; }'''
 
-TANK_DUEL = r'''let title: string = "Pocket Tanks";
-let status: string = "Drag to move and tap to fire"; let primaryLabel: string = "Restart";
-let canvasWidth: int = 1000; let canvasHeight: int = 600; let canvasBackground: string = "#172033";
-let shapeKinds: string[] = ["rect", "rect", "circle", "circle"];
-let shapeX: int[] = [100, 820, 125, 845]; let shapeY: int[] = [480, 100, 455, 125];
-let shapeW: int[] = [90, 90, 20, 20]; let shapeH: int[] = [60, 60, 20, 20];
-let shapeColors: string[] = ["#38BDF8", "#F97316", "#BAE6FD", "#FED7AA"];
-let shapeLabels: string[] = ["", "", "", ""];
-let enemyDirection: int = 3; let bulletVelocity: int = 0;
-function onTick(deltaMs: int): null {
- shapeX[1] = shapeX[1] + enemyDirection * deltaMs / 16;
- if ((shapeX[1] <= 550) | (shapeX[1] >= 900)) { enemyDirection = -enemyDirection; }
- if (bulletVelocity !== 0) { shapeY[2] = shapeY[2] + bulletVelocity * deltaMs / 16; }
- if ((shapeY[2] <= shapeY[1] + 60) && (shapeX[2] >= shapeX[1]) && (shapeX[2] <= shapeX[1] + 90)) { status = "Direct hit"; bulletVelocity = 0; shapeW[2] = 0; shapeH[2] = 0; }
- return null;
-}
-function onPointer(x: int, y: int, phase: int): null { shapeX[0] = clamp(x - 45, 0, 910); shapeY[0] = clamp(y - 30, 300, 540); shapeX[2] = shapeX[0] + 35; shapeY[2] = shapeY[0] - 25; shapeW[2] = 20; shapeH[2] = 20; if (phase === 0) { bulletVelocity = -10; status = "Shell fired"; } return null; }
-function onPrimary(): null { shapeX = [100, 820, 125, 845]; shapeY = [480, 100, 455, 125]; shapeW = [90, 90, 20, 20]; shapeH = [60, 60, 20, 20]; enemyDirection = 3; bulletVelocity = 0; status = "Drag to move and tap to fire"; return null; }'''
+TANK_DUEL = r'''let title:string="Pocket Tanks"; let status:string="Drag to move and tap to fire"; let primaryLabel:string="Restart";
+let canvasWidth:int=1000; let canvasHeight:int=600; let canvasBackground:string="#172033"; let continuousAnimation:boolean=true;
+let player:int=0; let enemy:int=0; let shell:int=0; let enemyDirection:int=3; let shellVelocity:int=0;
+function buildScene():null { sceneClear(); player=sceneRoundRect("tanks",100,480,90,60,"#38BDF8",12); sceneSetInteractive(player,true); enemy=sceneRoundRect("tanks",820,100,90,60,"#F97316",12); shell=sceneCircle("shell",135,455,20,20,"#BAE6FD"); sceneSetVisible(shell,false); return null; }
+buildScene();
+function onTick(deltaMs:int):null { sceneMove(enemy,enemyDirection*deltaMs/16,0); if ((sceneX(enemy)<=550)|(sceneX(enemy)>=900)) { enemyDirection=-enemyDirection; } if (shellVelocity!==0) { sceneMove(shell,0,shellVelocity*deltaMs/16); } if (sceneVisible(shell)&&sceneOverlaps(shell,enemy)) { status="Direct hit"; shellVelocity=0; sceneSetVisible(shell,false); } return null; }
+function onPointer(x:int,y:int,phase:int):null { sceneSetPosition(player,clamp(x-45,0,910),clamp(y-30,300,540)); if (phase===0) { sceneSetPosition(shell,sceneX(player)+35,sceneY(player)-25); sceneSetVisible(shell,true); shellVelocity=-10; status="Shell fired"; } return null; }
+function onPrimary():null { enemyDirection=3; shellVelocity=0; status="Drag to move and tap to fire"; buildScene(); return null; }'''
 
-BOUNCING_TARGET = r'''let title: string = "Bounce Lab";
-let status: string = "Drag the target"; let primaryLabel: string = "Restart";
-let canvasWidth: int = 800; let canvasHeight: int = 500; let canvasBackground: string = "#111827";
-let shapeKinds: string[] = ["circle", "circle", "line"];
-let shapeX: int[] = [100, 650, 0]; let shapeY: int[] = [100, 350, 450];
-let shapeW: int[] = [44, 72, 800]; let shapeH: int[] = [44, 72, 2];
-let shapeColors: string[] = ["#F8FAFC", "#22C55E", "#334155"];
-let shapeLabels: string[] = ["", "", ""];
-let velocityX: int = 7; let velocityY: int = 5;
-function onTick(deltaMs: int): null { shapeX[0] = shapeX[0] + velocityX * deltaMs / 16; shapeY[0] = shapeY[0] + velocityY * deltaMs / 16; if ((shapeX[0] <= 0) | (shapeX[0] >= 756)) { velocityX = -velocityX; } if ((shapeY[0] <= 0) | (shapeY[0] >= 406)) { velocityY = -velocityY; } shapeX[0] = clamp(shapeX[0], 0, 756); shapeY[0] = clamp(shapeY[0], 0, 406); return null; }
-function onPointer(x: int, y: int, phase: int): null { shapeX[1] = clamp(x - 36, 0, 728); shapeY[1] = clamp(y - 36, 0, 428); status = "Target moved"; return null; }
-function onPrimary(): null { shapeX = [100, 650, 0]; shapeY = [100, 350, 450]; velocityX = 7; velocityY = 5; status = "Drag the target"; return null; }'''
+BOUNCING_TARGET = r'''let title:string="Bounce Lab"; let status:string="Drag the target"; let primaryLabel:string="Restart";
+let canvasWidth:int=800; let canvasHeight:int=500; let canvasBackground:string="#111827"; let continuousAnimation:boolean=true;
+let orb:int=0; let target:int=0; let velocityX:int=7; let velocityY:int=5;
+function buildScene():null { sceneClear(); orb=sceneCircle("orb",100,100,44,44,"#F8FAFC"); target=sceneCircle("target",650,350,72,72,"#22C55E"); sceneSetInteractive(target,true); sceneSetStroke(target,"#86EFAC",4); sceneLine("ground",0,450,800,0,"#334155"); return null; }
+buildScene();
+function onTick(deltaMs:int):null { sceneMove(orb,velocityX*deltaMs/16,velocityY*deltaMs/16); if ((sceneX(orb)<=0)|(sceneX(orb)>=756)) { velocityX=-velocityX; } if ((sceneY(orb)<=0)|(sceneY(orb)>=406)) { velocityY=-velocityY; } sceneSetPosition(orb,clamp(sceneX(orb),0,756),clamp(sceneY(orb),0,406)); return null; }
+function onPointer(x:int,y:int,phase:int):null { sceneSetPosition(target,clamp(x-36,0,728),clamp(y-36,0,428)); status="Target moved"; return null; }
+function onPrimary():null { velocityX=7; velocityY=5; status="Drag the target"; buildScene(); return null; }'''
 
-SPACE_SHOOTER = r'''let title: string = "Orbit Defender";
-let status: string = "Drag the ship and tap to fire"; let primaryLabel: string = "Restart";
-let canvasWidth: int = 900; let canvasHeight: int = 600; let canvasBackground: string = "#020617";
-let shapeKinds: string[] = ["rect", "rect", "circle", "text"];
-let shapeX: int[] = [410, 390, 438, 24]; let shapeY: int[] = [520, 80, 500, 24];
-let shapeW: int[] = [80, 80, 18, 1]; let shapeH: int[] = [46, 46, 18, 1];
-let shapeColors: string[] = ["#38BDF8", "#F43F5E", "#F8FAFC", "#94A3B8"];
-let shapeLabels: string[] = ["", "", "", "Score 0"];
-let enemyDirection: int = 5; let projectileSpeed: int = 0; let score: int = 0;
-function onTick(deltaMs: int): null { shapeX[1] = shapeX[1] + enemyDirection * deltaMs / 16; if ((shapeX[1] <= 20) | (shapeX[1] >= 800)) { enemyDirection = -enemyDirection; } if (projectileSpeed !== 0) { shapeY[2] = shapeY[2] + projectileSpeed * deltaMs / 16; } if ((shapeY[2] <= shapeY[1] + 46) && (shapeX[2] >= shapeX[1]) && (shapeX[2] <= shapeX[1] + 80)) { score = score + 1; shapeLabels[3] = "Score " + score; projectileSpeed = 0; shapeW[2] = 0; shapeH[2] = 0; status = "Target hit"; } if (shapeY[2] < 0) { projectileSpeed = 0; shapeW[2] = 0; shapeH[2] = 0; } return null; }
-function onPointer(x: int, y: int, phase: int): null { shapeX[0] = clamp(x - 40, 0, 820); if (phase === 0) { shapeX[2] = shapeX[0] + 31; shapeY[2] = 490; shapeW[2] = 18; shapeH[2] = 18; projectileSpeed = -12; status = "Projectile launched"; } return null; }
-function onPrimary(): null { shapeX = [410, 390, 438, 24]; shapeY = [520, 80, 500, 24]; shapeW = [80, 80, 18, 1]; shapeH = [46, 46, 18, 1]; enemyDirection = 5; projectileSpeed = 0; score = 0; shapeLabels[3] = "Score 0"; status = "Drag the ship and tap to fire"; return null; }'''
+SPACE_SHOOTER = r'''let title:string="Orbit Defender"; let status:string="Drag the ship and tap to fire"; let primaryLabel:string="Restart";
+let canvasWidth:int=900; let canvasHeight:int=600; let canvasBackground:string="#020617"; let continuousAnimation:boolean=true;
+let ship:int=0; let enemy:int=0; let projectile:int=0; let scoreLabel:int=0; let enemyDirection:int=5; let projectileSpeed:int=0; let score:int=0;
+function buildScene():null { sceneClear(); ship=sceneRoundRect("ship",410,520,80,46,"#38BDF8",16); sceneSetInteractive(ship,true); enemy=sceneRoundRect("enemy",390,80,80,46,"#F43F5E",16); projectile=sceneCircle("projectile",438,500,18,18,"#F8FAFC"); sceneSetVisible(projectile,false); scoreLabel=sceneText("hud",24,24,160,30,"#94A3B8","Score 0"); return null; }
+buildScene();
+function onTick(deltaMs:int):null { sceneMove(enemy,enemyDirection*deltaMs/16,0); if ((sceneX(enemy)<=20)|(sceneX(enemy)>=800)) { enemyDirection=-enemyDirection; } if (projectileSpeed!==0) { sceneMove(projectile,0,projectileSpeed*deltaMs/16); } if (sceneVisible(projectile)&&sceneOverlaps(projectile,enemy)) { score=score+1; sceneSetLabel(scoreLabel,"Score "+score); projectileSpeed=0; sceneSetVisible(projectile,false); status="Target hit"; } if (sceneY(projectile)<0) { projectileSpeed=0; sceneSetVisible(projectile,false); } return null; }
+function onPointer(x:int,y:int,phase:int):null { sceneSetPosition(ship,clamp(x-40,0,820),520); if (phase===0) { sceneSetPosition(projectile,sceneX(ship)+31,490); sceneSetVisible(projectile,true); projectileSpeed=-12; status="Projectile launched"; } return null; }
+function onPrimary():null { enemyDirection=5; projectileSpeed=0; score=0; status="Drag the ship and tap to fire"; buildScene(); return null; }'''
 
-RUNNER = r'''let title: string = "Neon Runner";
-let status: string = "Tap to jump"; let primaryLabel: string = "Restart";
-let canvasWidth: int = 900; let canvasHeight: int = 500; let canvasBackground: string = "#0B1020";
-let shapeKinds: string[] = ["rect", "rect", "line", "text"];
-let shapeX: int[] = [120, 760, 0, 24]; let shapeY: int[] = [360, 350, 430, 24];
-let shapeW: int[] = [56, 70, 900, 1]; let shapeH: int[] = [70, 80, 3, 1];
-let shapeColors: string[] = ["#22D3EE", "#FB7185", "#475569", "#E2E8F0"];
-let shapeLabels: string[] = ["", "", "", "Score 0"];
-let verticalVelocity: int = 0; let obstacleSpeed: int = 8; let score: int = 0; let running: boolean = true;
-function onTick(deltaMs: int): null { if (running) { shapeX[1] = shapeX[1] - obstacleSpeed * deltaMs / 16; if (shapeX[1] < -70) { shapeX[1] = 900; score = score + 1; shapeLabels[3] = "Score " + score; } verticalVelocity = verticalVelocity + deltaMs / 28; shapeY[0] = shapeY[0] + verticalVelocity * deltaMs / 16; if (shapeY[0] >= 360) { shapeY[0] = 360; verticalVelocity = 0; } if ((shapeX[0] + 56 >= shapeX[1]) && (shapeX[0] <= shapeX[1] + 70) && (shapeY[0] + 70 >= shapeY[1])) { running = false; status = "Run over"; } } return null; }
-function onPointer(x: int, y: int, phase: int): null { if ((phase === 0) && running && (shapeY[0] >= 360)) { verticalVelocity = -16; status = "Jump"; } return null; }
-function onPrimary(): null { shapeX = [120, 760, 0, 24]; shapeY = [360, 350, 430, 24]; verticalVelocity = 0; score = 0; running = true; shapeLabels[3] = "Score 0"; status = "Tap to jump"; return null; }'''
+RUNNER = r'''let title:string="Neon Runner"; let status:string="Tap to jump"; let primaryLabel:string="Restart";
+let canvasWidth:int=900; let canvasHeight:int=500; let canvasBackground:string="#0B1020"; let continuousAnimation:boolean=true;
+let runner:int=0; let obstacle:int=0; let scoreLabel:int=0; let verticalVelocity:int=0; let obstacleSpeed:int=8; let score:int=0; let running:boolean=true;
+function buildScene():null { sceneClear(); runner=sceneRoundRect("runner",120,360,56,70,"#22D3EE",12); sceneSetInteractive(runner,true); obstacle=sceneRoundRect("obstacle",760,350,70,80,"#FB7185",10); sceneLine("ground",0,430,900,0,"#475569"); scoreLabel=sceneText("hud",24,24,160,30,"#E2E8F0","Score 0"); return null; }
+buildScene();
+function onTick(deltaMs:int):null { if (running) { sceneMove(obstacle,-obstacleSpeed*deltaMs/16,0); if (sceneX(obstacle)<-70) { sceneSetPosition(obstacle,900,350); score=score+1; sceneSetLabel(scoreLabel,"Score "+score); } verticalVelocity=verticalVelocity+deltaMs/28; sceneMove(runner,0,verticalVelocity*deltaMs/16); if (sceneY(runner)>=360) { sceneSetPosition(runner,120,360); verticalVelocity=0; } if (sceneOverlaps(runner,obstacle)) { running=false; status="Run over"; } } return null; }
+function onPointer(x:int,y:int,phase:int):null { if ((phase===0)&&running&&(sceneY(runner)>=360)) { verticalVelocity=-16; status="Jump"; } return null; }
+function onPrimary():null { verticalVelocity=0; score=0; running=true; status="Tap to jump"; buildScene(); return null; }'''
 
 
 FAMILIES = (

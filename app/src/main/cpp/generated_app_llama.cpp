@@ -153,6 +153,7 @@ std::string generate(
     const std::shared_ptr<Session> & session,
     const std::string & prompt,
     int32_t max_tokens,
+    const std::string & grammar,
     jobject callback
 ) {
     if (max_tokens <= 0 || max_tokens > 1536) {
@@ -179,9 +180,15 @@ std::string generate(
     if (!decode_prompt(*session, prompt_tokens, epoch)) return {};
 
     std::unique_ptr<llama_sampler, SamplerDeleter> sampler(
-        llama_sampler_init_greedy()
+        llama_sampler_chain_init(llama_sampler_chain_default_params())
     );
     if (!sampler) throw std::runtime_error("failed to create sampler");
+    if (!grammar.empty()) {
+        llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, grammar.c_str(), "root");
+        if (grammar_sampler == nullptr) throw std::runtime_error("failed to initialize output grammar");
+        llama_sampler_chain_add(sampler.get(), grammar_sampler);
+    }
+    llama_sampler_chain_add(sampler.get(), llama_sampler_init_greedy());
 
     jmethodID on_token = nullptr;
     if (callback != nullptr) {
@@ -194,12 +201,17 @@ std::string generate(
     std::string output;
     bool first_piece = true;
     int32_t generated_count = 0;
+    int64_t sample_us = 0;
+    int64_t decode_us = 0;
     for (int32_t generated = 0; generated < max_tokens; generated++) {
         if (session->generation_epoch.load(std::memory_order_relaxed) != epoch) break;
+        const auto sample_started = std::chrono::steady_clock::now();
         const llama_token token = llama_sampler_sample(sampler.get(), session->context, -1);
+        sample_us += std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - sample_started
+        ).count();
         if (llama_vocab_is_eog(vocab, token)) break;
         generated_count++;
-        llama_sampler_accept(sampler.get(), token);
 
         const std::string piece = token_piece(vocab, token);
         if (!piece.empty()) {
@@ -232,17 +244,23 @@ std::string generate(
 
         llama_token next = token;
         llama_batch batch = llama_batch_get_one(&next, 1);
+        const auto decode_started = std::chrono::steady_clock::now();
         if (llama_decode(session->context, batch) != 0) break;
+        decode_us += std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - decode_started
+        ).count();
     }
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started
     ).count();
     LOGI(
-        "%s complete_ms=%lld generated_tokens=%d output_bytes=%zu",
+        "%s complete_ms=%lld generated_tokens=%d output_bytes=%zu sample_ms=%lld decode_ms=%lld",
         session->label.c_str(),
         static_cast<long long>(elapsed),
         generated_count,
-        output.size()
+        output.size(),
+        static_cast<long long>(sample_us / 1000),
+        static_cast<long long>(decode_us / 1000)
     );
     return output;
 }
@@ -301,6 +319,7 @@ Java_com_offlineassistant_app_generatedapp_LocalLlamaBridge_nativeGenerate(
     jlong handle,
     jstring prompt,
     jint max_tokens,
+    jstring grammar,
     jobject callback
 ) {
     try {
@@ -309,6 +328,7 @@ Java_com_offlineassistant_app_generatedapp_LocalLlamaBridge_nativeGenerate(
             session_for(handle),
             from_java_string(env, prompt),
             max_tokens,
+            from_java_string(env, grammar),
             callback
         );
         return env->NewStringUTF(result.c_str());

@@ -16,13 +16,14 @@ internal class GeneratedAppStudioPreferences(context: Context) {
 
     private fun readBackend(key: String): GeneratedModelBackend = runCatching {
         GeneratedModelBackend.valueOf(
-            preferences.getString(key, GeneratedModelBackend.LOCAL.name).orEmpty()
+            preferences.getString(key, DEFAULT_BACKEND.name).orEmpty()
         )
-    }.getOrDefault(GeneratedModelBackend.LOCAL)
+    }.getOrDefault(DEFAULT_BACKEND)
 
     private companion object {
         const val PREFERENCES_NAME = "generated_app_studio"
         const val KEY_UI_BACKEND = "ui_generator_backend"
         const val KEY_LOGIC_BACKEND = "logic_generator_backend"
+        val DEFAULT_BACKEND = GeneratedModelBackend.DEEPSEEK_FLASH
     }
 }

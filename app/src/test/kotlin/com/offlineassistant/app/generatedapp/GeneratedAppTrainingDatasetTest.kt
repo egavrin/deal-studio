@@ -24,6 +24,11 @@ class GeneratedAppTrainingDatasetTest {
         sources.forEach { (source, profile) ->
             val program = GeneratedDealCompiler.compileAndValidate(source, profile)
             assertEquals(profile, program.profile)
+            if (profile == GeneratedAppProfile.REALTIME_CANVAS) {
+                assertTrue("Realtime target does not use Scene ABI v3", "sceneClear()" in source)
+                assertTrue("Realtime target retained legacy shape arrays", "shapeKinds" !in source)
+                assertTrue("Realtime target retained legacy shape arrays", "shapeX" !in source)
+            }
         }
     }
 

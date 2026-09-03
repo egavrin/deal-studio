@@ -16,32 +16,43 @@ class GeneratedAppCloudLiveTest {
         val request = System.getenv("GENERATED_APP_REQUEST")
             ?.takeIf(String::isNotBlank)
             ?: "Build an Arkanoid game with bricks, lives, score, and touch paddle control"
+        val expectedProfile = System.getenv("GENERATED_APP_PROFILE")
+            ?.takeIf(String::isNotBlank)
+            ?.let(GeneratedAppProfile::valueOf)
+            ?: GeneratedAppProfile.REALTIME_CANVAS
+        val model = System.getenv("GENERATED_APP_MODEL")
+            ?.takeIf(String::isNotBlank)
+            ?.let(DeepSeekGenerationModel::valueOf)
+            ?: DeepSeekGenerationModel.FLASH
         val client = DeepSeekGenerationClient(apiKeyProvider = { apiKey })
-
-        val uiResult = client.generate(
-            DeepSeekGenerationRequest(
-                model = DeepSeekGenerationModel.PRO,
-                instructions = GeneratedAppPrompts.deepSeekUiInstructions(),
-                input = GeneratedAppPrompts.deepSeekUiInput(request),
-                maxOutputTokens = 4_096
-            )
-        )
-        persist("ui-0.json", uiResult.output)
-        val uiSource = validateOrRepairUi(client, request, uiResult.output)
-        A2UiParser.parseAndValidate(uiSource)
 
         val dealResult = client.generate(
             DeepSeekGenerationRequest(
-                model = DeepSeekGenerationModel.PRO,
+                model = model,
                 instructions = GeneratedAppPrompts.deepSeekDealInstructions(),
                 input = GeneratedAppPrompts.deepSeekDealInput(request),
-                maxOutputTokens = 4_096
+                maxOutputTokens = 8_192
             )
         )
         persist("deal-0.deal", dealResult.output)
-        val deal = validateOrRepairDeal(client, request, dealResult.output)
+        val deal = validateOrRepairDeal(client, model, request, dealResult.output)
+        val executableContract = GeneratedAppUiContract.describe(deal)
+        persist("deal-contract.txt", executableContract)
 
-        assertEquals(GeneratedAppProfile.REALTIME_CANVAS, deal.profile)
+        val uiResult = client.generate(
+            DeepSeekGenerationRequest(
+                model = model,
+                instructions = GeneratedAppPrompts.deepSeekUiInstructions(),
+                input = GeneratedAppPrompts.deepSeekUiInput(request, executableContract),
+                maxOutputTokens = 8_192
+            )
+        )
+        persist("ui-0.json", uiResult.output)
+        val uiSource = validateOrRepairUi(client, model, request, executableContract, deal, uiResult.output)
+        val ui = A2UiGeneratedUi(A2UiParser.parseAndValidate(uiSource))
+        GeneratedAppContractValidator.validate(ui, deal)
+
+        assertEquals(expectedProfile, deal.profile)
         println(
             "Live generated app: UI ${uiResult.latencyMs} ms, DEAL ${dealResult.latencyMs} ms, " +
                 "${deal.source.length} DEAL chars"
@@ -50,49 +61,80 @@ class GeneratedAppCloudLiveTest {
 
     private fun validateOrRepairUi(
         client: DeepSeekGenerationClient,
+        model: DeepSeekGenerationModel,
         request: String,
+        executableContract: String,
+        deal: GeneratedDealProgram,
         first: String
     ): String {
         var current = first
-        repeat(2) { attempt ->
+        var patchFailure: String? = null
+        repeat(3) { attempt ->
             val source = A2UiParser.extractDocument(current)
-            val diagnostic = runCatching { A2UiParser.parseAndValidate(source) }
+            val parserDiagnostic = runCatching {
+                GeneratedAppContractValidator.validate(
+                    A2UiGeneratedUi(A2UiParser.parseAndValidate(source)),
+                    deal
+                )
+            }
                 .exceptionOrNull()
                 ?.message
                 ?: return source
-            current = client.generate(
+            val diagnostic = listOfNotNull(parserDiagnostic, patchFailure).joinToString("; ")
+            val patch = client.generate(
                 DeepSeekGenerationRequest(
-                    model = DeepSeekGenerationModel.PRO,
-                    instructions = GeneratedAppPrompts.deepSeekUiInstructions(),
-                    input = GeneratedAppPrompts.deepSeekRepairUiInput(request, current, diagnostic),
-                    maxOutputTokens = 4_096
+                    model = model,
+                    instructions = GeneratedAppPrompts.deepSeekUiRepairInstructions(),
+                    input = GeneratedAppPrompts.deepSeekRepairUiInput(
+                        request,
+                        current,
+                        diagnostic,
+                        executableContract
+                    ),
+                    maxOutputTokens = 2_048
                 )
             ).output
-            persist("ui-${attempt + 1}.json", current)
+            persist("ui-patch-${attempt + 1}.txt", patch)
+            runCatching { GeneratedSourcePatch.apply(current, patch, 64_000) }
+                .onSuccess {
+                    current = it
+                    patchFailure = null
+                    persist("ui-${attempt + 1}.json", current)
+                }
+                .onFailure { patchFailure = "Previous repair patch was rejected: ${it.message}" }
         }
         return A2UiParser.extractDocument(current)
     }
 
     private fun validateOrRepairDeal(
         client: DeepSeekGenerationClient,
+        model: DeepSeekGenerationModel,
         request: String,
         first: String
     ): GeneratedDealProgram {
         var current = first
-        repeat(2) { attempt ->
+        var patchFailure: String? = null
+        repeat(3) { attempt ->
             val result = runCatching { GeneratedDealCompiler.compileAndValidate(current) }
             result.getOrNull()?.let { return it }
-            val diagnostic = result.exceptionOrNull()?.message.orEmpty()
+            val diagnostic = listOfNotNull(result.exceptionOrNull()?.message, patchFailure).joinToString("; ")
             val profile = GeneratedDealCompiler.detectProfile(current)
-            current = client.generate(
+            val patch = client.generate(
                 DeepSeekGenerationRequest(
-                    model = DeepSeekGenerationModel.PRO,
-                    instructions = GeneratedAppPrompts.deepSeekDealInstructions(),
+                    model = model,
+                    instructions = GeneratedAppPrompts.deepSeekDealRepairInstructions(),
                     input = GeneratedAppPrompts.deepSeekRepairDealInput(request, profile, current, diagnostic),
-                    maxOutputTokens = 4_096
+                    maxOutputTokens = 2_048
                 )
             ).output
-            persist("deal-${attempt + 1}.deal", current)
+            persist("deal-patch-${attempt + 1}.txt", patch)
+            runCatching { GeneratedSourcePatch.apply(current, patch, 48_000) }
+                .onSuccess {
+                    current = it
+                    patchFailure = null
+                    persist("deal-${attempt + 1}.deal", current)
+                }
+                .onFailure { patchFailure = "Previous repair patch was rejected: ${it.message}" }
         }
         return GeneratedDealCompiler.compileAndValidate(current)
     }

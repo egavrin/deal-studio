@@ -1,0 +1,6 @@
+deal.repository=https://github.com/arkts-dev/deal.git
+deal.revision=917c298764728f5021e7dfbb40f8a08958f2333f
+deal-ui.repository=https://github.com/arkts-dev/deal-ui.git
+deal-ui.revision=e7005b9a87c179961c8e77b83789554c708d8116
+asset.path=app/src/debug/assets/deal-android-toolchain.dex
+asset.sha256=d83eb4d13587f65f2ab34b63d7c64d6bff12f729970b435a4e2868a0937b2584
