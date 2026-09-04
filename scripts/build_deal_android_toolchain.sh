@@ -77,11 +77,20 @@ mkdir -p "$CLASSES" "$(dirname "$ASSET")"
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
+  "$DEAL_REPO/deal/compiler/CompilerProtocol.java" \
+  "$DEAL_REPO/deal/compiler/CompilerProtocolJson.java" \
+  "$DEAL_REPO/deal/compiler/DealCompilerWorkspace.java"
+javac --release "$JAVAC_RELEASE" \
+  -cp "$CLASSES" \
+  -d "$CLASSES" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiModel.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDiagnostic.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiParser.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/DealUiDealSource.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiBorrowedValueChecker.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiChecker.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiCompilerWorkspace.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalCompiler.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiIrDumper.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealUiJson.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealRuntime.java" \

@@ -15,6 +15,17 @@ Keep Studio in the existing Android application module. Do **not** extract its s
 new library module. Product separation is an application and source boundary, not a library-module
 migration.
 
+DEAL and Deal UI are independent platform-neutral transpilers and semantic checkers. The separate
+streaming-compiler owns all LLM API calls, prompts, streaming tool transport, semantic generation,
+repair/refinement rounds and their metrics. Studio is a product client of streaming-compiler and of
+the transpilers' versioned stateless protocol. Production Android code
+must not parse compiler ASTs, scan source with regexes, derive AppInterface, assign semantic ids,
+interpret diagnostic text, construct model tools or repair context, implement repair policy, render
+unchecked output or commit partial source pairs. It may transport canonical sources, compiler
+operations, model requests and model responses between their owning boundaries. Transpiler behavior
+belongs upstream; model orchestration belongs in streaming-compiler. The
+embedded DEX bridge is only a transitional delivery adapter for deterministic transpiler APIs.
+
 The user-facing application and generated examples use English. Generated applications must adapt
 to compact phones, ordinary phones and unfolded displays without device-specific branches.
 

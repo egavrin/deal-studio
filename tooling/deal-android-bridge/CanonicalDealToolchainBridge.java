@@ -15,6 +15,9 @@ import deal.checker.NameResolver;
 import deal.checker.Symbol;
 import deal.checker.SymbolTable;
 import deal.checker.TypeChecker;
+import deal.compiler.CompilerProtocol.SemanticId;
+import deal.compiler.CompilerProtocolJson;
+import deal.compiler.DealCompilerWorkspace;
 import deal.diagnostics.CompilerDiagnostic;
 import deal.lexer.LexResult;
 import deal.lexer.Lexer;
@@ -23,10 +26,13 @@ import deal.parser.ParseResult;
 import deal.parser.Parser;
 import deal.types.Type;
 import deal.ui.UiChecker;
+import deal.ui.CanonicalCompiler;
 import deal.ui.UiDiagnostic;
 import deal.ui.UiIrDumper;
 import deal.ui.UiModel;
 import deal.ui.UiParser;
+import deal.ui.UiCompilerWorkspace;
+import deal.semantic.ir.CanonicalJson;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -36,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.ArrayList;
 
 /** Android reflection boundary for the pinned production Deal and Deal UI frontends. */
 public final class CanonicalDealToolchainBridge {
@@ -62,6 +69,36 @@ public final class CanonicalDealToolchainBridge {
             """;
 
     private CanonicalDealToolchainBridge() {}
+
+    /** Stateless canonical graph inspection for streaming-compiler clients. */
+    public static String inspectCanonicalApp(
+            String dealSource,
+            String dealUiSource,
+            String packSource) {
+        return CompilerProtocolJson.encode(CanonicalCompiler.inspectCanonicalApp(
+                dealSource, dealUiSource, packSource, PACK_SPECIFIER));
+    }
+
+    /** Applies one compiler-owned DEAL transaction and returns canonical protocol JSON. */
+    public static String applyDealChange(
+            String source,
+            String baseDigest,
+            String operationsJson) {
+        return CompilerProtocolJson.encode(CanonicalCompiler.applyDealChange(
+                source, baseDigest, dealOperations(operationsJson)));
+    }
+
+    /** Applies one compiler-owned Deal UI transaction and returns canonical protocol JSON. */
+    public static String applyDealUiChange(
+            String dealSource,
+            String source,
+            String packSource,
+            String baseDigest,
+            String operationsJson) {
+        return CompilerProtocolJson.encode(CanonicalCompiler.applyDealUiChange(
+                dealSource, source, packSource, PACK_SPECIFIER, baseDigest,
+                dealUiOperations(operationsJson)));
+    }
 
     public static String validateAndDump(
             String dealSource,
@@ -392,6 +429,59 @@ public final class CanonicalDealToolchainBridge {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(name + " is empty");
         }
+    }
+
+    private static List<DealCompilerWorkspace.Operation> dealOperations(String source) {
+        CanonicalJson.Arr values = CompilerProtocolJson.requireArray(
+                CompilerProtocolJson.decode(source), "DEAL operations");
+        List<DealCompilerWorkspace.Operation> result = new ArrayList<>();
+        for (CanonicalJson.Value value : values.items()) {
+            CanonicalJson.Obj operation = CompilerProtocolJson.requireObject(value, "DEAL operation");
+            String name = CompilerProtocolJson.stringField(operation, "operation");
+            SemanticId target = new SemanticId(CompilerProtocolJson.stringField(operation, "targetId"));
+            result.add(switch (name) {
+                case DealCompilerWorkspace.ADD_DECLARATION -> new DealCompilerWorkspace.AddDeclaration(
+                        target, CompilerProtocolJson.stringField(operation, "declaration"));
+                case DealCompilerWorkspace.REMOVE_DECLARATION -> new DealCompilerWorkspace.RemoveDeclaration(target);
+                case DealCompilerWorkspace.REPLACE_FUNCTION_BODY -> new DealCompilerWorkspace.ReplaceFunctionBody(
+                        target, CompilerProtocolJson.stringField(operation, "body"));
+                case DealCompilerWorkspace.REPLACE_BLOCK_BODY -> new DealCompilerWorkspace.ReplaceBlockBody(
+                        target, CompilerProtocolJson.stringField(operation, "body"));
+                default -> throw new IllegalArgumentException("Unsupported DEAL operation: " + name);
+            });
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<UiCompilerWorkspace.Operation> dealUiOperations(String source) {
+        CanonicalJson.Arr values = CompilerProtocolJson.requireArray(
+                CompilerProtocolJson.decode(source), "Deal UI operations");
+        List<UiCompilerWorkspace.Operation> result = new ArrayList<>();
+        for (CanonicalJson.Value value : values.items()) {
+            CanonicalJson.Obj operation = CompilerProtocolJson.requireObject(value, "Deal UI operation");
+            String name = CompilerProtocolJson.stringField(operation, "operation");
+            SemanticId target = new SemanticId(CompilerProtocolJson.stringField(operation, "targetId"));
+            result.add(switch (name) {
+                case UiCompilerWorkspace.REPLACE_VIEW_BODY -> new UiCompilerWorkspace.ReplaceViewBody(
+                        target, CompilerProtocolJson.stringField(operation, "body"));
+                case UiCompilerWorkspace.REPLACE_SUBTREE -> new UiCompilerWorkspace.ReplaceSubtree(
+                        target, CompilerProtocolJson.stringField(operation, "source"));
+                case UiCompilerWorkspace.INSERT_CHILD -> new UiCompilerWorkspace.InsertChild(
+                        target, CompilerProtocolJson.intField(operation, "index"),
+                        CompilerProtocolJson.stringField(operation, "source"));
+                case UiCompilerWorkspace.REMOVE_NODE -> new UiCompilerWorkspace.RemoveNode(target);
+                case UiCompilerWorkspace.MOVE_NODE -> new UiCompilerWorkspace.MoveNode(
+                        target,
+                        new SemanticId(CompilerProtocolJson.stringField(operation, "newParentId")),
+                        CompilerProtocolJson.intField(operation, "index"));
+                case UiCompilerWorkspace.SET_PROPERTY -> new UiCompilerWorkspace.SetProperty(
+                        target,
+                        CompilerProtocolJson.stringField(operation, "property"),
+                        CompilerProtocolJson.stringField(operation, "expression"));
+                default -> throw new IllegalArgumentException("Unsupported Deal UI operation: " + name);
+            });
+        }
+        return List.copyOf(result);
     }
 
     private static final class NoImports implements ModuleResolver {

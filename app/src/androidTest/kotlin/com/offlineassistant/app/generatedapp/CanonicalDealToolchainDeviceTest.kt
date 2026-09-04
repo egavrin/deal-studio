@@ -6,9 +6,82 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 @RunWith(AndroidJUnit4::class)
 class CanonicalDealToolchainDeviceTest {
+    @Test
+    fun appliesCompilerOwnedCanonicalChangesWithoutSourceScanning() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val inspection = toolchain.inspectCanonicalApp(
+            POINTER_SOURCE,
+            POINTER_UI,
+            CanonicalDealUiPack.source
+        )
+
+        assertTrue(inspection.getValue("valid").jsonPrimitive.boolean)
+        val dealInspection = inspection.getValue("deal").jsonObject
+        val handler = dealInspection.getValue("symbols").jsonArray
+            .map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "onPointer" }
+        val handlerId = handler.getValue("id").jsonObject.getValue("value").jsonPrimitive.content
+        val bodyId = dealInspection.getValue("nodes").jsonArray
+            .map { it.jsonObject }
+            .single {
+                it.getValue("kind").jsonPrimitive.content == "function-body" &&
+                    it.getValue("ownerId").jsonObject.getValue("value").jsonPrimitive.content == handlerId
+            }
+            .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
+        val dealOperation = buildJsonArray {
+            add(buildJsonObject {
+                put("operation", "replaceFunctionBody")
+                put("targetId", bodyId)
+                put("body", "return { x: action.x + 1, y: action.y, phase: action.phase };")
+            })
+        }
+
+        val dealChange = toolchain.applyDealChange(
+            POINTER_SOURCE,
+            dealInspection.getValue("sourceDigest").jsonPrimitive.content,
+            dealOperation.toString()
+        )
+
+        assertTrue(dealChange.getValue("accepted").jsonPrimitive.boolean)
+        assertTrue(dealChange.getValue("source").jsonPrimitive.content.contains("action.x + 1"))
+
+        val uiInspection = inspection.getValue("dealUi").jsonObject
+        val pointerNodeId = uiInspection.getValue("nodes").jsonArray
+            .map { it.jsonObject }
+            .single { it.getValue("component").jsonPrimitive.content == "ui.PointerSurface" }
+            .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
+        val uiOperation = buildJsonArray {
+            add(buildJsonObject {
+                put("operation", "setProperty")
+                put("targetId", pointerNodeId)
+                put("property", "accessibilityLabel")
+                put("expression", "\"Interactive pointer board\"")
+            })
+        }
+
+        val uiChange = toolchain.applyDealUiChange(
+            POINTER_SOURCE,
+            POINTER_UI,
+            CanonicalDealUiPack.source,
+            uiInspection.getValue("sourceDigest").jsonPrimitive.content,
+            uiOperation.toString()
+        )
+
+        assertTrue(uiChange.getValue("accepted").jsonPrimitive.boolean)
+        assertTrue(uiChange.getValue("source").jsonPrimitive.content.contains("Interactive pointer board"))
+    }
+
     @Test
     fun extractsUiContractFromValidatedDeal() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

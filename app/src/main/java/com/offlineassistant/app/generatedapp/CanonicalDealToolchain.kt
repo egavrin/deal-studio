@@ -18,6 +18,44 @@ import kotlinx.serialization.json.longOrNull
 internal class CanonicalDealToolchain(
     private val context: Context
 ) {
+    fun inspectCanonicalApp(
+        dealSource: String,
+        dealUiSource: String,
+        packSource: String
+    ): JsonObject = (invokeBridge(
+        "inspectCanonicalApp",
+        arrayOf(String::class.java, String::class.java, String::class.java),
+        arrayOf(dealSource, dealUiSource, packSource)
+    ) as String).jsonObject()
+
+    fun applyDealChange(
+        source: String,
+        baseDigest: String,
+        operationsJson: String
+    ): JsonObject = (invokeBridge(
+        "applyDealChange",
+        arrayOf(String::class.java, String::class.java, String::class.java),
+        arrayOf(source, baseDigest, operationsJson)
+    ) as String).jsonObject()
+
+    fun applyDealUiChange(
+        dealSource: String,
+        source: String,
+        packSource: String,
+        baseDigest: String,
+        operationsJson: String
+    ): JsonObject = (invokeBridge(
+        "applyDealUiChange",
+        arrayOf(
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            String::class.java
+        ),
+        arrayOf(dealSource, source, packSource, baseDigest, operationsJson)
+    ) as String).jsonObject()
+
     fun inspectDealPrefix(source: String): CanonicalDealPrefixInspection {
         if (source.isBlank()) return CanonicalDealPrefixInspection(impossible = false, diagnostics = emptyList())
         val raw = invokeBridge(
@@ -179,9 +217,9 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "e3aae302b3ef7dcdc19fca719abec45952fab60514fb84db7d2a85c87fdaa627"
-        const val DEAL_REVISION = "fc90c049b088fdf38217120aaf4e799af01ba5c3"
-        const val DEAL_UI_REVISION = "be16c71654bbd9056cff1a2cbec8a48a523ec51c"
+        const val ARTIFACT_SHA256 = "2d8dd8385d0f9bfe91100fc92bb2fe16f58f81fbe2762f49a8ac9392de3fb51a"
+        const val DEAL_REVISION = "cc250e4103d070977a29154a4ea130135971da7c"
+        const val DEAL_UI_REVISION = "c3b79e693a74f886d20c444de2c9a39ca3179e05"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -191,6 +229,8 @@ internal class CanonicalDealToolchain(
         var loadedBridge: Class<*>? = null
     }
 }
+
+private fun String.jsonObject(): JsonObject = Json.parseToJsonElement(this).jsonObject
 
 internal data class CanonicalDealPrefixInspection(
     val impossible: Boolean,
@@ -239,7 +279,6 @@ internal class CanonicalDealRuntimeSession(
         )
     }
 
-    private fun String.jsonObject(): JsonObject = Json.parseToJsonElement(this).jsonObject
 }
 
 private fun JsonObject.toPlatformMap(): Map<String, Any?> = mapValues { it.value.toPlatformValue() }
