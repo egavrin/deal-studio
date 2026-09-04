@@ -22,10 +22,10 @@ class CanonicalDealProgramGraphCompilerTest {
         val snapshot = compiler.snapshot()
         assertNotEquals("uninitialized", snapshot.graphHash)
         assertEquals(
-            listOf("initialState", "helper:addOne", "update:onIncrement"),
+            listOf("helper:addOne", "update:onIncrement"),
             snapshot.pendingHoles.map(CanonicalDealHoleSnapshot::id)
         )
-        assertTrue(snapshot.partialDeal.contains("compiler-hole: initialState expects CounterState"))
+        assertTrue(snapshot.partialDeal.contains("return { count: 0, label: \"Ready\" };"))
         assertTrue(snapshot.partialDeal.contains("function addOne(value: int): int"))
     }
 
@@ -40,7 +40,6 @@ class CanonicalDealProgramGraphCompilerTest {
                 baseHash,
                 """
                 [
-                  {"hole_id":"initialState","body":"return { count: 0, label: \"Ready\" };"},
                   {"hole_id":"helper:addOne","body":"return value + 1;"},
                   {"hole_id":"update:onIncrement","body":"let next: int = addOne(state.count);\nreturn { count: next, label: platformIntText(next) };"}
                 ]
@@ -48,11 +47,62 @@ class CanonicalDealProgramGraphCompilerTest {
             )
         )
 
-        assertEquals(3, result.acceptedChanges)
+        assertEquals(2, result.acceptedChanges)
         assertTrue(result.rejectedHoleIds.isEmpty())
         assertTrue(compiler.isComplete)
         assertTrue(compiler.finish().contains("let next: int = addOne(state.count);"))
         assertEquals(4, compiler.snapshot().acceptedPatches)
+    }
+
+    @Test
+    fun `one coarse program submission can produce a complete checked graph`() {
+        val compiler = compiler()
+        val call = declarationCall().copy(
+            arguments = declarationCall().arguments.replace(
+                """"fills":[{"hole_id":"initialState","body":"return { count: 0, label: \"Ready\" };"}]""",
+                """"fills":[
+                  {"hole_id":"initialState","body":"return { count: 0, label: \"Ready\" };"},
+                  {"hole_id":"helper:addOne","body":"return value + 1;"},
+                  {"hole_id":"update:onIncrement","body":"let next: int = addOne(state.count);\nreturn { count: next, label: platformIntText(next) };"}
+                ]"""
+            )
+        )
+
+        val result = compiler.apply(call)
+
+        assertEquals(3, result.acceptedChanges)
+        assertTrue(result.diagnostic.orEmpty(), result.rejectedHoleIds.isEmpty())
+        assertTrue(compiler.isComplete)
+        assertEquals(4, compiler.snapshot().acceptedPatches)
+    }
+
+    @Test
+    fun `root state is inferred from nominal type references`() {
+        val compiler = compiler()
+        val call = declarationCall().copy(
+            arguments = declarationCall().arguments.replace(
+                "\"CounterState{count:int,label:string}\"",
+                "\"Item{id:int}\",\"CounterState{items:Item[],count:int,label:string}\""
+            )
+        )
+
+        val result = compiler.apply(call)
+
+        assertTrue(result.diagnostic.orEmpty(), result.rejectedHoleIds.isEmpty())
+        assertEquals("CounterState", compiler.appInterface.rootState)
+    }
+
+    @Test
+    fun `empty actions use compact name shorthand`() {
+        val compiler = compiler()
+        val call = declarationCall().copy(
+            arguments = declarationCall().arguments.replace("IncrementAction{}", "IncrementAction")
+        )
+
+        val result = compiler.apply(call)
+
+        assertTrue(result.diagnostic.orEmpty(), result.rejectedHoleIds.isEmpty())
+        assertEquals(emptyList<AppInterfaceField>(), compiler.appInterface.actions.single().fields)
     }
 
     @Test
@@ -65,17 +115,40 @@ class CanonicalDealProgramGraphCompilerTest {
                 compiler.snapshot().graphHash,
                 """
                 [
-                  {"hole_id":"initialState","body":"return BROKEN_TOKEN;"},
-                  {"hole_id":"helper:addOne","body":"return value + 1;"}
+                  {"hole_id":"helper:addOne","body":"return BROKEN_TOKEN;"},
+                  {"hole_id":"update:onIncrement","body":"let next: int = state.count + 1;\nreturn { count: next, label: platformIntText(next) };"}
                 ]
                 """.trimIndent()
             )
         )
 
-        assertEquals(listOf("helper:addOne"), result.acceptedHoleIds)
-        assertEquals(listOf("initialState"), result.rejectedHoleIds)
-        assertEquals(listOf("initialState", "update:onIncrement"), compiler.snapshot().pendingHoles.map { it.id })
+        assertEquals(listOf("update:onIncrement"), result.acceptedHoleIds)
+        assertEquals(listOf("helper:addOne"), result.rejectedHoleIds)
+        assertEquals(listOf("helper:addOne"), compiler.snapshot().pendingHoles.map { it.id })
         assertTrue(result.diagnostic.orEmpty().contains("synthetic compiler failure"))
+        assertEquals(1, result.rejectedCandidateFingerprints.size)
+    }
+
+    @Test
+    fun `identical rejected body has a stable repair fingerprint`() {
+        val compiler = compiler()
+        compiler.apply(declarationCall())
+        val rejectedBody = "return BROKEN_TOKEN;"
+
+        val first = compiler.apply(
+            patchCall(
+                compiler.snapshot().graphHash,
+                """[{"hole_id":"helper:addOne","body":"$rejectedBody"}]"""
+            )
+        )
+        val second = compiler.apply(
+            patchCall(
+                compiler.snapshot().graphHash,
+                """[{"hole_id":"helper:addOne","body":"$rejectedBody"}]"""
+            )
+        )
+
+        assertEquals(first.rejectedCandidateFingerprints, second.rejectedCandidateFingerprints)
     }
 
     @Test
@@ -93,13 +166,13 @@ class CanonicalDealProgramGraphCompilerTest {
         val rejected = compiler.apply(
             patchCall(
                 staleHash,
-                """[{"hole_id":"initialState","body":"return { count: 0, label: \"Ready\" };"}]"""
+                """[{"hole_id":"update:onIncrement","body":"return state;"}]"""
             )
         )
 
         assertEquals(0, rejected.acceptedChanges)
         assertTrue(rejected.diagnostic.orEmpty().contains("Stale DEAL graph hash"))
-        assertTrue("initialState" in compiler.snapshot().pendingHoles.map { it.id })
+        assertTrue("update:onIncrement" in compiler.snapshot().pendingHoles.map { it.id })
     }
 
     @Test
@@ -110,11 +183,19 @@ class CanonicalDealProgramGraphCompilerTest {
         val tool = compiler.currentTool()
         val schema = tool.parameters.toString()
 
-        assertEquals(APPLY_GRAPH_PATCH_TOOL_NAME, tool.name)
+        assertEquals(REPAIR_DEAL_BATCH_TOOL_NAME, tool.name)
         assertTrue(tool.strict)
-        assertTrue(schema.contains("initialState"))
+        assertTrue(schema.contains("helper:addOne"))
+        assertTrue(schema.contains("update:onIncrement"))
         assertFalse(schema.contains("s_return"))
         assertFalse(schema.contains("e_binary"))
+    }
+
+    @Test
+    fun `initial tool does not ask the model to choose a root state`() {
+        val schema = compiler().currentTool().parameters.toString()
+
+        assertFalse(schema.contains("root_state"))
     }
 
     @Test
@@ -124,7 +205,7 @@ class CanonicalDealProgramGraphCompilerTest {
         val declaration = compiler.apply(
             DeepSeekFunctionCall(
                 callId = "create-with-metadata",
-                name = CREATE_PROGRAM_TOOL_NAME,
+                name = SUBMIT_DEAL_PROGRAM_TOOL_NAME,
                 arguments = """
                     {
                       "root_state":"CounterState",
@@ -132,6 +213,7 @@ class CanonicalDealProgramGraphCompilerTest {
                       "action_signatures":["IncrementAction{}"],
                       "capabilities":[],
                       "helper_signatures":["addOne(value:int):int"],
+                      "fills":[{"hole_id":"initialState","body":"return { count: 0, label: \"Ready\" };"}],
                       "explanation":"metadata outside the compiler graph"
                     }
                 """.trimIndent()
@@ -142,7 +224,7 @@ class CanonicalDealProgramGraphCompilerTest {
         val patch = compiler.apply(
             DeepSeekFunctionCall(
                 callId = "patch-with-metadata",
-                name = APPLY_GRAPH_PATCH_TOOL_NAME,
+                name = REPAIR_DEAL_BATCH_TOOL_NAME,
                 arguments = """
                     {
                       "base_hash":"${compiler.snapshot().graphHash}",
@@ -204,14 +286,14 @@ class CanonicalDealProgramGraphCompilerTest {
 
     private fun declarationCall() = DeepSeekFunctionCall(
         callId = "create",
-        name = CREATE_PROGRAM_TOOL_NAME,
+        name = SUBMIT_DEAL_PROGRAM_TOOL_NAME,
         arguments = """
             {
-              "root_state":"CounterState",
               "type_signatures":["CounterState{count:int,label:string}"],
               "action_signatures":["IncrementAction{}"],
               "capabilities":[],
-              "helper_signatures":["addOne(value:int):int"]
+              "helper_signatures":["addOne(value:int):int"],
+              "fills":[{"hole_id":"initialState","body":"return { count: 0, label: \"Ready\" };"}]
             }
         """.trimIndent()
     )
@@ -219,6 +301,6 @@ class CanonicalDealProgramGraphCompilerTest {
     private fun patchCall(baseHash: String, fills: String): DeepSeekFunctionCall {
         val fillsElement = Json.parseToJsonElement(fills).jsonArray
         val arguments = """{"base_hash":"$baseHash","fills":$fillsElement}"""
-        return DeepSeekFunctionCall("patch", APPLY_GRAPH_PATCH_TOOL_NAME, arguments)
+        return DeepSeekFunctionCall("patch", REPAIR_DEAL_BATCH_TOOL_NAME, arguments)
     }
 }

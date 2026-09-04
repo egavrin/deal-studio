@@ -29,8 +29,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 internal class GeneratedAppStudioViewModel(application: Application) : AndroidViewModel(application) {
     private val modelDirectory = File(application.filesDir, MODEL_DIRECTORY)
@@ -40,6 +38,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     private val preferences = GeneratedAppStudioPreferences(application)
     private val appLibrary = GeneratedAppLibrary(application)
     private val canonicalAppLibrary = CanonicalGeneratedAppLibrary(application)
+    private val canonicalStateStore = CanonicalGeneratedAppStateStore(application)
     private val canonicalToolchain = CanonicalDealToolchain(application)
     private val studioSettings = DealStudioSettingsRepository(application)
     private val uiCloudClient = DeepSeekGenerationClient(apiKeyProvider = studioSettings::deepSeekApiKeyOrNull)
@@ -111,17 +110,16 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     fun saveCurrent() {
         val current = state.value
         current.canonicalBundle?.let { bundle ->
-            val title = current.canonicalState
-                ?.get("title")
-                ?.jsonPrimitive
-                ?.contentOrNull
-                ?.takeIf(String::isNotBlank)
-                ?: current.canonicalProgram?.title
-                ?: "Generated app"
+            val title = current.canonicalProgram?.let { program ->
+                current.canonicalState?.let { runtimeState ->
+                    program.displayTitle(runtimeState, "Generated app")
+                }
+            } ?: "Generated app"
             runCatching {
                 canonicalAppLibrary.save(bundle, title, current.uiBackend, current.logicBackend)
             }.mapCatching { restoreCanonicalGeneratedApp(it, canonicalToolchain) }
                 .onSuccess { saved ->
+                    current.canonicalState?.let { canonicalStateStore.save(saved.record, it) }
                     mutableState.update { state ->
                         state.copy(
                             savedCanonicalApps = (
@@ -156,6 +154,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     fun openSaved(id: String) {
         state.value.savedCanonicalApps.firstOrNull { it.record.id == id }?.let { saved ->
             val runtime = canonicalToolchain.createRuntime(saved.bundle.dealSource)
+            val restoredState = canonicalStateStore.restore(saved.record, runtime)
             canonicalRuntime = runtime
             generatedRuntime = null
             mutableState.update { current ->
@@ -164,7 +163,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     bundle = null,
                     canonicalBundle = saved.bundle,
                     canonicalProgram = saved.program,
-                    canonicalState = runtime.snapshot(),
+                    canonicalState = restoredState,
                     canonicalUiPreviewSource = saved.bundle.dealUiSource,
                     canonicalUiCommittedSections = saved.bundle.dealUiGraphLog
                         .lineSequence()
@@ -205,6 +204,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         if (state.value.savedCanonicalApps.any { it.record.id == id }) {
             runCatching { canonicalAppLibrary.delete(id) }
                 .onSuccess {
+                    canonicalStateStore.reset(id)
                     mutableState.update { current ->
                         current.copy(
                             savedCanonicalApps = current.savedCanonicalApps.filterNot { it.record.id == id },
@@ -788,6 +788,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 val committedBundle = updatedSaved?.bundle ?: result.bundle
                 val runtime = canonicalToolchain.createRuntime(committedBundle.dealSource)
                 val program = CanonicalDealUiParser.parse(committedBundle.checkedUiIr)
+                val initialState = runtime.snapshot()
+                updatedSaved?.let { canonicalStateStore.save(it.record, initialState) }
+                updatedSaved?.let { GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), it.record.id) }
                 canonicalRuntime = runtime
                 mutableState.update {
                     it.copy(
@@ -803,7 +806,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         ),
                         canonicalBundle = committedBundle,
                         canonicalProgram = program,
-                        canonicalState = runtime.snapshot(),
+                        canonicalState = initialState,
                         canonicalUiPreviewSource = committedBundle.dealUiSource,
                         refinementPrompt = "",
                         lastRefinement = refinement,
@@ -879,7 +882,14 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             return
         }
         runCatching { runtime.dispatch(handler, action.type, action.fields) }
-            .onSuccess { next -> mutableState.update { it.copy(canonicalState = next, error = null) } }
+            .onSuccess { next ->
+                val record = current.currentSavedAppId?.let { id ->
+                    current.savedCanonicalApps.firstOrNull { it.record.id == id }?.record
+                }
+                record?.let { canonicalStateStore.save(it, next) }
+                record?.let { GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), it.id) }
+                mutableState.update { it.copy(canonicalState = next, error = null) }
+            }
             .onFailure { error -> mutableState.update { it.copy(error = error.message) } }
     }
 

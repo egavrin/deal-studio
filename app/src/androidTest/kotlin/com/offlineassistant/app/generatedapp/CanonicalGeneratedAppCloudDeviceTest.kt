@@ -147,7 +147,8 @@ class CanonicalGeneratedAppCloudDeviceTest {
                 apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY }
             ).refine(
                 bundle = original,
-                request = "Make the interface dark and add a concise subtitle. Do not change behavior.",
+                request = "Use a warm amber expressive theme with pill-shaped controls and add a concise subtitle. " +
+                    "Do not change behavior.",
                 dealModel = DeepSeekGenerationModel.FLASH,
                 dealUiModel = DeepSeekGenerationModel.FLASH
             )
@@ -168,6 +169,7 @@ class CanonicalGeneratedAppCloudDeviceTest {
             assertEquals(updated.id, restored.record.id)
             assertEquals(original.dealSource, restored.bundle.dealSource)
             assertNotEquals(original.dealUiSource, restored.bundle.dealUiSource)
+            assertTrue(restored.bundle.dealUiSource.contains("ui.AppTheme("))
             assertTrue(refined.changedDealUi)
         }
     }
@@ -348,17 +350,20 @@ class CanonicalGeneratedAppCloudDeviceTest {
         assertTrue("Arkanoid UI must expose pointer input", "ui.PointerSurface(" in bundle.dealUiSource)
         assertTrue("Arkanoid UI must drive frame updates", "ui.FrameClock(" in bundle.dealUiSource)
 
-        val pointerAction = appInterface.actions.single { action ->
-            val names = action.fields.map { it.name }.toSet()
-            "x" in names && "y" in names
-        }
-        val pointerFields = pointerAction.fields.associate { field ->
+        val pointerActionName = requireNotNull(
+            Regex("onPointer:\\s*action app\\.([A-Z][A-Za-z0-9]*)")
+                .find(bundle.dealUiSource)
+                ?.groupValues
+                ?.get(1)
+        ) { "Arkanoid UI does not bind PointerSurface to an action" }
+        val pointerAction = appInterface.actions.single { it.name == pointerActionName }
+        fun pointerFields(phase: Int) = pointerAction.fields.associate { field ->
             field.name to when (field.name) {
                 "x" -> 750
 
                 "y" -> 540
 
-                "phase" -> 0
+                "phase" -> phase
 
                 else -> when (field.type) {
                     "int" -> 0
@@ -368,16 +373,22 @@ class CanonicalGeneratedAppCloudDeviceTest {
                 }
             }
         }
-        val afterPointer = runtime.dispatch(
-            handler = "on${pointerAction.name.removeSuffix("Action")}",
-            actionType = pointerAction.name,
-            fields = pointerFields
-        )
+        val pointerHandler = "on${pointerAction.name.removeSuffix("Action")}"
+        val afterPointerDown = runtime.dispatch(pointerHandler, pointerAction.name, pointerFields(phase = 0))
+        val afterPointer = if (afterPointerDown != initialState) {
+            afterPointerDown
+        } else {
+            runtime.dispatch(pointerHandler, pointerAction.name, pointerFields(phase = 1))
+        }
         assertNotEquals("Pointer input must update Arkanoid state", initialState, afterPointer)
 
-        val tickAction = appInterface.actions.single { action ->
-            action.fields.any { it.name in setOf("deltaMs", "elapsedMs", "frameMs") }
-        }
+        val tickActionName = requireNotNull(
+            Regex("onTick:\\s*action app\\.([A-Z][A-Za-z0-9]*)")
+                .find(bundle.dealUiSource)
+                ?.groupValues
+                ?.get(1)
+        ) { "Arkanoid UI does not bind FrameClock to an action" }
+        val tickAction = appInterface.actions.single { it.name == tickActionName }
         val tickFields = tickAction.fields.associate { field ->
             field.name to when (field.type) {
                 "int" -> 16

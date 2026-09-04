@@ -1,12 +1,20 @@
 package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
-    const val VERSION = "deal-studio-dealui-pack-v7"
+    const val VERSION = "deal-studio-dealui-pack-v10"
 
     val source: String = """
         export class Space { value: int = 0; }
         export class ColorToken { value: string = ""; }
         export class TextStyle { value: string = "body"; }
+        export class AppThemeProps {
+          primary: string = "#2563EB";
+          secondary: string = "#0F766E";
+          style: string = "clean";
+          shape: string = "rounded";
+          density: string = "comfortable";
+          surface: string = "tonal";
+        }
         export class EmptyProps {}
         export class LayoutProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; }
         export class GridProps { columns: int = 1; minimumCellWidth: int = 0; spacing?: Space; padding?: Space; }
@@ -48,6 +56,8 @@ internal object CanonicalDealUiPack {
         export class OverlayProps { visible: boolean = false; onDismiss?: Action; accessibilityLabel?: string; }
         export class CapabilityProps { name: string = ""; available: boolean = false; explanation: string = ""; onRequest?: Action; accessibilityLabel?: string; }
 
+        export component AppTheme(props: AppThemeProps): View { children optional; capability "renderer.android.theme"; }
+        export component Widget(props: EmptyProps): View { children optional; capability "renderer.android.widget"; }
         export component Root(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.root"; }
         export component Column(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.column"; }
         export component Row(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.row"; }

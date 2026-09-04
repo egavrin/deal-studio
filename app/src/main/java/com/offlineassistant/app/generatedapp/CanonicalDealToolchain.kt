@@ -8,7 +8,12 @@ import java.lang.reflect.InvocationTargetException
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 
 internal class CanonicalDealToolchain(
     private val context: Context
@@ -153,7 +158,7 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "d83eb4d13587f65f2ab34b63d7c64d6bff12f729970b435a4e2868a0937b2584"
+        const val ARTIFACT_SHA256 = "3c1c0166bc89062e00072016878ad63940a593039a093923da2031088fee0031"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -174,6 +179,12 @@ internal class CanonicalDealRuntimeSession(
     private val runtime: Any
 ) {
     fun snapshot(): JsonObject = invoke("runtimeSnapshot", emptyArray(), emptyArray()).jsonObject()
+
+    fun restore(state: JsonObject): JsonObject = invoke(
+        "runtimeRestore",
+        arrayOf(java.util.Map::class.java),
+        arrayOf(state.toPlatformMap())
+    ).jsonObject()
 
     fun dispatch(
         handler: String,
@@ -206,4 +217,21 @@ internal class CanonicalDealRuntimeSession(
     }
 
     private fun String.jsonObject(): JsonObject = Json.parseToJsonElement(this).jsonObject
+}
+
+private fun JsonObject.toPlatformMap(): Map<String, Any?> = mapValues { it.value.toPlatformValue() }
+
+private fun kotlinx.serialization.json.JsonElement.toPlatformValue(): Any? = when (this) {
+    kotlinx.serialization.json.JsonNull -> null
+
+    is kotlinx.serialization.json.JsonObject -> toPlatformMap()
+
+    is kotlinx.serialization.json.JsonArray -> map { it.toPlatformValue() }
+
+    is kotlinx.serialization.json.JsonPrimitive -> when {
+        isString -> content
+        booleanOrNull != null -> boolean
+        longOrNull != null -> long
+        else -> double
+    }
 }

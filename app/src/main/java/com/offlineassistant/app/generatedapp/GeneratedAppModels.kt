@@ -172,7 +172,7 @@ internal data class ModelRunState(
 )
 
 internal data class GeneratedAppStudioState(
-    val prompt: String = "Build an interactive tic-tac-toe game for two players",
+    val prompt: String = "",
     val refinementPrompt: String = "",
     val uiBackend: GeneratedModelBackend = GeneratedModelBackend.LOCAL,
     val logicBackend: GeneratedModelBackend = GeneratedModelBackend.LOCAL,

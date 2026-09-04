@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">DEAL Studio</string>
+    <string name="generated_widget_description">An interactive surface for a saved DEAL app</string>
 </resources>

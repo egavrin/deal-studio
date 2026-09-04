@@ -164,6 +164,10 @@ public final class CanonicalDealToolchainBridge {
         return ((CanonicalDealRuntime) runtime).snapshotJson();
     }
 
+    public static String runtimeRestore(Object runtime, Map<String, Object> state) {
+        return ((CanonicalDealRuntime) runtime).restore(state);
+    }
+
     public static String runtimeDispatch(
             Object runtime,
             String handler,

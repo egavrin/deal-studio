@@ -8,6 +8,7 @@ package com.offlineassistant.app.generatedapp
 
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -153,6 +155,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.toColorInt
 import coil3.compose.AsyncImage
+import com.offlineassistant.app.ui.theme.DealStudioSpacing
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -180,6 +183,34 @@ internal data class CanonicalDealUiProgram(
     val updates: Map<String, String>,
     val tokens: Map<String, CanonicalUiExpr>
 )
+
+internal fun CanonicalDealUiProgram.displayTitle(state: JsonObject, fallback: String): String = nodes.firstNotNullOfOrNull { it.displayTitle(state, this) }
+    ?: title.takeUnless { it.equals("App", ignoreCase = true) }
+    ?: fallback
+
+private fun CanonicalUiNode.displayTitle(
+    state: JsonObject,
+    program: CanonicalDealUiProgram
+): String? = when (this) {
+    is CanonicalUiNode.Call -> {
+        val componentName = name.substringAfterLast('.')
+        val ownTitle = if (componentName == "App" || componentName == "TopBar") {
+            runCatching { value("title", state, emptyMap(), program)?.asString() }
+                .getOrNull()
+                ?.takeIf(String::isNotBlank)
+        } else {
+            null
+        }
+        ownTitle ?: children.firstNotNullOfOrNull { it.displayTitle(state, program) }
+    }
+
+    is CanonicalUiNode.When ->
+        (thenNodes + elseNodes).firstNotNullOfOrNull { it.displayTitle(state, program) }
+
+    is CanonicalUiNode.ForEach -> children.firstNotNullOfOrNull { it.displayTitle(state, program) }
+
+    is CanonicalUiNode.Scope -> children.firstNotNullOfOrNull { it.displayTitle(state, program) }
+}
 
 internal sealed interface CanonicalUiNode {
     val identity: String
@@ -236,7 +267,8 @@ internal object CanonicalDealUiParser {
             nodes = root.getValue("nodes").jsonArray.map(::node),
             updates = root.getValue("updates").jsonObject.mapValues { it.value.jsonPrimitive.content },
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
-        )
+        ).also(CanonicalDealUiProgram::validateAppTheme)
+            .also(CanonicalDealUiProgram::validateWidgetSurface)
     }
 
     private fun node(element: JsonElement): CanonicalUiNode {
@@ -305,6 +337,97 @@ internal object CanonicalDealUiParser {
     private val JSON = Json { ignoreUnknownKeys = false }
 }
 
+private fun CanonicalDealUiProgram.validateAppTheme() {
+    val themes = nodes.flatMap(CanonicalUiNode::themeCalls)
+    require(themes.size <= 1) { "Deal UI may contain only one app-owned theme" }
+    themes.singleOrNull()?.let { theme ->
+        require(theme.arguments.keys == GeneratedAppThemeSpec.THEME_KEYS) {
+            "AppTheme must declare exactly ${GeneratedAppThemeSpec.THEME_KEYS.joinToString()}"
+        }
+        fun literal(name: String): String = ((theme.arguments.getValue(name) as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)
+            ?.contentOrNull
+            ?: error("AppTheme $name must be a static string literal")
+        GeneratedAppThemeSpec.validated(
+            primary = literal("primary"),
+            secondary = literal("secondary"),
+            style = literal("style"),
+            shape = literal("shape"),
+            density = literal("density"),
+            surface = literal("surface")
+        )
+    }
+}
+
+private fun CanonicalUiNode.themeCalls(): List<CanonicalUiNode.Call> = when (this) {
+    is CanonicalUiNode.Call -> buildList {
+        if (name.substringAfterLast('.') == "AppTheme") add(this@themeCalls)
+        children.flatMapTo(this, CanonicalUiNode::themeCalls)
+    }
+
+    is CanonicalUiNode.When -> (thenNodes + elseNodes).flatMap(CanonicalUiNode::themeCalls)
+
+    is CanonicalUiNode.ForEach -> children.flatMap(CanonicalUiNode::themeCalls)
+
+    is CanonicalUiNode.Scope -> children.flatMap(CanonicalUiNode::themeCalls)
+}
+
+internal fun CanonicalDealUiProgram.themeSpec(): GeneratedAppThemeSpec {
+    val theme = nodes.flatMap(CanonicalUiNode::themeCalls).singleOrNull() ?: return GeneratedAppThemeSpec.DEFAULT
+    fun literal(name: String): String = ((theme.arguments[name] as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)
+        ?.contentOrNull.orEmpty()
+    return GeneratedAppThemeSpec.DEFAULT.withRuntimeValues(
+        primary = literal("primary"),
+        secondary = literal("secondary"),
+        style = literal("style"),
+        shape = literal("shape"),
+        density = literal("density"),
+        surface = literal("surface")
+    )
+}
+
+private fun CanonicalDealUiProgram.validateWidgetSurface() {
+    val widgets = nodes.flatMap(CanonicalUiNode::widgetCalls)
+    require(widgets.size <= 1) { "Deal UI may contain only one Widget surface" }
+    widgets.singleOrNull()?.children?.forEach(CanonicalUiNode::validateWidgetNode)
+}
+
+private fun CanonicalUiNode.widgetCalls(): List<CanonicalUiNode.Call> = when (this) {
+    is CanonicalUiNode.Call -> buildList {
+        if (name.substringAfterLast('.') == "Widget") add(this@widgetCalls)
+        children.flatMapTo(this, CanonicalUiNode::widgetCalls)
+    }
+
+    is CanonicalUiNode.When -> (thenNodes + elseNodes).flatMap(CanonicalUiNode::widgetCalls)
+
+    is CanonicalUiNode.ForEach -> children.flatMap(CanonicalUiNode::widgetCalls)
+
+    is CanonicalUiNode.Scope -> children.flatMap(CanonicalUiNode::widgetCalls)
+}
+
+private fun CanonicalUiNode.validateWidgetNode() {
+    when (this) {
+        is CanonicalUiNode.Call -> {
+            val component = name.substringAfterLast('.')
+            require(component in WIDGET_COMPONENTS) {
+                "$component is unavailable on the Android home-screen Widget surface"
+            }
+            children.forEach(CanonicalUiNode::validateWidgetNode)
+        }
+
+        is CanonicalUiNode.When -> (thenNodes + elseNodes).forEach(CanonicalUiNode::validateWidgetNode)
+
+        is CanonicalUiNode.ForEach -> children.forEach(CanonicalUiNode::validateWidgetNode)
+
+        is CanonicalUiNode.Scope -> children.forEach(CanonicalUiNode::validateWidgetNode)
+    }
+}
+
+private val WIDGET_COMPONENTS = setOf(
+    "Column", "Row", "Stack", "Grid", "Card", "Section", "Text", "IntText", "Icon",
+    "IconButton", "Button", "ProgressBar", "ProgressRing", "Spacer", "Badge", "Stat",
+    "IntStat", "ListItem", "Checkbox", "Toggle", "Divider"
+)
+
 internal data class CanonicalUiAction(
     val type: String,
     val fields: Map<String, Any?>
@@ -318,9 +441,11 @@ internal fun CanonicalDealUiRenderer(
     onAction: (CanonicalUiAction) -> Unit,
     hostScrolling: Boolean = false
 ) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        CompositionLocalProvider(LocalCanonicalHostScrolling provides hostScrolling) {
-            CanonicalNodes(program, state, emptyMap(), program.nodes, onAction, Modifier.fillMaxSize())
+    GeneratedAppTheme(GeneratedAppThemeSpec.DEFAULT) {
+        Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            CompositionLocalProvider(LocalCanonicalHostScrolling provides hostScrolling) {
+                CanonicalNodes(program, state, emptyMap(), program.nodes, onAction, Modifier.fillMaxSize())
+            }
         }
     }
 }
@@ -334,7 +459,7 @@ private fun CanonicalNodes(
     onAction: (CanonicalUiAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DealStudioSpacing.Md)) {
         nodes.forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
     }
 }
@@ -388,8 +513,9 @@ private fun RenderCall(
 ) {
     val name = call.name.substringAfterLast('.')
     val value = { key: String -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) } }
-    val spacing = value("spacing").tokenInt().dp
-    val padding = value("padding").tokenInt().dp
+    val visuals = LocalGeneratedAppVisuals.current
+    val spacing = (value("spacing").tokenInt() * visuals.densityScale).dp
+    val padding = (value("padding").tokenInt() * visuals.densityScale).dp
     val action = { key: String -> call.arguments[key] as? CanonicalUiExpr.Action }
     val emit = { key: String, payload: JsonElement? ->
         action(key)?.let { onAction(it.resolve(state, scope, program.tokens, payload)) }
@@ -399,22 +525,46 @@ private fun RenderCall(
         call.children.forEach { CanonicalNode(program, state, scope, it, onAction, childModifier) }
     }
     when (name) {
-        "Root" -> Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .widthIn(max = 960.dp)
-                .then(
-                    if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
-                        Modifier.verticalScroll(rememberScrollState())
-                    } else {
-                        Modifier
-                    }
-                )
-                .padding(padding.coerceAtLeast(16.dp)),
-            verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(8.dp)),
-            horizontalAlignment = horizontalAlignment(value("horizontal").asString()),
-            content = { children(Modifier.fillMaxWidth()) }
-        )
+        "Widget" -> Unit
+
+        "AppTheme" -> {
+            val fallback = GeneratedAppThemeSpec.DEFAULT
+            val theme = fallback.withRuntimeValues(
+                primary = value("primary").asString().ifBlank { fallback.primary },
+                secondary = value("secondary").asString().ifBlank { fallback.secondary },
+                style = value("style").asString().ifBlank { fallback.style },
+                shape = value("shape").asString().ifBlank { fallback.shape },
+                density = value("density").asString().ifBlank { fallback.density },
+                surface = value("surface").asString().ifBlank { fallback.surface }
+            )
+            GeneratedAppTheme(theme) {
+                Surface(
+                    modifier = modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    children(Modifier.fillMaxSize())
+                }
+            }
+        }
+
+        "Root" -> Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 840.dp)
+                    .then(
+                        if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
+                            Modifier.verticalScroll(rememberScrollState())
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(padding.coerceAtLeast(visuals.minimumRootPadding)),
+                verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(12.dp)),
+                horizontalAlignment = horizontalAlignment(value("horizontal").asString()),
+                content = { children(Modifier.fillMaxWidth()) }
+            )
+        }
 
         "Column" -> Column(
             modifier = modifier.padding(padding),
@@ -480,20 +630,22 @@ private fun RenderCall(
                         Modifier
                     }
                 ),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = toneColor(value("tone").asString()))
+            shape = MaterialTheme.shapes.medium,
+            colors = CardDefaults.cardColors(containerColor = toneColor(value("tone").asString())),
+            border = BorderStroke(1.dp, cardBorder(value("tone").asString())),
+            elevation = CardDefaults.cardElevation(defaultElevation = visuals.cardElevation)
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(padding.coerceAtLeast(16.dp)),
-                verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(8.dp))
+                Modifier.fillMaxWidth().padding(padding.coerceAtLeast(DealStudioSpacing.Lg)),
+                verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
             ) { children(Modifier.fillMaxWidth()) }
         }
 
         "Section" -> Column(
             modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(8.dp))
+            verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
         ) {
-            Text(value("title").asString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
             value("subtitle").asString().takeIf(String::isNotBlank)?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -523,7 +675,9 @@ private fun RenderCall(
 
         "IconButton" -> IconButton(
             onClick = { emit("onClick", null) },
-            modifier = modifier.semantics { contentDescription = value("accessibilityLabel").asString() }
+            modifier = modifier
+                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                .semantics { contentDescription = value("accessibilityLabel").asString() }
         ) {
             Icon(icon(value("icon").asString()), contentDescription = null)
         }
@@ -543,9 +697,37 @@ private fun RenderCall(
                 Text(label)
             }
             when (value("style").asString()) {
-                "outlined", "danger" -> OutlinedButton(onClick = click, modifier = modifier, content = content)
-                "text" -> TextButton(onClick = click, modifier = modifier, content = content)
-                else -> Button(onClick = click, modifier = modifier, content = content)
+                "outlined" -> OutlinedButton(
+                    onClick = click,
+                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    shape = MaterialTheme.shapes.small,
+                    content = content
+                )
+
+                "danger" -> Button(
+                    onClick = click,
+                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    shape = MaterialTheme.shapes.small,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    content = content
+                )
+
+                "text" -> TextButton(
+                    onClick = click,
+                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    shape = MaterialTheme.shapes.small,
+                    content = content
+                )
+
+                else -> Button(
+                    onClick = click,
+                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    shape = MaterialTheme.shapes.small,
+                    content = content
+                )
             }
         }
 
@@ -687,10 +869,11 @@ private fun RenderCall(
 
         "Stat", "IntStat" -> Surface(
             modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            color = toneColor(value("tone").asString())
+            shape = MaterialTheme.shapes.medium,
+            color = toneColor(value("tone").asString()),
+            border = BorderStroke(1.dp, cardBorder(value("tone").asString()))
         ) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(Modifier.padding(DealStudioSpacing.Lg), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     value("icon").asString().takeIf(String::isNotBlank)?.let {
                         Icon(icon(it), contentDescription = null, Modifier.size(18.dp), tint = textTone(value("tone").asString()))
@@ -709,7 +892,7 @@ private fun RenderCall(
                 } else {
                     value("value").asString()
                 }
-                Text(statValue, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(statValue, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 value("supporting").asString().takeIf(String::isNotBlank)?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -721,26 +904,36 @@ private fun RenderCall(
                 .fillMaxWidth()
                 .then(if (action("onClick") != null) Modifier.clickable { emit("onClick", null) } else Modifier)
                 .semantics { contentDescription = value("accessibilityLabel").asString() },
-            shape = RoundedCornerShape(8.dp),
-            color = toneColor(value("tone").asString())
+            color = if (value("tone").asString() == "surface") Color.Transparent else toneColor(value("tone").asString())
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                value("leadingIcon").asString().takeIf(String::isNotBlank)?.let {
-                    Icon(icon(it), contentDescription = null, Modifier.size(22.dp), tint = textTone("accent"))
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(value("title").asString(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    value("subtitle").asString().takeIf(String::isNotBlank)?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column {
+                Row(
+                    Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    value("leadingIcon").asString().takeIf(String::isNotBlank)?.let {
+                        Surface(
+                            modifier = Modifier.size(36.dp),
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(icon(it), contentDescription = null, Modifier.size(20.dp), tint = textTone("accent"))
+                            }
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(value("title").asString(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        value("subtitle").asString().takeIf(String::isNotBlank)?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    value("trailing").asString().takeIf(String::isNotBlank)?.let {
+                        Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                value("trailing").asString().takeIf(String::isNotBlank)?.let {
-                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
 
@@ -800,10 +993,10 @@ private fun RenderCall(
 
         "TopBar" -> Surface(
             modifier = modifier.fillMaxWidth(),
-            color = toneColor(value("tone").asString())
+            color = if (value("tone").asString() == "surface") Color.Transparent else toneColor(value("tone").asString())
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -811,7 +1004,7 @@ private fun RenderCall(
                     Icon(icon(it), contentDescription = null, Modifier.size(24.dp))
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(value("title").asString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(value("title").asString(), style = MaterialTheme.typography.titleLarge)
                     value("subtitle").asString().takeIf(String::isNotBlank)?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -983,7 +1176,10 @@ private fun RenderCall(
             Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
         }
 
-        "Divider" -> androidx.compose.material3.HorizontalDivider(modifier)
+        "Divider" -> androidx.compose.material3.HorizontalDivider(
+            modifier,
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
 
         "FrameClock", "MinuteClock" -> RuntimeClock(call, name, state, scope, program.tokens, onAction)
 
@@ -1242,14 +1438,14 @@ private fun DrawScope.drawShape(
     }
 }
 
-private fun CanonicalUiNode.Call.value(
+internal fun CanonicalUiNode.Call.value(
     key: String,
     state: JsonObject,
     scope: Map<String, JsonElement>,
     program: CanonicalDealUiProgram
 ): JsonElement? = arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) }
 
-private fun CanonicalUiExpr.Action.resolve(
+internal fun CanonicalUiExpr.Action.resolve(
     state: JsonObject,
     scope: Map<String, JsonElement>,
     tokens: Map<String, CanonicalUiExpr>,
@@ -1259,7 +1455,7 @@ private fun CanonicalUiExpr.Action.resolve(
     fields = fields.mapValues { (_, expression) -> evaluate(expression, state, scope, tokens, payload).toPlatformValue() }
 )
 
-private fun evaluate(
+internal fun evaluate(
     expression: CanonicalUiExpr,
     state: JsonObject,
     scope: Map<String, JsonElement>,
@@ -1376,16 +1572,16 @@ private fun binary(
     }
 }
 
-private fun JsonElement?.asString(): String = (this as? JsonPrimitive)?.contentOrNull.orEmpty()
-private fun JsonElement?.displayString(): String = when (this) {
+internal fun JsonElement?.asString(): String = (this as? JsonPrimitive)?.contentOrNull.orEmpty()
+internal fun JsonElement?.displayString(): String = when (this) {
     null, JsonNull -> ""
     is JsonPrimitive -> content
     else -> toString()
 }
-private fun JsonElement?.asInt(): Int = (this as? JsonPrimitive)?.intOrNull
+internal fun JsonElement?.asInt(): Int = (this as? JsonPrimitive)?.intOrNull
     ?: (this as? JsonPrimitive)?.doubleOrNull?.toInt()
     ?: 0
-private fun JsonElement?.asBoolean(default: Boolean = false): Boolean = (this as? JsonPrimitive)?.booleanOrNull ?: default
+internal fun JsonElement?.asBoolean(default: Boolean = false): Boolean = (this as? JsonPrimitive)?.booleanOrNull ?: default
 private fun JsonElement?.asIntList(): List<Int> = (this as? JsonArray).orEmpty().map(JsonElement::asInt)
 private fun JsonElement?.asStringList(): List<String> = (this as? JsonArray).orEmpty().map(JsonElement::asString)
 private fun JsonElement?.tokenInt(): Int = (this as? JsonObject)?.get("value").asInt()
@@ -1433,10 +1629,10 @@ private fun horizontalArrangement(value: String, spacing: androidx.compose.ui.un
 
 @Composable
 private fun textStyle(value: String) = when (value) {
-    "display" -> MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold)
-    "metric" -> MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
-    "headline" -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-    "title" -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+    "display" -> MaterialTheme.typography.displaySmall
+    "metric" -> MaterialTheme.typography.headlineLarge
+    "headline" -> MaterialTheme.typography.headlineSmall
+    "title" -> MaterialTheme.typography.titleLarge
     "caption" -> MaterialTheme.typography.labelMedium
     else -> MaterialTheme.typography.bodyLarge
 }
@@ -1444,10 +1640,10 @@ private fun textStyle(value: String) = when (value) {
 @Composable
 private fun toneColor(tone: String): Color = when (tone) {
     "accent" -> MaterialTheme.colorScheme.primaryContainer
-    "positive" -> Color(0xFFE2F5E9)
-    "warning" -> Color(0xFFFFEFC8)
+    "positive" -> LocalGeneratedAppSemanticColors.current.positiveContainer
+    "warning" -> LocalGeneratedAppSemanticColors.current.warningContainer
     "danger" -> MaterialTheme.colorScheme.errorContainer
-    "dark" -> Color(0xFF20242A)
+    "dark" -> MaterialTheme.colorScheme.inverseSurface
     "muted" -> MaterialTheme.colorScheme.surfaceVariant
     else -> MaterialTheme.colorScheme.surface
 }
@@ -1455,12 +1651,22 @@ private fun toneColor(tone: String): Color = when (tone) {
 @Composable
 private fun textTone(tone: String): Color = when (tone) {
     "muted" -> MaterialTheme.colorScheme.onSurfaceVariant
-    "positive" -> Color(0xFF177245)
-    "warning" -> Color(0xFF8B5A00)
-    "danger" -> MaterialTheme.colorScheme.error
-    "accent" -> MaterialTheme.colorScheme.primary
-    "dark" -> Color.White
+    "positive" -> LocalGeneratedAppSemanticColors.current.onPositiveContainer
+    "warning" -> LocalGeneratedAppSemanticColors.current.onWarningContainer
+    "danger" -> MaterialTheme.colorScheme.onErrorContainer
+    "accent" -> MaterialTheme.colorScheme.onPrimaryContainer
+    "dark" -> MaterialTheme.colorScheme.inverseOnSurface
     else -> MaterialTheme.colorScheme.onSurface
+}
+
+@Composable
+private fun cardBorder(tone: String): Color = when (tone) {
+    "accent" -> MaterialTheme.colorScheme.primary.copy(alpha = LocalGeneratedAppVisuals.current.borderAlpha)
+    "positive" -> LocalGeneratedAppSemanticColors.current.positive.copy(alpha = 0.2f)
+    "warning" -> LocalGeneratedAppSemanticColors.current.warning.copy(alpha = 0.2f)
+    "danger" -> MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+    "dark" -> MaterialTheme.colorScheme.inverseSurface
+    else -> MaterialTheme.colorScheme.outlineVariant
 }
 
 private fun parseColor(value: String, fallback: Color): Color = runCatching {

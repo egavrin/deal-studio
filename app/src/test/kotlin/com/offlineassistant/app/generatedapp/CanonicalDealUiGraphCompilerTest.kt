@@ -15,6 +15,7 @@ class CanonicalDealUiGraphCompilerTest {
         val source = compiler.snapshot().partialDealUi
 
         assertTrue(source.contains("export view App(state: app.AppState): View"))
+        assertTrue(source.contains("ui.AppTheme("))
         assertTrue(source.contains("Generating interface"))
     }
 
@@ -35,6 +36,82 @@ class CanonicalDealUiGraphCompilerTest {
         assertTrue(compiler.finishSource().contains("section:header"))
         assertTrue(compiler.finishSource().contains("section:content"))
         assertTrue(compiler.finishIr().contains("checked-ir"))
+    }
+
+    @Test
+    fun `coarse tool submits a complete UI section batch`() {
+        val compiler = compiler()
+        val hash = compiler.snapshot().graphHash
+        val tool = compiler.currentTool()
+
+        val result = compiler.apply(
+            DeepSeekFunctionCall(
+                callId = "ui-batch",
+                name = SUBMIT_DEAL_UI_SECTIONS_TOOL_NAME,
+                arguments = """
+                    {
+                      "base_hash":"$hash",
+                      "theme":$THEME,
+                      "sections":[
+                        {"section_id":"header","body":"ui.Text(value: \"Ready\")","is_final":false},
+                        {"section_id":"content","body":"ui.Text(value: \"Content\")","is_final":true}
+                      ]
+                    }
+                """.trimIndent()
+            )
+        )
+
+        assertEquals(SUBMIT_DEAL_UI_SECTIONS_TOOL_NAME, tool.name)
+        assertTrue(result.diagnostic.orEmpty(), result.accepted)
+        assertTrue(result.completed)
+        assertEquals(listOf("header", "content"), compiler.snapshot().acceptedSectionIds)
+        assertTrue(compiler.finishSource().contains("primary: \"#087A61\""))
+        assertTrue(compiler.finishSource().contains("shape: \"pill\""))
+    }
+
+    @Test
+    fun `initial coarse tool requires one compact application theme`() {
+        val tool = compiler().currentTool()
+        val required = tool.parameters["required"]?.jsonArray?.map { it.toString() }.orEmpty()
+        val theme = tool.parameters["properties"]?.jsonObject?.get("theme")?.jsonObject
+
+        assertTrue(required.contains("\"theme\""))
+        assertEquals(false, theme?.get("additionalProperties")?.toString()?.toBooleanStrictOrNull())
+        assertTrue(theme?.get("properties")?.jsonObject?.keys?.containsAll(GeneratedAppThemeSpec.THEME_KEYS).orFalse())
+    }
+
+    @Test
+    fun `invalid application theme is rejected before UI sections`() {
+        val compiler = compiler()
+        val hash = compiler.currentTool().parameters["properties"]
+            ?.jsonObject?.get("base_hash")?.jsonObject?.get("enum")?.jsonArray?.single().toString().trim('"')
+            .orEmpty()
+        val result = compiler.apply(
+            DeepSeekFunctionCall(
+                callId = "invalid-theme",
+                name = SUBMIT_DEAL_UI_SECTIONS_TOOL_NAME,
+                arguments = """
+                    {
+                      "base_hash":"$hash",
+                      "theme":{
+                        "primary":"blue",
+                        "secondary":"#0F766E",
+                        "style":"clean",
+                        "shape":"rounded",
+                        "density":"comfortable",
+                        "surface":"tonal"
+                      },
+                      "sections":[
+                        {"section_id":"header","body":"ui.Text(value: \"Ready\")","is_final":false},
+                        {"section_id":"content","body":"ui.Text(value: \"Content\")","is_final":true}
+                      ]
+                    }
+                """.trimIndent()
+            )
+        )
+
+        assertFalse(result.accepted)
+        assertTrue(result.diagnostic.orEmpty().contains("hex colour"))
     }
 
     @Test
@@ -77,12 +154,13 @@ class CanonicalDealUiGraphCompilerTest {
         assertTrue(compiler.snapshot().diagnostic.contains("method calls are unsupported"))
         assertEquals("metric", compiler.snapshot().pendingRepairSectionId)
         val repairIds = compiler.currentTool().parameters["properties"]
-            ?.jsonObject?.get("section_id")?.jsonObject?.get("enum")?.jsonArray
+            ?.jsonObject?.get("sections")?.jsonObject?.get("items")?.jsonObject
+            ?.get("properties")?.jsonObject?.get("section_id")?.jsonObject?.get("enum")?.jsonArray
         assertEquals("\"metric\"", repairIds?.single().toString())
     }
 
     @Test
-    fun `rejected section must be repaired before another section can be appended`() {
+    fun `sections after a rejected dependency are deferred and committed after repair`() {
         val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
             require("broken" !in source) { "invalid section" }
             "checked-ir"
@@ -91,13 +169,50 @@ class CanonicalDealUiGraphCompilerTest {
         val hash = compiler.snapshot().graphHash
 
         assertFalse(compiler.apply(call(hash, "content", "ui.Text(value: broken)", false)).accepted)
-        val skippedRepair = compiler.apply(call(hash, "header", "ui.Text(value: \"Header\")", false))
-        assertFalse(skippedRepair.accepted)
-        assertTrue(skippedRepair.diagnostic.orEmpty().contains("Repair Deal UI section content"))
+        val deferred = compiler.apply(call(hash, "header", "ui.Text(value: \"Header\")", true))
+        assertFalse(deferred.accepted)
+        assertTrue(deferred.diagnostic.orEmpty().contains("Deferred Deal UI section header"))
 
         val repaired = compiler.apply(call(hash, "content", "ui.Text(value: \"Content\")", false))
         assertTrue(repaired.accepted)
+        assertTrue(repaired.completed)
         assertEquals(null, compiler.snapshot().pendingRepairSectionId)
+        assertEquals(listOf("content", "header"), compiler.snapshot().acceptedSectionIds)
+    }
+
+    @Test
+    fun `invalid deferred section becomes the next focused repair`() {
+        val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
+            require("broken" !in source) { "invalid section" }
+            "checked-ir"
+        }
+        compiler.currentTool()
+        val hash = compiler.snapshot().graphHash
+
+        compiler.apply(call(hash, "gameplay", "ui.Text(value: broken)", false))
+        compiler.apply(call(hash, "status", "ui.Text(value: broken)", true))
+        val repaired = compiler.apply(call(hash, "gameplay", "ui.Text(value: \"Game\")", false))
+
+        assertTrue(repaired.accepted)
+        assertFalse(repaired.completed)
+        assertEquals("status", compiler.snapshot().pendingRepairSectionId)
+        assertEquals(listOf("gameplay"), compiler.snapshot().acceptedSectionIds)
+    }
+
+    @Test
+    fun `identical rejected UI body has a stable repair fingerprint`() {
+        val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
+            require("broken" !in source) { "invalid section" }
+            "checked-ir"
+        }
+        compiler.currentTool()
+        val hash = compiler.snapshot().graphHash
+
+        val first = compiler.apply(call(hash, "content", "ui.Text(value: broken)", false))
+        val second = compiler.apply(call(hash, "content", "ui.Text(value: broken)", false))
+
+        assertFalse(first.accepted)
+        assertEquals(first.rejectedCandidateFingerprint, second.rejectedCandidateFingerprint)
     }
 
     private fun compiler() = CanonicalDealUiGraphCompiler("AppState") { _, _ -> "checked-ir" }
@@ -124,5 +239,18 @@ class CanonicalDealUiGraphCompilerTest {
             }
         }
         append('"')
+    }
+
+    private fun Boolean?.orFalse(): Boolean = this ?: false
+
+    private companion object {
+        const val THEME = """{
+          "primary":"#087A61",
+          "secondary":"#CA8A04",
+          "style":"expressive",
+          "shape":"pill",
+          "density":"comfortable",
+          "surface":"elevated"
+        }"""
     }
 }

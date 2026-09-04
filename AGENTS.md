@@ -43,17 +43,24 @@ Compose only renders checked portable Deal UI IR and sends typed events back to 
 
 Cloud generation is sequential and compiler-guided:
 
-1. DeepSeek calls `create_deal_program` once to declare nominal types, external actions, reusable
-   helper signatures and capability requirements.
-2. The compiler creates stable typed holes for `initialState`, helpers and `@ui-update` functions.
-3. DeepSeek calls `apply_deal_graph_patch` with one batched set of compact function bodies.
-4. Every body is projected to canonical DEAL and accepted only after the pinned production parser,
+1. DeepSeek calls `submit_deal_program` once with nominal types, external actions, reusable helper
+   signatures, capabilities and every compact function body. The model does not select a separate
+   root-state name; the compiler infers the unique root from nominal type references.
+2. The compiler creates stable typed holes for `initialState`, helpers and `@ui-update` functions
+   from that same call and checks every supplied body independently.
+3. Every body is projected to canonical DEAL and accepted only after the pinned production parser,
    type checker and AppInterface identity check pass.
+4. If holes remain, `repair_deal_batch` contains only their signatures and diagnostics; accepted
+   declarations and bodies are immutable and omitted from repair context.
 5. The exact accepted DEAL and extracted `AppInterfaceV1` are supplied to Deal UI generation.
-6. DeepSeek authors canonical `app.dealui` through compiler tools. Only compiler-accepted UI commits
-   may update the progressive preview. A rejected section becomes the only available repair target;
-   accepted section ids cannot be repeated and new sections cannot bypass a pending repair.
-7. The complete pair passes cross-artifact, capability, resource and runtime smoke validation before
+6. DeepSeek calls `submit_deal_ui_sections` once with two to six cohesive sections. The compiler
+   accepts one compact, app-owned theme in that initial call, checks each section independently,
+   commits valid sections and defers later siblings behind a rejected dependency without asking
+   the model to regenerate them. The compiler emits the sole `ui.AppTheme` and `ui.Root` wrappers;
+   generated section bodies may emit neither boundary.
+7. A rejected UI section becomes the only schema-allowed repair target. A run gets one Flash repair
+   and at most one Pro escalation; a byte-identical rejected candidate ends the loop immediately.
+8. The complete pair passes cross-artifact, capability, resource and runtime smoke validation before
    it becomes interactive.
 
 DeepSeek Flash is the default cloud backend. UI and logic backend choices remain independent for
@@ -88,8 +95,8 @@ runtime. It does not implement a finite catalog of recognized applications.
   compositional requests that were not used to design the current ABI. Success on any finite list
   must never be reported as arbitrary-application generalization.
 
-A normal cloud run is budgeted for one declaration call, one batched DEAL fill call and one Deal UI
-call. Diagnostic retries are a failure ceiling, not expected progress. Record TTFT, graph rounds,
+A normal cloud run is budgeted for one complete DEAL call and one complete Deal UI batch call.
+Diagnostic retries are a failure ceiling, not expected progress. Record TTFT, graph rounds,
 accepted/rejected holes, input/cache/output tokens, local compiler time and wall time.
 
 ## Runtime And UI
@@ -109,6 +116,14 @@ The component pack is generic and versioned. It must cover:
 - FrameClock, MinuteClock, PointerSurface and Canvas host ingress;
 - declared, permission-aware reusable host effects rather than application-specific callbacks.
 
+Every generated application owns one compact checked theme, independent of the Studio shell. The
+theme carries two seed colours plus style, shape, density and surface treatment. Compose derives
+accessible Material roles and fixed semantic success, warning and error roles from that declaration;
+the model must not repeat raw colours across component props. Themes are selected through the generic
+compiler tool schema, never through named app-family palettes or scenario routing. Cards remain at
+most 8 dp even when controls use pill geometry. Raw colours remain available only for explicit Canvas
+graphics where semantic Material roles cannot represent the scene.
+
 Utility applications use native semantic components. Canvas is reserved for games and genuinely
 spatial visualizations. Do not put cards inside cards. Cards use at most an 8 dp radius. Use stable
 responsive constraints, 48 dp touch targets, accessible labels, dynamic type, Material colour roles
@@ -127,10 +142,20 @@ Fullscreen is the real runtime, not a screenshot or second instance. Expanding a
 the same DEAL session and state. Saved applications remain inside the sandboxed Studio runtime; the
 product does not emit arbitrary APKs.
 
+Saved canonical apps may be projected onto the Android home screen in two forms. A pinned app icon
+opens `GeneratedAppActivity`, a dedicated host for the saved app; it is not a generated APK. An
+interactive app widget renders either the app's optional `ui.Widget` subtree or a generic compact
+projection of the checked app UI. Both surfaces load the same saved sources, revalidate them with the
+pinned toolchain, execute the same nominal DEAL update handlers and share one source-bound durable
+state. Widget acceptance may depend only on Android `RemoteViews` capabilities and resource bounds,
+never on app names, domains or regression scenarios. Widget layout is selected from the actual host
+dimensions (compact, medium or expanded); do not hard-code launcher cell counts or OEM branches.
+
 ## Save And Refine
 
 Saving persists canonical `app.deal`, `app.dealui` and provenance. Never persist checked IR as the
-source of truth. Restore reparses and recompiles both files with the current pinned toolchain before
+source of truth. The app-owned `ui.AppTheme` is part of `app.dealui`, so saved previews and fullscreen
+restores reproduce the same visual identity. Restore reparses and recompiles both files with the current pinned toolchain before
 creating a new runtime. Library cards render noninteractive live previews; opening a card creates an
 interactive fullscreen session.
 

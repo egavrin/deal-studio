@@ -31,7 +31,10 @@ DeepSeek Deal UI compiler tool
 checked app.dealui -> portable IR -> native Compose
    |
    v
-interactive fullscreen runtime / local saved-app library
+interactive runtime / local saved-app library
+   |
+   +-- dedicated generated-app screen and pinned app icon
+   +-- adaptive interactive home-screen widget
 ```
 
 DEAL owns state and behaviour. Deal UI owns presentation and typed event bindings. There is no
@@ -47,9 +50,11 @@ units and reject invalid updates before they become runnable.
 - Fullscreen mode uses the same runtime and preserves state when returning to Studio.
 - Canonical `app.deal` and `app.dealui` can be saved with provenance and recompiled on restore.
 - Saved applications have live, noninteractive previews and reopen as interactive runtimes.
+- A saved canonical app can be added to the Android home screen as an app icon or an interactive,
+  resizable widget. Both use the same checked DEAL handlers and source-bound durable state.
 - One natural-language refinement request is routed to narrow behaviour and UI edit agents; the
   previous app remains active unless the complete revision validates.
-- Generic Deal UI pack v2 includes adaptive layout, semantic text/list/stat/status components,
+- Generic Deal UI pack v10 includes adaptive layout, semantic text/list/stat/status components,
   controls, icons, HTTPS images, progress, navigation surfaces, overlays, clock and canvas input.
 - The local llama.cpp runtime remains available for future Gemma/Qwen evaluation; local model files
   are not bundled in the APK.
@@ -123,6 +128,9 @@ app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppCom
 app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiGraphCompiler.kt
 app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiPack.kt
 app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiRuntime.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppActivity.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppWidgetProvider.kt
+app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppWidgetProjection.kt
 app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppRefiner.kt
 app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppLibrary.kt
 deepseek-connector/src/main/kotlin/com/offlineassistant/deepseek/DeepSeekGenerationClient.kt
@@ -143,4 +151,7 @@ acceptance work are tracked in
 Generated source is data, not trusted Android code. The app never evaluates arbitrary Kotlin,
 JavaScript or native code. DEAL and Deal UI pass strict parsers, type and capability checks, bounded
 resource validation and runtime smoke checks. Invalid, partial or cancelled output is not executed.
-Saved applications remain inside DEAL Studio; no arbitrary APK is emitted.
+Saved applications remain inside DEAL Studio; no arbitrary APK is emitted. A pinned generated-app
+icon is a shortcut into `GeneratedAppActivity`, not an independently installed package. A home-screen
+widget is a bounded Android `RemoteViews` projection. Its actions enter only through a private
+receiver and are resolved to the same nominal DEAL updates used by the full app.

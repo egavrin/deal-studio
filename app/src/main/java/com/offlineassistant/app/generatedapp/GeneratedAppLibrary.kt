@@ -64,6 +64,8 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val dealUiInputTokens: Int = 0,
     val dealUiCachedInputTokens: Int = 0,
     val dealUiOutputTokens: Int = 0,
+    val dealUiAcceptedPatches: Int = 0,
+    val firstInteractivePreviewMs: Long? = null,
     val componentPackVersion: String,
     val toolchainSha256: String,
     val createdAtEpochMs: Long,
@@ -118,7 +120,9 @@ internal fun restoreCanonicalGeneratedApp(
         dealUiRejectedPatches = record.dealUiRejectedPatches,
         dealUiInputTokens = record.dealUiInputTokens,
         dealUiCachedInputTokens = record.dealUiCachedInputTokens,
-        dealUiOutputTokens = record.dealUiOutputTokens
+        dealUiOutputTokens = record.dealUiOutputTokens,
+        dealUiAcceptedPatches = record.dealUiAcceptedPatches,
+        firstInteractivePreviewMs = record.firstInteractivePreviewMs
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
@@ -233,6 +237,8 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         dealUiInputTokens = bundle.dealUiInputTokens,
         dealUiCachedInputTokens = bundle.dealUiCachedInputTokens,
         dealUiOutputTokens = bundle.dealUiOutputTokens,
+        dealUiAcceptedPatches = bundle.dealUiAcceptedPatches,
+        firstInteractivePreviewMs = bundle.firstInteractivePreviewMs,
         componentPackVersion = CanonicalDealUiPack.VERSION,
         toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
         createdAtEpochMs = createdAtEpochMs,

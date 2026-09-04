@@ -78,11 +78,12 @@ internal class CanonicalGeneratedAppRefiner(
                 dealResult.source,
                 uiResult.source,
                 CanonicalDealUiPack.source
-            )
+            ).also { CanonicalDealUiParser.parse(it) }
             val actualInterface = AppInterfaceCompiler.parse(toolchain.extractAppInterface(dealResult.source))
             require(actualInterface == expectedInterface) {
                 "An in-place edit cannot change AppInterfaceV1; regenerate for a new public state or action contract"
             }
+            val wallLatencyMs = wall.elapsedNow().inWholeMilliseconds
             CanonicalRefinementResult(
                 bundle = bundle.copy(
                     dealSource = dealResult.source,
@@ -90,18 +91,26 @@ internal class CanonicalGeneratedAppRefiner(
                     checkedUiIr = checkedIr,
                     dealLatencyMs = dealResult.latencyMs,
                     dealUiLatencyMs = uiResult.latencyMs,
-                    wallLatencyMs = wall.elapsedNow().inWholeMilliseconds,
+                    wallLatencyMs = wallLatencyMs,
                     validationLatencyMs = dealResult.validationLatencyMs + uiResult.validationLatencyMs,
                     repairLatencyMs = 0,
                     repairPasses = 0,
+                    dealTimeToFirstPatchMs = dealResult.timeToFirstCallMs,
+                    dealUiTimeToFirstTokenMs = uiResult.timeToFirstCallMs,
                     dealGraphRounds = dealResult.rounds,
                     dealUiGraphRounds = uiResult.rounds,
                     dealAcceptedPatches = dealResult.acceptedEdits,
                     dealRejectedPatches = dealResult.rejectedEdits,
                     dealTypedHoles = 0,
-                    dealInputTokens = dealResult.inputTokens + uiResult.inputTokens,
-                    dealCachedInputTokens = dealResult.cachedInputTokens + uiResult.cachedInputTokens,
-                    dealOutputTokens = dealResult.outputTokens + uiResult.outputTokens
+                    dealInputTokens = dealResult.inputTokens,
+                    dealCachedInputTokens = dealResult.cachedInputTokens,
+                    dealOutputTokens = dealResult.outputTokens,
+                    dealUiAcceptedPatches = uiResult.acceptedEdits,
+                    dealUiRejectedPatches = uiResult.rejectedEdits,
+                    dealUiInputTokens = uiResult.inputTokens,
+                    dealUiCachedInputTokens = uiResult.cachedInputTokens,
+                    dealUiOutputTokens = uiResult.outputTokens,
+                    firstInteractivePreviewMs = wallLatencyMs
                 ),
                 changedDeal = dealResult.changed,
                 changedDealUi = uiResult.changed
@@ -132,6 +141,7 @@ internal class CanonicalGeneratedAppRefiner(
         var inputTokens = 0
         var cachedInputTokens = 0
         var outputTokens = 0
+        var timeToFirstCallMs: Long? = null
         var rounds = 0
         while (!compiler.complete && rounds < MAX_EDIT_ROUNDS) {
             val result = dealClient.generateTools(
@@ -166,10 +176,11 @@ internal class CanonicalGeneratedAppRefiner(
             inputTokens += result.inputTokens ?: 0
             cachedInputTokens += result.cachedInputTokens ?: 0
             outputTokens += result.outputTokens ?: 0
+            if (timeToFirstCallMs == null) timeToFirstCallMs = result.timeToFirstCallMs
             rounds++
         }
         require(compiler.complete) { "Behavior edit failed: ${compiler.diagnostic}" }
-        return compiler.result(latencyMs, rounds, inputTokens, cachedInputTokens, outputTokens)
+        return compiler.result(latencyMs, timeToFirstCallMs, rounds, inputTokens, cachedInputTokens, outputTokens)
     }
 
     private fun refineDealUi(
@@ -181,12 +192,15 @@ internal class CanonicalGeneratedAppRefiner(
         onProgress: (String) -> Unit
     ): EditResult {
         val compiler = CanonicalDealUiEditCompiler(source) { candidate ->
-            toolchain.compilePortable(dealSource, candidate, CanonicalDealUiPack.source)
+            toolchain.compilePortable(dealSource, candidate, CanonicalDealUiPack.source).also {
+                CanonicalDealUiParser.parse(it)
+            }
         }
         var latencyMs = 0L
         var inputTokens = 0
         var cachedInputTokens = 0
         var outputTokens = 0
+        var timeToFirstCallMs: Long? = null
         var rounds = 0
         while (!compiler.complete && rounds < MAX_EDIT_ROUNDS) {
             val result = dealUiClient.generateTools(
@@ -226,10 +240,11 @@ internal class CanonicalGeneratedAppRefiner(
             inputTokens += result.inputTokens ?: 0
             cachedInputTokens += result.cachedInputTokens ?: 0
             outputTokens += result.outputTokens ?: 0
+            if (timeToFirstCallMs == null) timeToFirstCallMs = result.timeToFirstCallMs
             rounds++
         }
         require(compiler.complete) { "Interface edit failed: ${compiler.diagnostic}" }
-        return compiler.result(latencyMs, rounds, inputTokens, cachedInputTokens, outputTokens)
+        return compiler.result(latencyMs, timeToFirstCallMs, rounds, inputTokens, cachedInputTokens, outputTokens)
     }
 
     private companion object {
@@ -252,9 +267,10 @@ internal class CanonicalGeneratedAppRefiner(
             the checked source into match and provide only its replacement subtree. Batch related edits in one call.
             If the request is purely behavioral, call keep_deal_ui_unchanged once. Preserve unrelated presentation
             and bind only to the unchanged exact AppInterface. Prefer the smallest component subtree; replacing
-            ui.Root is allowed only when a global layout or theme edit requires it. Use only the supplied component
-            pack. Never replace imports, declarations, or the App view. Never emit Markdown or prose. Address an exact
-            compiler diagnostic on retry.
+            ui.Root is allowed only for a global layout edit. For a colour, style, shape, density or surface request,
+            replace only the existing ui.AppTheme call arguments and preserve its children. Keep exactly one
+            AppTheme. Use only the supplied component pack. Never replace imports, declarations, or the App view.
+            Never emit Markdown or prose. Address an exact compiler diagnostic on retry.
         """.trimIndent()
     }
 }
@@ -263,6 +279,7 @@ private data class EditResult(
     val source: String,
     val changed: Boolean,
     val latencyMs: Long,
+    val timeToFirstCallMs: Long?,
     val validationLatencyMs: Long,
     val rounds: Int,
     val acceptedEdits: Int,
@@ -378,10 +395,11 @@ private class CanonicalDealFunctionEditCompiler(
         }
     }
 
-    fun result(latency: Long, rounds: Int, input: Int, cached: Int, output: Int) = EditResult(
+    fun result(latency: Long, firstCall: Long?, rounds: Int, input: Int, cached: Int, output: Int) = EditResult(
         source,
         changed,
         latency,
+        firstCall,
         validationLatencyMs,
         rounds,
         accepted,
@@ -501,10 +519,11 @@ private class CanonicalDealUiEditCompiler(
         validationLatencyMs += (System.nanoTime() - started) / 1_000_000
     }
 
-    fun result(latency: Long, rounds: Int, input: Int, cached: Int, output: Int) = EditResult(
+    fun result(latency: Long, firstCall: Long?, rounds: Int, input: Int, cached: Int, output: Int) = EditResult(
         source,
         changed,
         latency,
+        firstCall,
         validationLatencyMs,
         rounds,
         accepted,

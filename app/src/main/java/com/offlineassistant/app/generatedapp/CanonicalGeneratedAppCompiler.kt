@@ -41,7 +41,9 @@ internal data class CanonicalGeneratedAppBundle(
     val dealUiRejectedPatches: Int = 0,
     val dealUiInputTokens: Int = 0,
     val dealUiCachedInputTokens: Int = 0,
-    val dealUiOutputTokens: Int = 0
+    val dealUiOutputTokens: Int = 0,
+    val dealUiAcceptedPatches: Int = 0,
+    val firstInteractivePreviewMs: Long? = null
 )
 
 internal enum class CanonicalGenerationPhase {
@@ -96,6 +98,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         val appInterface = AppInterfaceCompiler.parse(extractedInterface)
         val contract = appInterface.compilerContract()
 
+        var firstInteractivePreviewMs: Long? = null
         val dealUiGeneration = generateUiGraph(
             model = dealUiModel,
             request = request,
@@ -103,7 +106,12 @@ internal class CanonicalGeneratedAppCloudCompiler(
             appInterface = appInterface,
             dealSource = dealSource,
             onProgress = onProgress,
-            onUiPreview = onUiPreview
+            onUiPreview = { preview ->
+                if (firstInteractivePreviewMs == null) {
+                    firstInteractivePreviewMs = (System.nanoTime() - started) / 1_000_000
+                }
+                onUiPreview(preview)
+            }
         )
         validationLatencyMs += dealUiGeneration.compilerValidationLatencyMs
 
@@ -134,7 +142,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealUiRejectedPatches = dealUiGeneration.rejectedPatches,
             dealUiInputTokens = dealUiGeneration.inputTokens,
             dealUiCachedInputTokens = dealUiGeneration.cachedInputTokens,
-            dealUiOutputTokens = dealUiGeneration.outputTokens
+            dealUiOutputTokens = dealUiGeneration.outputTokens,
+            dealUiAcceptedPatches = dealUiGeneration.acceptedPatches,
+            firstInteractivePreviewMs = firstInteractivePreviewMs
         )
     }
 
@@ -156,14 +166,17 @@ internal class CanonicalGeneratedAppCloudCompiler(
         var outputTokens = 0
         var previousDiagnostic = ""
         var rounds = 0
-        var stalledRounds = 0
+        val rejectedCandidateGuard = RejectedCandidateGuard()
         val roundTrace = mutableListOf<String>()
+        val maxRounds = CanonicalGenerationRepairPolicy.maxRounds(model)
 
-        while (!compiler.isComplete && rounds < MAX_GRAPH_ROUNDS) {
+        while (!compiler.isComplete && rounds < maxRounds) {
             val snapshot = compiler.snapshot()
             val declarationsPending = snapshot.graphHash == "uninitialized"
+            val roundModel = CanonicalGenerationRepairPolicy.modelForRound(model, rounds)
             var acceptedThisRound = 0
             var rejectedThisRound = 0
+            val repeatedCandidates = mutableSetOf<String>()
             fun applyPatch(call: com.offlineassistant.deepseek.DeepSeekFunctionCall) {
                 compilerToolTrace("${call.name}\t${call.arguments}")
                 val before = compiler.snapshot().acceptedPatches
@@ -171,6 +184,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 val accepted = compiler.snapshot().acceptedPatches - before
                 acceptedThisRound += accepted
                 rejectedThisRound += applied.rejectedChanges
+                if (rejectedCandidateGuard.observe(applied.rejectedCandidateFingerprints)) {
+                    repeatedCandidates += applied.rejectedCandidateFingerprints
+                }
                 if (accepted > 0) {
                     onProgress(CanonicalGenerationPhase.DEAL, compiler.snapshot().partialDeal)
                 }
@@ -178,7 +194,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             }
             val result = dealClient.generateTools(
                 request = DeepSeekToolRequest(
-                    model = model,
+                    model = roundModel,
                     instructions = if (declarationsPending) {
                         CanonicalGenerationPrompts.dealGraphDeclarationInstructions
                     } else {
@@ -186,13 +202,13 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     },
                     input = CanonicalGenerationPrompts.dealGraphInput(input, snapshot, previousDiagnostic),
                     tools = listOf(compiler.currentTool()),
-                    maxOutputTokens = if (declarationsPending) DECLARATION_MAX_TOKENS else GRAPH_PATCH_MAX_TOKENS,
+                    maxOutputTokens = GRAPH_BATCH_MAX_TOKENS,
                     temperature = 0.0
                 ),
                 onCall = ::applyPatch
             )
             rounds++
-            roundTrace += "ROUND\tdeal\t$rounds\thash=${snapshot.graphHash.take(12)}\t" +
+            roundTrace += "ROUND\tdeal\t$rounds\tmodel=${roundModel.apiId}\thash=${snapshot.graphHash.take(12)}\t" +
                 "pending=${snapshot.pendingHoles.size}\taccepted=$acceptedThisRound\t" +
                 "rejected=$rejectedThisRound\tlatency_ms=${result.latencyMs}\t" +
                 "ttfc_ms=${result.timeToFirstCallMs ?: -1}\tinput=${result.inputTokens ?: 0}\t" +
@@ -202,14 +218,18 @@ internal class CanonicalGeneratedAppCloudCompiler(
             inputTokens += result.inputTokens ?: 0
             cachedInputTokens += result.cachedInputTokens ?: 0
             outputTokens += result.outputTokens ?: 0
-            if (acceptedThisRound == 0) {
-                stalledRounds++
-                require(stalledRounds <= MAX_STALLED_GRAPH_ROUNDS) {
-                    "DeepSeek made no valid checked DEAL graph change after $stalledRounds attempts. " +
+            if (repeatedCandidates.isNotEmpty()) {
+                previousDiagnostic = buildString {
+                    appendLine(previousDiagnostic)
+                    append(
+                        "The previous repair repeated ${repeatedCandidates.size} byte-identical rejected " +
+                            "candidate(s). Do not return an identical body again."
+                    )
+                }.trim()
+                require(roundModel != DeepSeekGenerationModel.PRO) {
+                    "DeepSeek Pro repeated a compiler-rejected DEAL candidate; stopping the repair loop. " +
                         "$previousDiagnostic\n${compiler.patchLog()}"
                 }
-            } else {
-                stalledRounds = 0
             }
             if (rejectedThisRound == 0) previousDiagnostic = ""
         }
@@ -253,7 +273,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
             } else {
                 CanonicalDealPreviewProjector.project(dealSource, source)
             }
-            toolchain.compilePortable(validationDeal, source, CanonicalDealUiPack.source)
+            toolchain.compilePortable(validationDeal, source, CanonicalDealUiPack.source).also {
+                CanonicalDealUiParser.parse(it)
+            }
         }
         var latencyMs = 0L
         var firstPatchMs: Long? = null
@@ -261,15 +283,19 @@ internal class CanonicalGeneratedAppCloudCompiler(
         var inputTokens = 0
         var cachedInputTokens = 0
         var outputTokens = 0
+        val rejectedCandidateGuard = RejectedCandidateGuard()
         val roundTrace = mutableListOf<String>()
+        val maxRounds = CanonicalGenerationRepairPolicy.maxRounds(model)
 
-        while (!compiler.isComplete && rounds < MAX_UI_GRAPH_ROUNDS) {
+        while (!compiler.isComplete && rounds < maxRounds) {
             val snapshot = compiler.snapshot()
+            val roundModel = CanonicalGenerationRepairPolicy.modelForRound(model, rounds)
             var accepted = 0
             var diagnostic = snapshot.diagnostic
+            var repeatedCandidate = false
             val result = dealUiClient.generateTools(
                 request = DeepSeekToolRequest(
-                    model = model,
+                    model = roundModel,
                     instructions = CanonicalGenerationPrompts.dealUiGraphInstructions,
                     input = CanonicalGenerationPrompts.dealUiGraphInput(
                         request = request,
@@ -286,6 +312,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     val applied = compiler.apply(call)
                     if (applied.accepted) accepted++
                     diagnostic = applied.diagnostic.orEmpty()
+                    applied.rejectedCandidateFingerprint?.let { fingerprint ->
+                        if (rejectedCandidateGuard.observe(listOf(fingerprint))) repeatedCandidate = true
+                    }
                     if (applied.accepted) {
                         val committed = compiler.snapshot().acceptedPatches
                         onProgress(CanonicalGenerationPhase.DEAL_UI, "$committed interface sections validated")
@@ -301,7 +330,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 }
             )
             rounds++
-            roundTrace += "ROUND\tdeal_ui\t$rounds\taccepted=$accepted\t" +
+            roundTrace += "ROUND\tdeal_ui\t$rounds\tmodel=${roundModel.apiId}\taccepted=$accepted\t" +
                 "rejected=${compiler.rejectedPatches}\tlatency_ms=${result.latencyMs}\t" +
                 "ttfc_ms=${result.timeToFirstCallMs ?: -1}\tinput=${result.inputTokens ?: 0}\t" +
                 "cached=${result.cachedInputTokens ?: 0}\toutput=${result.outputTokens ?: 0}"
@@ -310,17 +339,24 @@ internal class CanonicalGeneratedAppCloudCompiler(
             inputTokens += result.inputTokens ?: 0
             cachedInputTokens += result.cachedInputTokens ?: 0
             outputTokens += result.outputTokens ?: 0
-            if (accepted == 0 && rounds < MAX_UI_GRAPH_ROUNDS) {
+            if (repeatedCandidate) {
+                require(roundModel != DeepSeekGenerationModel.PRO) {
+                    "DeepSeek Pro repeated a compiler-rejected Deal UI section; stopping the repair loop. " +
+                        "$diagnostic\n${compiler.patchLog()}"
+                }
+                diagnostic = "$diagnostic\nThe previous repair repeated a byte-identical rejected section. " +
+                    "Do not return the identical body again."
+            }
+            if (!compiler.isComplete && rounds < maxRounds) {
                 onProgress(CanonicalGenerationPhase.REPAIRING, "Correcting the rejected Deal UI section")
             }
-            if (accepted == 0 && rounds == MAX_UI_GRAPH_ROUNDS) {
-                throw IllegalArgumentException(
-                    "DeepSeek did not fill the checked Deal UI graph after $rounds attempts. $diagnostic\n" +
-                        compiler.patchLog() + "\nLast rejected body:\n" + compiler.snapshot().lastRejectedBody
-                )
-            }
         }
-        require(compiler.isComplete) { "Checked Deal UI graph is incomplete" }
+        require(compiler.isComplete) {
+            val finalSnapshot = compiler.snapshot()
+            "DeepSeek did not fill the checked Deal UI graph after $rounds attempts. " +
+                "${finalSnapshot.diagnostic}\n${compiler.patchLog()}\n" +
+                "Last rejected body:\n${finalSnapshot.lastRejectedBody}"
+        }
         return UiGraphGeneration(
             source = compiler.finishSource(),
             checkedIr = compiler.finishIr(),
@@ -328,6 +364,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             latencyMs = latencyMs,
             timeToFirstPatchMs = firstPatchMs,
             rounds = rounds,
+            acceptedPatches = compiler.snapshot().acceptedPatches,
             rejectedPatches = compiler.rejectedPatches,
             compilerValidationLatencyMs = compiler.validationLatencyMs,
             inputTokens = inputTokens,
@@ -434,11 +471,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
     }
 
     private companion object {
-        const val MAX_GRAPH_ROUNDS = 8
-        const val MAX_UI_GRAPH_ROUNDS = 8
-        const val MAX_STALLED_GRAPH_ROUNDS = 2
-        const val DECLARATION_MAX_TOKENS = 2_048
-        const val GRAPH_PATCH_MAX_TOKENS = 8_192
+        const val GRAPH_BATCH_MAX_TOKENS = 8_192
         const val DEAL_UI_GRAPH_MAX_TOKENS = 4_096
         const val MAX_REPORTED_VIOLATIONS = 32
 
@@ -493,6 +526,7 @@ private data class UiGraphGeneration(
     val latencyMs: Long,
     val timeToFirstPatchMs: Long?,
     val rounds: Int,
+    val acceptedPatches: Int,
     val rejectedPatches: Int,
     val compilerValidationLatencyMs: Long,
     val inputTokens: Int,
@@ -764,17 +798,21 @@ internal object AppInterfaceCompiler {
 
 internal object CanonicalGenerationPrompts {
     val dealGraphDeclarationInstructions = """
-        Build the declaration graph for one arbitrary small DEAL application by calling create_deal_program exactly
-        once. This is the first checked program transaction, not a layout plan, app-family template or separate
-        artifact. Declare only nominal state/value types, external input actions, required reusable capabilities and
-        pure helper function signatures. The compiler will create stable typed function holes from these declarations.
+        Submit one complete arbitrary small DEAL application by calling submit_deal_program exactly once. This is a
+        checked program transaction, not a layout plan, app-family template or separate artifact. The call contains
+        nominal state/value types, external input actions, required reusable capabilities, pure helper signatures and
+        one body fill for every deterministic typed function hole. The compiler derives the holes from the same call,
+        validates every body independently and commits only valid regions.
 
         Use the compact compiler signature syntax exactly:
         - type_signatures: ["Item{id:int,label:string}", "AppState{items:Item[],title:string}"]
         - action_signatures: ["SelectAction{id:int}"]
+        - empty actions use the shorter form "ResetAction" without braces
         - helper_signatures: ["findLabel(items:Item[],id:int):string"]
         Valid field types are boolean, int, number, string, a declared nominal type, or one-dimensional arrays using
         the [] suffix. Do not use JSON Schema words such as array, object, integer, properties or items as field types.
+        The compiler infers the root state as the state type not referenced by another state type; do not choose or
+        submit a separate root-state name.
 
         Every action name ends with Action. Action fields are external user or host inputs, never values derivable
         from state. Every record stored in an array has a stable int or string id. The root state is also the complete
@@ -791,21 +829,48 @@ internal object CanonicalGenerationPrompts {
         Helpers may compute behavior internally, but must not be the only way to obtain any UI-visible value. Helpers
         must be generic functions required by the requested behavior; do not encode a layout or duplicate an update
         action as a helper. Request only capabilities actually needed. The portable host ABI is integer based:
-        clock.frame supplies delta
-        milliseconds as int; pointer supplies x, y and phase as int; Canvas geometry is int. When requesting either
+        clock.frame supplies delta milliseconds as int; pointer supplies x, y and phase as int; Canvas geometry is int. When requesting either
         clock.frame or pointer, declare those action fields and all scene coordinates, dimensions, velocities and
         collision values as int. Use fixed-point int units if fractional precision is required; do not mix number and
-        int in one real-time state graph. Keep the graph compact enough that all function bodies can be filled in the
-        next checked patch. Do not emit source, Markdown, prose, a serialized AST or any second tool call.
+        int in one real-time state graph.
+
+        Include exactly one fill for every derived hole id:
+        - initialState
+        - helper:<helperName> for every helper signature
+        - update:on<ActionStem> for every Action type, where ActionStem removes the Action suffix
+        A fill contains only statements inside its function body, never a signature, outer braces, exports, classes,
+        functions, imports, Markdown or prose. All bodies are submitted in this one coarse-grained compiler call.
+
+        Each body returns its declared type on every path. initialState contains all concrete initial data requested by
+        the user. Updates receive immutable state and action parameters and return a complete new root-state value.
+        Rebuild changed arrays in mutable local arrays; unchanged records may be copied. Keep every presentation-ready
+        derived root field consistent in initialState and every update path. Implement behavior in DEAL, not Deal UI.
+
+        Canonical portable DEAL body syntax:
+        - Local: let total: int = 0; Use let, never const or var. Every statement ends with a semicolon.
+        - Conditions: if (condition) { ... } else { ... }
+        - Loops: while (...), C-style for, or for (let item: Item of items).
+        - Arrays use zero-based indexing and values.length. Append with result[result.length] = value.
+        - Operators: !, -, **, *, /, %, +, -, <, <=, >, >=, ===, !==, &&, ||.
+        - Object literals are context-typed by the function return or local declaration.
+        - State and action objects are immutable. Do not assign through state.* or action.*.
+        - Do not use new, nullable values, postfix !, interfaces, arrow functions, ternaries, ++, --, compound
+          assignment, switch, any, typeof, map/filter/reduce, JavaScript namespaces or methods, lambdas, async or
+          try/catch.
+        - Call only declared helpers and platformIntText, platformNumberText, platformPad2, platformMinInt,
+          platformMaxInt, platformAbsInt and platformClampInt. String concatenation accepts strings only.
+
+        Keep visible strings English. Keep the complete transaction compact. Do not emit source, a serialized AST,
+        Markdown, prose or a second tool call.
     """.trimIndent()
 
     val dealGraphPatchInstructions = """
-        Modify the compiler-owned DEAL program graph by calling apply_deal_graph_patch exactly once. Fill as many of
-        the listed independent typed holes as possible in one checked transaction. Each fill contains only the
+        Repair the compiler-owned DEAL program by calling repair_deal_batch exactly once. Fill every listed unresolved
+        typed hole in one checked transaction. Each fill contains only the
         statements inside that function body: never include the signature, outer braces, exports, classes, functions,
         imports, Markdown or prose. Use the exact base_hash and hole_id values supplied by the compiler. Previously
-        accepted holes are immutable. On a repair round, replace only unresolved holes and address the exact compiler
-        diagnostic; never regenerate declarations or accepted bodies.
+        accepted holes are immutable and are intentionally absent from the repair input. Address every exact compiler
+        diagnostic without regenerating declarations or accepted bodies. Never repeat a previously rejected body.
 
         Each body must return its declared type on every path. initialState must contain all concrete initial data
         requested by the user. Update functions receive immutable state and action parameters and return a complete
@@ -837,18 +902,32 @@ internal object CanonicalGenerationPrompts {
     """.trimIndent()
 
     val dealUiGraphInstructions = """
-        Build the compiler-owned typed root view as 2-6 cohesive top-level sections. Call append_deal_ui_section once
-        per section, preferably batching all calls in this single response so rendering can begin before the response
-        finishes. Every call uses the exact supplied base_hash. Give each section a stable lowercase identifier such
-        as header, summary, content, controls or navigation. Set is_final=false until the last necessary section and
-        is_final=true only on the final call. The body contains only that section's top-level nodes: never include
+        Build the compiler-owned typed root view as 2-6 cohesive top-level sections. On the initial round, call
+        submit_deal_ui_sections exactly once with every section in its sections array. On a repair round, call it once
+        with only the compiler-requested rejected section. The call uses the exact supplied base_hash. Give each
+        section a stable lowercase identifier such as header, summary, content, controls or navigation. Set
+        is_final=false until the last necessary section and is_final=true only on the final array element. The body
+        contains only that section's top-level nodes: never include
         ui.Root, imports, @ui-root, the view signature, outer braces, Markdown or prose. The compiler wraps accepted
         sections in one adaptive ui.Root and production-checks the cumulative app before exposing it.
+
+        On the initial call, select one compact app-owned theme in the required theme object. Choose two distinct
+        six-digit hex seed colours that fit the requested product and remain distinguishable; the native renderer
+        derives accessible roles and semantic success, warning and error colours. Choose style, shape, density and
+        surface deliberately from the schema. The compiler emits exactly one checked ui.AppTheme wrapper, so never
+        repeat theme values in section bodies and never add AppTheme yourself. The theme belongs to the generated
+        application, not the Studio shell, and must work for arbitrary application domains without named presets.
 
         Deal UI is pure: use component calls, typed expressions, When and canonical
         ForEach(source, item: Type, key: item.id). Bind every interaction to a nominal app action. Use FrameClock,
         MinuteClock and PointerSurface only for declared capabilities. PointerSurface coordinateWidth and
         coordinateHeight must match its Canvas logical dimensions, so the same app adapts to every screen size.
+        The final batch must make every update action exported by verified app.deal reachable from exactly the
+        appropriate interaction or host bridge. A declared clock.minute capability requires one MinuteClock wired to
+        its time action; clock.frame requires one FrameClock; pointer requires one PointerSurface. If the compiler
+        reports an unreachable action, add its real binding to the rejected final section instead of resubmitting the
+        same visual body. MinuteClock payload is epoch minutes and may be split with integer / and % when the action
+        carries separate day and minute fields.
         Pointer phase is 0 for down, 1 for move and 2 for up; ordinary taps do not emit a move event.
         Produce an adaptive, polished Material hierarchy that looks like a native product, not a technical demo.
         Prefer semantic pack components such as TopBar, Section, Stat, IntStat, ListItem, Badge, ProgressBar, Stepper,
@@ -864,6 +943,14 @@ internal object CanonicalGenerationPrompts {
         whole application one colour. Use Image only for an authoritative HTTPS URL already present in the request or
         state; never invent a remote URL. Utility apps should use native components rather than Canvas. Games and
         genuinely spatial visualizations may use one responsive Canvas inside PointerSurface.
+
+        When the application has useful glanceable state or a safe primary action, add one compact ui.Widget subtree
+        as a sibling top-level node. It is a second projection of the same read-only state and the same nominal DEAL
+        actions, not a second application and not duplicated business logic. Keep it concise: one title/metric or
+        progress indicator, at most three supporting rows and at most two actions. Use only Column, Row, Stack, Grid,
+        Card, Section, Text, IntText, Icon, IconButton, Button, ProgressBar, ProgressRing, Spacer, Badge, Stat,
+        IntStat, ListItem, Checkbox, Toggle and Divider inside Widget. The Android host adapts this projection to the
+        actual widget size. If omitted, the host derives a backwards-compatible compact projection from the app.
 
         Deal UI expressions support only literals, field
         paths, !, -, arithmetic/comparison/boolean binary operators and action constructors. They do not support
@@ -907,7 +994,8 @@ internal object CanonicalGenerationPrompts {
             }
           }
         }
-        Use only components and tokens in the supplied pack. If previous sections were accepted, do not repeat or
+        Use only components and tokens in the supplied pack. The compiler owns both ui.AppTheme and ui.Root; section
+        bodies must contain neither component. If previous sections were accepted, do not repeat or
         replace them; append only the remaining visual regions. If a section was rejected, correct its compiler
         diagnostic while preserving accepted structure. The compiler-owned root boundary cannot be changed.
     """.trimIndent()
@@ -925,7 +1013,7 @@ internal object CanonicalGenerationPrompts {
         appendLine("Accepted graph patches: ${snapshot.acceptedPatches}")
         appendLine("Compiler-created typed holes: ${snapshot.typedHoles}")
         if (snapshot.pendingHoles.isEmpty()) {
-            appendLine("No function holes exist yet. Declare the program graph now.")
+            appendLine("No graph exists yet. Submit declarations and all deterministic body fills now.")
         } else {
             appendLine("Unresolved typed function holes:")
             snapshot.pendingHoles.forEach { hole ->
@@ -939,8 +1027,8 @@ internal object CanonicalGenerationPrompts {
         }
         if (snapshot.graphHash != "uninitialized") {
             appendLine()
-            appendLine("Read-only canonical projection. compiler-hole bodies are valid placeholders, not behavior:")
-            append(snapshot.partialDeal)
+            appendLine("Compact immutable declaration context. Accepted bodies are intentionally omitted:")
+            append(snapshot.repairContext)
         }
     }
 

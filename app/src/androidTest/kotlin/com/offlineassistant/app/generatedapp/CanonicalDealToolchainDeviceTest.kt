@@ -43,6 +43,7 @@ class CanonicalDealToolchainDeviceTest {
         val checkedIr = toolchain.compilePortable(PRODUCT_SOURCE, PRODUCT_UI, CanonicalDealUiPack.source)
 
         listOf(
+            "AppTheme",
             "Section",
             "Grid",
             "Stat",
@@ -64,6 +65,8 @@ class CanonicalDealToolchainDeviceTest {
             "AnimatedVisibility"
         )
             .forEach { component -> assertTrue(component, checkedIr.contains(component)) }
+        val root = CanonicalDealUiParser.parse(checkedIr).nodes.single() as CanonicalUiNode.Call
+        assertEquals("AppTheme", root.name.substringAfterLast('.'))
     }
 
     @Test
@@ -110,6 +113,59 @@ class CanonicalDealToolchainDeviceTest {
         assertEquals(record.id, restored.record.id)
         assertEquals(toolchain.createRuntime(POINTER_SOURCE).snapshot(), restored.initialState)
         assertEquals("PointerState", restored.program.rootStateType)
+        directory.deleteRecursively()
+    }
+
+    @Test
+    fun sourceBoundStateRestoresAcrossIndependentRuntimeHosts() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val directory = java.io.File(context.cacheDir, "canonical-state-${System.nanoTime()}")
+        val library = CanonicalGeneratedAppLibrary(directory, useDirectDirectory = true)
+        val checkedIr = toolchain.compilePortable(POINTER_SOURCE, POINTER_UI, CanonicalDealUiPack.source)
+        val record = library.save(
+            CanonicalGeneratedAppBundle(
+                request = "Pointer state",
+                appInterface = toolchain.extractAppInterface(POINTER_SOURCE),
+                dealGraphLog = "accepted",
+                dealUiGraphLog = "accepted",
+                dealSource = POINTER_SOURCE,
+                dealUiSource = POINTER_UI,
+                checkedUiIr = checkedIr,
+                dealLatencyMs = 1,
+                dealUiLatencyMs = 1,
+                wallLatencyMs = 2,
+                dealTimeToFirstPatchMs = 1,
+                dealUiTimeToFirstTokenMs = 1,
+                validationLatencyMs = 0,
+                repairLatencyMs = 0,
+                repairPasses = 0,
+                dealGraphRounds = 1,
+                dealUiGraphRounds = 1,
+                dealAcceptedPatches = 1,
+                dealRejectedPatches = 0,
+                dealTypedHoles = 0,
+                dealInputTokens = 0,
+                dealCachedInputTokens = 0,
+                dealOutputTokens = 0
+            ),
+            title = "Pointer state",
+            uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
+            logicBackend = GeneratedModelBackend.DEEPSEEK_FLASH
+        )
+        val store = CanonicalGeneratedAppStateStore(directory, useDirectDirectory = true)
+        val firstRuntime = toolchain.createRuntime(POINTER_SOURCE)
+        val moved = firstRuntime.dispatch(
+            "onPointer",
+            "PointerAction",
+            mapOf("x" to 91, "y" to 42, "phase" to 2)
+        )
+        store.save(record, moved)
+
+        val restored = store.restore(record, toolchain.createRuntime(POINTER_SOURCE))
+
+        assertEquals(91, restored.getValue("x").toString().toInt())
+        assertEquals(42, restored.getValue("y").toString().toInt())
         directory.deleteRecursively()
     }
 
@@ -246,7 +302,15 @@ class CanonicalDealToolchainDeviceTest {
 
             // @ui-root
             export view App(state: app.AppState): View {
-              ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+              ui.AppTheme(
+                primary: "#7C3AED",
+                secondary: "#0F766E",
+                style: "expressive",
+                shape: "rounded",
+                density: "comfortable",
+                surface: "tonal"
+              ) {
+                ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
                 ui.TopBar(title: state.title, subtitle: state.subtitle, leadingIcon: "home") {
                   ui.IconButton(icon: "settings", onClick: action app.TapAction {}, accessibilityLabel: "Settings")
                 }
@@ -306,6 +370,7 @@ class CanonicalDealToolchainDeviceTest {
                     onDismiss: action app.TapAction {},
                     accessibilityLabel: "Saved"
                   )
+                }
                 }
               }
             }

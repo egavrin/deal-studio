@@ -116,6 +116,49 @@ In one separate score-keeper run, direct generation regenerated the complete sou
 
 This is enough to reject whole-file regeneration as the default repair strategy. It is not enough to prove that the current hole protocol is optimal; compact direct patches performed much better.
 
+## Coarse transaction experiment
+
+The recommended protocol was implemented after the baseline was frozen at tag
+`pre-latency-protocol-experiment-2026-09-04`:
+
+- `submit_deal_program` now carries declarations and every deterministic DEAL body in one tool call;
+- the compiler infers the root state from nominal type references instead of asking the model to repeat its name;
+- empty actions accept a compact name-only signature;
+- `repair_deal_batch` exposes only unresolved holes and compact immutable declaration context;
+- `submit_deal_ui_sections` carries two to six UI sections in one tool call;
+- valid UI siblings behind a rejected section are deferred and revalidated locally after repair;
+- Flash has one focused repair and one Pro escalation; Pro has one repair;
+- a byte-identical rejected candidate stops the loop.
+
+Two early paired score-keeper runs on the same Pixel 10 are not a release benchmark, but they show
+the intended mechanical effect:
+
+| Run | Compiler wall / rounds | Compiler input / output | Direct + patch wall / attempts | Direct input / output |
+|---|---:|---:|---:|---:|
+| 1 | 6.399 s / 1 | 1,781 / 1,064 | 8.956 s / 2 | 2,334 / 1,944 |
+| 2 | 5.787 s / 1 | 1,790 / 1,112 | 12.029 s / 2 | 2,399 / 2,039 |
+| Median | **6.093 s / 1** | **1,786 / 1,088** | **10.493 s / 2** | **2,367 / 1,992** |
+
+Relative to the six-run pre-change compiler median, early compiler wall time fell from 12.468 s to
+6.093 s and gross input fell from 3,189 to 1,786 tokens. Both new compiler runs were valid in the
+initial transaction; both direct runs required a repair. This result must still be repeated over the
+full held-out matrix before treating the percentages as stable.
+
+The larger live paths provide two additional observations:
+
+- Medication completed in 32.354 s after the DEAL transaction change, versus the previous 64.175 s
+  trace. DEAL took 21.949 s in two rounds and Deal UI took 10.097 s in two rounds.
+- Arkanoid completed production compilation plus pointer/frame runtime acceptance in 23.736 s after
+  both coarse transactions. DEAL took 19.084 s in two rounds; the complete Deal UI batch took one
+  4.301 s round.
+
+A later medication sample correctly stopped after Flash and Pro repeated an identical UI repair: the
+generated UI omitted the required `MinuteClock`, leaving `TickAction` unreachable. This is evidence
+that the retry ceiling works, not that generation reliability is complete. Action/capability
+reachability is now an explicit general UI-generation rule and remains part of the full matrix gate.
+After that rule was added, the next medication run passed in one DEAL transaction and one Deal UI
+transaction: 28.323 s DEAL, 10.288 s Deal UI and 38.885 s wall time.
+
 ## Conclusion
 
 The compiler is useful and should remain the authority for syntax, types, AppInterface compatibility, and runtime admission. It demonstrably prevents invalid candidates from becoming runnable applications and can preserve valid independent work.

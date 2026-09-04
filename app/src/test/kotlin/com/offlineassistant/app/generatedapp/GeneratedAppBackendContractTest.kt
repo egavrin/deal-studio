@@ -65,6 +65,7 @@ class GeneratedAppBackendContractTest {
     @Test
     fun `cloud backends are independently selectable for UI and logic`() {
         val state = GeneratedAppStudioState(
+            prompt = "Build an interactive app",
             uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
             logicBackend = GeneratedModelBackend.DEEPSEEK_PRO,
             cloudKeyConfigured = true,

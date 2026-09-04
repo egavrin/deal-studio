@@ -51,23 +51,26 @@ transport representation without eliminating the need for compiler and functiona
 
 ## Graph Contract
 
-`create_deal_program` is one checked declaration transaction containing:
+`submit_deal_program` is one coarse checked transaction containing:
 
-- root state and nominal state/value types;
+- nominal state/value types, from which the compiler infers the unique root state;
 - external input action types;
 - pure helper function signatures;
-- reusable capability requirements.
+- reusable capability requirements;
+- one compact body fill for every deterministic typed hole derived from those declarations.
 
 These declarations are program structure, not a planner result, UI layout, runtime manifest or
 application-family blueprint. The compiler creates stable holes for `initialState`, every helper and
 every `@ui-update` handler. Unresolved holes project as type-correct compiler stubs so the partial
 graph remains checkable; a graph containing stubs is never runnable or installable.
 
-`apply_deal_graph_patch` contains an exact `base_hash` and one or more `{hole_id, body}` fills. Bodies
-are compact DEAL statements without signatures or outer braces. Each body is projected into the
-complete module and passed through the pinned production DEAL parser, type checker and exported
-interface identity check before commit. Invalid fills stay unresolved; independently valid fills in
-the same batch remain committed. Accepted fills cannot be rewritten during the generation run.
+If the initial transaction leaves rejected holes, `repair_deal_batch` contains an exact `base_hash`
+and only the unresolved `{hole_id, body}` fills. Bodies are compact DEAL statements without
+signatures or outer braces. Each body is projected into the complete module and passed through the
+pinned production DEAL parser, type checker and exported interface identity check before commit.
+Invalid fills stay unresolved; independently valid fills in the same batch remain committed.
+Accepted declarations and fills cannot be rewritten during the generation run and are omitted from
+repair context.
 
 Graph operations and holes are generic. No compiler branch, helper, profile or prompt route may name
 or recognize tic-tac-toe, trackers, medication, exam preparation, Pong, Arkanoid or another concrete
@@ -95,12 +98,14 @@ state. Helper calls are implementation details and are never the only route to v
 
 ## Deal UI Section Protocol
 
-DeepSeek appends two to six cohesive top-level sections to a compiler-owned Root. Each cumulative
-projection is checked before it becomes visible. Accepted section ids are immutable. If a section is
-rejected, its id becomes the only schema-allowed target for the next compiler call; the model cannot
-skip it or consume the retry budget by repeating an already accepted header. Partial projection uses
-an ephemeral DEAL view containing only currently reachable UI update actions. Final projection is
-always checked against the complete authoritative DEAL source.
+DeepSeek submits two to six cohesive top-level sections in one `submit_deal_ui_sections` call to a
+compiler-owned Root. Each section and cumulative projection is checked before it becomes visible.
+Accepted section ids are immutable. If a section is rejected, valid later siblings are retained as
+compiler-owned deferred candidates and are rechecked automatically after the dependency is repaired.
+The rejected id becomes the only schema-allowed target for the next model call; the model cannot skip
+it or spend tokens repeating an accepted header. Partial projection uses an ephemeral DEAL view
+containing only currently reachable UI update actions. Final projection is always checked against the
+complete authoritative DEAL source.
 
 The versioned component pack v7 supplies semantic controls, typed text and time-of-day input, integer metrics, charts,
 overlays, images, icons, Canvas
@@ -121,24 +126,27 @@ semantic unit in a new revision; it is not part of the transport-level graph con
 
 A normal cloud generation should use:
 
-1. one declaration call;
-2. one batched DEAL body-fill call;
-3. one Deal UI call;
-4. zero repair calls.
+1. one complete `submit_deal_program` call;
+2. one complete `submit_deal_ui_sections` call;
+3. zero repair calls.
 
-Eight DEAL graph rounds are a hard failure ceiling, not an expected path. Metrics must record graph
-rounds, accepted and rejected fills, typed-hole count, input/cached/output tokens, first compiler
-patch latency, local compiler time, Deal UI TTFT and wall time. A run that repeatedly accepts one
-hole per request is a protocol regression even if it eventually succeeds.
+Flash generation permits one focused Flash repair and one final Pro escalation. Pro generation
+permits one focused repair. Repeating a byte-identical rejected candidate ends the loop immediately.
+Metrics must record graph rounds, model used per round, accepted and rejected fills, typed-hole count,
+input/cached/output tokens, first compiler patch latency, local compiler time, Deal UI TTFT and wall
+time. A run that repeatedly accepts one hole or section per request is a protocol regression even if
+it eventually succeeds.
 
 ## Current Implementation
 
-- `CanonicalDealProgramGraphCompiler` owns declarations, graph hashes, typed holes and checked fills.
+- `CanonicalDealProgramGraphCompiler` owns declarations, root inference, graph hashes, typed holes
+  and checked batch fills.
 - `CanonicalGeneratedAppCloudCompiler` generates DEAL first and Deal UI second.
 - Every graph fill is checked with the embedded production toolchain before commit.
 - The final DEAL hand-off repeats the production check and verifies that the exported interface is
   identical to the accepted declaration graph.
-- Deal UI uses checked progressive sections with mandatory section-local repair.
+- Deal UI uses checked coarse section batches, deferred valid siblings and mandatory section-local
+  repair.
 - The former constructor-per-node and JSON-HIR implementations have been removed from production.
 
 ## Live Result

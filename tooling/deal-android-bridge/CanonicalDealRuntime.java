@@ -20,6 +20,7 @@ final class CanonicalDealRuntime {
 
     private final Map<String, ClassDeclaration> classes = new LinkedHashMap<>();
     private final Map<String, FunctionDeclaration> functions = new LinkedHashMap<>();
+    private final TypeNode stateType;
     private Map<String, Object> state;
     private int steps;
     private int callDepth;
@@ -32,6 +33,7 @@ final class CanonicalDealRuntime {
         ParseResult parsed = new Parser(lexed.tokens(), "/generated/app.deal").parse();
         for (StatementNode statement : parsed.program().statements()) register(statement);
         rejectUnsupportedProgram(parsed.program());
+        stateType = functions.get("initialState").returnType();
         Object initial = call("initialState", List.of());
         if (!(initial instanceof Map<?, ?> value)) {
             throw new IllegalArgumentException("initialState() must return an application state object");
@@ -41,6 +43,16 @@ final class CanonicalDealRuntime {
 
     String snapshotJson() {
         return json(state);
+    }
+
+    String restore(Map<String, Object> persistedState) {
+        steps = 0;
+        Object restored = materialize(persistedState, stateType);
+        if (!(restored instanceof Map<?, ?> value)) {
+            throw new IllegalArgumentException("Persisted Deal state must be an application state object");
+        }
+        state = object(value);
+        return snapshotJson();
     }
 
     String dispatch(String handler, String actionType, String[] names, Object[] values) {
