@@ -233,7 +233,7 @@ internal class CanonicalDealToolchain(
         const val ARTIFACT_SHA256 = "bdc2bd3cad6bb57e3278d2df74371482bbb28178abe430c4412cf880fb2dbc9f"
         const val DEAL_REVISION = "b436bdadb1372dd890331b5922c33d0715195eaf"
         const val DEAL_UI_REVISION = "4ca8671256015dde247328c6db13c48ed2264074"
-        const val STREAMING_COMPILER_REVISION = "e2851a4021efdcc60347bd00cfa52dacbca2e224"
+        const val STREAMING_COMPILER_REVISION = "2cd6d5b6f3a084c5d1c8d8d9d1caef1c8de0cf03"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
