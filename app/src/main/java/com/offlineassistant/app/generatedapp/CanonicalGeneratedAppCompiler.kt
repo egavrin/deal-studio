@@ -14,6 +14,16 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
+private val CAPABILITY_COMPONENTS = mapOf(
+    "MinuteClock" to "clock.minute",
+    "FrameClock" to "clock.frame",
+    "PointerSurface" to "pointer"
+)
+
+internal fun requiredDealUiHostComponents(capabilities: Collection<String>): Set<String> = CAPABILITY_COMPONENTS
+    .filterValues(capabilities::contains)
+    .keys
+
 internal data class CanonicalGeneratedAppBundle(
     val request: String,
     val appInterface: String,
@@ -168,9 +178,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
         var rounds = 0
         val rejectedCandidateGuard = RejectedCandidateGuard()
         val roundTrace = mutableListOf<String>()
-        val maxRounds = CanonicalGenerationRepairPolicy.maxRounds(model)
+        var roundBudget = CanonicalGenerationRepairPolicy.maxRounds(model)
 
-        while (!compiler.isComplete && rounds < maxRounds) {
+        while (!compiler.isComplete && rounds < roundBudget) {
             val snapshot = compiler.snapshot()
             val declarationsPending = snapshot.graphHash == "uninitialized"
             val roundModel = CanonicalGenerationRepairPolicy.modelForRound(model, rounds)
@@ -208,11 +218,17 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 onCall = ::applyPatch
             )
             rounds++
+            roundBudget = CanonicalGenerationRepairPolicy.extendAfterProgress(
+                currentBudget = roundBudget,
+                completedRounds = rounds,
+                acceptedChanges = acceptedThisRound
+            )
             roundTrace += "ROUND\tdeal\t$rounds\tmodel=${roundModel.apiId}\thash=${snapshot.graphHash.take(12)}\t" +
                 "pending=${snapshot.pendingHoles.size}\taccepted=$acceptedThisRound\t" +
                 "rejected=$rejectedThisRound\tlatency_ms=${result.latencyMs}\t" +
                 "ttfc_ms=${result.timeToFirstCallMs ?: -1}\tinput=${result.inputTokens ?: 0}\t" +
-                "cached=${result.cachedInputTokens ?: 0}\toutput=${result.outputTokens ?: 0}"
+                "cached=${result.cachedInputTokens ?: 0}\toutput=${result.outputTokens ?: 0}\t" +
+                "transport_attempts=${result.transportAttempts}"
             totalLatencyMs += result.latencyMs
             if (firstPatchMs == null) firstPatchMs = result.timeToFirstCallMs
             inputTokens += result.inputTokens ?: 0
@@ -264,7 +280,11 @@ internal class CanonicalGeneratedAppCloudCompiler(
         onProgress: (CanonicalGenerationPhase, String) -> Unit,
         onUiPreview: (CanonicalDealUiPreview) -> Unit
     ): UiGraphGeneration {
-        val compiler = CanonicalDealUiGraphCompiler(appInterface.rootState) { source, finalProjection ->
+        val compiler = CanonicalDealUiGraphCompiler(
+            rootState = appInterface.rootState,
+            requiredActions = appInterface.actions.map(AppInterfaceType::name).toSet(),
+            requiredCapabilityComponents = requiredDealUiHostComponents(appInterface.capabilities)
+        ) { source, finalProjection ->
             portableDealUiDiagnostic(source, appInterface.capabilities)?.let {
                 throw IllegalArgumentException(it)
             }
@@ -285,9 +305,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
         var outputTokens = 0
         val rejectedCandidateGuard = RejectedCandidateGuard()
         val roundTrace = mutableListOf<String>()
-        val maxRounds = CanonicalGenerationRepairPolicy.maxRounds(model)
+        var roundBudget = CanonicalGenerationRepairPolicy.maxRounds(model)
 
-        while (!compiler.isComplete && rounds < maxRounds) {
+        while (!compiler.isComplete && rounds < roundBudget) {
             val snapshot = compiler.snapshot()
             val roundModel = CanonicalGenerationRepairPolicy.modelForRound(model, rounds)
             var accepted = 0
@@ -330,10 +350,16 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 }
             )
             rounds++
+            roundBudget = CanonicalGenerationRepairPolicy.extendAfterProgress(
+                currentBudget = roundBudget,
+                completedRounds = rounds,
+                acceptedChanges = accepted
+            )
             roundTrace += "ROUND\tdeal_ui\t$rounds\tmodel=${roundModel.apiId}\taccepted=$accepted\t" +
                 "rejected=${compiler.rejectedPatches}\tlatency_ms=${result.latencyMs}\t" +
                 "ttfc_ms=${result.timeToFirstCallMs ?: -1}\tinput=${result.inputTokens ?: 0}\t" +
-                "cached=${result.cachedInputTokens ?: 0}\toutput=${result.outputTokens ?: 0}"
+                "cached=${result.cachedInputTokens ?: 0}\toutput=${result.outputTokens ?: 0}\t" +
+                "transport_attempts=${result.transportAttempts}"
             latencyMs += result.latencyMs
             if (firstPatchMs == null) firstPatchMs = result.timeToFirstCallMs
             inputTokens += result.inputTokens ?: 0
@@ -347,7 +373,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 diagnostic = "$diagnostic\nThe previous repair repeated a byte-identical rejected section. " +
                     "Do not return the identical body again."
             }
-            if (!compiler.isComplete && rounds < maxRounds) {
+            if (!compiler.isComplete && rounds < roundBudget) {
                 onProgress(CanonicalGenerationPhase.REPAIRING, "Correcting the rejected Deal UI section")
             }
         }
@@ -488,17 +514,13 @@ internal class CanonicalGeneratedAppCloudCompiler(
         )
         val PORTABLE_DEAL_UI_RULES = listOf(
             Regex(":\\s*When\\s*\\(") to "When is structural, not an expression; use sibling When/Else branches",
-            Regex("\\[[^]\\n]+]") to "array indexing is unsupported; use ForEach",
+            Regex("\\[[^]\\n]+]") to
+                "array literals and indexing are unsupported; use an existing state array with ForEach, or compose scalar child items",
             Regex("\\.length\\b") to "array length is unsupported; expose a state field",
             Regex("(?<![=!])==(?!=)|!=(?!=)") to "use === and !==",
             Regex("\\?[^:\\n]+:") to "ternary expressions are unsupported; use When/Else",
             Regex("\\.(?:substring|toString|indexOf|map|filter|reduce)\\s*\\(") to
                 "method calls are unsupported; use fields, structural nodes or precomputed DEAL state"
-        )
-        val CAPABILITY_COMPONENTS = mapOf(
-            "MinuteClock" to "clock.minute",
-            "FrameClock" to "clock.frame",
-            "PointerSurface" to "pointer"
         )
     }
 }
@@ -932,7 +954,10 @@ internal object CanonicalGenerationPrompts {
         Produce an adaptive, polished Material hierarchy that looks like a native product, not a technical demo.
         Prefer semantic pack components such as TopBar, Section, Stat, IntStat, ListItem, Badge, ProgressBar, Stepper,
         TimeField, Tabs,
-        NavigationBar, BarChart, Sparkline and EmptyState over manually rebuilding them from nested Text nodes. Use
+        NavigationBar, NavigationItem, BarChart, Sparkline and EmptyState over manually rebuilding them from nested
+        Text nodes. For presentation-owned navigation with scalar state fields or distinct nominal actions, compose
+        one NavigationItem child per destination inside NavigationBar. Use NavigationBar's labels/icons/onSelect
+        array form only when app.deal already exposes both arrays and the action accepts the selected int payload. Use
         spacing and padding tokens consistently. Keep the primary flow single-column on compact screens. For
         naturally repeated metrics, dashboard regions or calendar cells use Grid with columns as the maximum and
         minimumCellWidth in dp for adaptive breakpoints, for example
@@ -955,7 +980,8 @@ internal object CanonicalGenerationPrompts {
         Deal UI expressions support only literals, field
         paths, !, -, arithmetic/comparison/boolean binary operators and action constructors. They do not support
         inline array/object literals, array indexing, length, ternary operators, methods, function calls or indexOf.
-        Pass arrays such as chart series, tab labels and navigation icons through typed state fields. Use ForEach for arrays,
+        Pass data arrays such as chart series and dynamic choices through typed state fields. Static, presentation-owned
+        navigation destinations use NavigationItem children rather than inline label/icon arrays. Use ForEach for arrays,
         and treat each ForEach item as a complete read-only row model. Never use an id as an array position or join two
         state collections; render the item's denormalized title/name/label and supporting fields directly. Use
         structural `When(condition) { ... } Else { ... }` blocks for alternatives, never `When(...)` as a prop
@@ -1044,6 +1070,8 @@ internal object CanonicalGenerationPrompts {
         Exact compiler graph hash: ${snapshot.graphHash}
         Accepted interface sections: ${snapshot.acceptedSectionIds.ifEmpty { listOf("none") }.joinToString()}
         Section that must be repaired before any new section: ${snapshot.pendingRepairSectionId ?: "none"}
+        Required action bindings still absent from the cumulative UI: ${snapshot.pendingActionNames.ifEmpty { listOf("none") }.joinToString()}
+        Required host components still absent from the cumulative UI: ${snapshot.pendingCapabilityComponents.ifEmpty { listOf("none") }.joinToString()}
 
         $contract
 
@@ -1056,6 +1084,9 @@ internal object CanonicalGenerationPrompts {
         never invent a similarly named string field.
         When repairing an array-length diagnostic and no explicit count/empty field exists in app.deal, remove the
         conditional EmptyState branch and retain the ForEach alone. Never repeat `.length` in a repaired section.
+        When repairing an inline-array diagnostic in navigation and app.deal has no matching label/icon arrays, replace
+        the array-form NavigationBar with NavigationItem children. Bind each child to its own literal or scalar label,
+        icon, selected expression and nominal action; do not make every destination dispatch the same action fields.
 
         Exact available component pack (${CanonicalDealUiPack.VERSION}):
         ${CanonicalDealUiPack.source}

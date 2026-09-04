@@ -212,4 +212,39 @@ class DeepSeekGenerationClientTest {
         assertEquals("call_2", done.functionCallDone?.callId)
         assertEquals("{}", done.functionCallDone?.arguments)
     }
+
+    @Test
+    fun `completed function arguments override streamed deltas`() {
+        val streamed = """{"value":"truncated""""
+        val completed = """{"value":"complete"}"""
+
+        assertEquals(completed, mergeFunctionCallArguments(streamed, completed))
+    }
+
+    @Test
+    fun `streamed function arguments remain available without completed payload`() {
+        val streamed = """{"value":"complete"}"""
+
+        assertEquals(streamed, mergeFunctionCallArguments(streamed, null))
+    }
+
+    @Test
+    fun `empty compiler call response is a transport failure`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+
+        assertEquals(
+            "response contained no compiler function call",
+            client.invalidToolArguments(emptyList())
+        )
+    }
+
+    @Test
+    fun `malformed compiler arguments are rejected before compiler dispatch`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val malformed = DeepSeekFunctionCall("call-1", "submit_deal_program", "{\"types\":[}")
+        val valid = malformed.copy(arguments = "{\"types\":[]}")
+
+        assertTrue(client.invalidToolArguments(listOf(malformed)).orEmpty().contains("submit_deal_program"))
+        assertEquals(null, client.invalidToolArguments(listOf(valid)))
+    }
 }

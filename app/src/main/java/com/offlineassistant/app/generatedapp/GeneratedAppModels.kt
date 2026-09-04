@@ -205,6 +205,13 @@ internal data class GeneratedAppStudioState(
             gemma.phase in setOf(ModelPhase.READY, ModelPhase.COMPLETE) &&
             deal.phase in setOf(ModelPhase.READY, ModelPhase.COMPLETE)
 
+    val canGenerateSurprise: Boolean
+        get() = cloudKeyConfigured &&
+            !uiBackend.isLocal &&
+            !logicBackend.isLocal &&
+            gemma.phase in setOf(ModelPhase.READY, ModelPhase.COMPLETE) &&
+            deal.phase in setOf(ModelPhase.READY, ModelPhase.COMPLETE)
+
     val isBusy: Boolean
         get() = gemma.phase in setOf(ModelPhase.LOADING, ModelPhase.GENERATING) ||
             deal.phase in setOf(ModelPhase.LOADING, ModelPhase.QUEUED, ModelPhase.GENERATING)

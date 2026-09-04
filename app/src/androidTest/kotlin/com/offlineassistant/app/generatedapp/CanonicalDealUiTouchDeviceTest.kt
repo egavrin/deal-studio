@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -57,6 +59,39 @@ class CanonicalDealUiTouchDeviceTest {
         assertTrue(state.value.getValue("y").toString().toInt() in 1..399)
     }
 
+    @Test
+    fun compositionalNavigationDispatchesEachItemsOwnAction() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val checkedIr = toolchain.compilePortable(NAVIGATION_DEAL, NAVIGATION_DEAL_UI, CanonicalDealUiPack.source)
+        val program = CanonicalDealUiParser.parse(checkedIr)
+        val runtime = toolchain.createRuntime(NAVIGATION_DEAL)
+        val state = mutableStateOf(runtime.snapshot())
+
+        composeRule.setContent {
+            MaterialTheme {
+                CanonicalDealUiRenderer(
+                    program = program,
+                    state = state.value,
+                    onAction = { action ->
+                        state.value = runtime.dispatch(
+                            handler = requireNotNull(program.updates[action.type]),
+                            actionType = action.type,
+                            fields = action.fields
+                        )
+                    }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("History", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            state.value.getValue("route").toString().trim('"') == "history"
+        }
+
+        assertEquals("history", state.value.getValue("route").toString().trim('"'))
+    }
+
     private companion object {
         const val DEAL = """
             // generated-capability: pointer
@@ -96,6 +131,50 @@ class CanonicalDealUiTouchDeviceTest {
                 accessibilityLabel: "Test pointer"
               ) {
                 ui.Canvas(width: 400, height: 400, accessibilityLabel: "Test canvas") {}
+              }
+            }
+        """
+
+        const val NAVIGATION_DEAL = """
+            export class AppState {
+              route: string = "today";
+            }
+
+            export class SelectRouteAction {
+              route: string = "today";
+            }
+
+            export function initialState(): AppState {
+              return { route: "today" };
+            }
+
+            // @ui-update
+            export function onSelectRoute(state: AppState, action: SelectRouteAction): AppState {
+              return { route: action.route };
+            }
+        """
+
+        const val NAVIGATION_DEAL_UI = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+
+            // @ui-root
+            export view App(state: app.AppState): View {
+              ui.NavigationBar(accessibilityLabel: "Main navigation") {
+                ui.NavigationItem(
+                  label: "Today",
+                  icon: "today",
+                  selected: state.route === "today",
+                  onClick: action app.SelectRouteAction { route: "today" },
+                  accessibilityLabel: "Today"
+                )
+                ui.NavigationItem(
+                  label: "History",
+                  icon: "history",
+                  selected: state.route === "history",
+                  onClick: action app.SelectRouteAction { route: "history" },
+                  accessibilityLabel: "History"
+                )
               }
             }
         """

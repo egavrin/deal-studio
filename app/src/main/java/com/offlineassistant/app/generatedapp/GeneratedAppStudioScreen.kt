@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
@@ -170,6 +171,7 @@ internal fun GeneratedAppStudioRoute(
             onRefinementChanged = viewModel::updateRefinementPrompt,
             onExampleSelected = viewModel::selectExample,
             onGenerate = viewModel::generate,
+            onGenerateSurprise = viewModel::generateSurprise,
             onRefine = viewModel::refine,
             onCancel = viewModel::cancel,
             onReloadModels = viewModel::loadModels,
@@ -208,6 +210,7 @@ internal data class GeneratedAppStudioActions(
     val onRefinementChanged: (String) -> Unit,
     val onExampleSelected: (String) -> Unit,
     val onGenerate: () -> Unit,
+    val onGenerateSurprise: () -> Unit,
     val onRefine: () -> Unit,
     val onCancel: () -> Unit,
     val onReloadModels: () -> Unit,
@@ -454,6 +457,19 @@ private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedApp
                     Text("Reload")
                 }
             }
+        }
+        FilledTonalButton(
+            onClick = actions.onGenerateSurprise,
+            enabled = !state.isBusy && state.canGenerateSurprise,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("studio_surprise"),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Icon(Icons.Default.Casino, contentDescription = null)
+            Spacer(Modifier.width(DealStudioSpacing.Sm))
+            Text("Surprise me")
         }
     }
 }

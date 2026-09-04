@@ -79,7 +79,8 @@ data class DeepSeekToolGenerationResult(
     val timeToFirstCallMs: Long? = null,
     val inputTokens: Int? = null,
     val cachedInputTokens: Int? = null,
-    val outputTokens: Int? = null
+    val outputTokens: Int? = null,
+    val transportAttempts: Int = 1
 )
 
 class DeepSeekGenerationClient(
@@ -167,8 +168,9 @@ class DeepSeekGenerationClient(
         require(apiKey.isNotEmpty()) { "DeepSeek API key is not configured." }
 
         val started = System.nanoTime()
-        val execution = executeToolResponses(request, apiKey, started, onArgumentsDelta, onCall)
+        val execution = executeValidToolResponses(request, apiKey, started, onArgumentsDelta)
         require(execution.calls.isNotEmpty()) { "DeepSeek did not call a compiler tool." }
+        execution.calls.forEach(onCall)
         return DeepSeekToolGenerationResult(
             calls = execution.calls,
             latencyMs = elapsedMillis(started),
@@ -176,7 +178,8 @@ class DeepSeekGenerationClient(
             timeToFirstCallMs = execution.timeToFirstCallMs,
             inputTokens = execution.inputTokens,
             cachedInputTokens = execution.cachedInputTokens,
-            outputTokens = execution.outputTokens
+            outputTokens = execution.outputTokens,
+            transportAttempts = execution.transportAttempts
         )
     }
 
@@ -368,8 +371,7 @@ class DeepSeekGenerationClient(
         request: DeepSeekToolRequest,
         apiKey: String,
         started: Long,
-        onArgumentsDelta: (String) -> Unit,
-        onCall: (DeepSeekFunctionCall) -> Unit
+        onArgumentsDelta: (String) -> Unit
     ): ToolResponsesExecution {
         val connection = openConnection(
             if (request.tools.all(DeepSeekFunctionTool::strict)) strictResponsesEndpointUrl else responsesEndpointUrl,
@@ -409,11 +411,10 @@ class DeepSeekGenerationClient(
                         val pending = calls.getOrPut(done.outputIndex) { PendingFunctionCall() }.apply {
                             if (done.callId.isNotEmpty()) callId = done.callId
                             if (done.name.isNotEmpty()) name = done.name
-                            if (arguments.isEmpty() && done.arguments.isNotEmpty()) arguments.append(done.arguments)
+                            if (done.arguments.isNotEmpty()) finalArguments = done.arguments
                         }
-                        if (completed.add(done.outputIndex)) {
-                            if (firstCallMs == null) firstCallMs = elapsedMillis(started)
-                            onCall(pending.complete(done.outputIndex))
+                        if (completed.add(done.outputIndex) && firstCallMs == null) {
+                            firstCallMs = elapsedMillis(started)
                         }
                     }
                     event.usage?.let { usage ->
@@ -432,11 +433,49 @@ class DeepSeekGenerationClient(
                 timeToFirstCallMs = firstCallMs,
                 inputTokens = inputTokens,
                 cachedInputTokens = cachedInputTokens,
-                outputTokens = outputTokens
+                outputTokens = outputTokens,
+                transportAttempts = 1
             )
         } finally {
             activeConnection.compareAndSet(connection, null)
             connection.disconnect()
+        }
+    }
+
+    private fun executeValidToolResponses(
+        request: DeepSeekToolRequest,
+        apiKey: String,
+        started: Long,
+        onArgumentsDelta: (String) -> Unit
+    ): ToolResponsesExecution {
+        var combined: ToolResponsesExecution? = null
+        var lastProtocolError = ""
+        repeat(MAX_TOOL_PROTOCOL_ATTEMPTS) {
+            val attempt = executeToolResponses(request, apiKey, started, onArgumentsDelta)
+            combined = combined?.plus(attempt) ?: attempt
+            val protocolError = invalidToolArguments(attempt.calls)
+            if (protocolError == null) {
+                return requireNotNull(combined).copy(
+                    calls = attempt.calls,
+                    timeToFirstCallMs = attempt.timeToFirstCallMs
+                )
+            }
+            lastProtocolError = protocolError
+        }
+        throw IOException(
+            "DeepSeek returned malformed compiler tool arguments after $MAX_TOOL_PROTOCOL_ATTEMPTS " +
+                "transport attempts. $lastProtocolError"
+        )
+    }
+
+    internal fun invalidToolArguments(calls: List<DeepSeekFunctionCall>): String? {
+        if (calls.isEmpty()) return "response contained no compiler function call"
+        return calls.firstNotNullOfOrNull { call ->
+            runCatching { json.parseToJsonElement(call.arguments).jsonObject }
+                .exceptionOrNull()
+                ?.let { failure ->
+                    "${call.name}: ${failure.message}; arguments=${call.arguments.take(MAX_ERROR_DETAIL_CHARS)}"
+                }
         }
     }
 
@@ -588,6 +627,7 @@ class DeepSeekGenerationClient(
         const val MAX_ERROR_DETAIL_CHARS = 1_024
         const val MAX_OUTPUT_TOKENS = 8_192
         const val MAX_FUNCTION_TOOLS = 128
+        const val MAX_TOOL_PROTOCOL_ATTEMPTS = 2
         const val NANOS_PER_MILLISECOND = 1_000_000
         const val DEEPSEEK_HOST = "api.deepseek.com"
         const val DEEPSEEK_PATH = "/chat/completions"
@@ -691,19 +731,44 @@ private data class ToolResponsesExecution(
     val timeToFirstCallMs: Long?,
     val inputTokens: Int?,
     val cachedInputTokens: Int?,
-    val outputTokens: Int?
-)
+    val outputTokens: Int?,
+    val transportAttempts: Int
+) {
+    fun plus(other: ToolResponsesExecution) = ToolResponsesExecution(
+        calls = other.calls,
+        timeToFirstCallMs = timeToFirstCallMs ?: other.timeToFirstCallMs,
+        inputTokens = sumNullable(inputTokens, other.inputTokens),
+        cachedInputTokens = sumNullable(cachedInputTokens, other.cachedInputTokens),
+        outputTokens = sumNullable(outputTokens, other.outputTokens),
+        transportAttempts = transportAttempts + other.transportAttempts
+    )
+}
 
 private class PendingFunctionCall {
     var callId: String = ""
     var name: String = ""
     val arguments = StringBuilder()
+    var finalArguments: String? = null
 
     fun complete(outputIndex: Int): DeepSeekFunctionCall {
         require(name.isNotBlank()) { "DeepSeek compiler call $outputIndex has no function name" }
         require(callId.isNotBlank()) { "DeepSeek compiler call $outputIndex has no call id" }
-        return DeepSeekFunctionCall(callId, name, arguments.toString().ifBlank { "{}" })
+        return DeepSeekFunctionCall(
+            callId,
+            name,
+            mergeFunctionCallArguments(arguments.toString(), finalArguments)
+        )
     }
+}
+
+internal fun mergeFunctionCallArguments(streamed: String, completed: String?): String = completed
+    ?.takeIf(String::isNotBlank)
+    ?: streamed.ifBlank { "{}" }
+
+private fun sumNullable(first: Int?, second: Int?): Int? = if (first == null && second == null) {
+    null
+} else {
+    (first ?: 0) + (second ?: 0)
 }
 
 private data class ChatExecution(

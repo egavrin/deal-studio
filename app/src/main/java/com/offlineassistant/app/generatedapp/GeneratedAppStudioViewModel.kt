@@ -465,6 +465,28 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
     }
 
+    fun generateSurprise() {
+        val snapshot = state.value
+        if (snapshot.isBusy || !snapshot.canGenerateSurprise) return
+        val currentTitle = snapshot.canonicalProgram?.let { program ->
+            snapshot.canonicalState?.let { runtimeState -> program.displayTitle(runtimeState, "") }
+        }.orEmpty()
+        val existingTitles = buildList {
+            addAll(snapshot.savedCanonicalApps.map { it.record.title })
+            addAll(snapshot.savedApps.map { it.record.title })
+            if (currentTitle.isNotBlank()) add(currentTitle)
+        }
+        val request = SurpriseAppPromptFactory.create(existingTitles)
+        mutableState.update {
+            it.copy(
+                prompt = request,
+                failedGenerationRequest = null,
+                error = null
+            )
+        }
+        generate()
+    }
+
     private fun generateCanonical(snapshot: GeneratedAppStudioState, request: String) {
         canonicalRuntime = null
         generatedRuntime = null

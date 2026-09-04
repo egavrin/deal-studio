@@ -22,6 +22,10 @@ class CanonicalGenerationRepairPolicyTest {
             DeepSeekGenerationModel.PRO,
             CanonicalGenerationRepairPolicy.modelForRound(DeepSeekGenerationModel.FLASH, 2)
         )
+        assertEquals(
+            DeepSeekGenerationModel.PRO,
+            CanonicalGenerationRepairPolicy.modelForRound(DeepSeekGenerationModel.FLASH, 3)
+        )
     }
 
     @Test
@@ -34,6 +38,34 @@ class CanonicalGenerationRepairPolicyTest {
         assertEquals(
             DeepSeekGenerationModel.PRO,
             CanonicalGenerationRepairPolicy.modelForRound(DeepSeekGenerationModel.PRO, 1)
+        )
+    }
+
+    @Test
+    fun `accepted progress at the budget boundary earns one bounded repair round`() {
+        assertEquals(
+            3,
+            CanonicalGenerationRepairPolicy.extendAfterProgress(
+                currentBudget = 2,
+                completedRounds = 2,
+                acceptedChanges = 1
+            )
+        )
+        assertEquals(
+            2,
+            CanonicalGenerationRepairPolicy.extendAfterProgress(
+                currentBudget = 2,
+                completedRounds = 2,
+                acceptedChanges = 0
+            )
+        )
+        assertEquals(
+            CanonicalGenerationRepairPolicy.HARD_MAX_ROUNDS,
+            CanonicalGenerationRepairPolicy.extendAfterProgress(
+                currentBudget = CanonicalGenerationRepairPolicy.HARD_MAX_ROUNDS,
+                completedRounds = CanonicalGenerationRepairPolicy.HARD_MAX_ROUNDS,
+                acceptedChanges = 2
+            )
         )
     }
 

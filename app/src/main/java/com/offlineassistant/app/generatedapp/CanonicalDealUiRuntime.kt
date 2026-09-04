@@ -1080,7 +1080,39 @@ private fun RenderCall(
         "NavigationBar" -> {
             val labels = value("labels").asStringList()
             val icons = value("icons").asStringList()
-            if (labels.isNotEmpty()) {
+            if (call.children.isNotEmpty()) {
+                val items = collectNavigationItems(call.children, state, scope, program)
+                NavigationBar(modifier = modifier.fillMaxWidth()) {
+                    items.forEach { (item, itemScope) ->
+                        val itemValue = { key: String ->
+                            item.arguments[key]?.let {
+                                evaluate(it, state, itemScope, program.tokens, null)
+                            }
+                        }
+                        val itemAction = item.arguments["onClick"] as? CanonicalUiExpr.Action
+                        NavigationBarItem(
+                            selected = itemValue("selected").asBoolean(),
+                            onClick = {
+                                itemAction?.let {
+                                    onAction(it.resolve(state, itemScope, program.tokens, null))
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    icon(itemValue("icon").asString()),
+                                    contentDescription = null
+                                )
+                            },
+                            label = { Text(itemValue("label").asString()) },
+                            modifier = Modifier.semantics {
+                                itemValue("accessibilityLabel").asString()
+                                    .takeIf(String::isNotBlank)
+                                    ?.let { contentDescription = it }
+                            }
+                        )
+                    }
+                }
+            } else if (labels.isNotEmpty()) {
                 val selected = value("selected").asInt().coerceIn(labels.indices)
                 NavigationBar(modifier = modifier.fillMaxWidth()) {
                     labels.forEachIndexed { index, label ->
@@ -1094,6 +1126,8 @@ private fun RenderCall(
                 }
             }
         }
+
+        "NavigationItem" -> Unit
 
         "BarChart" -> {
             val values = value("series").asIntList()
@@ -1399,6 +1433,56 @@ private fun collectCanvasShapes(
                     evaluate(it.value, state, scope, program.tokens, null)
                 }
                 addAll(collectCanvasShapes(node.children, state, nested, program))
+            }
+        }
+    }
+}
+
+private fun collectNavigationItems(
+    nodes: List<CanonicalUiNode>,
+    state: JsonObject,
+    scope: Map<String, JsonElement>,
+    program: CanonicalDealUiProgram
+): List<Pair<CanonicalUiNode.Call, Map<String, JsonElement>>> = buildList {
+    nodes.forEach { node ->
+        when (node) {
+            is CanonicalUiNode.Call -> {
+                if (node.name.substringAfterLast('.') == "NavigationItem") add(node to scope)
+            }
+
+            is CanonicalUiNode.When -> addAll(
+                collectNavigationItems(
+                    nodes = if (evaluate(node.condition, state, scope, program.tokens, null).asBoolean()) {
+                        node.thenNodes
+                    } else {
+                        node.elseNodes
+                    },
+                    state = state,
+                    scope = scope,
+                    program = program
+                )
+            )
+
+            is CanonicalUiNode.ForEach -> {
+                val items = evaluate(node.source, state, scope, program.tokens, null) as? JsonArray
+                    ?: JsonArray(emptyList())
+                items.forEach { item ->
+                    addAll(
+                        collectNavigationItems(
+                            nodes = node.children,
+                            state = state,
+                            scope = scope + (node.item to item),
+                            program = program
+                        )
+                    )
+                }
+            }
+
+            is CanonicalUiNode.Scope -> {
+                val nested = scope + node.bindings.mapValues {
+                    evaluate(it.value, state, scope, program.tokens, null)
+                }
+                addAll(collectNavigationItems(node.children, state, nested, program))
             }
         }
     }

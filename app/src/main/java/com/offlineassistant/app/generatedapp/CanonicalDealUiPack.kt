@@ -1,7 +1,7 @@
 package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
-    const val VERSION = "deal-studio-dealui-pack-v10"
+    const val VERSION = "deal-studio-dealui-pack-v11"
 
     val source: String = """
         export class Space { value: int = 0; }
@@ -44,6 +44,7 @@ internal object CanonicalDealUiPack {
         export class StepperProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; decrementLabel: string = "Decrease"; incrementLabel: string = "Increase"; onChange?: Action; }
         export class TabsProps { options: string[] = []; selected: int = 0; onSelect?: Action; accessibilityLabel?: string; }
         export class NavigationProps { labels: string[] = []; icons: string[] = []; selected: int = 0; onSelect?: Action; accessibilityLabel?: string; }
+        export class NavigationItemProps { label: string = ""; icon: string = "info"; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
         export class ChartProps { series: int[] = []; maximum: int = 100; label: string = ""; tone: string = "accent"; }
         export class AvatarProps { url: string = ""; initials: string = ""; description: string = ""; size: int = 48; }
         export class VisibilityProps { visible: boolean = true; }
@@ -90,7 +91,8 @@ internal object CanonicalDealUiPack {
         export component Checkbox(props: CheckboxProps): View { event onChange(payload: boolean); accessibility accessibilityLabel; capability "renderer.android.checkbox"; }
         export component Stepper(props: StepperProps): View { event onChange(payload: int); capability "renderer.android.stepper"; }
         export component Tabs(props: TabsProps): View { event onSelect(payload: int); accessibility accessibilityLabel; capability "renderer.android.tabs"; }
-        export component NavigationBar(props: NavigationProps): View { event onSelect(payload: int); accessibility accessibilityLabel; capability "renderer.android.navigation"; }
+        export component NavigationBar(props: NavigationProps): View { children optional; event onSelect(payload: int); accessibility accessibilityLabel; capability "renderer.android.navigation"; }
+        export component NavigationItem(props: NavigationItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.navigation-item"; }
         export component BarChart(props: ChartProps): View { accessibility label; capability "renderer.android.chart.bar"; }
         export component Sparkline(props: ChartProps): View { accessibility label; capability "renderer.android.chart.sparkline"; }
         export component Avatar(props: AvatarProps): View { accessibility description; capability "renderer.android.avatar.https"; }

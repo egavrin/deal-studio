@@ -130,6 +130,65 @@ class CanonicalDealUiGraphCompilerTest {
     }
 
     @Test
+    fun `final section with missing action is preserved as partial progress`() {
+        val compiler = CanonicalDealUiGraphCompiler(
+            rootState = "AppState",
+            requiredActions = setOf("SetWeightAction")
+        ) { _, _ -> "checked-ir" }
+        compiler.currentTool()
+        val firstHash = compiler.snapshot().graphHash
+
+        assertTrue(compiler.apply(call(firstHash, "header", "ui.Text(value: \"Health\")", false)).accepted)
+        val incomplete = compiler.apply(call(firstHash, "summary", "ui.Text(value: \"72 kg\")", true))
+
+        assertTrue(incomplete.accepted)
+        assertFalse(incomplete.completed)
+        assertEquals(listOf("SetWeightAction"), compiler.snapshot().pendingActionNames)
+        assertTrue(compiler.snapshot().diagnostic.contains("SetWeightAction"))
+        assertEquals(0, compiler.rejectedPatches)
+
+        val nextTool = compiler.currentTool()
+        assertTrue(nextTool.description.contains("SetWeightAction"))
+        val controls = compiler.apply(
+            call(
+                compiler.snapshot().graphHash,
+                "controls",
+                "ui.Button(text: \"Update\", onClick: action app.SetWeightAction {})",
+                true
+            )
+        )
+
+        assertTrue(controls.diagnostic.orEmpty(), controls.accepted)
+        assertTrue(controls.completed)
+        assertTrue(compiler.snapshot().pendingActionNames.isEmpty())
+    }
+
+    @Test
+    fun `required host component is a compiler owned finalization obligation`() {
+        val compiler = CanonicalDealUiGraphCompiler(
+            rootState = "AppState",
+            requiredCapabilityComponents = setOf("MinuteClock")
+        ) { _, _ -> "checked-ir" }
+        compiler.currentTool()
+        val hash = compiler.snapshot().graphHash
+
+        compiler.apply(call(hash, "header", "ui.Text(value: \"Clock\")", false))
+        val incomplete = compiler.apply(call(hash, "content", "ui.Text(value: \"Now\")", true))
+
+        assertTrue(incomplete.accepted)
+        assertFalse(incomplete.completed)
+        assertEquals(listOf("MinuteClock"), compiler.snapshot().pendingCapabilityComponents)
+    }
+
+    @Test
+    fun `declared capabilities map to their required host components`() {
+        assertEquals(
+            setOf("MinuteClock", "PointerSurface"),
+            requiredDealUiHostComponents(listOf("clock.minute", "pointer", "storage.private"))
+        )
+    }
+
+    @Test
     fun `rejected body cannot damage owned signature`() {
         val compiler = compiler()
         val result = compiler.apply(call(compiler.snapshot().graphHash, "broken", "export view Broken() {}", true))

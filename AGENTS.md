@@ -59,9 +59,22 @@ Cloud generation is sequential and compiler-guided:
    the model to regenerate them. The compiler emits the sole `ui.AppTheme` and `ui.Root` wrappers;
    generated section bodies may emit neither boundary.
 7. A rejected UI section becomes the only schema-allowed repair target. A run gets one Flash repair
-   and at most one Pro escalation; a byte-identical rejected candidate ends the loop immediately.
+   before Pro escalation. If a model marks a valid section final before all declared actions or host
+   capabilities are represented, the compiler preserves that section as partial progress and emits
+   the exact missing bindings as obligations for the next round. A byte-identical rejected candidate
+   ends the loop immediately.
 8. The complete pair passes cross-artifact, capability, resource and runtime smoke validation before
    it becomes interactive.
+
+Malformed, empty or truncated tool arguments are transport failures, not program repairs. The
+DeepSeek connector validates the complete function-call argument object before invoking a compiler,
+treats the final SSE item as authoritative over streamed deltas and may repeat the same transport
+request once. A failed transport attempt must not mutate compiler state or consume a semantic repair
+round. TTFC for tools means the first structurally valid compiler call.
+
+Repair budgets are progress-aware. The fixed Flash and Pro budgets remain latency ceilings; one
+additional round may be granted only when the compiler accepted new immutable graph content at the
+budget boundary, and all generation is hard-capped. Rejections alone never buy another model call.
 
 DeepSeek Flash is the default cloud backend. UI and logic backend choices remain independent for
 future local experiments, but a fully cloud run always finishes DEAL before starting Deal UI. Do
@@ -105,6 +118,12 @@ Deal UI is pure and declarative. Repetition uses typed `ForEach`; filtering, sor
 and domain transformations stay in DEAL. Pointer phase is `0=down`, `1=move`, `2=up`; an ordinary
 tap produces down and up without requiring move. Integer event payloads must enter DEAL as `Int`,
 not JVM `Long`.
+
+Presentation-owned static navigation is compositional: use `NavigationBar` with one
+`NavigationItem` child per destination so each item can bind its own checked action. The legacy
+`labels`/`icons` array form is valid only when those typed arrays already exist in DEAL state and
+the selected integer payload maps directly to the declared action. Do not add array literals or
+duplicate presentation-only arrays to authoritative business state merely to render navigation.
 
 The component pack is generic and versioned. It must cover:
 

@@ -59,6 +59,7 @@ class CanonicalDealToolchainDeviceTest {
             "Stepper",
             "Tabs",
             "NavigationBar",
+            "NavigationItem",
             "BarChart",
             "Sparkline",
             "Avatar",
@@ -353,6 +354,22 @@ class CanonicalDealToolchainDeviceTest {
                     selected: 0,
                     accessibilityLabel: "App navigation"
                   )
+                  ui.NavigationBar(accessibilityLabel: "Composed app navigation") {
+                    ui.NavigationItem(
+                      label: "Today",
+                      icon: "today",
+                      selected: true,
+                      onClick: action app.TapAction {},
+                      accessibilityLabel: "Today"
+                    )
+                    ui.NavigationItem(
+                      label: "History",
+                      icon: "history",
+                      selected: false,
+                      onClick: action app.TapAction {},
+                      accessibilityLabel: "History"
+                    )
+                  }
                   ui.Spacer(size: ui.spaceSm)
                   ui.EmptyState(
                     title: "Nothing due",
