@@ -9,8 +9,6 @@ import com.offlineassistant.deepseek.DeepSeekToolRequest
 import java.security.MessageDigest
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -32,11 +30,12 @@ internal data class CanonicalRefinementResult(
 /** Applies one natural-language edit without introducing a planner or regenerating the app. */
 internal class CanonicalGeneratedAppRefiner(
     context: Context,
-    apiKeyProvider: () -> String?
+    apiKeyProvider: () -> String?,
+    cerebrasApiKeyProvider: () -> String? = { null }
 ) {
     private val toolchain = CanonicalDealToolchain(context.applicationContext)
-    private val dealClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider)
-    private val dealUiClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider)
+    private val dealClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider, cerebrasApiKeyProvider = cerebrasApiKeyProvider)
+    private val dealUiClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider, cerebrasApiKeyProvider = cerebrasApiKeyProvider)
 
     suspend fun refine(
         bundle: CanonicalGeneratedAppBundle,
@@ -47,75 +46,69 @@ internal class CanonicalGeneratedAppRefiner(
     ): CanonicalRefinementResult = withContext(Dispatchers.IO) {
         require(request.isNotBlank()) { "Refinement request is empty" }
         val wall = TimeSource.Monotonic.markNow()
-        val expectedInterface = AppInterfaceCompiler.parse(bundle.appInterface)
-        coroutineScope {
-            val deal = async {
-                refineDeal(
-                    source = bundle.dealSource,
-                    uiSource = bundle.dealUiSource,
-                    expectedInterface = expectedInterface,
-                    request = request,
-                    model = dealModel,
-                    onProgress = onProgress
-                )
-            }
-            val dealUi = async {
-                refineDealUi(
-                    dealSource = bundle.dealSource,
-                    source = bundle.dealUiSource,
-                    contract = expectedInterface.compilerContract(),
-                    request = request,
-                    model = dealUiModel,
-                    onProgress = onProgress
-                )
-            }
-            val dealResult = deal.await()
-            val uiResult = dealUi.await()
-            require(dealResult.changed || uiResult.changed) {
-                "The edit did not require a valid UI or behavior change"
-            }
-            val checkedIr = toolchain.compilePortable(
-                dealResult.source,
-                uiResult.source,
-                CanonicalDealUiPack.source
-            ).also { CanonicalDealUiParser.parse(it) }
-            val actualInterface = AppInterfaceCompiler.parse(toolchain.extractAppInterface(dealResult.source))
-            require(actualInterface == expectedInterface) {
-                "An in-place edit cannot change AppInterfaceV1; regenerate for a new public state or action contract"
-            }
-            val wallLatencyMs = wall.elapsedNow().inWholeMilliseconds
-            CanonicalRefinementResult(
-                bundle = bundle.copy(
-                    dealSource = dealResult.source,
-                    dealUiSource = uiResult.source,
-                    checkedUiIr = checkedIr,
-                    dealLatencyMs = dealResult.latencyMs,
-                    dealUiLatencyMs = uiResult.latencyMs,
-                    wallLatencyMs = wallLatencyMs,
-                    validationLatencyMs = dealResult.validationLatencyMs + uiResult.validationLatencyMs,
-                    repairLatencyMs = 0,
-                    repairPasses = 0,
-                    dealTimeToFirstPatchMs = dealResult.timeToFirstCallMs,
-                    dealUiTimeToFirstTokenMs = uiResult.timeToFirstCallMs,
-                    dealGraphRounds = dealResult.rounds,
-                    dealUiGraphRounds = uiResult.rounds,
-                    dealAcceptedPatches = dealResult.acceptedEdits,
-                    dealRejectedPatches = dealResult.rejectedEdits,
-                    dealTypedHoles = 0,
-                    dealInputTokens = dealResult.inputTokens,
-                    dealCachedInputTokens = dealResult.cachedInputTokens,
-                    dealOutputTokens = dealResult.outputTokens,
-                    dealUiAcceptedPatches = uiResult.acceptedEdits,
-                    dealUiRejectedPatches = uiResult.rejectedEdits,
-                    dealUiInputTokens = uiResult.inputTokens,
-                    dealUiCachedInputTokens = uiResult.cachedInputTokens,
-                    dealUiOutputTokens = uiResult.outputTokens,
-                    firstInteractivePreviewMs = wallLatencyMs
-                ),
-                changedDeal = dealResult.changed,
-                changedDealUi = uiResult.changed
-            )
+        onProgress("Checking which behavior functions need to change...")
+        val dealResult = refineDeal(
+            source = bundle.dealSource,
+            uiSource = bundle.dealUiSource,
+            request = request,
+            model = dealModel,
+            onProgress = onProgress
+        )
+        val extractedInterface = toolchain.extractAppInterface(dealResult.source)
+        val actualInterface = AppInterfaceCompiler.parse(extractedInterface)
+        onProgress("Updating the interface against the checked AppInterface...")
+        val uiResult = refineDealUi(
+            dealSource = dealResult.source,
+            source = bundle.dealUiSource,
+            contract = actualInterface.compilerContract(),
+            request = request,
+            model = dealUiModel,
+            onProgress = onProgress
+        )
+        require(dealResult.changed || uiResult.changed) {
+            "The edit did not require a valid UI or behavior change"
         }
+        val checkedIr = toolchain.compilePortable(
+            dealResult.source,
+            uiResult.source,
+            CanonicalDealUiPack.source
+        )
+        val initialState = toolchain.createRuntime(dealResult.source).snapshot()
+        CanonicalDealUiParser.parse(checkedIr).validateInitialSurface(initialState)
+        val wallLatencyMs = wall.elapsedNow().inWholeMilliseconds
+        CanonicalRefinementResult(
+            bundle = bundle.copy(
+                appInterface = extractedInterface,
+                dealSource = dealResult.source,
+                dealUiSource = uiResult.source,
+                checkedUiIr = checkedIr,
+                dealLatencyMs = dealResult.latencyMs,
+                dealUiLatencyMs = uiResult.latencyMs,
+                wallLatencyMs = wallLatencyMs,
+                validationLatencyMs = dealResult.validationLatencyMs + uiResult.validationLatencyMs,
+                repairLatencyMs = 0,
+                repairPasses = 0,
+                dealTimeToFirstPatchMs = dealResult.timeToFirstCallMs,
+                dealUiTimeToFirstTokenMs = uiResult.timeToFirstCallMs,
+                dealGraphRounds = dealResult.rounds,
+                dealUiGraphRounds = uiResult.rounds,
+                dealAcceptedPatches = dealResult.acceptedEdits,
+                dealRejectedPatches = dealResult.rejectedEdits,
+                dealTypedHoles = 0,
+                dealInputTokens = dealResult.inputTokens,
+                dealCachedInputTokens = dealResult.cachedInputTokens,
+                dealOutputTokens = dealResult.outputTokens,
+                dealUiAcceptedPatches = uiResult.acceptedEdits,
+                dealUiRejectedPatches = uiResult.rejectedEdits,
+                dealUiInputTokens = uiResult.inputTokens,
+                dealUiCachedInputTokens = uiResult.cachedInputTokens,
+                dealUiOutputTokens = uiResult.outputTokens,
+                firstInteractivePreviewMs = wallLatencyMs,
+                promptDigest = sha256(bundle.promptDigest + "\u0000" + request)
+            ),
+            changedDeal = dealResult.changed,
+            changedDealUi = uiResult.changed
+        )
     }
 
     fun cancel() {
@@ -126,16 +119,12 @@ internal class CanonicalGeneratedAppRefiner(
     private fun refineDeal(
         source: String,
         uiSource: String,
-        expectedInterface: AppInterface,
         request: String,
         model: DeepSeekGenerationModel,
         onProgress: (String) -> Unit
     ): EditResult {
         val compiler = CanonicalDealFunctionEditCompiler(source) { candidate ->
             toolchain.validateDealOnly(candidate)
-            require(AppInterfaceCompiler.parse(toolchain.extractAppInterface(candidate)) == expectedInterface) {
-                "The edit changed AppInterfaceV1"
-            }
         }
         var latencyMs = 0L
         var inputTokens = 0
@@ -161,6 +150,10 @@ internal class CanonicalGeneratedAppRefiner(
                             appendLine()
                             appendLine("Previous compiler diagnostic:")
                             appendLine(it)
+                            compiler.repairFunctionNames.takeIf(Set<String>::isNotEmpty)?.let { names ->
+                                appendLine("Repair scope is locked to these rejected bodies: ${names.joinToString()}")
+                                appendLine("Do not replace any accepted sibling function.")
+                            }
                         }
                     },
                     tools = compiler.tools(),
@@ -225,6 +218,11 @@ internal class CanonicalGeneratedAppRefiner(
                             appendLine()
                             appendLine("Previous compiler diagnostic:")
                             appendLine(it)
+                            compiler.repairFragmentMatches.takeIf(Set<String>::isNotEmpty)?.let { matches ->
+                                appendLine("Repair scope is locked to ${matches.size} rejected component subtree(s).")
+                                appendLine("Use the exact rejected match value(s) offered by the tool schema.")
+                                appendLine("Do not replace any accepted sibling subtree.")
+                            }
                         }
                     },
                     tools = compiler.tools(),
@@ -266,7 +264,7 @@ internal class CanonicalGeneratedAppRefiner(
             replace_deal_ui_fragments once. Each edit must copy one exact, uniquely occurring component subtree from
             the checked source into match and provide only its replacement subtree. Batch related edits in one call.
             If the request is purely behavioral, call keep_deal_ui_unchanged once. Preserve unrelated presentation
-            and bind only to the unchanged exact AppInterface. Prefer the smallest component subtree; replacing
+            and bind only to the supplied exact AppInterface extracted after the behavior edit. Prefer the smallest component subtree; replacing
             ui.Root is allowed only for a global layout edit. For a colour, style, shape, density or surface request,
             replace only the existing ui.AppTheme call arguments and preserve its children. Keep exactly one
             AppTheme. Use only the supplied component pack. Never replace imports, declarations, or the App view.
@@ -275,7 +273,7 @@ internal class CanonicalGeneratedAppRefiner(
     }
 }
 
-private data class EditResult(
+internal data class EditResult(
     val source: String,
     val changed: Boolean,
     val latencyMs: Long,
@@ -289,7 +287,7 @@ private data class EditResult(
     val outputTokens: Int
 )
 
-private class CanonicalDealFunctionEditCompiler(
+internal class CanonicalDealFunctionEditCompiler(
     initialSource: String,
     private val validate: (String) -> Unit
 ) {
@@ -299,15 +297,20 @@ private class CanonicalDealFunctionEditCompiler(
         private set
     var diagnostic: String = ""
         private set
+    var repairFunctionNames: Set<String> = emptySet()
+        private set
     private var changed = false
     private var accepted = 0
     private var rejected = 0
     private var validationLatencyMs = 0L
 
     fun tools(): List<DeepSeekFunctionTool> {
-        val names = DealFunctionScanner.functions(source).map(DealFunctionRange::name).distinct()
-        return listOf(
-            DeepSeekFunctionTool(
+        val names = if (repairFunctionNames.isEmpty()) {
+            DealFunctionScanner.functions(source).map(DealFunctionRange::name).distinct()
+        } else {
+            repairFunctionNames.toList()
+        }
+        val replaceTool = DeepSeekFunctionTool(
                 name = REPLACE_DEAL_FUNCTIONS,
                 description = "Replace bodies of existing DEAL functions. Every candidate is production-checked before commit.",
                 parameters = buildJsonObject {
@@ -341,11 +344,15 @@ private class CanonicalDealFunctionEditCompiler(
                     }
                     put("additionalProperties", false)
                 }
-            ),
-            unchangedTool(KEEP_DEAL)
-        )
+            )
+        return if (repairFunctionNames.isEmpty()) {
+            listOf(replaceTool, unchangedTool(KEEP_DEAL))
+        } else {
+            listOf(replaceTool)
+        }
     }
 
+    @Suppress("ReturnCount")
     fun apply(call: DeepSeekFunctionCall) {
         if (call.name == KEEP_DEAL) {
             unchanged(call)
@@ -361,38 +368,38 @@ private class CanonicalDealFunctionEditCompiler(
             reject("edits must be an array")
             return
         }
-        var committed = source
-        var acceptedThisCall = 0
-        edits.forEach { element ->
+        var candidate = source
+        val editedNames = linkedSetOf<String>()
+        for (element in edits) {
             val edit = element.jsonObject
             val name = edit["function_name"]?.jsonPrimitive?.contentOrNull.orEmpty()
             val body = edit["body"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
-            val range = DealFunctionScanner.functions(committed).singleOrNull { it.name == name }
-            if (range == null || body.isBlank()) {
-                rejected++
-                diagnostic = "Unknown function or empty body for $name"
-                return@forEach
+            if (!editedNames.add(name)) {
+                reject("Function $name may appear only once in one atomic edit transaction")
+                return
             }
-            val candidate = committed.replaceRange(range.bodyStart, range.bodyEnd, "\n${body.prependIndent("  ")}\n")
-            val started = System.nanoTime()
-            runCatching { validate(candidate) }
-                .onSuccess {
-                    committed = candidate
-                    accepted++
-                    acceptedThisCall++
-                }
-                .onFailure { failure ->
-                    rejected++
-                    diagnostic = "$name: ${failure.message ?: "compiler rejected function body"}"
-                }
-            validationLatencyMs += (System.nanoTime() - started) / 1_000_000
+            val range = DealFunctionScanner.functions(candidate).singleOrNull { it.name == name }
+            if (range == null || body.isBlank()) {
+                reject("Unknown function or empty body for $name")
+                return
+            }
+            candidate = candidate.replaceRange(range.bodyStart, range.bodyEnd, "\n${body.prependIndent("  ")}\n")
         }
-        if (acceptedThisCall > 0) {
-            source = committed
-            changed = true
-            complete = true
-            diagnostic = ""
-        }
+        val started = System.nanoTime()
+        runCatching { validate(candidate) }
+            .onSuccess {
+                changed = candidate != source
+                source = candidate
+                accepted += edits.size
+                complete = true
+                diagnostic = ""
+                repairFunctionNames = emptySet()
+            }
+            .onFailure { failure ->
+                repairFunctionNames = editedNames
+                reject(failure.message ?: "compiler rejected DEAL edit transaction")
+            }
+        validationLatencyMs += (System.nanoTime() - started) / 1_000_000
     }
 
     fun result(latency: Long, firstCall: Long?, rounds: Int, input: Int, cached: Int, output: Int) = EditResult(
@@ -410,6 +417,10 @@ private class CanonicalDealFunctionEditCompiler(
     )
 
     private fun unchanged(call: DeepSeekFunctionCall) {
+        if (repairFunctionNames.isNotEmpty()) {
+            reject("A rejected behavior edit must be repaired; it cannot be changed to no-op")
+            return
+        }
         val root = parseArguments(call) ?: return
         if (checkHash(root, source, ::reject)) complete = true
     }
@@ -420,7 +431,7 @@ private class CanonicalDealFunctionEditCompiler(
     }
 }
 
-private class CanonicalDealUiEditCompiler(
+internal class CanonicalDealUiEditCompiler(
     initialSource: String,
     private val validate: (String) -> Unit
 ) {
@@ -430,13 +441,15 @@ private class CanonicalDealUiEditCompiler(
         private set
     var diagnostic: String = ""
         private set
+    var repairFragmentMatches: Set<String> = emptySet()
+        private set
     private var changed = false
     private var accepted = 0
     private var rejected = 0
     private var validationLatencyMs = 0L
 
-    fun tools(): List<DeepSeekFunctionTool> = listOf(
-        DeepSeekFunctionTool(
+    fun tools(): List<DeepSeekFunctionTool> {
+        val replaceTool = DeepSeekFunctionTool(
             name = REPLACE_DEAL_UI_FRAGMENTS,
             description = "Replace exact component subtrees in checked Deal UI. The complete transaction is production-checked before commit.",
             parameters = buildJsonObject {
@@ -450,7 +463,14 @@ private class CanonicalDealUiEditCompiler(
                         putJsonObject("items") {
                             put("type", "object")
                             putJsonObject("properties") {
-                                putJsonObject("match") { put("type", "string") }
+                                putJsonObject("match") {
+                                    put("type", "string")
+                                    if (repairFragmentMatches.isNotEmpty()) {
+                                        putJsonArray("enum") {
+                                            repairFragmentMatches.forEach { add(JsonPrimitive(it)) }
+                                        }
+                                    }
+                                }
                                 putJsonObject("replacement") { put("type", "string") }
                             }
                             putJsonArray("required") {
@@ -467,14 +487,23 @@ private class CanonicalDealUiEditCompiler(
                 }
                 put("additionalProperties", false)
             }
-        ),
-        unchangedTool(KEEP_DEAL_UI)
-    )
+        )
+        return if (repairFragmentMatches.isEmpty()) {
+            listOf(replaceTool, unchangedTool(KEEP_DEAL_UI))
+        } else {
+            listOf(replaceTool)
+        }
+    }
 
+    @Suppress("ReturnCount")
     fun apply(call: DeepSeekFunctionCall) {
         val root = parseArguments(call) ?: return
         if (!checkHash(root, source, ::reject)) return
         if (call.name == KEEP_DEAL_UI) {
+            if (repairFragmentMatches.isNotEmpty()) {
+                reject("A rejected Deal UI edit must be repaired; it cannot be changed to no-op")
+                return
+            }
             complete = true
             return
         }
@@ -493,6 +522,10 @@ private class CanonicalDealUiEditCompiler(
             val replacement = edit["replacement"]?.jsonPrimitive?.contentOrNull.orEmpty()
             if (match.isBlank() || replacement.isBlank()) {
                 reject("Deal UI match and replacement must both be non-empty")
+                return
+            }
+            if (repairFragmentMatches.isNotEmpty() && match !in repairFragmentMatches) {
+                reject("Deal UI repair may replace only a previously rejected component subtree")
                 return
             }
             if (FORBIDDEN_UI_BOUNDARY.containsMatchIn(replacement)) {
@@ -514,8 +547,14 @@ private class CanonicalDealUiEditCompiler(
                 accepted++
                 complete = true
                 diagnostic = ""
+                repairFragmentMatches = emptySet()
             }
-            .onFailure { reject(it.message ?: "compiler rejected Deal UI root") }
+            .onFailure {
+                repairFragmentMatches = edits.mapTo(linkedSetOf()) { element ->
+                    element.jsonObject["match"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                }.filterTo(linkedSetOf(), String::isNotBlank)
+                reject(it.message ?: "compiler rejected Deal UI root")
+            }
         validationLatencyMs += (System.nanoTime() - started) / 1_000_000
     }
 

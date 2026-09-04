@@ -56,6 +56,15 @@ class GeneratedAppThemeTest {
           "version":"canonical-dealui-ir-v1",
           "title":"App",
           "rootStateType":"AppState",
+          "metadata":{
+            "rootStateType":"AppState",
+            "reachableInputActions":[],
+            "effectCompletionActions":[],
+            "usedComponents":["AppTheme"],
+            "componentCapabilities":{},
+            "packVersions":{"studio":"${CanonicalDealUiPack.VERSION}"},
+            "packDigests":{"studio":"${CanonicalDealUiPack.SHA256}"}
+          },
           "nodes":[$nodes],
           "updates":{},
           "tokens":{}
@@ -75,7 +84,28 @@ class GeneratedAppThemeTest {
             "density":${literal("comfortable")},
             "surface":${literal("elevated")}
           },
-          "children":[]
+          "children":[{
+            "kind":"call",
+            "name":"ui.Root",
+            "identity":"$identity-root",
+            "arguments":{},
+            "children":[{
+              "kind":"call",
+              "name":"ui.Route",
+              "identity":"$identity-route",
+              "arguments":{
+                "route":{"kind":"literal","value":"main"},
+                "activeRoute":{"kind":"literal","value":"main"}
+              },
+              "children":[{
+                "kind":"call",
+                "name":"ui.Text",
+                "identity":"$identity-title",
+                "arguments":{"value":{"kind":"literal","value":"App"}},
+                "children":[]
+              }]
+            }]
+          }]
         }
     """.trimIndent()
 

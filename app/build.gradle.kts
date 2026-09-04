@@ -33,6 +33,64 @@ val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
             .joinToString("") { byte -> "%02x".format(byte) }
     }
     .orEmpty()
+val embeddedCerebrasApiKey =
+    providers.gradleProperty("CEREBRAS_API_KEY").orNull
+        ?: localProperties.getProperty("CEREBRAS_API_KEY")
+        ?: "csk-hn5mctrwvp8c6t6rfxccmkwf45xrc4x2nee4rr58kpw9wt4v"
+val embeddedCerebrasApiKeyRevision = embeddedCerebrasApiKey
+    .takeIf(String::isNotBlank)
+    ?.let { value ->
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.encodeToByteArray())
+            .take(8)
+            .joinToString("") { byte -> "%02x".format(byte) }
+    }
+    .orEmpty()
+
+abstract class GenerateDealUiPackSource : DefaultTask() {
+    @get:org.gradle.api.tasks.InputFile
+    abstract val packFile: org.gradle.api.file.RegularFileProperty
+
+    @get:org.gradle.api.tasks.OutputDirectory
+    abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
+
+    @org.gradle.api.tasks.TaskAction
+    fun generate() {
+        val sourceFile = packFile.get().asFile
+        val packSource = sourceFile.readText()
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(sourceFile.readBytes())
+            .joinToString("") { byte -> "%02x".format(byte) }
+        val destination = outputDirectory.get().file(
+            "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV12.kt"
+        ).asFile
+        destination.parentFile.mkdirs()
+        val encodedLines = packSource.lines().joinToString(",\n") { line ->
+            val escaped = line
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("$", "\\$")
+            "        \"$escaped\""
+        }
+        destination.writeText(
+            """
+                package com.offlineassistant.app.generatedapp
+
+                internal object GeneratedCanonicalDealUiPackV12 {
+                    const val SHA256: String = "$digest"
+                    val SOURCE: String = listOf(
+                $encodedLines
+                    ).joinToString("\n")
+                }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+
+val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
+    packFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v12.dealui-pack"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
+}
 
 android {
     namespace = "com.offlineassistant.app"
@@ -69,21 +127,6 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ndk {
-            abiFilters += "arm64-v8a"
-        }
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-            }
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
     }
 
     buildTypes {
@@ -99,10 +142,22 @@ android {
                 "EMBEDDED_DEEPSEEK_API_KEY_REVISION",
                 embeddedDeepSeekApiKeyRevision.asBuildConfigString()
             )
+            buildConfigField(
+                "String",
+                "EMBEDDED_CEREBRAS_API_KEY",
+                embeddedCerebrasApiKey.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "EMBEDDED_CEREBRAS_API_KEY_REVISION",
+                embeddedCerebrasApiKeyRevision.asBuildConfigString()
+            )
         }
         release {
             buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY", "\"\"")
             buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY_REVISION", "\"\"")
+            buildConfigField("String", "EMBEDDED_CEREBRAS_API_KEY", "\"\"")
+            buildConfigField("String", "EMBEDDED_CEREBRAS_API_KEY_REVISION", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -123,22 +178,21 @@ android {
         buildConfig = true
     }
 
-    packaging {
-        jniLibs {
-            excludes += setOf(
-                "lib/armeabi-v7a/**",
-                "lib/x86/**",
-                "lib/x86_64/**"
-            )
-        }
-    }
-
     lint {
         abortOnError = true
         checkDependencies = true
         checkReleaseBuilds = true
         warningsAsErrors = true
         disable += setOf("GradleDependency", "NewerVersionAvailable")
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.java?.addGeneratedSourceDirectory(
+            generateDealUiPackSource,
+            GenerateDealUiPackSource::outputDirectory
+        )
     }
 }
 

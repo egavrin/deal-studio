@@ -70,6 +70,25 @@ class CanonicalDealUiGraphCompilerTest {
     }
 
     @Test
+    fun `opaque section ids accept lowercase slugs`() {
+        val compiler = compiler()
+        val hash = compiler.snapshot().graphHash
+        compiler.currentTool()
+
+        val result = compiler.apply(
+            call(
+                hash,
+                "main-screen",
+                "ui.Route(route: \"main\", activeRoute: \"main\") { ui.Text(value: \"Ready\") }",
+                isFinal = true
+            )
+        )
+
+        assertTrue(result.diagnostic.orEmpty(), result.accepted)
+        assertEquals(listOf("main-screen"), compiler.snapshot().acceptedSectionIds)
+    }
+
+    @Test
     fun `initial coarse tool requires one compact application theme`() {
         val tool = compiler().currentTool()
         val required = tool.parameters["required"]?.jsonArray?.map { it.toString() }.orEmpty()
@@ -115,17 +134,23 @@ class CanonicalDealUiGraphCompilerTest {
     }
 
     @Test
-    fun `first accepted section cannot prematurely finish streaming`() {
+    fun `one complete route may finalize a compact application`() {
         val compiler = compiler()
         val batchHash = compiler.snapshot().graphHash
         compiler.currentTool()
 
-        val first = compiler.apply(call(batchHash, "content", "ui.Text(value: \"Ready\")", isFinal = true))
+        val first = compiler.apply(
+            call(
+                batchHash,
+                "main",
+                "ui.Route(route: \"main\", activeRoute: \"main\") { ui.Text(value: \"Ready\") }",
+                isFinal = true
+            )
+        )
 
         assertTrue(first.accepted)
-        assertFalse(first.completed)
-        assertFalse(compiler.isComplete)
-        assertTrue(compiler.snapshot().diagnostic.contains("at least 1 more"))
+        assertTrue(first.completed)
+        assertTrue(compiler.isComplete)
         assertTrue(compiler.previewSource().contains("Ready"))
     }
 
@@ -134,7 +159,7 @@ class CanonicalDealUiGraphCompilerTest {
         val compiler = CanonicalDealUiGraphCompiler(
             rootState = "AppState",
             requiredActions = setOf("SetWeightAction")
-        ) { _, _ -> "checked-ir" }
+        ) { source, _ -> checkedIr(source) }
         compiler.currentTool()
         val firstHash = compiler.snapshot().graphHash
 
@@ -168,7 +193,7 @@ class CanonicalDealUiGraphCompilerTest {
         val compiler = CanonicalDealUiGraphCompiler(
             rootState = "AppState",
             requiredCapabilityComponents = setOf("MinuteClock")
-        ) { _, _ -> "checked-ir" }
+        ) { source, _ -> checkedIr(source) }
         compiler.currentTool()
         val hash = compiler.snapshot().graphHash
 
@@ -202,7 +227,7 @@ class CanonicalDealUiGraphCompilerTest {
     fun `compiler diagnostic and rejected draft are available for next tool round`() {
         val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
             require("toString" !in source) { "method calls are unsupported" }
-            "checked-ir"
+            checkedIr(source)
         }
         val body = "ui.Text(value: state.count.toString())"
 
@@ -222,7 +247,7 @@ class CanonicalDealUiGraphCompilerTest {
     fun `sections after a rejected dependency are deferred and committed after repair`() {
         val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
             require("broken" !in source) { "invalid section" }
-            "checked-ir"
+            checkedIr(source)
         }
         compiler.currentTool()
         val hash = compiler.snapshot().graphHash
@@ -243,7 +268,7 @@ class CanonicalDealUiGraphCompilerTest {
     fun `invalid deferred section becomes the next focused repair`() {
         val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
             require("broken" !in source) { "invalid section" }
-            "checked-ir"
+            checkedIr(source)
         }
         compiler.currentTool()
         val hash = compiler.snapshot().graphHash
@@ -262,7 +287,7 @@ class CanonicalDealUiGraphCompilerTest {
     fun `identical rejected UI body has a stable repair fingerprint`() {
         val compiler = CanonicalDealUiGraphCompiler("AppState") { source, _ ->
             require("broken" !in source) { "invalid section" }
-            "checked-ir"
+            checkedIr(source)
         }
         compiler.currentTool()
         val hash = compiler.snapshot().graphHash
@@ -274,7 +299,60 @@ class CanonicalDealUiGraphCompilerTest {
         assertEquals(first.rejectedCandidateFingerprint, second.rejectedCandidateFingerprint)
     }
 
-    private fun compiler() = CanonicalDealUiGraphCompiler("AppState") { _, _ -> "checked-ir" }
+    private fun compiler() = CanonicalDealUiGraphCompiler("AppState") { source, _ -> checkedIr(source) }
+
+    private fun checkedIr(source: String): String {
+        val actions = Regex("action app\\.([A-Za-z][A-Za-z0-9_]*)")
+            .findAll(source)
+            .map { it.groupValues[1] }
+            .distinct()
+            .joinToString(",") { "\"$it\"" }
+        val components = Regex("ui\\.([A-Za-z][A-Za-z0-9_]*)\\s*\\(")
+            .findAll(source)
+            .map { it.groupValues[1] }
+            .distinct()
+            .joinToString(",") { "\"$it\"" }
+        return """
+            {
+              "version":"canonical-dealui-ir-v1",
+              "title":"checked-ir",
+              "rootStateType":"AppState",
+              "metadata":{
+                "rootStateType":"AppState",
+                "reachableInputActions":[$actions],
+                "effectCompletionActions":[],
+                "usedComponents":[$components],
+                "componentCapabilities":{},
+                "packVersions":{"studio":"${CanonicalDealUiPack.VERSION}"},
+                "packDigests":{"studio":"${CanonicalDealUiPack.SHA256}"}
+              },
+              "nodes":[{
+                "kind":"call",
+                "name":"ui.Root",
+                "identity":"test-root",
+                "arguments":{},
+                "children":[{
+                  "kind":"call",
+                  "name":"ui.Route",
+                  "identity":"test-route",
+                  "arguments":{
+                    "route":{"kind":"literal","type":"string","value":"main"},
+                    "activeRoute":{"kind":"literal","type":"string","value":"main"}
+                  },
+                  "children":[{
+                    "kind":"call",
+                    "name":"ui.Text",
+                    "identity":"test-text",
+                    "arguments":{"value":{"kind":"literal","type":"string","value":"Ready"}},
+                    "children":[]
+                  }]
+                }]
+              }],
+              "updates":{},
+              "tokens":{}
+            }
+        """.trimIndent()
+    }
 
     private fun call(
         baseHash: String,

@@ -1,9 +1,12 @@
 package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
-    const val VERSION = "deal-studio-dealui-pack-v11"
+    const val VERSION = "deal-studio-dealui-pack-v12"
+    const val LEGACY_VERSION = "deal-studio-dealui-pack-v11"
+    const val SHA256 = GeneratedCanonicalDealUiPackV12.SHA256
+    const val LEGACY_SHA256 = "78ab770900cb8ec99c854e31d92d7e4621c5ddaa7c205ff712c6a547a313ae49"
 
-    val source: String = """
+    private val legacySource: String = """
         export class Space { value: int = 0; }
         export class ColorToken { value: string = ""; }
         export class TextStyle { value: string = "body"; }
@@ -123,4 +126,18 @@ internal object CanonicalDealUiPack {
         export token textMetric: TextStyle = { value: "metric" };
         export token textDisplay: TextStyle = { value: "display" };
     """.trimIndent()
+
+    val source: String = GeneratedCanonicalDealUiPackV12.SOURCE
+
+    fun sourceFor(version: String): String? = when (version) {
+        VERSION -> source
+        LEGACY_VERSION -> legacySource
+        else -> null
+    }
+
+    fun digestFor(version: String): String? = when (version) {
+        VERSION -> SHA256
+        LEGACY_VERSION -> LEGACY_SHA256
+        else -> null
+    }
 }

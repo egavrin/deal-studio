@@ -26,6 +26,8 @@ internal class CanonicalDealProgramGraphCompiler(
 ) {
     private var declarations: DealProgramDeclarations? = null
     private val bodies = linkedMapOf<String, String>()
+    private val rejectedBodies = mutableMapOf<String, String>()
+    private val rejectedDiagnostics = mutableMapOf<String, String>()
     private val log = mutableListOf<String>()
 
     var rejectedPatches: Int = 0
@@ -55,7 +57,9 @@ internal class CanonicalDealProgramGraphCompiler(
         val partial = render(program, bodies)
         return CanonicalDealGraphSnapshot(
             graphHash = sha256(partial),
-            pendingHoles = program.holes.filterNot { it.id in bodies }.map(DealFunctionHole::snapshot),
+            pendingHoles = program.holes.filterNot { it.id in bodies }.map { hole ->
+                hole.snapshot(rejectedBodies[hole.id], rejectedDiagnostics[hole.id])
+            },
             partialDeal = partial,
             repairContext = renderRepairContext(program),
             acceptedPatches = 1 + bodies.size,
@@ -68,6 +72,21 @@ internal class CanonicalDealProgramGraphCompiler(
         submitProgramTool()
     } else {
         repairBatchTool(snapshot())
+    }
+
+    /**
+     * Bounded transport surface for production generation. Declarations and typed bodies remain one
+     * compiler graph, but travel in independently valid calls so a rich app cannot truncate one huge
+     * JSON argument object before the compiler sees it.
+     */
+    fun currentStagedTool(maxHoles: Int): DeepSeekFunctionTool {
+        require(maxHoles > 0) { "A staged DEAL batch must expose at least one typed hole" }
+        return if (declarations == null) {
+            submitDeclarationsTool()
+        } else {
+            val snapshot = snapshot()
+            repairBatchTool(snapshot.copy(pendingHoles = snapshot.pendingHoles.take(maxHoles)))
+        }
     }
 
     fun apply(call: DeepSeekFunctionCall): CanonicalDealGraphApplyResult = if (declarations == null) {
@@ -90,8 +109,10 @@ internal class CanonicalDealProgramGraphCompiler(
     fun patchLog(): String = log.joinToString("\n")
 
     private fun applyProgram(call: DeepSeekFunctionCall): CanonicalDealGraphApplyResult {
-        if (call.name != SUBMIT_DEAL_PROGRAM_TOOL_NAME) {
-            return rejectCall("Expected $SUBMIT_DEAL_PROGRAM_TOOL_NAME, received ${call.name}")
+        if (call.name !in setOf(SUBMIT_DEAL_PROGRAM_TOOL_NAME, SUBMIT_DEAL_DECLARATIONS_TOOL_NAME)) {
+            return rejectCall(
+                "Expected $SUBMIT_DEAL_PROGRAM_TOOL_NAME or $SUBMIT_DEAL_DECLARATIONS_TOOL_NAME, received ${call.name}"
+            )
         }
         val root = runCatching { JSON.parseToJsonElement(call.arguments).jsonObject }
             .getOrElse {
@@ -112,8 +133,16 @@ internal class CanonicalDealProgramGraphCompiler(
             val source = render(parsed, emptyMap())
             validate(source, parsed.appInterface)
             declarations = parsed
-            log += "ACCEPT\t$SUBMIT_DEAL_PROGRAM_TOOL_NAME\t${sha256(source)}\tholes=${parsed.holes.size}"
-            applyFills(root, SUBMIT_DEAL_PROGRAM_TOOL_NAME, requireBaseHash = false)
+            log += "ACCEPT\t${call.name}\t${sha256(source)}\tholes=${parsed.holes.size}"
+            if (call.name == SUBMIT_DEAL_DECLARATIONS_TOOL_NAME) {
+                CanonicalDealGraphApplyResult(
+                    acceptedHoleIds = emptyList(),
+                    rejectedHoleIds = emptyList(),
+                    diagnostic = null
+                )
+            } else {
+                applyFills(root, SUBMIT_DEAL_PROGRAM_TOOL_NAME, requireBaseHash = false)
+            }
         }.getOrElse { failure ->
             rejectCall(
                 "$SUBMIT_DEAL_PROGRAM_TOOL_NAME: ${failure.message ?: "invalid program declarations"}",
@@ -194,6 +223,10 @@ internal class CanonicalDealProgramGraphCompiler(
                 rejected += holeId.ifBlank { "<invalid>" }
                 diagnostics += structuralFailure
                 rejectedFingerprints += candidateFingerprint
+                if (hole != null && holeId !in bodies) {
+                    rejectedBodies[holeId] = body.trim()
+                    rejectedDiagnostics[holeId] = "$holeId: $structuralFailure"
+                }
                 return@forEach
             }
 
@@ -203,6 +236,8 @@ internal class CanonicalDealProgramGraphCompiler(
             runCatching { validate(candidateSource, program.appInterface) }
                 .onSuccess {
                     bodies[holeId] = normalizedBody
+                    rejectedBodies.remove(holeId)
+                    rejectedDiagnostics.remove(holeId)
                     accepted += holeId
                     log += "ACCEPT\t$toolName\t$holeId\t${sha256(normalizedBody)}"
                 }
@@ -210,6 +245,8 @@ internal class CanonicalDealProgramGraphCompiler(
                     rejected += holeId
                     rejectedFingerprints += candidateFingerprint
                     val diagnostic = "$holeId: ${failure.message ?: "compiler rejected body"}"
+                    rejectedBodies[holeId] = normalizedBody
+                    rejectedDiagnostics[holeId] = diagnostic
                     diagnostics += diagnostic
                     log += "REJECT\t$toolName\t$diagnostic"
                 }
@@ -478,6 +515,13 @@ internal class CanonicalDealProgramGraphCompiler(
         strict = true
     )
 
+    private fun submitDeclarationsTool(): DeepSeekFunctionTool = DeepSeekFunctionTool(
+        name = SUBMIT_DEAL_DECLARATIONS_TOOL_NAME,
+        description = "Declare one compact generic DEAL program graph. The compiler derives stable typed function holes; no function bodies or layout plan are transported in this call.",
+        parameters = PROGRAM_SCHEMA,
+        strict = true
+    )
+
     private fun repairBatchTool(snapshot: CanonicalDealGraphSnapshot): DeepSeekFunctionTool {
         val holeIds = snapshot.pendingHoles.map(CanonicalDealHoleSnapshot::id)
         val parameters = buildJsonObject {
@@ -495,9 +539,18 @@ internal class CanonicalDealProgramGraphCompiler(
             }
             put("additionalProperties", false)
         }
+        val repairInvariants = snapshot.pendingHoles.mapNotNull { hole ->
+            hole.lastDiagnostic?.let(::dealRepairDirective)?.let { directive -> "${hole.id}: $directive" }
+        }.distinct()
         return DeepSeekFunctionTool(
             name = REPAIR_DEAL_BATCH_TOOL_NAME,
-            description = "Repair every unresolved typed DEAL function in one batch. Accepted bodies are immutable and unavailable for replacement.",
+            description = buildString {
+                append("Repair every unresolved typed DEAL function in one batch. Accepted bodies are immutable and unavailable for replacement.")
+                if (repairInvariants.isNotEmpty()) {
+                    append(" Mandatory compiler invariants: ")
+                    append(repairInvariants.joinToString(" "))
+                }
+            },
             parameters = parameters,
             strict = true
         )
@@ -684,7 +737,9 @@ internal data class CanonicalDealHoleSnapshot(
     val id: String,
     val signature: String,
     val expectedReturnType: String,
-    val visibleValues: String
+    val visibleValues: String,
+    val lastRejectedBody: String? = null,
+    val lastDiagnostic: String? = null
 )
 
 internal data class CanonicalDealGraphApplyResult(
@@ -718,11 +773,13 @@ private data class DealFunctionHole(
     val returnType: String,
     val annotation: String?
 ) {
-    fun snapshot(): CanonicalDealHoleSnapshot = CanonicalDealHoleSnapshot(
+    fun snapshot(lastRejectedBody: String?, lastDiagnostic: String?): CanonicalDealHoleSnapshot = CanonicalDealHoleSnapshot(
         id = id,
         signature = "$name(${parameters.joinToString(", ") { "${it.name}: ${it.type}" }}): $returnType",
         expectedReturnType = returnType,
-        visibleValues = parameters.joinToString(", ") { "${it.name}: ${it.type}" }.ifBlank { "none" }
+        visibleValues = parameters.joinToString(", ") { "${it.name}: ${it.type}" }.ifBlank { "none" },
+        lastRejectedBody = lastRejectedBody,
+        lastDiagnostic = lastDiagnostic
     )
 }
 
@@ -745,4 +802,5 @@ private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
     .joinToString("") { byte -> "%02x".format(byte) }
 
 internal const val SUBMIT_DEAL_PROGRAM_TOOL_NAME = "submit_deal_program"
+internal const val SUBMIT_DEAL_DECLARATIONS_TOOL_NAME = "submit_deal_declarations"
 internal const val REPAIR_DEAL_BATCH_TOOL_NAME = "repair_deal_batch"

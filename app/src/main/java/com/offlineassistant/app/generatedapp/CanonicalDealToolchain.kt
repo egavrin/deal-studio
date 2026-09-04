@@ -64,6 +64,14 @@ internal class CanonicalDealToolchain(
         )
     }
 
+    fun validateDealForUi(dealSource: String) {
+        invokeBridge(
+            "validateDealForUi",
+            arrayOf(String::class.java),
+            arrayOf(dealSource)
+        )
+    }
+
     fun extractAppInterface(dealSource: String): String = invokeBridge(
         "extractAppInterface",
         arrayOf(String::class.java),
@@ -74,12 +82,25 @@ internal class CanonicalDealToolchain(
         dealSource: String,
         dealUiSource: String,
         packSource: String
+    ): String = compilePortable("compilePortable", dealSource, dealUiSource, packSource)
+
+    fun compilePortablePreview(
+        dealSource: String,
+        dealUiSource: String,
+        packSource: String
+    ): String = compilePortable("compilePortablePreview", dealSource, dealUiSource, packSource)
+
+    private fun compilePortable(
+        method: String,
+        dealSource: String,
+        dealUiSource: String,
+        packSource: String
     ): String {
         check(BuildConfig.DEBUG) { "The embedded Deal toolchain is available only in internal builds" }
         val bridge = bridgeClass()
         return try {
             bridge.getMethod(
-                "compilePortable",
+                method,
                 String::class.java,
                 String::class.java,
                 String::class.java
@@ -158,7 +179,9 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "3c1c0166bc89062e00072016878ad63940a593039a093923da2031088fee0031"
+        const val ARTIFACT_SHA256 = "e3aae302b3ef7dcdc19fca719abec45952fab60514fb84db7d2a85c87fdaa627"
+        const val DEAL_REVISION = "fc90c049b088fdf38217120aaf4e799af01ba5c3"
+        const val DEAL_UI_REVISION = "be16c71654bbd9056cff1a2cbec8a48a523ec51c"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"

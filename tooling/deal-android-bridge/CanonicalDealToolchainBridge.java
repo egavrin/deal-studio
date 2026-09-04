@@ -68,7 +68,7 @@ public final class CanonicalDealToolchainBridge {
             String dealUiSource,
             String packSource) {
         try {
-            return new UiIrDumper().dump(check(dealSource, dealUiSource, packSource));
+            return new UiIrDumper().dump(check(dealSource, dealUiSource, packSource, false));
         } catch (UiDiagnostic diagnostic) {
             throw new IllegalArgumentException(diagnostic.format(), diagnostic);
         }
@@ -79,7 +79,18 @@ public final class CanonicalDealToolchainBridge {
             String dealUiSource,
             String packSource) {
         try {
-            return CanonicalDealUiJson.encode(check(dealSource, dealUiSource, packSource));
+            return CanonicalDealUiJson.encode(check(dealSource, dealUiSource, packSource, false));
+        } catch (UiDiagnostic diagnostic) {
+            throw new IllegalArgumentException(diagnostic.format(), diagnostic);
+        }
+    }
+
+    public static String compilePortablePreview(
+            String dealSource,
+            String dealUiSource,
+            String packSource) {
+        try {
+            return CanonicalDealUiJson.encode(check(dealSource, dealUiSource, packSource, true));
         } catch (UiDiagnostic diagnostic) {
             throw new IllegalArgumentException(diagnostic.format(), diagnostic);
         }
@@ -92,10 +103,22 @@ public final class CanonicalDealToolchainBridge {
         return "ok";
     }
 
+    /** Validates DEAL plus the framework contracts that apply before a Deal UI exists. */
+    public static String validateDealForUi(String dealSource) {
+        requireText(dealSource, "app.deal");
+        validateDeal(dealSource);
+        try {
+            new UiChecker().parseDeal(DEAL_FILE, sourceWithPrelude(dealSource));
+        } catch (UiDiagnostic diagnostic) {
+            throw new IllegalArgumentException(diagnostic.format(), diagnostic);
+        }
+        return "ok";
+    }
+
     /** Derives the UI-facing contract from the validated DEAL module; no model planner is involved. */
     public static String extractAppInterface(String dealSource) {
         requireText(dealSource, "app.deal");
-        validateDeal(dealSource);
+        validateDealForUi(dealSource);
         ParseResult parsed = new Parser(
                 new Lexer(normalizeDirectives(dealSource), DEAL_FILE.toString()).tokenize().tokens(),
                 DEAL_FILE.toString()).parse();
@@ -156,7 +179,7 @@ public final class CanonicalDealToolchainBridge {
 
     public static Object createRuntime(String dealSource) {
         requireText(dealSource, "app.deal");
-        validateDeal(dealSource);
+        validateDealForUi(dealSource);
         return new CanonicalDealRuntime(dealSource);
     }
 
@@ -217,7 +240,8 @@ public final class CanonicalDealToolchainBridge {
     private static UiModel.CheckedProgram check(
             String dealSource,
             String dealUiSource,
-            String packSource) {
+            String packSource,
+            boolean allowUnreachableUpdates) {
         requireText(dealSource, "app.deal");
         requireText(dealUiSource, "app.dealui");
         requireText(packSource, "platform-ui.dealui-pack");
@@ -233,7 +257,8 @@ public final class CanonicalDealToolchainBridge {
                 views,
                 DEAL_FILE,
                 deal,
-                Map.of(PACK_SPECIFIER, pack));
+                Map.of(PACK_SPECIFIER, pack),
+                allowUnreachableUpdates);
     }
 
     private static void validateDeal(String source) {

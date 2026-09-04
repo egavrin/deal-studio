@@ -41,7 +41,16 @@ class CanonicalGeneratedAppWidgetProjectionTest {
                 )
             ),
             updates = mapOf("Complete" to "complete"),
-            tokens = emptyMap()
+            tokens = emptyMap(),
+            metadata = CanonicalDealUiCheckedMetadata(
+                rootStateType = "TrackerState",
+                reachableInputActions = setOf("Complete"),
+                effectCompletionActions = emptySet(),
+                usedComponents = setOf("Root", "Widget", "IntStat", "Button"),
+                componentCapabilities = emptyMap(),
+                packVersions = mapOf("studio" to CanonicalDealUiPack.VERSION),
+                packDigests = emptyMap()
+            )
         )
 
         val projection = CanonicalGeneratedAppWidgetProjection.project(
@@ -85,7 +94,37 @@ class CanonicalGeneratedAppWidgetProjectionTest {
           "version":"canonical-dealui-ir-v1",
           "title":"App",
           "rootStateType":"AppState",
-          "nodes":[$node],
+          "metadata":{
+            "rootStateType":"AppState",
+            "reachableInputActions":[],
+            "effectCompletionActions":[],
+            "usedComponents":["Widget","TextField","ProgressBar"],
+            "componentCapabilities":{},
+            "packVersions":{"studio":"${CanonicalDealUiPack.VERSION}"},
+            "packDigests":{"studio":"${CanonicalDealUiPack.SHA256}"}
+          },
+          "nodes":[{
+            "kind":"call",
+            "name":"ui.Root",
+            "identity":"root",
+            "arguments":{},
+            "children":[{
+              "kind":"call",
+              "name":"ui.Route",
+              "identity":"route",
+              "arguments":{
+                "route":{"kind":"literal","value":"main"},
+                "activeRoute":{"kind":"literal","value":"main"}
+              },
+              "children":[{
+                "kind":"call",
+                "name":"ui.Text",
+                "identity":"route-title",
+                "arguments":{"value":{"kind":"literal","value":"App"}},
+                "children":[]
+              }]
+            },$node]
+          }],
           "updates":{},
           "tokens":{}
         }

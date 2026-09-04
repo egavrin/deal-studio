@@ -3,7 +3,10 @@ package com.offlineassistant.app.generatedapp
 import android.content.Context
 import com.offlineassistant.deepseek.DeepSeekGenerationClient
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
+import com.offlineassistant.deepseek.DeepSeekToolGenerationResult
 import com.offlineassistant.deepseek.DeepSeekToolRequest
+import java.io.IOException
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -53,7 +56,10 @@ internal data class CanonicalGeneratedAppBundle(
     val dealUiCachedInputTokens: Int = 0,
     val dealUiOutputTokens: Int = 0,
     val dealUiAcceptedPatches: Int = 0,
-    val firstInteractivePreviewMs: Long? = null
+    val firstInteractivePreviewMs: Long? = null,
+    val dealModelId: String = "deepseek-chat",
+    val dealUiModelId: String = "deepseek-chat",
+    val promptDigest: String = ""
 )
 
 internal enum class CanonicalGenerationPhase {
@@ -73,10 +79,11 @@ internal data class CanonicalDealUiPreview(
 internal class CanonicalGeneratedAppCloudCompiler(
     context: Context,
     apiKeyProvider: () -> String?,
+    cerebrasApiKeyProvider: () -> String? = { null },
     private val compilerToolTrace: (String) -> Unit = {}
 ) {
-    private val dealClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider)
-    private val dealUiClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider)
+    private val dealClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider, cerebrasApiKeyProvider = cerebrasApiKeyProvider)
+    private val dealUiClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider, cerebrasApiKeyProvider = cerebrasApiKeyProvider)
     private val toolchain = CanonicalDealToolchain(context.applicationContext)
 
     suspend fun generate(
@@ -107,6 +114,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         val extractedInterface = toolchain.extractAppInterface(dealSource)
         val appInterface = AppInterfaceCompiler.parse(extractedInterface)
         val contract = appInterface.compilerContract()
+        val initialState = toolchain.createRuntime(dealSource).snapshot()
 
         var firstInteractivePreviewMs: Long? = null
         val dealUiGeneration = generateUiGraph(
@@ -115,6 +123,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             contract = contract,
             appInterface = appInterface,
             dealSource = dealSource,
+            initialState = initialState,
             onProgress = onProgress,
             onUiPreview = { preview ->
                 if (firstInteractivePreviewMs == null) {
@@ -124,6 +133,11 @@ internal class CanonicalGeneratedAppCloudCompiler(
             }
         )
         validationLatencyMs += dealUiGeneration.compilerValidationLatencyMs
+
+        onProgress(CanonicalGenerationPhase.VALIDATING, "Checking the initial application surface")
+        val initialSurfaceValidationStarted = System.nanoTime()
+        CanonicalDealUiParser.parse(dealUiGeneration.checkedIr).validateInitialSurface(initialState)
+        validationLatencyMs += (System.nanoTime() - initialSurfaceValidationStarted) / 1_000_000
 
         CanonicalGeneratedAppBundle(
             request = request,
@@ -154,7 +168,15 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealUiCachedInputTokens = dealUiGeneration.cachedInputTokens,
             dealUiOutputTokens = dealUiGeneration.outputTokens,
             dealUiAcceptedPatches = dealUiGeneration.acceptedPatches,
-            firstInteractivePreviewMs = firstInteractivePreviewMs
+            firstInteractivePreviewMs = firstInteractivePreviewMs,
+            dealModelId = dealModel.name,
+            dealUiModelId = dealUiModel.name,
+            promptDigest = sha256(
+                CanonicalGenerationPrompts.dealGraphDeclarationInstructions +
+                    CanonicalGenerationPrompts.dealGraphPatchInstructions +
+                    CanonicalGenerationPrompts.dealUiGraphInstructions +
+                    CanonicalDealUiPack.SHA256
+            )
         )
     }
 
@@ -176,14 +198,32 @@ internal class CanonicalGeneratedAppCloudCompiler(
         var outputTokens = 0
         var previousDiagnostic = ""
         var rounds = 0
+        val repairAttemptsByHole = mutableMapOf<String, Int>()
         val rejectedCandidateGuard = RejectedCandidateGuard()
         val roundTrace = mutableListOf<String>()
-        var roundBudget = CanonicalGenerationRepairPolicy.maxRounds(model)
+        val perHoleRepairBudget = CanonicalGenerationRepairPolicy.maxAttemptsPerHole(model)
+        var batchHoleLimit = DEAL_GRAPH_BATCH_HOLES
 
-        while (!compiler.isComplete && rounds < roundBudget) {
+        while (
+            !compiler.isComplete &&
+            rounds < DEAL_GRAPH_HARD_MAX_CALLS
+        ) {
             val snapshot = compiler.snapshot()
             val declarationsPending = snapshot.graphHash == "uninitialized"
-            val roundModel = CanonicalGenerationRepairPolicy.modelForRound(model, rounds)
+            val exhaustedHoles = snapshot.pendingHoles.map(CanonicalDealHoleSnapshot::id).filter { holeId ->
+                repairAttemptsByHole.getOrDefault(holeId, 0) >= perHoleRepairBudget
+            }
+            require(exhaustedHoles.isEmpty()) {
+                "DeepSeek exhausted the semantic repair budget for ${exhaustedHoles.joinToString()}\n" +
+                    snapshot.pendingHoles
+                        .filter { it.id in exhaustedHoles }
+                        .joinToString("\n") { hole -> "${hole.id}: ${hole.lastDiagnostic.orEmpty()}" }
+            }
+            val repairDepth = dealGraphRepairDepth(
+                pendingHoleIds = snapshot.pendingHoles.map(CanonicalDealHoleSnapshot::id),
+                repairAttemptsByHole = repairAttemptsByHole
+            )
+            val roundModel = CanonicalGenerationRepairPolicy.modelForRound(model, repairDepth)
             var acceptedThisRound = 0
             var rejectedThisRound = 0
             val repeatedCandidates = mutableSetOf<String>()
@@ -194,6 +234,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 val accepted = compiler.snapshot().acceptedPatches - before
                 acceptedThisRound += accepted
                 rejectedThisRound += applied.rejectedChanges
+                applied.rejectedHoleIds.forEach { holeId ->
+                    repairAttemptsByHole[holeId] = repairAttemptsByHole.getOrDefault(holeId, 0) + 1
+                }
                 if (rejectedCandidateGuard.observe(applied.rejectedCandidateFingerprints)) {
                     repeatedCandidates += applied.rejectedCandidateFingerprints
                 }
@@ -202,29 +245,69 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 }
                 if (applied.diagnostic != null) previousDiagnostic = applied.diagnostic
             }
-            val result = dealClient.generateTools(
-                request = DeepSeekToolRequest(
-                    model = roundModel,
-                    instructions = if (declarationsPending) {
-                        CanonicalGenerationPrompts.dealGraphDeclarationInstructions
-                    } else {
-                        CanonicalGenerationPrompts.dealGraphPatchInstructions
-                    },
-                    input = CanonicalGenerationPrompts.dealGraphInput(input, snapshot, previousDiagnostic),
-                    tools = listOf(compiler.currentTool()),
-                    maxOutputTokens = GRAPH_BATCH_MAX_TOKENS,
-                    temperature = 0.0
-                ),
-                onCall = ::applyPatch
-            )
+            val instructions = if (declarationsPending) {
+                CanonicalGenerationPrompts.dealGraphDeclarationInstructions
+            } else {
+                CanonicalGenerationPrompts.dealGraphPatchInstructions
+            }
+            var actualRoundModel = roundModel
+            if (!declarationsPending) {
+                batchHoleLimit = preferredDealGraphBatchSize(
+                    pendingHoleIds = snapshot.pendingHoles.map(CanonicalDealHoleSnapshot::id),
+                    currentMaximum = batchHoleLimit
+                )
+            }
+            var requestedSnapshot = snapshot
+            lateinit var result: DeepSeekToolGenerationResult
+            while (true) {
+                requestedSnapshot = if (declarationsPending) {
+                    snapshot
+                } else {
+                    snapshot.copy(pendingHoles = snapshot.pendingHoles.take(batchHoleLimit))
+                }
+                val roundInput = CanonicalGenerationPrompts.dealGraphInput(
+                    input,
+                    requestedSnapshot,
+                    previousDiagnostic
+                )
+                val tool = compiler.currentStagedTool(batchHoleLimit)
+                try {
+                    result = dealClient.generateTools(
+                        request = DeepSeekToolRequest(
+                            model = actualRoundModel,
+                            instructions = instructions,
+                            input = roundInput,
+                            tools = listOf(tool),
+                            maxOutputTokens = GRAPH_BATCH_MAX_TOKENS,
+                            temperature = 0.0
+                        ),
+                        onCall = ::applyPatch
+                    )
+                    break
+                } catch (failure: IOException) {
+                    when {
+                        !declarationsPending && batchHoleLimit > 1 -> {
+                            val reduced = reducedDealGraphBatchSize(batchHoleLimit)
+                            compilerToolTrace(
+                                "TRANSPORT_SPLIT\tdeal\t$batchHoleLimit->$reduced\t" +
+                                    "hash=${snapshot.graphHash.take(12)}\t${failure.message}"
+                            )
+                            batchHoleLimit = reduced
+                        }
+
+                        actualRoundModel == DeepSeekGenerationModel.FLASH -> {
+                            compilerToolTrace("TRANSPORT_FALLBACK\tdeal\tflash_to_pro\t${failure.message}")
+                            actualRoundModel = DeepSeekGenerationModel.PRO
+                        }
+
+                        else -> throw failure
+                    }
+                }
+            }
             rounds++
-            roundBudget = CanonicalGenerationRepairPolicy.extendAfterProgress(
-                currentBudget = roundBudget,
-                completedRounds = rounds,
-                acceptedChanges = acceptedThisRound
-            )
-            roundTrace += "ROUND\tdeal\t$rounds\tmodel=${roundModel.apiId}\thash=${snapshot.graphHash.take(12)}\t" +
-                "pending=${snapshot.pendingHoles.size}\taccepted=$acceptedThisRound\t" +
+            roundTrace += "ROUND\tdeal\t$rounds\tmodel=${actualRoundModel.apiId}\thash=${snapshot.graphHash.take(12)}\t" +
+                "pending=${snapshot.pendingHoles.size}\tbatch=${requestedSnapshot.pendingHoles.size}\t" +
+                "accepted=$acceptedThisRound\t" +
                 "rejected=$rejectedThisRound\tlatency_ms=${result.latencyMs}\t" +
                 "ttfc_ms=${result.timeToFirstCallMs ?: -1}\tinput=${result.inputTokens ?: 0}\t" +
                 "cached=${result.cachedInputTokens ?: 0}\toutput=${result.outputTokens ?: 0}\t" +
@@ -242,10 +325,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
                             "candidate(s). Do not return an identical body again."
                     )
                 }.trim()
-                require(roundModel != DeepSeekGenerationModel.PRO) {
-                    "DeepSeek Pro repeated a compiler-rejected DEAL candidate; stopping the repair loop. " +
-                        "$previousDiagnostic\n${compiler.patchLog()}"
-                }
             }
             if (rejectedThisRound == 0) previousDiagnostic = ""
         }
@@ -277,6 +356,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         contract: String,
         appInterface: AppInterface,
         dealSource: String,
+        initialState: JsonObject,
         onProgress: (CanonicalGenerationPhase, String) -> Unit,
         onUiPreview: (CanonicalDealUiPreview) -> Unit
     ): UiGraphGeneration {
@@ -285,16 +365,14 @@ internal class CanonicalGeneratedAppCloudCompiler(
             requiredActions = appInterface.actions.map(AppInterfaceType::name).toSet(),
             requiredCapabilityComponents = requiredDealUiHostComponents(appInterface.capabilities)
         ) { source, finalProjection ->
-            portableDealUiDiagnostic(source, appInterface.capabilities)?.let {
-                throw IllegalArgumentException(it)
-            }
-            val validationDeal = if (finalProjection) {
-                dealSource
+            val checkedIr = if (finalProjection) {
+                toolchain.compilePortable(dealSource, source, CanonicalDealUiPack.source)
             } else {
-                CanonicalDealPreviewProjector.project(dealSource, source)
+                toolchain.compilePortablePreview(dealSource, source, CanonicalDealUiPack.source)
             }
-            toolchain.compilePortable(validationDeal, source, CanonicalDealUiPack.source).also {
-                CanonicalDealUiParser.parse(it)
+            checkedIr.also { ir ->
+                val program = CanonicalDealUiParser.parse(ir)
+                if (finalProjection) program.validateInitialSurface(initialState)
             }
         }
         var latencyMs = 0L
@@ -306,6 +384,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         val rejectedCandidateGuard = RejectedCandidateGuard()
         val roundTrace = mutableListOf<String>()
         var roundBudget = CanonicalGenerationRepairPolicy.maxRounds(model)
+        var repairDirective = ""
 
         while (!compiler.isComplete && rounds < roundBudget) {
             val snapshot = compiler.snapshot()
@@ -321,7 +400,8 @@ internal class CanonicalGeneratedAppCloudCompiler(
                         request = request,
                         contract = contract,
                         verifiedDealSource = dealSource,
-                        snapshot = snapshot
+                        snapshot = snapshot,
+                        repairDirective = repairDirective
                     ),
                     tools = listOf(compiler.currentTool()),
                     maxOutputTokens = DEAL_UI_GRAPH_MAX_TOKENS,
@@ -355,6 +435,13 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 completedRounds = rounds,
                 acceptedChanges = accepted
             )
+            val remainingUi = compiler.snapshot()
+            roundBudget = CanonicalGenerationRepairPolicy.extendForUiPendingWork(
+                currentBudget = roundBudget,
+                completedRounds = rounds,
+                pendingRepair = remainingUi.pendingRepairSectionId != null,
+                deferredSections = remainingUi.deferredSectionCount
+            )
             roundTrace += "ROUND\tdeal_ui\t$rounds\tmodel=${roundModel.apiId}\taccepted=$accepted\t" +
                 "rejected=${compiler.rejectedPatches}\tlatency_ms=${result.latencyMs}\t" +
                 "ttfc_ms=${result.timeToFirstCallMs ?: -1}\tinput=${result.inputTokens ?: 0}\t" +
@@ -366,12 +453,12 @@ internal class CanonicalGeneratedAppCloudCompiler(
             cachedInputTokens += result.cachedInputTokens ?: 0
             outputTokens += result.outputTokens ?: 0
             if (repeatedCandidate) {
-                require(roundModel != DeepSeekGenerationModel.PRO) {
-                    "DeepSeek Pro repeated a compiler-rejected Deal UI section; stopping the repair loop. " +
-                        "$diagnostic\n${compiler.patchLog()}"
-                }
-                diagnostic = "$diagnostic\nThe previous repair repeated a byte-identical rejected section. " +
-                    "Do not return the identical body again."
+                repairDirective = "The previous repair repeated a byte-identical rejected section. " +
+                    "Do not return the identical body again. Rewrite the complete rejected section using a " +
+                    "different valid structure that removes every construct named by the compiler diagnostic."
+                diagnostic = "$diagnostic\n$repairDirective"
+            } else if (accepted > 0) {
+                repairDirective = ""
             }
             if (!compiler.isComplete && rounds < roundBudget) {
                 onProgress(CanonicalGenerationPhase.REPAIRING, "Correcting the rejected Deal UI section")
@@ -400,128 +487,18 @@ internal class CanonicalGeneratedAppCloudCompiler(
     }
 
     private fun validateDealGraphProjection(source: String, expectedInterface: AppInterface) {
-        portableDealPrefixDiagnostic(source)?.let { throw IllegalArgumentException(it) }
-        toolchain.validateDealOnly(source)
+        toolchain.validateDealForUi(source)
         val actualInterface = AppInterfaceCompiler.parse(toolchain.extractAppInterface(source))
         require(actualInterface == expectedInterface) {
             "The checked DEAL projection changed its declared AppInterface"
         }
     }
 
-    private fun portableDealPrefixDiagnostic(source: String): String? {
-        val code = source.codeOnly()
-        val violations = code.ruleDiagnostics(PORTABLE_DEAL_RULES)
-        return violations.takeIf(List<String>::isNotEmpty)?.joinToString("; ")
-    }
-
-    private fun portableDealUiDiagnostic(source: String, capabilities: List<String>): String? {
-        val code = source.codeOnly()
-        val violations = buildList {
-            addAll(code.ruleDiagnostics(PORTABLE_DEAL_UI_RULES))
-            CAPABILITY_COMPONENTS.forEach { (component, capability) ->
-                if (capability !in capabilities && Regex("\\bui\\.$component\\s*\\(").containsMatchIn(code)) {
-                    add("$component requires the undeclared capability $capability")
-                }
-            }
-        }
-        return violations.takeIf(List<String>::isNotEmpty)?.joinToString("; ")
-    }
-
-    private fun String.ruleDiagnostics(rules: List<Pair<Regex, String>>): List<String> = rules.flatMap { (pattern, message) ->
-        pattern.findAll(this).map { match ->
-            val line = take(match.range.first).count { it == '\n' } + 1
-            "line $line: $message; found `${match.value.trim()}`"
-        }.toList()
-    }.take(MAX_REPORTED_VIOLATIONS)
-
-    /** Keeps offsets and punctuation while hiding comments and string content from policy checks. */
-    private fun String.codeOnly(): String {
-        val result = StringBuilder(length)
-        var index = 0
-        var quote: Char? = null
-        var escaped = false
-        var lineComment = false
-        var blockComment = false
-        while (index < length) {
-            val current = this[index]
-            val next = getOrNull(index + 1)
-            when {
-                lineComment -> {
-                    lineComment = current != '\n'
-                    result.append(if (current == '\n') '\n' else ' ')
-                }
-
-                blockComment -> {
-                    if (current == '*' && next == '/') {
-                        result.append("  ")
-                        index++
-                        blockComment = false
-                    } else {
-                        result.append(if (current == '\n') '\n' else ' ')
-                    }
-                }
-
-                quote != null -> {
-                    result.append(if (current == '\n') '\n' else ' ')
-                    if (escaped) {
-                        escaped = false
-                    } else if (current == '\\') {
-                        escaped = true
-                    } else if (current == quote) {
-                        quote = null
-                    }
-                }
-
-                current == '/' && next == '/' -> {
-                    result.append("  ")
-                    index++
-                    lineComment = true
-                }
-
-                current == '/' && next == '*' -> {
-                    result.append("  ")
-                    index++
-                    blockComment = true
-                }
-
-                current == '"' || current == '\'' || current == '`' -> {
-                    quote = current
-                    result.append(' ')
-                }
-
-                else -> result.append(current)
-            }
-            index++
-        }
-        return result.toString()
-    }
-
     private companion object {
         const val GRAPH_BATCH_MAX_TOKENS = 8_192
         const val DEAL_UI_GRAPH_MAX_TOKENS = 4_096
-        const val MAX_REPORTED_VIOLATIONS = 32
-
-        val PORTABLE_DEAL_RULES = listOf(
-            Regex("\\bfunction\\s+platform[A-Za-z0-9_]*\\s*\\(") to "the platform prefix is reserved by the universal host prelude",
-            Regex("\\b[A-Za-z_][A-Za-z0-9_]*!\\s*\\.") to "postfix non-null assertions are unsupported; restructure the nullable branch",
-            Regex("\\+\\+|--") to "use explicit assignment instead of ++ or --",
-            Regex("[+\\-*/%]=") to "compound assignments are unsupported",
-            Regex("=>") to "arrow functions are unsupported",
-            Regex("\\b(?:const|var|interface|type|switch|any|typeof)\\b") to "TypeScript declarations and typeof are unsupported",
-            Regex("\\b(?:Math|Array|String)\\.") to "JavaScript built-ins are unsupported",
-            Regex("\\bparseInt\\s*\\(") to "parseInt is unsupported",
-            Regex("\\.(?:substring|toString|indexOf|map|filter|reduce)\\s*\\(") to "JavaScript methods are unsupported"
-        )
-        val PORTABLE_DEAL_UI_RULES = listOf(
-            Regex(":\\s*When\\s*\\(") to "When is structural, not an expression; use sibling When/Else branches",
-            Regex("\\[[^]\\n]+]") to
-                "array literals and indexing are unsupported; use an existing state array with ForEach, or compose scalar child items",
-            Regex("\\.length\\b") to "array length is unsupported; expose a state field",
-            Regex("(?<![=!])==(?!=)|!=(?!=)") to "use === and !==",
-            Regex("\\?[^:\\n]+:") to "ternary expressions are unsupported; use When/Else",
-            Regex("\\.(?:substring|toString|indexOf|map|filter|reduce)\\s*\\(") to
-                "method calls are unsupported; use fields, structural nodes or precomputed DEAL state"
-        )
+        const val DEAL_GRAPH_BATCH_HOLES = 6
+        const val DEAL_GRAPH_HARD_MAX_CALLS = 24
     }
 }
 
@@ -563,104 +540,6 @@ internal class CanonicalSourceRepairException(
     val patch: String,
     cause: Throwable
 ) : IllegalArgumentException("Canonical repair failed for $sourceName: ${cause.message}", cause)
-
-/**
- * Canonicalizes a deliberately tiny set of unambiguous aliases before production parsing.
- * It is language-level recovery, not application-specific repair.
- */
-internal object CanonicalSourceNormalizer {
-    fun deal(source: String): String = rewriteCode(
-        rewriteCode(source, Regex("\\b([A-Za-z_][A-Za-z0-9_]*)\\+\\+")) { match ->
-            val name = match.groupValues[1]
-            "$name = $name + 1"
-        },
-        Regex("\\b([A-Za-z_][A-Za-z0-9_]*)--")
-    ) { match ->
-        val name = match.groupValues[1]
-        "$name = $name - 1"
-    }
-
-    fun dealUi(source: String): String {
-        val strictNotEquals = rewriteCode(source, Regex("!=(?!=)")) { "!==" }
-        return rewriteCode(strictNotEquals, Regex("(?<![=!])==(?!=)")) { "===" }
-    }
-
-    private fun rewriteCode(
-        source: String,
-        pattern: Regex,
-        replacement: (MatchResult) -> String
-    ): String {
-        val visible = source.codeOnlyForNormalization()
-        val matches = pattern.findAll(visible).toList()
-        if (matches.isEmpty()) return source
-        val result = StringBuilder(source)
-        matches.asReversed().forEach { match ->
-            result.replace(match.range.first, match.range.last + 1, replacement(match))
-        }
-        return result.toString()
-    }
-
-    private fun String.codeOnlyForNormalization(): String {
-        val result = StringBuilder(length)
-        var index = 0
-        var quote: Char? = null
-        var escaped = false
-        var lineComment = false
-        var blockComment = false
-        while (index < length) {
-            val current = this[index]
-            val next = getOrNull(index + 1)
-            when {
-                lineComment -> {
-                    lineComment = current != '\n'
-                    result.append(if (current == '\n') '\n' else ' ')
-                }
-
-                blockComment -> {
-                    if (current == '*' && next == '/') {
-                        result.append("  ")
-                        index++
-                        blockComment = false
-                    } else {
-                        result.append(if (current == '\n') '\n' else ' ')
-                    }
-                }
-
-                quote != null -> {
-                    result.append(if (current == '\n') '\n' else ' ')
-                    if (escaped) {
-                        escaped = false
-                    } else if (current == '\\') {
-                        escaped = true
-                    } else if (current == quote) {
-                        quote = null
-                    }
-                }
-
-                current == '/' && next == '/' -> {
-                    result.append("  ")
-                    index++
-                    lineComment = true
-                }
-
-                current == '/' && next == '*' -> {
-                    result.append("  ")
-                    index++
-                    blockComment = true
-                }
-
-                current == '"' || current == '\'' || current == '`' -> {
-                    quote = current
-                    result.append(' ')
-                }
-
-                else -> result.append(current)
-            }
-            index++
-        }
-        return result.toString()
-    }
-}
 
 internal data class AppInterface(
     val rootState: String,
@@ -820,11 +699,11 @@ internal object AppInterfaceCompiler {
 
 internal object CanonicalGenerationPrompts {
     val dealGraphDeclarationInstructions = """
-        Submit one complete arbitrary small DEAL application by calling submit_deal_program exactly once. This is a
-        checked program transaction, not a layout plan, app-family template or separate artifact. The call contains
-        nominal state/value types, external input actions, required reusable capabilities, pure helper signatures and
-        one body fill for every deterministic typed function hole. The compiler derives the holes from the same call,
-        validates every body independently and commits only valid regions.
+        Declare one complete arbitrary small DEAL application by calling submit_deal_declarations exactly once. This
+        is the declaration boundary of one checked program graph, not a layout plan, app-family template or separate
+        artifact. The call contains only nominal state/value types, external input actions, required reusable
+        capabilities and pure helper signatures. Do not send fills, function bodies, source, Markdown or prose in this
+        call. The compiler derives stable typed function holes and requests their bodies in bounded subsequent calls.
 
         Use the compact compiler signature syntax exactly:
         - type_signatures: ["Item{id:int,label:string}", "AppState{items:Item[],title:string}"]
@@ -836,8 +715,10 @@ internal object CanonicalGenerationPrompts {
         The compiler infers the root state as the state type not referenced by another state type; do not choose or
         submit a separate root-state name.
 
-        Every action name ends with Action. Action fields are external user or host inputs, never values derivable
-        from state. Every record stored in an array has a stable int or string id. The root state is also the complete
+        Every action name ends with Action. The compiler accepts at most 16 action types, at most 16 state/value types,
+        at most 16 helpers and at most 24 fields in any class. Stay below those hard limits. Action fields are external
+        user or host inputs, never values derivable from state. Every record stored in an array has a stable int or
+        string id. The root state is also the complete
         presentation-ready view model for the sequential Deal UI generation step. Deal UI cannot call helpers, index
         or transform arrays, compute length, coerce numbers to strings or derive chart series. Therefore declare all
         requested visible and semantic values directly in root state: formatted labels and status text as string,
@@ -847,7 +728,33 @@ internal object CanonicalGenerationPrompts {
         a foreign key such as ownerId or categoryId, also put the denormalized display identity and every requested row
         value directly on that item, for example ownerName, categoryLabel, primaryText and statusText.
         Deal UI cannot join collections, so normalized relational records alone are invalid at this boundary. Use
-        one-dimensional arrays and explicit non-null defaults.
+        one-dimensional arrays and explicit non-null defaults. Every root state declares a `route:string` field. Its
+        initial value names the first visible application screen; navigation actions return a new state with another
+        stable route value. Keep gameplay or domain status separate from this presentation route. This is the generic
+        screen contract used by Deal UI and saved-app restoration.
+        Every requested sort, filter, grouping, range, selection or lookup must be implementable from typed machine
+        fields declared on the relevant record. A formatted label is never the sole data source. Temporal rows that
+        can be grouped or filtered carry an int epochMinutes, dayIndex or equivalent typed key in addition to their
+        display label; categorized rows carry their stable category key. Declare these fields before submitting the
+        graph because checked function bodies cannot invent or parse them later.
+        Every compiler call has a hard 8192-token transport ceiling. Keep the declared graph compact so its bounded
+        body batches also remain well below that limit:
+        prefer at most six domain/state record types, eight cohesive external action types and eight helpers. Group related root
+        values into small nested presentation records when the root would otherwise exceed 24 fields. Use one
+        parameterized nominal action such as EditTextAction{target:string,id:int,value:string} for structurally
+        identical edits that share one state transition instead of one action type per field. Do not optimize for the
+        fewest action types by combining unrelated operation families. Navigation, collection mutation, confirmation,
+        selection and host events normally use distinct nominal actions even when they originate from ordinary
+        buttons. An action field has one stable semantic meaning and one type throughout its handler; never overload an
+        id, index, route, command or value field to mean different things on different branches. Keep each update
+        handler cohesive and small enough to replace independently. Move repeated pure calculations into declared
+        helpers instead of building one catch-all command dispatcher. Represent recurring or
+        repeated domain data as compact rules plus bounded UI-facing
+        projections instead of eagerly duplicating every future instance. Reuse small pure helpers for repeated
+        calculations, but never omit requested behavior or move business logic into Deal UI to meet this budget.
+        Never parse a formatted date or time string in DEAL. Store machine time as an int such as minutes since
+        midnight or epoch minutes, and store any presentation label as a separate string field. Actions and host clock
+        payloads carry the int value; formatting is a compact derived projection, not a branch table over characters.
         Helpers may compute behavior internally, but must not be the only way to obtain any UI-visible value. Helpers
         must be generic functions required by the requested behavior; do not encode a layout or duplicate an update
         action as a helper. Request only capabilities actually needed. The portable host ABI is integer based:
@@ -856,39 +763,63 @@ internal object CanonicalGenerationPrompts {
         collision values as int. Use fixed-point int units if fractional precision is required; do not mix number and
         int in one real-time state graph.
 
-        Include exactly one fill for every derived hole id:
+        The compiler will subsequently request these derived hole ids:
         - initialState
         - helper:<helperName> for every helper signature
         - update:on<ActionStem> for every Action type, where ActionStem removes the Action suffix
-        A fill contains only statements inside its function body, never a signature, outer braces, exports, classes,
-        functions, imports, Markdown or prose. All bodies are submitted in this one coarse-grained compiler call.
+        A later fill contains only statements inside its function body, never a signature, outer braces, exports,
+        classes, functions, imports, Markdown or prose. Do not include any fill in this declaration call.
 
         Each body returns its declared type on every path. initialState contains all concrete initial data requested by
         the user. Updates receive immutable state and action parameters and return a complete new root-state value.
+        In every update body the only parameters are named `state` and `action`: read action fields through
+        `action.fieldName`, never as unqualified identifiers. Read state fields through `state.fieldName`.
         Rebuild changed arrays in mutable local arrays; unchanged records may be copied. Keep every presentation-ready
         derived root field consistent in initialState and every update path. Implement behavior in DEAL, not Deal UI.
+        Dynamic records rendered as repeated UI items must carry presentation-ready fields required by the view, such
+        as a concise display label or symbol, supporting text, icon name, tone and selected/highlighted flags. Do not
+        force Deal UI to map raw enum or implementation type names into user-facing visuals.
+        Any record intended for a dense interactive grid must expose a dedicated glyph string containing at most three
+        visible characters (a symbol, number or short abbreviation), a separate full accessibilityLabel string and a
+        semantic tone string. Use actual Unicode symbols when practical; a literal `\uXXXX` glyph escape is also
+        accepted by the Tile renderer. Keep raw domain values such as type, status, category and internal name separate
+        from these presentation fields.
 
         Canonical portable DEAL body syntax:
         - Local: let total: int = 0; Use let, never const or var. Every statement ends with a semicolon.
+        - Reserved keywords are never valid local, parameter, field or type names: let, class, function, async, await,
+          return, if, else, while, for, of, break, continue, null, true, false, import, export, from, delete, has,
+          try, catch, throw and as. Use names such as sourceSquare and destinationSquare instead of from and to.
         - Conditions: if (condition) { ... } else { ... }
         - Loops: while (...), C-style for, or for (let item: Item of items).
-        - Arrays use zero-based indexing and values.length. Append with result[result.length] = value.
+        - Arrays use zero-based indexing and values.length. Array literals such as `["first", "second"]` are
+          supported. Append with result[result.length] = value.
+        - Only arrays expose `.length`. Strings have no properties or methods; test emptiness with text === "" or
+          text !== "".
         - Operators: !, -, **, *, /, %, +, -, <, <=, >, >=, ===, !==, &&, ||.
         - Object literals are context-typed by the function return or local declaration.
-        - State and action objects are immutable. Do not assign through state.* or action.*.
-        - Do not use new, nullable values, postfix !, interfaces, arrow functions, ternaries, ++, --, compound
+        - State and action objects are borrowed immutable values. Do not assign through state.*, action.*, an array
+          element reached from either parameter, a nested record reached from either parameter, or any local alias
+          derived from them. `let next: AppState = state; next.value = ...` is forbidden. Construct a complete new
+          root object and rebuild only changed arrays in fresh local arrays. Mutate only freshly constructed locals.
+        - In C-style for loops, advance with `i = i + 1`; never use `i++`, `++i`, `i--` or `--i`.
+        - Do not use new, nullable values, postfix !, interfaces, arrow functions, ternaries, compound
           assignment, switch, any, typeof, map/filter/reduce, JavaScript namespaces or methods, lambdas, async or
           try/catch.
-        - Call only declared helpers and platformIntText, platformNumberText, platformPad2, platformMinInt,
-          platformMaxInt, platformAbsInt and platformClampInt. String concatenation accepts strings only.
+        - Platform signatures are exact: platformIntText(value:int):string,
+          platformNumberText(value:number):string, platformPad2(value:int):string,
+          platformMinInt(a:int,b:int):int, platformMaxInt(a:int,b:int):int,
+          platformAbsInt(value:int):int and platformClampInt(value:int,min:int,max:int):int. There is no implicit
+          conversion between int and number. String concatenation accepts strings only.
 
-        Keep visible strings English. Keep the complete transaction compact. Do not emit source, a serialized AST,
-        Markdown, prose or a second tool call.
+        Keep visible strings English. Keep the declaration compact. Do not emit source, a serialized AST, Markdown,
+        prose or a second tool call.
     """.trimIndent()
 
     val dealGraphPatchInstructions = """
-        Repair the compiler-owned DEAL program by calling repair_deal_batch exactly once. Fill every listed unresolved
-        typed hole in one checked transaction. Each fill contains only the
+        Fill or repair the compiler-owned DEAL program by calling repair_deal_batch exactly once. Fill every listed
+        unresolved typed hole in this bounded checked transaction; holes not listed are intentionally reserved for a
+        later batch. Each fill contains only the
         statements inside that function body: never include the signature, outer braces, exports, classes, functions,
         imports, Markdown or prose. Use the exact base_hash and hole_id values supplied by the compiler. Previously
         accepted holes are immutable and are intentionally absent from the repair input. Address every exact compiler
@@ -896,42 +827,79 @@ internal object CanonicalGenerationPrompts {
 
         Each body must return its declared type on every path. initialState must contain all concrete initial data
         requested by the user. Update functions receive immutable state and action parameters and return a complete
-        new root-state value. Rebuild changed arrays in mutable local arrays; unchanged records may be copied. Helpers
-        are pure. Keep every presentation-ready derived field declared in root state consistent in initialState and
+        new root-state value. Rebuild changed arrays in mutable local arrays; unchanged records may be copied.
+        In every update body the only parameters are named `state` and `action`: read action fields through
+        `action.fieldName`, never as unqualified identifiers. Read state fields through `state.fieldName`.
+        Helpers are pure. Keep every presentation-ready derived field declared in root state consistent in initialState and
         every update path: chart arrays, formatted labels, summaries, selected values and status text must describe
         the returned domain state. Implement real behavior, status transitions, schedules or game rules in DEAL, not
         in Deal UI.
+        Never parse a formatted date or time string. Use int machine values such as minutes since midnight or epoch
+        minutes for comparisons and updates, with separate presentation-ready string labels where required.
+        Filtering, sorting and grouping use typed machine keys already declared on each record, such as epochMinutes,
+        dayIndex or categoryId. Never inspect a display string to recover a key that the declarations omitted.
+        Dynamic records rendered as repeated UI items must carry presentation-ready fields required by the view, such
+        as a concise display label or symbol, supporting text, icon name, tone and selected/highlighted flags. Do not
+        force Deal UI to map raw enum or implementation type names into user-facing visuals.
+        Any record intended for a dense interactive grid must expose a dedicated glyph string containing at most three
+        visible characters (a symbol, number or short abbreviation), a separate full accessibilityLabel string and a
+        semantic tone string. Use actual Unicode symbols when practical; a literal `\uXXXX` glyph escape is also
+        accepted by the Tile renderer. Keep raw domain values such as type, status, category and internal name separate
+        from these presentation fields.
 
         Canonical portable DEAL body syntax:
         - Local: let total: int = 0; Use let, never const or var. Every statement ends with a semicolon.
+        - Reserved keywords are never valid local, parameter, field or type names: let, class, function, async, await,
+          return, if, else, while, for, of, break, continue, null, true, false, import, export, from, delete, has,
+          try, catch, throw and as. If E1007 names a reserved keyword, rename that identifier everywhere in the
+          rejected body; do not resubmit the same text.
         - Conditions: if (condition) { ... } else { ... }
         - Loops: while (...), C-style for, or for (let item: Item of items).
-        - Arrays use zero-based indexing and values.length. Append with result[result.length] = value.
+        - Arrays use zero-based indexing and values.length. Array literals such as `["first", "second"]` are
+          supported. Append with result[result.length] = value.
+        - Only arrays expose `.length`. Strings have no properties or methods; test emptiness with text === "" or
+          text !== "".
         - Operators: !, -, **, *, /, %, +, -, <, <=, >, >=, ===, !==, &&, ||.
         - Object literals are context-typed by the function return or local declaration.
-        - State and action objects are immutable. Do not assign through state.* or action.*.
+        - State and action objects are borrowed immutable values. Do not assign through state.*, action.*, an array
+          element reached from either parameter, a nested record reached from either parameter, or any local alias
+          derived from them. `let next: AppState = state; next.value = ...` is forbidden. Construct a complete new
+          root object and rebuild only changed arrays in fresh local arrays. Mutate only freshly constructed locals.
         - FrameClock payload is integer delta milliseconds. Pointer x, y and phase and Canvas geometry are integers.
           Pointer phase is 0 for down, 1 for move and 2 for up. A tap therefore sends down and up without a move;
           start/select behavior must handle phase 0 rather than requiring phase 1.
           Keep real-time physics in int or fixed-point int units; divide only int by int and never mix int and number.
-        - Do not use nullable values, postfix !, interfaces, arrow functions, ternaries, ++, --, compound assignment,
+        - In C-style for loops, advance with `i = i + 1`; never use `i++`, `++i`, `i--` or `--i`.
+        - Do not use nullable values, postfix !, interfaces, arrow functions, ternaries, compound assignment,
           switch, any, typeof, map/filter/reduce, JavaScript namespaces or methods, lambdas, async or try/catch.
-        - Call only declared helpers and platformIntText, platformNumberText, platformPad2, platformMinInt,
-          platformMaxInt, platformAbsInt and platformClampInt. String concatenation accepts strings only.
+        - Platform signatures are exact: platformIntText(value:int):string,
+          platformNumberText(value:number):string, platformPad2(value:int):string,
+          platformMinInt(a:int,b:int):int, platformMaxInt(a:int,b:int):int,
+          platformAbsInt(value:int):int and platformClampInt(value:int,min:int,max:int):int. There is no implicit
+          conversion between int and number. String concatenation accepts strings only.
 
         Keep visible strings English. Privileged or unavailable behavior must be represented honestly in state and
         must never be claimed as completed without a declared capability result. Prefer compact bounded algorithms.
     """.trimIndent()
 
     val dealUiGraphInstructions = """
-        Build the compiler-owned typed root view as 2-6 cohesive top-level sections. On the initial round, call
+        Build the compiler-owned typed root view as 1-6 complete runtime surfaces. On the initial round, call
         submit_deal_ui_sections exactly once with every section in its sections array. On a repair round, call it once
         with only the compiler-requested rejected section. The call uses the exact supplied base_hash. Give each
-        section a stable lowercase identifier such as header, summary, content, controls or navigation. Set
+        application screen a stable lowercase identifier matching its route value, such as main, overview or settings.
+        Set
         is_final=false until the last necessary section and is_final=true only on the final array element. The body
-        contains only that section's top-level nodes: never include
+        contains exactly one top-level runtime surface: never include
         ui.Root, imports, @ui-root, the view signature, outer braces, Markdown or prose. The compiler wraps accepted
-        sections in one adaptive ui.Root and production-checks the cumulative app before exposing it.
+        surfaces in one adaptive ui.Root and production-checks the cumulative app before exposing it.
+
+        Every ordinary application screen is one complete
+        `ui.Route(route: "<section_id>", activeRoute: state.route) { ... }` surface. Put all content, navigation and
+        overlays for that screen inside the Route. Every Route uses the same state.route path, every route value is
+        unique, and the first submitted Route matches initialState.route so the first accepted preview is visible.
+        Do not submit header, summary, content, controls or navigation as independent top-level fragments. A compact
+        ui.Widget() subtree and a required top-level MinuteClock or FrameClock are the only non-Route surfaces. Widget
+        and clock sections each contain exactly that one top-level component.
 
         On the initial call, select one compact app-owned theme in the required theme object. Choose two distinct
         six-digit hex seed colours that fit the requested product and remain distinguishable; the native renderer
@@ -942,6 +910,7 @@ internal object CanonicalGenerationPrompts {
 
         Deal UI is pure: use component calls, typed expressions, When and canonical
         ForEach(source, item: Type, key: item.id). Bind every interaction to a nominal app action. Use FrameClock,
+        `When` and `ForEach` are structural syntax, not pack components: never prefix them with `ui.`.
         MinuteClock and PointerSurface only for declared capabilities. PointerSurface coordinateWidth and
         coordinateHeight must match its Canvas logical dimensions, so the same app adapts to every screen size.
         The final batch must make every update action exported by verified app.deal reachable from exactly the
@@ -952,30 +921,41 @@ internal object CanonicalGenerationPrompts {
         carries separate day and minute fields.
         Pointer phase is 0 for down, 1 for move and 2 for up; ordinary taps do not emit a move event.
         Produce an adaptive, polished Material hierarchy that looks like a native product, not a technical demo.
-        Prefer semantic pack components such as TopBar, Section, Stat, IntStat, ListItem, Badge, ProgressBar, Stepper,
+        Prefer semantic pack components such as TopBar, Section, Stat, IntStat, ListItem, IntListItem, Badge,
+        ProgressBar, Stepper,
         TimeField, Tabs,
         NavigationBar, NavigationItem, BarChart, Sparkline and EmptyState over manually rebuilding them from nested
         Text nodes. For presentation-owned navigation with scalar state fields or distinct nominal actions, compose
-        one NavigationItem child per destination inside NavigationBar. Use NavigationBar's labels/icons/onSelect
-        array form only when app.deal already exposes both arrays and the action accepts the selected int payload. Use
+        one NavigationItem child per destination inside NavigationBar. Dynamic destinations use ForEach to produce
+        NavigationItem children from complete typed row models. Never use the removed labels/icons/onSelect array
+        form from v11. Use
         spacing and padding tokens consistently. Keep the primary flow single-column on compact screens. For
         naturally repeated metrics, dashboard regions or calendar cells use Grid with columns as the maximum and
         minimumCellWidth in dp for adaptive breakpoints, for example
         ui.Grid(columns: 2, minimumCellWidth: 280, spacing: ui.spaceMd). Row wraps by default; set wrap:false only for
         a bounded compact control group whose contents are guaranteed to fit.
+        For dense interactive boards, calendars, launchers and inventories, use
+        ui.Grid(columns: 4, cellAspectRatio: 1.0, spacing: ui.spaceXs) with one ui.Tile per item. Bind Tile.glyph only
+        to the dedicated presentation-ready glyph/symbol/short-label field supplied by DEAL, never to a raw type,
+        status, category, name or full accessibility label. The glyph must be at most three visible characters. Bind
+        the required tone to the item's presentation-ready semantic tone; use alternating neutral tones where spatial
+        position matters instead of producing an undifferentiated grid. Bind selected/highlighted state and
+        accessibilityLabel from the same complete item model. Do not emulate square cells with ordinary Button
+        components or fixed pixel dimensions.
         Never nest Card inside Card, never use giant headings inside compact surfaces, and keep every interactive
         target labelled and large enough to touch. Use tone only to communicate hierarchy or state, not to make the
         whole application one colour. Use Image only for an authoritative HTTPS URL already present in the request or
         state; never invent a remote URL. Utility apps should use native components rather than Canvas. Games and
         genuinely spatial visualizations may use one responsive Canvas inside PointerSurface.
 
-        When the application has useful glanceable state or a safe primary action, add one compact ui.Widget subtree
-        as a sibling top-level node. It is a second projection of the same read-only state and the same nominal DEAL
+        When the application has useful glanceable state or a safe primary action, add one compact ui.Widget surface.
+        It is a second projection of the same read-only state and the same nominal DEAL
         actions, not a second application and not duplicated business logic. Keep it concise: one title/metric or
         progress indicator, at most three supporting rows and at most two actions. Use only Column, Row, Stack, Grid,
         Card, Section, Text, IntText, Icon, IconButton, Button, ProgressBar, ProgressRing, Spacer, Badge, Stat,
         IntStat, ListItem, Checkbox, Toggle and Divider inside Widget. The Android host adapts this projection to the
-        actual widget size. If omitted, the host derives a backwards-compatible compact projection from the app.
+        actual widget size. Components with no props still require empty parentheses: write `ui.Widget() { ... }`,
+        never `ui.Widget { ... }`. If omitted, the host derives a backwards-compatible compact projection from the app.
 
         Deal UI expressions support only literals, field
         paths, !, -, arithmetic/comparison/boolean binary operators and action constructors. They do not support
@@ -989,7 +969,9 @@ internal object CanonicalGenerationPrompts {
         prefix, suffix and minimumDigits, for example ui.IntText(value: state.day, prefix: "Day ") and
         ui.IntText(value: state.minute, minimumDigits: 2). Never concatenate string with int or number, including in
         accessibilityLabel. Use IntStat, not Stat, for an integer metric; IntStat also supports prefix, suffix and
-        minimumDigits. On a repair round, never invent a field ending in Text or another replacement field that is not
+        minimumDigits. Use IntListItem when a compact row needs an integer trailing value; it supports
+        trailingPrefix, trailingSuffix and minimumDigits without string coercion. Use structural When branches when
+        choosing between two typed numeric fields. On a repair round, never invent a field ending in Text or another replacement field that is not
         present in the authoritative app.deal. Replace the incompatible component or expression using existing fields.
         TimeField represents local time of day as an int in 0..1439 and emits the selected minute through payload; use
         it instead of parsing a time string in DEAL.
@@ -1011,11 +993,13 @@ internal object CanonicalGenerationPrompts {
         // @ui-root
         export view App(state: app.AppState): View {
           ui.Root(spacing: ui.spaceMd) {
-            ui.Text(value: state.title, style: ui.textDisplay)
-            ForEach(state.items, item: app.Item, key: item.id) {
-              ui.Card(tone: "surface") {
-                ui.Text(value: item.title, style: ui.textBody)
-                ui.Button(text: "Done", icon: "check", onClick: action app.ToggleItem { id: item.id })
+            ui.Route(route: "main", activeRoute: state.route) {
+              ui.Text(value: state.title, style: ui.textDisplay)
+              ForEach(state.items, item: app.Item, key: item.id) {
+                ui.Card(tone: "surface") {
+                  ui.Text(value: item.title, style: ui.textBody)
+                  ui.Button(text: "Done", icon: "check", onClick: action app.ToggleItem { id: item.id })
+                }
               }
             }
           }
@@ -1039,12 +1023,26 @@ internal object CanonicalGenerationPrompts {
         appendLine("Accepted graph patches: ${snapshot.acceptedPatches}")
         appendLine("Compiler-created typed holes: ${snapshot.typedHoles}")
         if (snapshot.pendingHoles.isEmpty()) {
-            appendLine("No graph exists yet. Submit declarations and all deterministic body fills now.")
+            appendLine("No graph exists yet. Submit compact declarations only; the compiler will derive body holes.")
         } else {
             appendLine("Unresolved typed function holes:")
             snapshot.pendingHoles.forEach { hole ->
                 appendLine("- ${hole.id}: ${hole.signature}")
                 appendLine("  visible values: ${hole.visibleValues}; required return: ${hole.expectedReturnType}")
+                hole.lastDiagnostic?.let { diagnostic ->
+                    appendLine("  Compiler diagnostic for this body:")
+                    diagnostic.lines().forEach { line -> appendLine("    $line") }
+                    dealRepairDirective(diagnostic)?.let { directive ->
+                        appendLine("  Mandatory repair invariant:")
+                        appendLine("    $directive")
+                    }
+                }
+                hole.lastRejectedBody?.let { body ->
+                    appendLine("  Last rejected body. Return a complete corrected replacement for this hole only:")
+                    appendLine("  <rejected-body>")
+                    body.lines().forEach { line -> appendLine("  $line") }
+                    appendLine("  </rejected-body>")
+                }
             }
         }
         if (previousDiagnostic.isNotBlank()) {
@@ -1062,7 +1060,8 @@ internal object CanonicalGenerationPrompts {
         request: String,
         contract: String,
         verifiedDealSource: String,
-        snapshot: CanonicalDealUiGraphSnapshot
+        snapshot: CanonicalDealUiGraphSnapshot,
+        repairDirective: String = ""
     ): String = """
         User request:
         $request
@@ -1080,13 +1079,21 @@ internal object CanonicalGenerationPrompts {
 
         Bind only to classes, fields and exported @ui-update actions that actually exist in the authoritative
         app.deal above. Do not copy its business logic into the view and do not invent replacement actions or fields.
-        When repairing a numeric value passed to a string component, use IntText or IntStat with the existing int field;
-        never invent a similarly named string field.
+        When repairing a numeric value passed to a string component, use IntText, IntStat or IntListItem with the
+        existing int field; never invent a similarly named string field. In particular, replace a ListItem with
+        IntListItem when its trailing value is numeric instead of concatenating a suffix.
         When repairing an array-length diagnostic and no explicit count/empty field exists in app.deal, remove the
         conditional EmptyState branch and retain the ForEach alone. Never repeat `.length` in a repaired section.
+        When repairing an array-indexing diagnostic, remove every indexed expression from the complete rejected
+        section. Replace it with `ForEach(source, item: app.Type, key: item.id) { ... }` and bind displayed values and
+        action identifiers from that `item`. If app.deal exposes no scalar first or selected item, render the bounded
+        repeated rows; never repeat `[0]`, use another index, or invent an indexing workaround.
         When repairing an inline-array diagnostic in navigation and app.deal has no matching label/icon arrays, replace
         the array-form NavigationBar with NavigationItem children. Bind each child to its own literal or scalar label,
         icon, selected expression and nominal action; do not make every destination dispatch the same action fields.
+        When repairing UIR011, inspect initialState in the authoritative app.deal and make the rejected complete
+        ui.Route use that exact initial route value. Do not append decorative routes for HUD, controls or overlays;
+        those are children of the active application route, not independent screens.
 
         Exact available component pack (${CanonicalDealUiPack.VERSION}):
         ${CanonicalDealUiPack.source}
@@ -1095,5 +1102,43 @@ internal object CanonicalGenerationPrompts {
         ${snapshot.partialDealUi}
 
         ${if (snapshot.diagnostic.isBlank()) "No previous rejected section." else "Previous compiler diagnostic: ${snapshot.diagnostic}\nRejected section to correct in place before generating another section:\n${snapshot.lastRejectedBody}"}
+        ${repairDirective.takeIf(String::isNotBlank)?.let { "Mandatory repair directive: $it" }.orEmpty()}
     """.trimIndent()
 }
+
+internal fun dealRepairDirective(diagnostic: String): String? = when {
+    "UI2050" in diagnostic || "borrowed immutable" in diagnostic ->
+        "The replacement must contain no assignment, increment, indexed write or mutating call rooted in state, " +
+            "action, or an alias derived from either. Do not reuse the rejected body. Read borrowed fields only; " +
+            "return state unchanged for a no-op branch or return one fresh complete root-state object literal."
+
+    else -> null
+}
+
+internal fun preferredDealGraphBatchSize(
+    pendingHoleIds: List<String>,
+    currentMaximum: Int
+): Int {
+    require(currentMaximum > 0) { "Compiler batch size must be positive" }
+    if (pendingHoleIds.isEmpty()) return currentMaximum
+    val firstUpdate = pendingHoleIds.indexOfFirst { it.startsWith("update:") }
+    return when {
+        firstUpdate == 0 -> minOf(currentMaximum, 2)
+        firstUpdate > 0 -> minOf(currentMaximum, firstUpdate)
+        else -> currentMaximum
+    }
+}
+
+internal fun reducedDealGraphBatchSize(current: Int): Int {
+    require(current > 1) { "Only multi-hole compiler batches can be reduced" }
+    return maxOf(1, current / 2)
+}
+
+internal fun dealGraphRepairDepth(
+    pendingHoleIds: List<String>,
+    repairAttemptsByHole: Map<String, Int>
+): Int = pendingHoleIds.maxOfOrNull { repairAttemptsByHole.getOrDefault(it, 0) } ?: 0
+
+private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(value.encodeToByteArray())
+    .joinToString("") { byte -> "%02x".format(byte) }

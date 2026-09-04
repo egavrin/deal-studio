@@ -92,6 +92,32 @@ class CanonicalDealUiTouchDeviceTest {
         assertEquals("history", state.value.getValue("route").toString().trim('"'))
     }
 
+    @Test
+    fun denseTileGridRendersAndDispatchesWithoutIntrinsicMeasurement() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val checkedIr = toolchain.compilePortable(TILE_DEAL, TILE_DEAL_UI, CanonicalDealUiPack.source)
+        val program = CanonicalDealUiParser.parse(checkedIr)
+        val runtime = toolchain.createRuntime(TILE_DEAL)
+        val state = mutableStateOf(runtime.snapshot())
+        val tapped = mutableListOf<Int>()
+
+        composeRule.setContent {
+            MaterialTheme {
+                CanonicalDealUiRenderer(
+                    program = program,
+                    state = state.value,
+                    onAction = { action -> tapped += action.fields.getValue("id") as Int }
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Tile one", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { tapped == listOf(1) }
+
+        assertEquals(listOf(1), tapped)
+    }
+
     private companion object {
         const val DEAL = """
             // generated-capability: pointer
@@ -175,6 +201,44 @@ class CanonicalDealUiTouchDeviceTest {
                   onClick: action app.SelectRouteAction { route: "history" },
                   accessibilityLabel: "History"
                 )
+              }
+            }
+        """
+
+        const val TILE_DEAL = """
+            export class TileItem { id: int = 0; glyph: string = ""; label: string = ""; }
+            export class AppState { items: TileItem[] = []; }
+            export class TapAction { id: int = 0; }
+            export function initialState(): AppState {
+              let items: TileItem[] = [];
+              items[items.length] = { id: 1, glyph: "A", label: "Tile one" };
+              items[items.length] = { id: 2, glyph: "B", label: "Tile two" };
+              items[items.length] = { id: 3, glyph: "C", label: "Tile three" };
+              items[items.length] = { id: 4, glyph: "D", label: "Tile four" };
+              items[items.length] = { id: 5, glyph: "E", label: "Tile five" };
+              items[items.length] = { id: 6, glyph: "F", label: "Tile six" };
+              items[items.length] = { id: 7, glyph: "G", label: "Tile seven" };
+              items[items.length] = { id: 8, glyph: "H", label: "Tile eight" };
+              return { items: items };
+            }
+            // @ui-update
+            export function onTap(state: AppState, action: TapAction): AppState { return state; }
+        """
+
+        const val TILE_DEAL_UI = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+              ui.Grid(columns: 8, cellAspectRatio: 1.0, spacing: ui.spaceXs) {
+                ForEach(state.items, item: app.TileItem, key: item.id) {
+                  ui.Tile(
+                    glyph: item.glyph,
+                    tone: "surface",
+                    onClick: action app.TapAction { id: item.id },
+                    accessibilityLabel: item.label
+                  )
+                }
               }
             }
         """

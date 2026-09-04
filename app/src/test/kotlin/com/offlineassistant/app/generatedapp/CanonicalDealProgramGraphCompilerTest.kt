@@ -77,6 +77,32 @@ class CanonicalDealProgramGraphCompilerTest {
     }
 
     @Test
+    fun `staged transport declares once and exposes bounded typed hole batches`() {
+        val compiler = compiler()
+        val declaration = declarationCall().copy(
+            name = SUBMIT_DEAL_DECLARATIONS_TOOL_NAME,
+            arguments = declarationCall().arguments.replace(
+                ",\n  \"fills\":[{\"hole_id\":\"initialState\",\"body\":\"return { count: 0, label: \\\"Ready\\\" };\"}]",
+                ""
+            )
+        )
+
+        val declared = compiler.apply(declaration)
+
+        assertTrue(declared.diagnostic.orEmpty(), declared.rejectedHoleIds.isEmpty())
+        assertEquals(
+            listOf("initialState", "helper:addOne", "update:onIncrement"),
+            compiler.snapshot().pendingHoles.map(CanonicalDealHoleSnapshot::id)
+        )
+        val firstBatch = compiler.currentStagedTool(maxHoles = 1)
+        val schema = firstBatch.parameters.toString()
+        assertEquals(REPAIR_DEAL_BATCH_TOOL_NAME, firstBatch.name)
+        assertTrue(schema.contains("initialState"))
+        assertFalse(schema.contains("helper:addOne"))
+        assertFalse(schema.contains("update:onIncrement"))
+    }
+
+    @Test
     fun `root state is inferred from nominal type references`() {
         val compiler = compiler()
         val call = declarationCall().copy(
@@ -124,7 +150,10 @@ class CanonicalDealProgramGraphCompilerTest {
 
         assertEquals(listOf("update:onIncrement"), result.acceptedHoleIds)
         assertEquals(listOf("helper:addOne"), result.rejectedHoleIds)
-        assertEquals(listOf("helper:addOne"), compiler.snapshot().pendingHoles.map { it.id })
+        val pending = compiler.snapshot().pendingHoles.single()
+        assertEquals("helper:addOne", pending.id)
+        assertEquals("return BROKEN_TOKEN;", pending.lastRejectedBody)
+        assertTrue(pending.lastDiagnostic.orEmpty().contains("synthetic compiler failure"))
         assertTrue(result.diagnostic.orEmpty().contains("synthetic compiler failure"))
         assertEquals(1, result.rejectedCandidateFingerprints.size)
     }

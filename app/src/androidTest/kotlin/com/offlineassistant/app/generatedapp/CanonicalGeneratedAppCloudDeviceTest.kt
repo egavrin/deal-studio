@@ -1,8 +1,15 @@
 package com.offlineassistant.app.generatedapp
 
 import android.os.SystemClock
+import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import com.offlineassistant.app.DealStudioActivity
 import com.offlineassistant.app.BuildConfig
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 import java.io.File
@@ -21,6 +28,32 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CanonicalGeneratedAppCloudDeviceTest {
     @Test
+    fun benchmarkSelectedComplexScenario() {
+        val arguments = InstrumentationRegistry.getArguments()
+        val scenario = requireNotNull(arguments.getString("benchmark_scenario")) {
+            "Pass -e benchmark_scenario with one of: arkanoid, medication, todo, chess"
+        }
+        val model = requireNotNull(arguments.getString("benchmark_model")) {
+            "Pass -e benchmark_model with a DeepSeekGenerationModel enum name"
+        }.let(DeepSeekGenerationModel::valueOf)
+        val request = when (scenario) {
+            "arkanoid" -> ARKANOID_REQUEST
+            "medication" -> MEDICATION_REQUEST
+            "todo" -> TODO_REQUEST
+            "chess" -> CHESS_REQUEST
+            else -> error("Unsupported benchmark scenario: $scenario")
+        }
+        val modelSlug = model.apiId.replace(Regex("[^a-zA-Z0-9]+"), "-").trim('-')
+        generateAndPersist(
+            artifactName = "benchmark-$scenario-$modelSlug",
+            request = request,
+            dealModel = model,
+            dealUiModel = model,
+            acceptanceScenario = scenario
+        )
+    }
+
+    @Test
     fun counterGeneratesThroughCheckedProgramGraph() {
         generateAndPersist(
             artifactName = "counter",
@@ -35,6 +68,16 @@ class CanonicalGeneratedAppCloudDeviceTest {
         generateAndPersist(
             artifactName = "medication",
             request = MEDICATION_REQUEST,
+            dealModel = DeepSeekGenerationModel.FLASH,
+            dealUiModel = DeepSeekGenerationModel.FLASH
+        )
+    }
+
+    @Test
+    fun photoMedicationReminderGeneratesAsCanonicalDealAndDealUi() {
+        generateAndPersist(
+            artifactName = "photo-medication-reminder",
+            request = PHOTO_MEDICATION_REMINDER_REQUEST,
             dealModel = DeepSeekGenerationModel.FLASH,
             dealUiModel = DeepSeekGenerationModel.FLASH
         )
@@ -101,6 +144,46 @@ class CanonicalGeneratedAppCloudDeviceTest {
     }
 
     @Test
+    fun cerebrasGeneratesCanonicalCounterEndToEnd() {
+        generateAndPersist(
+            artifactName = "cerebras-counter",
+            request = COUNTER_REQUEST,
+            dealModel = DeepSeekGenerationModel.CEREBRAS_QWEN_27B,
+            dealUiModel = DeepSeekGenerationModel.CEREBRAS_QWEN_27B
+        )
+    }
+
+    @Test
+    fun cerebrasGptOssGeneratesCanonicalCounterEndToEnd() {
+        generateAndPersist(
+            artifactName = "cerebras-gpt-oss-counter",
+            request = COUNTER_REQUEST,
+            dealModel = DeepSeekGenerationModel.CEREBRAS_GPT_OSS_120B,
+            dealUiModel = DeepSeekGenerationModel.CEREBRAS_GPT_OSS_120B
+        )
+    }
+
+    @Test
+    fun deepSeekFlashGeneratesCanonicalCounterEndToEnd() {
+        generateAndPersist(
+            artifactName = "deepseek-flash-counter",
+            request = COUNTER_REQUEST,
+            dealModel = DeepSeekGenerationModel.FLASH,
+            dealUiModel = DeepSeekGenerationModel.FLASH
+        )
+    }
+
+    @Test
+    fun deepSeekProGeneratesCanonicalCounterEndToEnd() {
+        generateAndPersist(
+            artifactName = "deepseek-pro-counter",
+            request = COUNTER_REQUEST,
+            dealModel = DeepSeekGenerationModel.PRO,
+            dealUiModel = DeepSeekGenerationModel.PRO
+        )
+    }
+
+    @Test
     fun arkanoidGeneratesAsCanonicalRealtimeDealAndDealUi() {
         generateAndPersist(
             artifactName = "arkanoid",
@@ -127,7 +210,8 @@ class CanonicalGeneratedAppCloudDeviceTest {
             assertTrue("Debug DeepSeek key is missing", BuildConfig.EMBEDDED_DEEPSEEK_API_KEY.isNotBlank())
             val compiler = CanonicalGeneratedAppCloudCompiler(
                 context = context,
-                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY }
+                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY }
             )
             val original = compiler.generate(
                 request = COUNTER_REQUEST,
@@ -138,9 +222,7 @@ class CanonicalGeneratedAppCloudDeviceTest {
             val library = CanonicalGeneratedAppLibrary(directory, useDirectDirectory = true)
             val saved = library.save(
                 bundle = original,
-                title = "Counter",
-                uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
-                logicBackend = GeneratedModelBackend.DEEPSEEK_FLASH
+                title = "Counter"
             )
             val refined = CanonicalGeneratedAppRefiner(
                 context = context,
@@ -155,9 +237,7 @@ class CanonicalGeneratedAppCloudDeviceTest {
             val updated = library.update(
                 id = saved.id,
                 bundle = refined.bundle,
-                title = "Counter",
-                uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
-                logicBackend = GeneratedModelBackend.DEEPSEEK_FLASH
+                title = "Counter"
             )
             val restored = restoreCanonicalGeneratedApp(
                 record = library.loadRecords().single(),
@@ -174,11 +254,88 @@ class CanonicalGeneratedAppCloudDeviceTest {
         }
     }
 
+    @Test
+    fun tetrisDevelopsThroughSmallCanonicalRevisions() {
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val model = InstrumentationRegistry.getArguments().getString("benchmark_model")
+                ?.let(DeepSeekGenerationModel::valueOf)
+                ?: DeepSeekGenerationModel.FLASH
+            val directory = File(context.filesDir, "canonical-live").apply { mkdirs() }
+            val compiler = CanonicalGeneratedAppCloudCompiler(
+                context = context,
+                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY }
+            )
+            var bundle = compiler.generate(
+                request = TETRIS_FOUNDATION_REQUEST,
+                dealModel = model,
+                dealUiModel = model
+            )
+            validateRunnableBundle(context, bundle)
+            writeSuccessfulArtifacts(directory, "tetris-stage-0", bundle, StringBuilder(), StringBuilder())
+
+            val library = CanonicalGeneratedAppLibrary(context)
+            var record = library.save(bundle, "Tetris repair lab")
+            val refinementRequests = listOf(
+                "Make completed-row detection and clearing reliable for multiple rows at once. " +
+                    "Update only the smallest existing DEAL helper bodies needed; preserve controls and presentation.",
+                "Make rotation reject wall and occupied-cell collisions, and make spawn collision enter game over. " +
+                    "Keep unrelated tick, scoring, controls and UI unchanged.",
+                "Polish the Tetris presentation with a vivid arcade theme, compact score and level HUD, a clear " +
+                    "paused or game-over overlay, and balanced adaptive spacing. Do not change game behavior."
+            )
+            refinementRequests.forEachIndexed { index, request ->
+                val previous = bundle
+                val refinement = CanonicalGeneratedAppRefiner(
+                    context = context,
+                    apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                    cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY }
+                ).refine(
+                    bundle = bundle,
+                    request = request,
+                    dealModel = model,
+                    dealUiModel = model
+                )
+                bundle = refinement.bundle
+                validateRunnableBundle(context, bundle)
+                assertTrue(
+                    "Tetris stage ${index + 1} must change at least one canonical artifact",
+                    previous.dealSource != bundle.dealSource || previous.dealUiSource != bundle.dealUiSource
+                )
+                record = library.update(record.id, bundle, "Tetris repair lab")
+                writeSuccessfulArtifacts(
+                    directory,
+                    "tetris-stage-${index + 1}",
+                    bundle,
+                    StringBuilder(),
+                    StringBuilder()
+                )
+            }
+
+            assertEquals(4, record.revision)
+            val restored = restoreCanonicalGeneratedApp(record, CanonicalDealToolchain(context))
+            restored.program.validateInitialSurface(restored.initialState)
+            assertSavedAppRenders(record)
+        }
+    }
+
+    private fun validateRunnableBundle(
+        context: android.content.Context,
+        bundle: CanonicalGeneratedAppBundle
+    ) {
+        val initialState = CanonicalDealToolchain(context).createRuntime(bundle.dealSource).snapshot()
+        assertTrue(initialState.isNotEmpty())
+        assertCanonicalContract(bundle)
+        CanonicalDealUiParser.parse(bundle.checkedUiIr).validateInitialSurface(initialState)
+    }
+
     private fun generateAndPersist(
         artifactName: String,
         request: String,
         dealModel: DeepSeekGenerationModel,
-        dealUiModel: DeepSeekGenerationModel
+        dealUiModel: DeepSeekGenerationModel,
+        acceptanceScenario: String = artifactName
     ) {
         runBlocking {
             val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -195,6 +352,7 @@ class CanonicalGeneratedAppCloudDeviceTest {
                 CanonicalGeneratedAppCloudCompiler(
                     context = context,
                     apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                    cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY },
                     compilerToolTrace = { call ->
                         compilerTrace.appendLine("${SystemClock.elapsedRealtime() - started}ms\t$call")
                     }
@@ -246,23 +404,25 @@ class CanonicalGeneratedAppCloudDeviceTest {
             val runtime = CanonicalDealToolchain(context).createRuntime(bundle.dealSource)
             val initialState = runtime.snapshot()
             assertTrue(initialState.isNotEmpty())
-            assertTrue(CanonicalDealUiParser.parse(bundle.checkedUiIr).nodes.isNotEmpty())
-            when (artifactName) {
+            assertCanonicalContract(bundle)
+            CanonicalDealUiParser.parse(bundle.checkedUiIr).validateInitialSurface(initialState)
+            writeSuccessfulArtifacts(directory, artifactName, bundle, compilerTrace, phaseTrace)
+            when (acceptanceScenario) {
                 "tic-tac-toe" -> assertTicTacToeBehavior(runtime, bundle, initialState)
                 "arkanoid" -> assertArkanoidBehavior(runtime, bundle, initialState)
                 "medication" -> assertMedicationEntrySurface(bundle)
+                "photo-medication-reminder" -> assertPhotoMedicationReminderSurface(bundle)
                 "exam" -> assertExamSurface(bundle)
                 "health" -> assertHealthSurface(bundle)
                 "todo" -> assertTodoSurface(bundle)
                 "weather" -> assertWeatherSurface(bundle)
                 "chess" -> assertChessSurface(bundle)
             }
-            CanonicalGeneratedAppLibrary(context).save(
+            val saved = CanonicalGeneratedAppLibrary(context).save(
                 bundle = bundle,
-                title = artifactName.replace('-', ' ').replaceFirstChar(Char::titlecase),
-                uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
-                logicBackend = GeneratedModelBackend.DEEPSEEK_FLASH
+                title = artifactName.replace('-', ' ').replaceFirstChar(Char::titlecase)
             )
+            assertSavedAppRenders(saved)
             println(
                 "CANONICAL_TIMING $artifactName " +
                     "deal=${bundle.dealLatencyMs}ms ui=${bundle.dealUiLatencyMs}ms " +
@@ -270,38 +430,97 @@ class CanonicalGeneratedAppCloudDeviceTest {
                     "uiFirst=${bundle.dealUiTimeToFirstTokenMs}ms " +
                     "dealRounds=${bundle.dealGraphRounds} uiRounds=${bundle.dealUiGraphRounds}"
             )
-            directory.also {
-                File(directory, "$artifactName.deal").writeText(bundle.dealSource)
-                File(directory, "$artifactName.deal-graph.log").writeText(bundle.dealGraphLog)
-                File(directory, "$artifactName.dealui-graph.log").writeText(bundle.dealUiGraphLog)
-                File(directory, "$artifactName.compiler-tools.log").writeText(compilerTrace.toString())
-                File(directory, "$artifactName.phases.log").writeText(phaseTrace.toString())
-                File(directory, "$artifactName.dealui").writeText(bundle.dealUiSource)
-                File(directory, "$artifactName.interface.json").writeText(bundle.appInterface)
-                File(directory, "$artifactName.ir.json").writeText(bundle.checkedUiIr)
-                File(directory, "$artifactName.timings.txt").writeText(
-                    "deal=${bundle.dealLatencyMs}\n" +
-                        "dealui=${bundle.dealUiLatencyMs}\n" +
-                        "wall=${bundle.wallLatencyMs}\n" +
-                        "deal_first_patch=${bundle.dealTimeToFirstPatchMs}\n" +
-                        "dealui_ttft=${bundle.dealUiTimeToFirstTokenMs}\n" +
-                        "validation=${bundle.validationLatencyMs}\n" +
-                        "repair=${bundle.repairLatencyMs}\n" +
-                        "repair_passes=${bundle.repairPasses}\n" +
-                        "deal_graph_rounds=${bundle.dealGraphRounds}\n" +
-                        "dealui_graph_rounds=${bundle.dealUiGraphRounds}\n" +
-                        "deal_accepted_patches=${bundle.dealAcceptedPatches}\n" +
-                        "deal_rejected_patches=${bundle.dealRejectedPatches}\n" +
-                        "deal_typed_holes=${bundle.dealTypedHoles}\n" +
-                        "deal_input_tokens=${bundle.dealInputTokens}\n" +
-                        "deal_cached_input_tokens=${bundle.dealCachedInputTokens}\n" +
-                        "deal_output_tokens=${bundle.dealOutputTokens}\n" +
-                        "dealui_rejected_patches=${bundle.dealUiRejectedPatches}\n" +
-                        "dealui_input_tokens=${bundle.dealUiInputTokens}\n" +
-                        "dealui_cached_input_tokens=${bundle.dealUiCachedInputTokens}\n" +
-                        "dealui_output_tokens=${bundle.dealUiOutputTokens}\n"
-                )
-            }
+        }
+    }
+
+    private fun assertCanonicalContract(bundle: CanonicalGeneratedAppBundle) {
+        val appInterface = AppInterfaceCompiler.parse(bundle.appInterface)
+        val program = CanonicalDealUiParser.parse(bundle.checkedUiIr)
+        assertTrue("Checked Deal UI must have a render tree", program.nodes.isNotEmpty())
+        assertEquals(appInterface.rootState, program.metadata.rootStateType)
+        assertEquals(
+            "Every externally reachable DEAL action must be bound by checked Deal UI",
+            appInterface.actions.mapTo(linkedSetOf(), AppInterfaceType::name),
+            program.metadata.reachableInputActions
+        )
+        assertTrue("Every generated app must own a theme", "ui.AppTheme" in program.metadata.usedComponents)
+        assertTrue("Every generated app must have one root surface", "ui.Root" in program.metadata.usedComponents)
+        assertTrue("Every v12 generated app must expose a checked Route surface", "ui.Route" in program.metadata.usedComponents)
+        assertEquals(
+            CanonicalDealUiPack.SHA256,
+            program.metadata.packDigests.values.single()
+        )
+        assertTrue(
+            "Every declared host capability must be represented by a checked host component",
+            requiredDealUiHostComponents(appInterface.capabilities)
+                .all { required -> program.metadata.usedComponents.any { it.endsWith(".$required") } }
+        )
+    }
+
+    private fun writeSuccessfulArtifacts(
+        directory: File,
+        artifactName: String,
+        bundle: CanonicalGeneratedAppBundle,
+        compilerTrace: StringBuilder,
+        phaseTrace: StringBuilder
+    ) {
+        File(directory, "$artifactName.deal").writeText(bundle.dealSource)
+        File(directory, "$artifactName.deal-graph.log").writeText(bundle.dealGraphLog)
+        File(directory, "$artifactName.dealui-graph.log").writeText(bundle.dealUiGraphLog)
+        File(directory, "$artifactName.compiler-tools.log").writeText(compilerTrace.toString())
+        File(directory, "$artifactName.phases.log").writeText(phaseTrace.toString())
+        File(directory, "$artifactName.dealui").writeText(bundle.dealUiSource)
+        File(directory, "$artifactName.interface.json").writeText(bundle.appInterface)
+        File(directory, "$artifactName.ir.json").writeText(bundle.checkedUiIr)
+        File(directory, "$artifactName.timings.txt").writeText(
+            "deal=${bundle.dealLatencyMs}\n" +
+                "dealui=${bundle.dealUiLatencyMs}\n" +
+                "wall=${bundle.wallLatencyMs}\n" +
+                "deal_first_patch=${bundle.dealTimeToFirstPatchMs}\n" +
+                "dealui_ttft=${bundle.dealUiTimeToFirstTokenMs}\n" +
+                "first_interactive_preview=${bundle.firstInteractivePreviewMs}\n" +
+                "validation=${bundle.validationLatencyMs}\n" +
+                "repair=${bundle.repairLatencyMs}\n" +
+                "repair_passes=${bundle.repairPasses}\n" +
+                "deal_graph_rounds=${bundle.dealGraphRounds}\n" +
+                "dealui_graph_rounds=${bundle.dealUiGraphRounds}\n" +
+                "deal_accepted_patches=${bundle.dealAcceptedPatches}\n" +
+                "deal_rejected_patches=${bundle.dealRejectedPatches}\n" +
+                "deal_typed_holes=${bundle.dealTypedHoles}\n" +
+                "deal_input_tokens=${bundle.dealInputTokens}\n" +
+                "deal_cached_input_tokens=${bundle.dealCachedInputTokens}\n" +
+                "deal_output_tokens=${bundle.dealOutputTokens}\n" +
+                "dealui_accepted_patches=${bundle.dealUiAcceptedPatches}\n" +
+                "dealui_rejected_patches=${bundle.dealUiRejectedPatches}\n" +
+                "dealui_input_tokens=${bundle.dealUiInputTokens}\n" +
+                "dealui_cached_input_tokens=${bundle.dealUiCachedInputTokens}\n" +
+                "dealui_output_tokens=${bundle.dealUiOutputTokens}\n"
+        )
+    }
+
+    private fun assertSavedAppRenders(saved: SavedCanonicalGeneratedAppRecord) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val device = UiDevice.getInstance(instrumentation)
+        val studioIntent = android.content.Intent(context, DealStudioActivity::class.java)
+            .putExtra(DealStudioActivity.EXTRA_OPEN_APP_ID, saved.id)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        ActivityScenario.launch<DealStudioActivity>(studioIntent).use { scenario ->
+            assertTrue(
+                "Saved canonical app did not render after Studio restored its sources",
+                device.wait(Until.hasObject(By.textContains("Saved revision")), RENDER_TIMEOUT_MS)
+            )
+            assertEquals(Lifecycle.State.RESUMED, scenario.state)
+        }
+
+        val generatedIntent = GeneratedAppHomeScreenManager.openIntent(context, saved.id)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        ActivityScenario.launch<GeneratedAppActivity>(generatedIntent).use { scenario ->
+            assertTrue(
+                "Generated-app host did not render the restored canonical app",
+                device.wait(Until.hasObject(By.desc("App menu")), RENDER_TIMEOUT_MS)
+            )
+            assertEquals(Lifecycle.State.RESUMED, scenario.state)
         }
     }
 
@@ -412,14 +631,48 @@ class CanonicalGeneratedAppCloudDeviceTest {
         assertTrue("Medication app must expose a Taken action", "Taken" in bundle.dealUiSource)
     }
 
+    private fun assertPhotoMedicationReminderSurface(bundle: CanonicalGeneratedAppBundle) {
+        assertCanonicalContains(bundle, "Medication Reminder")
+        assertCanonicalContainsAny(bundle, "Medication reminder must expose dose confirmation", "Taken", "Check in")
+        assertCanonicalContainsAny(bundle, "Medication reminder must expose its plan", "Plan", "Schedule")
+        assertCanonicalContains(bundle, "History")
+        assertUiContains(bundle, "ui.Widget(", "ui.NavigationBar(")
+        assertUiContainsAny(
+            bundle,
+            "Medication reminder must expose daily progress",
+            "ui.ProgressBar(",
+            "ui.ProgressRing(",
+            "ui.IntStat("
+        )
+        assertRepeatedOrVisualizedData(bundle, "Medication reminder must expose doses or history")
+    }
+
     private fun assertExamSurface(bundle: CanonicalGeneratedAppBundle) {
-        assertUiContains(bundle, "Exam", "ui.ProgressBar(", "Studied")
-        assertUiContainsAny(bundle, "Exam must expose the three-day plan", "ui.BarChart(", "ui.ListItem(")
+        assertCanonicalContains(bundle, "Exam", "Studied")
+        assertRepeatedOrVisualizedData(bundle, "Exam must expose the three-day plan")
+        assertUiContainsAny(
+            bundle,
+            "Exam must expose progress",
+            "ui.ProgressBar(",
+            "ui.ProgressRing(",
+            "ui.IntStat(",
+            "ui.Stat(",
+            "ui.BarChart("
+        )
     }
 
     private fun assertHealthSurface(bundle: CanonicalGeneratedAppBundle) {
-        assertUiContains(bundle, "Health", "ui.ProgressBar(", "Done")
-        assertUiContainsAny(bundle, "Health must expose a schedule or chart", "ui.BarChart(", "ui.ListItem(")
+        assertCanonicalContains(bundle, "Health", "Done")
+        assertRepeatedOrVisualizedData(bundle, "Health must expose a schedule or progress visualization")
+        assertUiContainsAny(
+            bundle,
+            "Health must expose progress",
+            "ui.ProgressBar(",
+            "ui.ProgressRing(",
+            "ui.IntStat(",
+            "ui.Stat(",
+            "ui.BarChart("
+        )
     }
 
     private fun assertTodoSurface(bundle: CanonicalGeneratedAppBundle) {
@@ -428,15 +681,45 @@ class CanonicalGeneratedAppCloudDeviceTest {
     }
 
     private fun assertWeatherSurface(bundle: CanonicalGeneratedAppBundle) {
-        assertUiContains(bundle, "Weather")
-        assertUiContainsAny(bundle, "Weather must expose forecast data", "ui.BarChart(", "ui.Sparkline(", "ui.ListItem(")
+        assertCanonicalContains(bundle, "Weather")
+        assertRepeatedOrVisualizedData(bundle, "Weather must expose forecast data")
         assertUiContainsAny(bundle, "Weather must expose an interaction", "ui.Toggle(", "ui.Choice(", "ui.Tabs(", "ui.Button(")
     }
 
     private fun assertChessSurface(bundle: CanonicalGeneratedAppBundle) {
-        assertUiContains(bundle, "Chess", "ui.Grid(")
-        assertUiContainsAny(bundle, "Chess must expose selectable squares", "ui.Button(", "onClick:")
-        assertUiContainsAny(bundle, "Chess must expose reset", "Reset", "New game")
+        assertCanonicalContains(bundle, "Chess")
+        assertUiContainsAny(bundle, "Chess must expose an adaptive board", "ui.Grid(", "ui.Canvas(")
+        assertUiContainsAny(bundle, "Chess must expose selectable squares", "ui.Button(", "ui.PointerSurface(")
+        assertCanonicalContainsAny(bundle, "Chess must expose reset", "Reset", "New game")
+    }
+
+    private fun assertRepeatedOrVisualizedData(bundle: CanonicalGeneratedAppBundle, message: String) {
+        assertUiContainsAny(
+            bundle,
+            message,
+            "ForEach(",
+            "ui.BarChart(",
+            "ui.Sparkline(",
+            "ui.LineChart(",
+            "ui.ListItem(",
+            "ui.Calendar("
+        )
+    }
+
+    private fun assertCanonicalContains(bundle: CanonicalGeneratedAppBundle, vararg fragments: String) {
+        val canonicalSources = bundle.dealSource + "\n" + bundle.dealUiSource
+        fragments.forEach { fragment ->
+            assertTrue("Canonical app must contain '$fragment'", fragment in canonicalSources)
+        }
+    }
+
+    private fun assertCanonicalContainsAny(
+        bundle: CanonicalGeneratedAppBundle,
+        message: String,
+        vararg fragments: String
+    ) {
+        val canonicalSources = bundle.dealSource + "\n" + bundle.dealUiSource
+        assertTrue(message, fragments.any { it in canonicalSources })
     }
 
     private fun assertUiContains(bundle: CanonicalGeneratedAppBundle, vararg fragments: String) {
@@ -472,6 +755,8 @@ class CanonicalGeneratedAppCloudDeviceTest {
     }
 
     private companion object {
+        const val RENDER_TIMEOUT_MS = 10_000L
+
         const val COUNTER_REQUEST = """
             Build a compact adaptive counter named Counter. Show the current integer count and one accessible
             Increment button. Increment increases the count by exactly one. Keep state transition logic in app.deal
@@ -496,6 +781,38 @@ class CanonicalGeneratedAppCloudDeviceTest {
             time; missed starts 2 hours after it. Highlight delayed and missed doses. Keep all schedule construction,
             status transitions and Taken behavior in DEAL. Use only English visible text. Notifications are optional and
             must never be claimed as delivered unless the capability is available.
+        """
+
+        const val PHOTO_MEDICATION_REMINDER_REQUEST = """
+            Build a polished adaptive application named Medication Reminder for the post-recognition part of an
+            AI photo-based medication workflow. The host Agent owns camera/gallery capture and OCR; this generated
+            application must not pretend to perform those unavailable operations. Start on a recognition-review
+            state containing two realistic sample results: Bisoprolol (Concor), 5 mg, one tablet at 08:00 after food,
+            and Amlodipine, 5 mg, one tablet at 20:00, both daily for seven days. Clearly label the data as awaiting
+            user confirmation. Let the user edit drug name, dosage, time, duration and notes, add or delete a drug,
+            then confirm the plan. Use ordinary text fields, TimeField, bounded steppers and explicit actions; keep
+            drafts and every edit in DEAL state. Keep the public graph compact: use one parameterized text-edit action,
+            one parameterized integer-edit action and one parameterized command action rather than a separate action
+            type for each field or command. Group related presentation values into nested records so every class stays
+            below 24 fields and the complete graph stays below 16 action types.
+
+            After confirmation, construct a seven-day schedule in DEAL and expose three useful destinations through
+            typed NavigationItem children: Today, Plan and History. Today shows the current date, next dose, time until
+            it, scheduled doses and completed/total progress. Each pending dose has an accessible Taken action. Allow
+            an early check-in, a make-up check-in after the scheduled time, and undo of an incorrect record. Use clear
+            scheduled, taken, due, late, missed, make-up and course-ended labels with warning/error tones. Plan supports
+            adding, editing and removing medications. History is reverse chronological, can switch between day and
+            week views, exposes each record's date, time, drug, dosage, status and notes, and supports deleting one
+            record or clearing history with confirmation.
+
+            Include a concise Widget subtree that renders the title Medication Reminder, current date, today's dose
+            rows, completed/total progress and one quick action for the next due dose. The full app and widget must use
+            the same canonical DEAL state. Request clock.minute and storage.private only if they are actually wired.
+            Do not claim notifications were scheduled, photos were retained, OCR ran, screenshots were saved, or an
+            external operation completed without a real host completion action. State that source photos are owned by
+            the host Agent and discarded after recognition. Use a calm, trustworthy native visual system with a fresh
+            teal primary, warm supporting colour, semantic warning/error states, light/dark support, accessible English
+            labels, 48 dp controls and responsive phone/foldable layout. Do not use a scenario template or fallback.
         """
 
         const val EXAM_REQUEST = """
@@ -562,6 +879,18 @@ class CanonicalGeneratedAppCloudDeviceTest {
             and reset behavior in DEAL. Deal UI must render an adaptive board with accessible square labels and native
             visual hierarchy. Castling, en passant, promotion and checkmate detection may be explicitly labelled as
             unavailable in this acceptance version; never pretend unsupported rules work. Use English visible text.
+        """
+
+        const val TETRIS_FOUNDATION_REQUEST = """
+            Build a compact but genuinely playable adaptive Tetris foundation named Tetris. Use a 10 by 20 retained
+            logical board and a frame or bounded timer tick. The initial canonical program must already launch and
+            support falling, left, right, rotate, soft drop, pause and restart. Declare small independently replaceable
+            helpers named around collision checking, locking a piece, clearing complete rows and spawning the next
+            piece; do not put the whole game in one update body. Keep typed state for board cells, active piece, next
+            piece, score, cleared lines, level, paused and game-over status so later natural-language revisions can
+            improve those existing helper bodies without changing declarations. Deal UI must render an adaptive dark
+            arcade board, compact HUD, accessible native controls and paused/game-over state. Keep all game rules in
+            DEAL and presentation in Deal UI. Use English visible text.
         """
     }
 }

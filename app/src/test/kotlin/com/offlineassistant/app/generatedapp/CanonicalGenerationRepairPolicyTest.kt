@@ -8,6 +8,50 @@ import org.junit.Test
 
 class CanonicalGenerationRepairPolicyTest {
     @Test
+    fun `compiler transport batches do not mix helpers with updates`() {
+        assertEquals(
+            2,
+            preferredDealGraphBatchSize(
+                pendingHoleIds = listOf("helper:first", "helper:second", "update:onSave", "update:onDelete"),
+                currentMaximum = 6
+            )
+        )
+        assertEquals(
+            2,
+            preferredDealGraphBatchSize(
+                pendingHoleIds = listOf("update:onSave", "update:onDelete", "update:onReset"),
+                currentMaximum = 6
+            )
+        )
+        assertEquals(3, reducedDealGraphBatchSize(6))
+        assertEquals(1, reducedDealGraphBatchSize(3))
+    }
+
+    @Test
+    fun `semantic repair depth belongs to each unresolved hole`() {
+        val attempts = mapOf(
+            "update:onOldFailure" to 3,
+            "update:onCurrent" to 1,
+            "update:onFresh" to 0
+        )
+
+        assertEquals(
+            1,
+            dealGraphRepairDepth(
+                pendingHoleIds = listOf("update:onCurrent", "update:onFresh"),
+                repairAttemptsByHole = attempts
+            )
+        )
+        assertEquals(
+            0,
+            dealGraphRepairDepth(
+                pendingHoleIds = listOf("update:onFresh"),
+                repairAttemptsByHole = attempts
+            )
+        )
+    }
+
+    @Test
     fun `flash gets one flash repair followed by one pro escalation`() {
         assertEquals(3, CanonicalGenerationRepairPolicy.maxRounds(DeepSeekGenerationModel.FLASH))
         assertEquals(
@@ -39,6 +83,19 @@ class CanonicalGenerationRepairPolicyTest {
             DeepSeekGenerationModel.PRO,
             CanonicalGenerationRepairPolicy.modelForRound(DeepSeekGenerationModel.PRO, 1)
         )
+        assertEquals(3, CanonicalGenerationRepairPolicy.maxAttemptsPerHole(DeepSeekGenerationModel.PRO))
+        assertEquals(4, CanonicalGenerationRepairPolicy.maxAttemptsPerHole(DeepSeekGenerationModel.FLASH))
+    }
+
+    @Test
+    fun `borrowed mutation diagnostic produces a concrete repair invariant`() {
+        val directive = dealRepairDirective(
+            "update:onMove: error UI2050: parameter 'state' is borrowed immutable"
+        ).orEmpty()
+
+        assertTrue(directive.contains("no assignment"))
+        assertTrue(directive.contains("fresh complete root-state object literal"))
+        assertTrue(directive.contains("Do not reuse the rejected body"))
     }
 
     @Test
@@ -65,6 +122,37 @@ class CanonicalGenerationRepairPolicyTest {
                 currentBudget = CanonicalGenerationRepairPolicy.HARD_MAX_ROUNDS,
                 completedRounds = CanonicalGenerationRepairPolicy.HARD_MAX_ROUNDS,
                 acceptedChanges = 2
+            )
+        )
+    }
+
+    @Test
+    fun `ui repair budget covers compiler deferred sections without becoming unbounded`() {
+        assertEquals(
+            7,
+            CanonicalGenerationRepairPolicy.extendForUiPendingWork(
+                currentBudget = 3,
+                completedRounds = 1,
+                pendingRepair = true,
+                deferredSections = 4
+            )
+        )
+        assertEquals(
+            CanonicalGenerationRepairPolicy.UI_HARD_MAX_ROUNDS,
+            CanonicalGenerationRepairPolicy.extendForUiPendingWork(
+                currentBudget = 3,
+                completedRounds = 4,
+                pendingRepair = true,
+                deferredSections = 20
+            )
+        )
+        assertEquals(
+            3,
+            CanonicalGenerationRepairPolicy.extendForUiPendingWork(
+                currentBudget = 3,
+                completedRounds = 2,
+                pendingRepair = false,
+                deferredSections = 0
             )
         )
     }

@@ -43,7 +43,7 @@ Compose only renders checked portable Deal UI IR and sends typed events back to 
 
 Cloud generation is sequential and compiler-guided:
 
-1. DeepSeek calls `submit_deal_program` once with nominal types, external actions, reusable helper
+1. The selected cloud model calls `submit_deal_program` once with nominal types, external actions, reusable helper
    signatures, capabilities and every compact function body. The model does not select a separate
    root-state name; the compiler infers the unique root from nominal type references.
 2. The compiler creates stable typed holes for `initialState`, helpers and `@ui-update` functions
@@ -53,7 +53,7 @@ Cloud generation is sequential and compiler-guided:
 4. If holes remain, `repair_deal_batch` contains only their signatures and diagnostics; accepted
    declarations and bodies are immutable and omitted from repair context.
 5. The exact accepted DEAL and extracted `AppInterfaceV1` are supplied to Deal UI generation.
-6. DeepSeek calls `submit_deal_ui_sections` once with two to six cohesive sections. The compiler
+6. The selected cloud model calls `submit_deal_ui_sections` once with two to six cohesive sections. The compiler
    accepts one compact, app-owned theme in that initial call, checks each section independently,
    commits valid sections and defers later siblings behind a rejected dependency without asking
    the model to regenerate them. The compiler emits the sole `ui.AppTheme` and `ui.Root` wrappers;
@@ -67,7 +67,7 @@ Cloud generation is sequential and compiler-guided:
    it becomes interactive.
 
 Malformed, empty or truncated tool arguments are transport failures, not program repairs. The
-DeepSeek connector validates the complete function-call argument object before invoking a compiler,
+The cloud connector validates the complete function-call argument object before invoking a compiler,
 treats the final SSE item as authoritative over streamed deltas and may repeat the same transport
 request once. A failed transport attempt must not mutate compiler state or consume a semantic repair
 round. TTFC for tools means the first structurally valid compiler call.
@@ -76,12 +76,40 @@ Repair budgets are progress-aware. The fixed Flash and Pro budgets remain latenc
 additional round may be granted only when the compiler accepted new immutable graph content at the
 budget boundary, and all generation is hard-capped. Rejections alone never buy another model call.
 
-DeepSeek Flash is the default cloud backend. UI and logic backend choices remain independent for
-future local experiments, but a fully cloud run always finishes DEAL before starting Deal UI. Do
-not reintroduce concurrent cloud generation coordinated by an inferred planner.
+DeepSeek and Cerebras are production cloud providers behind the same canonical compiler API. A run
+always finishes and checks DEAL before starting Deal UI, and the two stages may select providers
+independently. Provider differences stop at authenticated transport, model identifiers, streaming
+event parsing and usage metadata; they do not create different prompts, compiler semantics, repair
+rules, artifacts or runtimes. Future local generators may return only behind the same canonical
+compiler API and artifact contract. Do not reintroduce concurrent generation coordinated by an
+inferred planner, AppPlan or a second runtime path.
 
 Compiler tools are a compact semantic API, not token-level constrained decoding and not one tool
 call per AST constructor.
+
+### Repair Granularity Invariant
+
+The independently checked and replaceable unit is one typed function body or one named Deal UI
+surface. Compactness is measured by body size, repair input/output tokens and changed graph units,
+not by minimizing the number of nominal action types.
+
+- Never combine navigation, collection mutation, confirmation, selection and host events in a
+  catch-all command action merely to reduce declaration count. Structurally identical operations may
+  share a parameterized action only when every field has one stable meaning and the handler performs
+  one cohesive state transition.
+- Initial declarations must expose enough small actions and pure helper holes for a rejected body to
+  be corrected without replacing unrelated accepted behavior. Accepted sibling bodies remain
+  immutable during compiler repair.
+- A compiler repair request contains only unresolved or rejected graph units, their exact signatures,
+  stable diagnostics and the minimum declaration context required to type-check them. Repeating an
+  unchanged rejected body is no progress and terminates that repair path.
+- Natural-language product refinement is distinct from compiler repair. A compatible refinement may
+  replace existing function bodies or named UI surfaces. A structural refinement may add or change
+  declarations only through a new canonical graph revision, followed by AppInterface extraction and
+  dependent Deal UI regeneration. Both paths compile completely and swap atomically; failure retains
+  the previous runnable revision.
+- Do not expose artifact or scope selection to the user. One ordinary text request determines the
+  smallest valid revision internally.
 
 ## Generalization Invariant
 
@@ -102,11 +130,28 @@ runtime. It does not implement a finite catalog of recognized applications.
   generic component, model/compiler protocol, diagnostic, renderer, persistence or host capability.
   A new ABI primitive must use domain-neutral types and semantics and demonstrate utility in at least
   three unrelated application classes before it is accepted.
+- A failure observed in an acceptance scenario is evidence, not a specification. Before editing
+  production code, restate it as a domain-neutral invariant and give at least two unrelated examples
+  that require the same rule. If that cannot be done, keep the change in the test/evaluation layer and
+  do not add it to the language, component pack, prompt, compiler, repair loop or runtime.
+- Production validation must never inspect section ids, visible copy, field names, action names or
+  prompt keywords to infer application meaning. Structural rules may distinguish only declared
+  language/framework concepts such as route, widget, overlay, collection, capability and host effect.
+- Do not repair a generated artifact in production by injecting scenario-authored source. The same
+  candidate must pass or fail through the generic compiler API used by unknown held-out requests.
+- Never add a production component, compiler rule, prompt branch, repair strategy, renderer path,
+  persistence shape or host integration specifically for an acceptance scenario or a currently
+  observed PRD. Generation and repair must not select implementation paths by scenario identity,
+  domain vocabulary or recognizable prompt shape, even when that would improve the fixed matrix.
 - Do not tune static production instructions after inspecting one scenario's output. Prompt changes
   must describe a general language rule and pass the prompt generalization guard.
 - The fixed matrix proves regressions only. Every release candidate must also pass held-out
   compositional requests that were not used to design the current ABI. Success on any finite list
   must never be reported as arbitrary-application generalization.
+
+No release gate is considered closed by implementation, a single successful generation or a
+hand-picked screenshot. A gate closes only after its recorded matrix or soak measurement passes on
+the pinned compiler, pack, model and device/network profile. Until then the build remains internal.
 
 A normal cloud run is budgeted for one complete DEAL call and one complete Deal UI batch call.
 Diagnostic retries are a failure ceiling, not expected progress. Record TTFT, graph rounds,
@@ -119,11 +164,17 @@ and domain transformations stay in DEAL. Pointer phase is `0=down`, `1=move`, `2
 tap produces down and up without requiring move. Integer event payloads must enter DEAL as `Int`,
 not JVM `Long`.
 
-Presentation-owned static navigation is compositional: use `NavigationBar` with one
-`NavigationItem` child per destination so each item can bind its own checked action. The legacy
-`labels`/`icons` array form is valid only when those typed arrays already exist in DEAL state and
-the selected integer payload maps directly to the declared action. Do not add array literals or
-duplicate presentation-only arrays to authoritative business state merely to render navigation.
+Core DEAL remains a mutable TypeScript-shaped language and may use indexed reads where its type
+system permits them. Deal UI remains a separate restricted declaration language: no indexing, array
+literals, assignments or arbitrary calls. The Deal UI compiler treats state/action values borrowed by
+UI handlers as immutable, tracks aliases and helper mutation summaries, and rejects writes or escape.
+This is a framework static guarantee, not a change to core DEAL mutation semantics or an unavailable
+readonly runtime feature. `ForEach` is the only dynamic collection-rendering construct in Deal UI.
+
+Presentation-owned selection and navigation are compositional: use `NavigationBar`, `Tabs`, `Choice`
+and `Menu` with nominal `NavigationItem`, `TabItem`, `ChoiceItem` and `MenuItem` children. Each item
+binds its own checked action. Dynamic children are produced with `ForEach`. Array-prop navigation is
+v11 restore syntax only and must never be generated for v12.
 
 The component pack is generic and versioned. It must cover:
 
@@ -131,7 +182,7 @@ The component pack is generic and versioned. It must cover:
 - Text, IntText, Icon, Badge, Stat, ListItem, progress and empty/error states;
 - Button, IconButton, TextField, Toggle, Choice and Slider controls;
 - HTTPS Image and a closed semantic icon catalog;
-- Route, Modal, BottomSheet and Snackbar presentation;
+- Route, Dialog/Modal, BottomSheet, Menu and Snackbar presentation;
 - FrameClock, MinuteClock, PointerSurface and Canvas host ingress;
 - declared, permission-aware reusable host effects rather than application-specific callbacks.
 
@@ -174,9 +225,10 @@ dimensions (compact, medium or expanded); do not hard-code launcher cell counts 
 
 Saving persists canonical `app.deal`, `app.dealui` and provenance. Never persist checked IR as the
 source of truth. The app-owned `ui.AppTheme` is part of `app.dealui`, so saved previews and fullscreen
-restores reproduce the same visual identity. Restore reparses and recompiles both files with the current pinned toolchain before
-creating a new runtime. Library cards render noninteractive live previews; opening a card creates an
-interactive fullscreen session.
+restores reproduce the same visual identity. Restore selects the recorded pack, verifies recorded
+compiler/toolchain provenance, then reparses and recompiles both files before creating a new runtime.
+Unavailable provenance quarantines the record rather than executing stale code. Library cards render
+noninteractive live previews; opening a card creates an interactive fullscreen session.
 
 The user edits an application with one natural-language request. Do not expose manual UI/logic
 scope controls. Two narrow edit agents may inspect the same request: the DEAL agent replaces only
@@ -216,6 +268,14 @@ Passing means more than compiling. Each scenario must:
 Raw blue button grids, inaccessible canvas hit zones, monochrome screens, nested cards, placeholder
 icons, technical diagnostics in the app surface and fixed-size phone layouts are acceptance failures.
 
+Iterative-development acceptance uses at least one held-out complex application that was not used to
+shape production prompts or ABI. Starting from a runnable base, apply multiple ordinary text requests
+that independently add behavior, add or change a screen, refine visual hierarchy and exercise
+save/restore. At every step record selected revision mode, changed DEAL holes and Deal UI surfaces,
+input/output tokens, compiler diagnostics, time to runnable and whether state was preserved. Include
+one intentionally invalid change and verify atomic rollback. The test passes only when local edits do
+not regenerate unrelated accepted units and structural edits create a new checked AppInterface.
+
 ## Validation
 
 Before a change is complete, run the narrowest relevant checks and then the product gates:
@@ -226,8 +286,8 @@ Before a change is complete, run the narrowest relevant checks and then the prod
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 ```
 
-Connected acceptance uses an ARM64 Android device because the embedded production DEAL toolchain and
-local llama runtime are device artifacts. At minimum run `CanonicalDealToolchainDeviceTest`,
+Connected acceptance uses an ARM64 Android device because the embedded production DEAL toolchain is
+a device artifact. At minimum run `CanonicalDealToolchainDeviceTest`,
 `CanonicalDealUiTouchDeviceTest` and the cloud scenario tests selected for the change.
 
 Do not claim visual or device acceptance when the phone was unavailable. Preserve the exact command
@@ -238,9 +298,9 @@ and mark that gate pending.
 ```text
 app/src/main/java/com/offlineassistant/app/generatedapp/  Studio, compilers, runtime and renderer
 deepseek-connector/                                      streaming/tool-call cloud client
-app/src/main/cpp/                                        local llama.cpp compatibility runtime
 app/src/debug/assets/deal-android-toolchain.dex           pinned production DEAL toolchain
-training/generated_app/                                  local-model datasets and evaluation
+tooling/deal-ui-pack/                                     tracked versioned Deal UI component pack
+tooling/deal-android-bridge/                              portable compiler bridge and toolchain lock
 docs/superpowers/plans/                                   implementation decisions and status
 ```
 

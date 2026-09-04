@@ -4,46 +4,32 @@ import android.content.Context
 import java.io.File
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-
-@Serializable
-internal data class SavedGeneratedAppRecord(
-    val id: String,
-    val title: String,
-    val request: String,
-    val uiSource: String,
-    val uiFormat: String,
-    val dealSource: String,
-    val uiBackend: String,
-    val logicBackend: String,
-    val uiLatencyMs: Long,
-    val logicLatencyMs: Long,
-    val pipelineWallMs: Long,
-    val planLatencyMs: Long = 0,
-    val firstUiCommitMs: Long? = null,
-    val createdAtEpochMs: Long
-)
-
-internal data class GeneratedAppLibraryEntry(
-    val record: SavedGeneratedAppRecord,
-    val bundle: GeneratedAppBundle,
-    val initialState: GeneratedAppSnapshot,
-    val initialClientState: A2UiClientState?
-)
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 @Serializable
 internal data class SavedCanonicalGeneratedAppRecord(
     val id: String,
     val title: String,
     val request: String,
-    val appInterface: String,
-    val dealGraphLog: String,
-    val dealUiGraphLog: String,
-    val dealSource: String,
-    val dealUiSource: String,
-    val uiBackend: String,
-    val logicBackend: String,
+    val dealSourceSha256: String,
+    val dealUiSourceSha256: String,
+    val dealCompilerRevision: String,
+    val dealUiCompilerRevision: String,
+    val componentPackVersion: String,
+    val componentPackSha256: String,
+    val toolchainSha256: String,
+    val dealModelId: String,
+    val dealUiModelId: String,
+    val promptDigest: String,
     val dealLatencyMs: Long,
     val dealUiLatencyMs: Long,
     val wallLatencyMs: Long,
@@ -66,11 +52,11 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val dealUiOutputTokens: Int = 0,
     val dealUiAcceptedPatches: Int = 0,
     val firstInteractivePreviewMs: Long? = null,
-    val componentPackVersion: String,
-    val toolchainSha256: String,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
-    val revision: Int = 1
+    val revision: Int = 1,
+    @Transient val dealSource: String = "",
+    @Transient val dealUiSource: String = ""
 )
 
 internal data class CanonicalGeneratedAppLibraryEntry(
@@ -84,20 +70,34 @@ internal fun restoreCanonicalGeneratedApp(
     record: SavedCanonicalGeneratedAppRecord,
     toolchain: CanonicalDealToolchain
 ): CanonicalGeneratedAppLibraryEntry {
+    require(record.dealSource.sha256() == record.dealSourceSha256) { "Saved app.deal digest mismatch" }
+    require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
+    require(record.dealCompilerRevision == CanonicalDealToolchain.DEAL_REVISION) {
+        "Required DEAL compiler revision is unavailable"
+    }
+    require(record.dealUiCompilerRevision == CanonicalDealToolchain.DEAL_UI_REVISION) {
+        "Required Deal UI compiler revision is unavailable"
+    }
+    require(record.toolchainSha256 == CanonicalDealToolchain.ARTIFACT_SHA256) {
+        "Required canonical toolchain is unavailable"
+    }
+    val packSource = requireNotNull(CanonicalDealUiPack.sourceFor(record.componentPackVersion)) {
+        "Required component pack ${record.componentPackVersion} is unavailable"
+    }
+    require(CanonicalDealUiPack.digestFor(record.componentPackVersion) == record.componentPackSha256) {
+        "Saved component pack digest mismatch"
+    }
     val checkedIr = toolchain.compilePortable(
         record.dealSource,
         record.dealUiSource,
-        CanonicalDealUiPack.source
+        packSource
     )
     val extractedInterface = toolchain.extractAppInterface(record.dealSource)
-    require(AppInterfaceCompiler.parse(extractedInterface) == AppInterfaceCompiler.parse(record.appInterface)) {
-        "Saved AppInterface no longer matches its DEAL source"
-    }
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
         appInterface = extractedInterface,
-        dealGraphLog = record.dealGraphLog,
-        dealUiGraphLog = record.dealUiGraphLog,
+        dealGraphLog = "",
+        dealUiGraphLog = "",
         dealSource = record.dealSource,
         dealUiSource = record.dealUiSource,
         checkedUiIr = checkedIr,
@@ -122,10 +122,14 @@ internal fun restoreCanonicalGeneratedApp(
         dealUiCachedInputTokens = record.dealUiCachedInputTokens,
         dealUiOutputTokens = record.dealUiOutputTokens,
         dealUiAcceptedPatches = record.dealUiAcceptedPatches,
-        firstInteractivePreviewMs = record.firstInteractivePreviewMs
+        firstInteractivePreviewMs = record.firstInteractivePreviewMs,
+        dealModelId = record.dealModelId,
+        dealUiModelId = record.dealUiModelId,
+        promptDigest = record.promptDigest
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
+    program.validateInitialSurface(initialState)
     return CanonicalGeneratedAppLibraryEntry(record, bundle, program, initialState)
 }
 
@@ -141,30 +145,46 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         directory.mkdirs()
     }
 
-    private val indexFile = File(directory, INDEX_FILE)
+    private val appsDirectory = File(directory, V2_DIRECTORY)
+    private val quarantineDirectory = File(directory, QUARANTINE_DIRECTORY)
 
-    fun loadRecords(): List<SavedCanonicalGeneratedAppRecord> = readRecords()
+    init {
+        appsDirectory.mkdirs()
+        quarantineDirectory.mkdirs()
+        migrateV1Records()
+    }
+
+    fun loadRecords(): List<SavedCanonicalGeneratedAppRecord> = appsDirectory.listFiles()
+        .orEmpty()
+        .filter(File::isDirectory)
+        .mapNotNull(::readRecordOrQuarantine)
         .sortedByDescending(SavedCanonicalGeneratedAppRecord::updatedAtEpochMs)
+
+    fun restoreAll(toolchain: CanonicalDealToolchain): List<CanonicalGeneratedAppLibraryEntry> = loadRecords()
+        .mapNotNull { record ->
+            runCatching { restoreCanonicalGeneratedApp(record, toolchain) }
+                .getOrElse {
+                    quarantine(record.id, it.message ?: "Canonical restore failed")
+                    null
+                }
+        }
 
     fun save(
         bundle: CanonicalGeneratedAppBundle,
-        title: String,
-        uiBackend: GeneratedModelBackend,
-        logicBackend: GeneratedModelBackend
+        title: String
     ): SavedCanonicalGeneratedAppRecord {
-        val records = readRecords().toMutableList()
         val fingerprint = fingerprint(bundle.dealUiSource, bundle.dealSource)
-        val existing = records.firstOrNull { fingerprint(it.dealUiSource, it.dealSource) == fingerprint }
+        val existing = loadRecords().firstOrNull {
+            fingerprint(it.dealUiSource, it.dealSource) == fingerprint
+        }
         val record = existing ?: record(
             id = "canonical-${fingerprint.take(16)}",
             title = title,
             bundle = bundle,
-            uiBackend = uiBackend,
-            logicBackend = logicBackend,
             createdAtEpochMs = System.currentTimeMillis(),
             revision = 1
-        ).also(records::add)
-        writeRecords(records)
+        )
+        writeRecord(record)
         return record
     }
 
@@ -172,51 +192,45 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
     fun update(
         id: String,
         bundle: CanonicalGeneratedAppBundle,
-        title: String,
-        uiBackend: GeneratedModelBackend,
-        logicBackend: GeneratedModelBackend
+        title: String
     ): SavedCanonicalGeneratedAppRecord {
-        val records = readRecords().toMutableList()
-        val index = records.indexOfFirst { it.id == id }
-        require(index >= 0) { "Saved canonical app $id does not exist" }
-        val previous = records[index]
+        val previous = loadRecords().firstOrNull { it.id == id }
+            ?: error("Saved canonical app $id does not exist")
         val updated = record(
             id = previous.id,
             title = title,
             bundle = bundle,
-            uiBackend = uiBackend,
-            logicBackend = logicBackend,
             createdAtEpochMs = previous.createdAtEpochMs,
             revision = previous.revision + 1
         )
-        records[index] = updated
-        writeRecords(records)
+        writeRecord(updated)
         return updated
     }
 
     fun delete(id: String) {
-        writeRecords(readRecords().filterNot { it.id == id })
+        File(appsDirectory, id).deleteRecursively()
     }
 
     private fun record(
         id: String,
         title: String,
         bundle: CanonicalGeneratedAppBundle,
-        uiBackend: GeneratedModelBackend,
-        logicBackend: GeneratedModelBackend,
         createdAtEpochMs: Long,
         revision: Int
     ) = SavedCanonicalGeneratedAppRecord(
         id = id,
         title = title,
         request = bundle.request,
-        appInterface = bundle.appInterface,
-        dealGraphLog = bundle.dealGraphLog,
-        dealUiGraphLog = bundle.dealUiGraphLog,
-        dealSource = bundle.dealSource,
-        dealUiSource = bundle.dealUiSource,
-        uiBackend = uiBackend.name,
-        logicBackend = logicBackend.name,
+        dealSourceSha256 = bundle.dealSource.sha256(),
+        dealUiSourceSha256 = bundle.dealUiSource.sha256(),
+        dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
+        dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
+        componentPackVersion = CanonicalDealUiPack.VERSION,
+        componentPackSha256 = CanonicalDealUiPack.SHA256,
+        toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
+        dealModelId = bundle.dealModelId,
+        dealUiModelId = bundle.dealUiModelId,
+        promptDigest = bundle.promptDigest,
         dealLatencyMs = bundle.dealLatencyMs,
         dealUiLatencyMs = bundle.dealUiLatencyMs,
         wallLatencyMs = bundle.wallLatencyMs,
@@ -239,28 +253,113 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         dealUiOutputTokens = bundle.dealUiOutputTokens,
         dealUiAcceptedPatches = bundle.dealUiAcceptedPatches,
         firstInteractivePreviewMs = bundle.firstInteractivePreviewMs,
-        componentPackVersion = CanonicalDealUiPack.VERSION,
-        toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = System.currentTimeMillis(),
-        revision = revision
+        revision = revision,
+        dealSource = bundle.dealSource,
+        dealUiSource = bundle.dealUiSource
     )
 
-    private fun readRecords(): List<SavedCanonicalGeneratedAppRecord> = if (!indexFile.isFile) {
-        emptyList()
-    } else {
-        JSON.decodeFromString(indexFile.readText())
+    private fun writeRecord(record: SavedCanonicalGeneratedAppRecord) {
+        val target = File(appsDirectory, record.id)
+        val temporary = File(appsDirectory, ".${record.id}.tmp").also {
+            it.deleteRecursively()
+            it.mkdirs()
+        }
+        File(temporary, DEAL_FILE).writeText(record.dealSource)
+        File(temporary, DEAL_UI_FILE).writeText(record.dealUiSource)
+        File(temporary, METADATA_FILE).writeText(JSON.encodeToString(record))
+        val backup = File(appsDirectory, ".${record.id}.backup").also(File::deleteRecursively)
+        if (target.exists()) require(target.renameTo(backup)) { "Could not stage existing canonical app" }
+        if (!temporary.renameTo(target)) {
+            backup.renameTo(target)
+            error("Could not atomically save canonical app")
+        }
+        backup.deleteRecursively()
     }
 
-    private fun writeRecords(records: List<SavedCanonicalGeneratedAppRecord>) {
-        val temporary = File(directory, "$INDEX_FILE.tmp")
-        temporary.writeText(JSON.encodeToString(records))
-        require(
-            temporary.renameTo(indexFile) || run {
-                indexFile.delete()
-                temporary.renameTo(indexFile)
+    private fun readRecordOrQuarantine(appDirectory: File): SavedCanonicalGeneratedAppRecord? = runCatching {
+        val metadata = JSON.decodeFromString<SavedCanonicalGeneratedAppRecord>(
+            File(appDirectory, METADATA_FILE).readText()
+        )
+        require(metadata.id == appDirectory.name) { "Canonical metadata id does not match its directory" }
+        metadata.copy(
+            dealSource = File(appDirectory, DEAL_FILE).readText(),
+            dealUiSource = File(appDirectory, DEAL_UI_FILE).readText()
+        )
+    }.getOrElse {
+        quarantine(appDirectory.name, it.message ?: "Unreadable canonical record")
+        null
+    }
+
+    private fun quarantine(id: String, reason: String) {
+        val source = File(appsDirectory, id)
+        if (!source.exists()) return
+        val target = File(quarantineDirectory, "$id-${System.currentTimeMillis()}")
+        if (source.renameTo(target)) File(target, "reason.txt").writeText(reason)
+    }
+
+    private fun migrateV1Records() {
+        val legacy = File(directory, V1_INDEX_FILE)
+        if (!legacy.isFile) return
+        val migrated = File(directory, "$V1_INDEX_FILE.migrated")
+        runCatching {
+            JSON_COMPAT.parseToJsonElement(legacy.readText()).jsonArray.forEach { value ->
+                val item = value.jsonObject
+                val dealSource = item.string("dealSource")
+                val dealUiSource = item.string("dealUiSource")
+                val version = item.stringOrNull("componentPackVersion") ?: CanonicalDealUiPack.LEGACY_VERSION
+                val id = item.string("id")
+                if (!File(appsDirectory, id).exists()) {
+                    writeRecord(
+                        SavedCanonicalGeneratedAppRecord(
+                            id = id,
+                            title = item.string("title"),
+                            request = item.string("request"),
+                            dealSourceSha256 = dealSource.sha256(),
+                            dealUiSourceSha256 = dealUiSource.sha256(),
+                            dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
+                            dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
+                            componentPackVersion = version,
+                            componentPackSha256 = requireNotNull(CanonicalDealUiPack.digestFor(version)),
+                            toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
+                            dealModelId = item.stringOrNull("logicBackend") ?: "DEEPSEEK_FLASH",
+                            dealUiModelId = item.stringOrNull("uiBackend") ?: "DEEPSEEK_FLASH",
+                            promptDigest = "legacy-v1",
+                            dealLatencyMs = item.long("dealLatencyMs"),
+                            dealUiLatencyMs = item.long("dealUiLatencyMs"),
+                            wallLatencyMs = item.long("wallLatencyMs"),
+                            dealTimeToFirstPatchMs = item.longOrNull("dealTimeToFirstPatchMs"),
+                            dealUiTimeToFirstTokenMs = item.longOrNull("dealUiTimeToFirstTokenMs"),
+                            validationLatencyMs = item.long("validationLatencyMs"),
+                            repairLatencyMs = item.long("repairLatencyMs"),
+                            repairPasses = item.int("repairPasses"),
+                            dealGraphRounds = item.int("dealGraphRounds"),
+                            dealUiGraphRounds = item.int("dealUiGraphRounds"),
+                            dealAcceptedPatches = item.int("dealAcceptedPatches"),
+                            dealRejectedPatches = item.int("dealRejectedPatches"),
+                            dealTypedHoles = item.int("dealTypedHoles"),
+                            dealInputTokens = item.int("dealInputTokens"),
+                            dealCachedInputTokens = item.int("dealCachedInputTokens"),
+                            dealOutputTokens = item.int("dealOutputTokens"),
+                            dealUiRejectedPatches = item.int("dealUiRejectedPatches"),
+                            dealUiInputTokens = item.int("dealUiInputTokens"),
+                            dealUiCachedInputTokens = item.int("dealUiCachedInputTokens"),
+                            dealUiOutputTokens = item.int("dealUiOutputTokens"),
+                            dealUiAcceptedPatches = item.int("dealUiAcceptedPatches"),
+                            firstInteractivePreviewMs = item.longOrNull("firstInteractivePreviewMs"),
+                            createdAtEpochMs = item.long("createdAtEpochMs"),
+                            updatedAtEpochMs = item.longOrNull("updatedAtEpochMs")
+                                ?: item.long("createdAtEpochMs"),
+                            revision = item.int("revision").coerceAtLeast(1),
+                            dealSource = dealSource,
+                            dealUiSource = dealUiSource
+                        )
+                    )
+                }
             }
-        ) { "Could not update canonical generated app library" }
+            require(legacy.renameTo(migrated)) { "Could not mark v1 canonical index as migrated" }
+        }
     }
 
     private fun fingerprint(uiSource: String, dealSource: String): String = MessageDigest.getInstance("SHA-256")
@@ -269,109 +368,74 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
 
     private companion object {
         const val DIRECTORY = "generated-app-library"
-        const val INDEX_FILE = "canonical-apps-v1.json"
+        const val V2_DIRECTORY = "canonical-v2"
+        const val QUARANTINE_DIRECTORY = "quarantine"
+        const val V1_INDEX_FILE = "canonical-apps-v1.json"
+        const val DEAL_FILE = "app.deal"
+        const val DEAL_UI_FILE = "app.dealui"
+        const val METADATA_FILE = "metadata.json"
         val JSON = Json { ignoreUnknownKeys = false }
+        val JSON_COMPAT = Json { ignoreUnknownKeys = true }
     }
 }
 
-internal class GeneratedAppLibrary private constructor(private val directory: File) {
-    constructor(context: Context) : this(File(context.filesDir, DIRECTORY))
+private fun String.sha256(): String = MessageDigest.getInstance("SHA-256")
+    .digest(encodeToByteArray())
+    .joinToString("") { byte -> "%02x".format(byte) }
 
-    internal constructor(rootDirectory: File, useDirectDirectory: Boolean) : this(
-        if (useDirectDirectory) rootDirectory else File(rootDirectory, DIRECTORY)
+private fun JsonObject.string(name: String): String = requireNotNull(stringOrNull(name)) {
+    "Missing string metadata field $name"
+}
+
+private fun JsonObject.stringOrNull(name: String): String? = get(name)?.jsonPrimitive?.contentOrNull
+
+private fun JsonObject.long(name: String): Long = longOrNull(name) ?: 0L
+
+private fun JsonObject.longOrNull(name: String): Long? = get(name)?.jsonPrimitive?.longOrNull
+
+private fun JsonObject.int(name: String): Int = get(name)?.jsonPrimitive?.intOrNull ?: 0
+
+/** Legacy code is never executed. Only its original request survives as a rebuild affordance. */
+internal class LegacyGeneratedAppRequestLibrary private constructor(private val indexFile: File) {
+    constructor(context: Context) : this(File(File(context.filesDir, DIRECTORY), INDEX_FILE))
+
+    internal constructor(file: File, useDirectFile: Boolean) : this(
+        if (useDirectFile) file else File(File(file, DIRECTORY), INDEX_FILE)
     )
 
-    init {
-        directory.mkdirs()
-    }
-
-    private val indexFile = File(directory, INDEX_FILE)
-
-    fun loadAll(): List<GeneratedAppLibraryEntry> = readRecords()
-        .sortedByDescending(SavedGeneratedAppRecord::createdAtEpochMs)
-        .mapNotNull { record -> runCatching { restore(record) }.getOrNull() }
-
-    fun save(bundle: GeneratedAppBundle): GeneratedAppLibraryEntry {
-        val records = readRecords().toMutableList()
-        val fingerprint = fingerprint(bundle.uiSource, bundle.deal.source)
-        val existing = records.firstOrNull { fingerprint(it.uiSource, it.dealSource) == fingerprint }
-        val record = existing ?: SavedGeneratedAppRecord(
-            id = fingerprint.take(16),
-            title = GeneratedDealCompiler.instantiate(bundle.deal).snapshot().title,
-            request = bundle.request,
-            uiSource = bundle.uiSource,
-            uiFormat = if (bundle.ui is A2UiGeneratedUi) FORMAT_A2UI else FORMAT_COMPACT,
-            dealSource = bundle.deal.source,
-            uiBackend = bundle.uiBackend.name,
-            logicBackend = bundle.logicBackend.name,
-            uiLatencyMs = bundle.gemmaLatencyMs,
-            logicLatencyMs = bundle.dealLatencyMs,
-            pipelineWallMs = bundle.pipelineWallMs,
-            planLatencyMs = bundle.planLatencyMs,
-            firstUiCommitMs = bundle.firstUiCommitMs,
-            createdAtEpochMs = System.currentTimeMillis()
-        ).also(records::add)
-        writeRecords(records)
-        return restore(record)
-    }
-
-    fun delete(id: String) {
-        val remaining = readRecords().filterNot { it.id == id }
-        writeRecords(remaining)
-    }
-
-    private fun restore(record: SavedGeneratedAppRecord): GeneratedAppLibraryEntry {
-        val deal = GeneratedDealCompiler.compileAndValidate(record.dealSource)
-        val ui: GeneratedUiArtifact = when (record.uiFormat) {
-            FORMAT_A2UI -> A2UiGeneratedUi(A2UiParser.parseAndValidate(record.uiSource))
-            FORMAT_COMPACT -> CompactGeneratedUi(CompactUiPlanParser.parseAndValidate(record.uiSource))
-            else -> error("Unsupported saved UI format: ${record.uiFormat}")
-        }
-        GeneratedAppContractValidator.validate(ui, deal)
-        val bundle = GeneratedAppBundle(
-            request = record.request,
-            uiSource = record.uiSource,
-            ui = ui,
-            deal = deal,
-            uiBackend = GeneratedModelBackend.valueOf(record.uiBackend),
-            logicBackend = GeneratedModelBackend.valueOf(record.logicBackend),
-            gemmaLatencyMs = record.uiLatencyMs,
-            dealLatencyMs = record.logicLatencyMs,
-            pipelineWallMs = record.pipelineWallMs,
-            planLatencyMs = record.planLatencyMs,
-            firstUiCommitMs = record.firstUiCommitMs
-        )
-        val runtime = GeneratedDealCompiler.instantiate(deal)
-        val clientState = (ui as? A2UiGeneratedUi)?.surface?.dataModel?.let(::A2UiClientState)
-        return GeneratedAppLibraryEntry(record, bundle, runtime.snapshot(), clientState)
-    }
-
-    private fun readRecords(): List<SavedGeneratedAppRecord> = if (!indexFile.isFile) {
+    fun loadAll(): List<LegacyGeneratedAppRequest> = if (!indexFile.isFile) {
         emptyList()
     } else {
-        json.decodeFromString(indexFile.readText())
+        runCatching {
+            JSON.parseToJsonElement(indexFile.readText()).jsonArray.map { value ->
+                val item = value.jsonObject
+                LegacyGeneratedAppRequest(
+                    id = item.string("id"),
+                    title = item.string("title"),
+                    request = item.string("request"),
+                    createdAtEpochMs = item.long("createdAtEpochMs")
+                )
+            }.sortedByDescending(LegacyGeneratedAppRequest::createdAtEpochMs)
+        }.getOrDefault(emptyList())
     }
 
-    private fun writeRecords(records: List<SavedGeneratedAppRecord>) {
-        val temporary = File(directory, "$INDEX_FILE.tmp")
-        temporary.writeText(json.encodeToString(records))
+    fun remove(id: String) {
+        if (!indexFile.isFile) return
+        val remaining = JSON.parseToJsonElement(indexFile.readText()).jsonArray
+            .filterNot { it.jsonObject.stringOrNull("id") == id }
+        val temporary = File(indexFile.parentFile, "${indexFile.name}.tmp")
+        temporary.writeText(kotlinx.serialization.json.JsonArray(remaining).toString())
         require(
             temporary.renameTo(indexFile) || run {
                 indexFile.delete()
                 temporary.renameTo(indexFile)
             }
-        ) { "Could not update generated app library" }
+        ) { "Could not update legacy request index" }
     }
-
-    private fun fingerprint(uiSource: String, dealSource: String): String = MessageDigest.getInstance("SHA-256")
-        .digest("$uiSource\u0000$dealSource".toByteArray())
-        .joinToString("") { byte -> "%02x".format(byte) }
 
     private companion object {
         const val DIRECTORY = "generated-app-library"
         const val INDEX_FILE = "apps-v1.json"
-        const val FORMAT_A2UI = "a2ui-v1"
-        const val FORMAT_COMPACT = "compact-v1"
-        val json = Json { ignoreUnknownKeys = false }
+        val JSON = Json { ignoreUnknownKeys = true }
     }
 }

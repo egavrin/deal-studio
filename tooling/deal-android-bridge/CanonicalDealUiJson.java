@@ -18,6 +18,10 @@ final class CanonicalDealUiJson {
         comma(out);
         field(out, "rootStateType", program.rootStateType());
         comma(out);
+        quote(out, "metadata");
+        out.append(':');
+        metadata(out, program.metadata());
+        comma(out);
         quote(out, "nodes");
         out.append(':');
         nodes(out, program.rootNodes());
@@ -47,6 +51,49 @@ final class CanonicalDealUiJson {
         out.append('}');
         out.append('}');
         return out.toString();
+    }
+
+    private static void metadata(StringBuilder out, UiModel.CheckedMetadata metadata) {
+        out.append('{');
+        field(out, "rootStateType", metadata.rootStateType());
+        comma(out);
+        quote(out, "reachableInputActions");
+        out.append(':');
+        strings(out, metadata.reachableInputActions());
+        comma(out);
+        quote(out, "effectCompletionActions");
+        out.append(':');
+        strings(out, metadata.effectCompletionActions());
+        comma(out);
+        quote(out, "usedComponents");
+        out.append(':');
+        strings(out, metadata.usedComponents());
+        comma(out);
+        quote(out, "componentCapabilities");
+        out.append(':');
+        stringMap(out, metadata.componentCapabilities());
+        comma(out);
+        quote(out, "packVersions");
+        out.append(':');
+        stringMap(out, metadata.packVersions());
+        comma(out);
+        quote(out, "packDigests");
+        out.append(':');
+        stringMap(out, metadata.packDigests());
+        out.append('}');
+    }
+
+    private static void stringMap(StringBuilder out, Map<String, String> values) {
+        out.append('{');
+        boolean first = true;
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            if (!first) comma(out);
+            quote(out, entry.getKey());
+            out.append(':');
+            quote(out, entry.getValue());
+            first = false;
+        }
+        out.append('}');
     }
 
     private static void nodes(StringBuilder out, List<UiModel.RenderNode> nodes) {

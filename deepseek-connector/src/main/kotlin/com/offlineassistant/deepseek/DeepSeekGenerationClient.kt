@@ -6,7 +6,10 @@ import java.net.URI
 import java.net.URL
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -17,9 +20,19 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-enum class DeepSeekGenerationModel(val apiId: String) {
-    FLASH("deepseek-v4-flash"),
-    PRO("deepseek-v4-pro")
+enum class GenerationProvider {
+    DEEPSEEK,
+    CEREBRAS
+}
+
+enum class DeepSeekGenerationModel(
+    val apiId: String,
+    val provider: GenerationProvider
+) {
+    FLASH("deepseek-v4-flash", GenerationProvider.DEEPSEEK),
+    PRO("deepseek-v4-pro", GenerationProvider.DEEPSEEK),
+    CEREBRAS_QWEN_27B("qwen-3.8-27b", GenerationProvider.CEREBRAS),
+    CEREBRAS_GPT_OSS_120B("gpt-oss-120b", GenerationProvider.CEREBRAS)
 }
 
 data class DeepSeekGenerationRequest(
@@ -85,7 +98,8 @@ data class DeepSeekToolGenerationResult(
 
 class DeepSeekGenerationClient(
     endpoint: String = DEFAULT_ENDPOINT,
-    private val apiKeyProvider: () -> String?
+    private val apiKeyProvider: () -> String?,
+    private val cerebrasApiKeyProvider: () -> String? = { null }
 ) {
     private val endpointUrl = validateEndpoint(endpoint)
     private val activeConnection = AtomicReference<HttpURLConnection?>()
@@ -98,8 +112,7 @@ class DeepSeekGenerationClient(
         require(request.input.isNotBlank()) { "Generation input cannot be empty" }
         require(request.maxOutputTokens in 1..MAX_OUTPUT_TOKENS) { "Invalid generation token limit" }
         require(request.temperature in 0.0..2.0) { "Invalid generation temperature" }
-        val apiKey = apiKeyProvider()?.trim().orEmpty()
-        require(apiKey.isNotEmpty()) { "DeepSeek API key is not configured." }
+        val apiKey = apiKey(request.model)
 
         val started = System.nanoTime()
         val execution = execute(request, apiKey, started, onToken)
@@ -126,8 +139,10 @@ class DeepSeekGenerationClient(
         require(request.schemaName.matches(SCHEMA_NAME)) { "Invalid structured output schema name" }
         require(request.maxOutputTokens in 1..MAX_OUTPUT_TOKENS) { "Invalid generation token limit" }
         require(request.temperature in 0.0..2.0) { "Invalid generation temperature" }
-        val apiKey = apiKeyProvider()?.trim().orEmpty()
-        require(apiKey.isNotEmpty()) { "DeepSeek API key is not configured." }
+        require(request.model.provider == GenerationProvider.DEEPSEEK) {
+            "Structured Responses generation is available only through DeepSeek"
+        }
+        val apiKey = apiKey(request.model)
 
         val started = System.nanoTime()
         val execution = executeResponses(request, apiKey, started, onToken)
@@ -164,8 +179,7 @@ class DeepSeekGenerationClient(
             "Compiler tool names must be unique"
         }
         request.tools.forEach { require(it.name.matches(TOOL_NAME)) { "Invalid compiler tool name" } }
-        val apiKey = apiKeyProvider()?.trim().orEmpty()
-        require(apiKey.isNotEmpty()) { "DeepSeek API key is not configured." }
+        val apiKey = apiKey(request.model)
 
         val started = System.nanoTime()
         val execution = executeValidToolResponses(request, apiKey, started, onArgumentsDelta)
@@ -203,7 +217,10 @@ class DeepSeekGenerationClient(
                 }
             )
         }
-        putJsonObject("thinking") { put("type", "disabled") }
+        when (request.model.provider) {
+            GenerationProvider.DEEPSEEK -> putJsonObject("thinking") { put("type", "disabled") }
+            GenerationProvider.CEREBRAS -> put("reasoning_effort", "high")
+        }
         put("temperature", request.temperature)
         put("max_tokens", request.maxOutputTokens)
         put("stream", true)
@@ -227,7 +244,12 @@ class DeepSeekGenerationClient(
         }
     }
 
-    internal fun toolRequestBody(request: DeepSeekToolRequest): JsonObject = buildJsonObject {
+    internal fun toolRequestBody(request: DeepSeekToolRequest): JsonObject = when (request.model.provider) {
+        GenerationProvider.DEEPSEEK -> deepSeekToolRequestBody(request)
+        GenerationProvider.CEREBRAS -> cerebrasToolRequestBody(request)
+    }
+
+    private fun deepSeekToolRequestBody(request: DeepSeekToolRequest): JsonObject = buildJsonObject {
         put("model", request.model.apiId)
         put("instructions", request.instructions)
         put("input", request.input)
@@ -252,13 +274,54 @@ class DeepSeekGenerationClient(
         put("tool_choice", "required")
     }
 
+    private fun cerebrasToolRequestBody(request: DeepSeekToolRequest): JsonObject = buildJsonObject {
+        put("model", request.model.apiId)
+        putJsonArray("messages") {
+            add(buildJsonObject { put("role", "system"); put("content", request.instructions) })
+            add(buildJsonObject { put("role", "user"); put("content", request.input) })
+        }
+        put("reasoning_effort", "low")
+        put("temperature", request.temperature)
+        put("max_completion_tokens", request.maxOutputTokens)
+        put("stream", true)
+        put("stream_options", buildJsonObject { put("include_usage", true) })
+        putJsonArray("tools") {
+            request.tools.forEach { tool ->
+                add(buildJsonObject {
+                    put("type", "function")
+                    putJsonObject("function") {
+                        put("name", tool.name)
+                        put("description", tool.description)
+                        put("parameters", cerebrasCompatibleSchema(tool.parameters))
+                        put("strict", tool.strict)
+                    }
+                })
+            }
+        }
+        put("tool_choice", "required")
+        put("parallel_tool_calls", false)
+    }
+
+    private fun cerebrasCompatibleSchema(schema: JsonObject): JsonObject =
+        sanitizeCerebrasSchema(schema).jsonObject
+
+    private fun sanitizeCerebrasSchema(element: JsonElement): JsonElement = when (element) {
+        is JsonObject -> JsonObject(
+            element.entries
+                .filterNot { (key, _) -> key in CEREBRAS_UNSUPPORTED_SCHEMA_KEYWORDS }
+                .associate { (key, value) -> key to sanitizeCerebrasSchema(value) }
+        )
+        is JsonArray -> JsonArray(element.map(::sanitizeCerebrasSchema))
+        else -> element
+    }
+
     private fun execute(
         request: DeepSeekGenerationRequest,
         apiKey: String,
         started: Long,
         onToken: (String) -> Unit
     ): ChatExecution {
-        val connection = (endpointUrl.openConnection() as HttpURLConnection).apply {
+        val connection = (endpointFor(request.model).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
@@ -373,6 +436,9 @@ class DeepSeekGenerationClient(
         started: Long,
         onArgumentsDelta: (String) -> Unit
     ): ToolResponsesExecution {
+        if (request.model.provider == GenerationProvider.CEREBRAS) {
+            return executeChatToolResponses(request, apiKey, started, onArgumentsDelta)
+        }
         val connection = openConnection(
             if (request.tools.all(DeepSeekFunctionTool::strict)) strictResponsesEndpointUrl else responsesEndpointUrl,
             apiKey
@@ -442,6 +508,76 @@ class DeepSeekGenerationClient(
         }
     }
 
+    private fun executeChatToolResponses(
+        request: DeepSeekToolRequest,
+        apiKey: String,
+        started: Long,
+        onArgumentsDelta: (String) -> Unit
+    ): ToolResponsesExecution {
+        val connection = openConnection(cerebrasEndpointUrl, apiKey)
+        check(activeConnection.compareAndSet(null, connection)) { "A cloud generation is already running" }
+        try {
+            val body = toolRequestBody(request).toString().encodeToByteArray()
+            require(body.size <= MAX_REQUEST_BYTES) { "Cerebras generation request is too large" }
+            connection.setFixedLengthStreamingMode(body.size)
+            connection.outputStream.use { it.write(body) }
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw IOException(httpErrorMessage(connection, request.model.provider))
+            }
+            val calls = linkedMapOf<Int, PendingFunctionCall>()
+            var firstCallMs: Long? = null
+            var inputTokens: Int? = null
+            var cachedInputTokens: Int? = null
+            var outputTokens: Int? = null
+            connection.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    if (!line.startsWith(SSE_DATA_PREFIX)) return@forEach
+                    val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
+                    if (payload == SSE_DONE) return@forEach
+                    val root = json.parseToJsonElement(payload).jsonObject
+                    root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                        ?.get("delta")?.jsonObject?.get("tool_calls")?.jsonArray
+                        ?.forEach { element ->
+                            val call = element.jsonObject
+                            val index = call["index"]?.jsonPrimitive?.intOrNull ?: 0
+                            val function = call["function"]?.jsonObject
+                            val pending = calls.getOrPut(index) { PendingFunctionCall() }
+                            call["id"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
+                                pending.callId = it
+                            }
+                            function?.get("name")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
+                                pending.name = it
+                            }
+                            function?.get("arguments")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
+                                if (firstCallMs == null) firstCallMs = elapsedMillis(started)
+                                pending.arguments.append(it)
+                                onArgumentsDelta(it)
+                            }
+                        }
+                    root["usage"]?.jsonObject?.let { usage ->
+                        inputTokens = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull
+                        cachedInputTokens = usage["prompt_tokens_details"]?.jsonObject
+                            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull
+                        outputTokens = usage["completion_tokens"]?.jsonPrimitive?.intOrNull
+                    }
+                }
+            }
+            return ToolResponsesExecution(
+                calls = calls.entries.sortedBy(Map.Entry<Int, PendingFunctionCall>::key).map { (index, call) ->
+                    call.complete(index)
+                },
+                timeToFirstCallMs = firstCallMs,
+                inputTokens = inputTokens,
+                cachedInputTokens = cachedInputTokens,
+                outputTokens = outputTokens,
+                transportAttempts = 1
+            )
+        } finally {
+            activeConnection.compareAndSet(connection, null)
+            connection.disconnect()
+        }
+    }
+
     private fun executeValidToolResponses(
         request: DeepSeekToolRequest,
         apiKey: String,
@@ -450,22 +586,67 @@ class DeepSeekGenerationClient(
     ): ToolResponsesExecution {
         var combined: ToolResponsesExecution? = null
         var lastProtocolError = ""
-        repeat(MAX_TOOL_PROTOCOL_ATTEMPTS) {
-            val attempt = executeToolResponses(request, apiKey, started, onArgumentsDelta)
+        repeat(MAX_TOOL_PROTOCOL_ATTEMPTS) { attemptIndex ->
+            val attempt = try {
+                executeToolResponses(request, apiKey, started, onArgumentsDelta)
+            } catch (failure: IOException) {
+                lastProtocolError = failure.message ?: failure.javaClass.simpleName
+                if (attemptIndex == MAX_TOOL_PROTOCOL_ATTEMPTS - 1) throw failure
+                return@repeat
+            }
             combined = combined?.plus(attempt) ?: attempt
-            val protocolError = invalidToolArguments(attempt.calls)
+            val normalizedCalls = normalizeToolArguments(request, attempt.calls)
+            val protocolError = invalidToolArguments(normalizedCalls)
             if (protocolError == null) {
                 return requireNotNull(combined).copy(
-                    calls = attempt.calls,
-                    timeToFirstCallMs = attempt.timeToFirstCallMs
+                    calls = normalizedCalls,
+                    timeToFirstCallMs = attempt.timeToFirstCallMs,
+                    transportAttempts = attemptIndex + 1
                 )
             }
             lastProtocolError = protocolError
         }
         throw IOException(
-            "DeepSeek returned malformed compiler tool arguments after $MAX_TOOL_PROTOCOL_ATTEMPTS " +
+            "${request.model.provider.displayName()} returned malformed compiler tool arguments after " +
+                "$MAX_TOOL_PROTOCOL_ATTEMPTS " +
                 "transport attempts. $lastProtocolError"
         )
+    }
+
+    internal fun normalizeToolArguments(
+        request: DeepSeekToolRequest,
+        calls: List<DeepSeekFunctionCall>
+    ): List<DeepSeekFunctionCall> {
+        if (request.model.provider != GenerationProvider.CEREBRAS) return calls
+        val schemas = request.tools.associate { it.name to it.parameters }
+        return calls.map { call ->
+            val schema = schemas[call.name] ?: return@map call
+            val arguments = runCatching { json.parseToJsonElement(call.arguments) }.getOrNull() ?: return@map call
+            call.copy(arguments = normalizeSchemaContainers(arguments, schema).toString())
+        }
+    }
+
+    private fun normalizeSchemaContainers(value: JsonElement, schema: JsonObject): JsonElement {
+        val expectedType = schema["type"]?.jsonPrimitive?.contentOrNull
+        val expanded = if (value is JsonPrimitive && value.isString && expectedType in setOf("array", "object")) {
+            runCatching { json.parseToJsonElement(value.content) }.getOrDefault(value)
+        } else {
+            value
+        }
+        return when {
+            expectedType == "object" && expanded is JsonObject -> {
+                val properties = schema["properties"] as? JsonObject ?: return expanded
+                JsonObject(expanded.mapValues { (key, child) ->
+                    val childSchema = properties[key] as? JsonObject
+                    if (childSchema == null) child else normalizeSchemaContainers(child, childSchema)
+                })
+            }
+            expectedType == "array" && expanded is JsonArray -> {
+                val itemSchema = schema["items"] as? JsonObject ?: return expanded
+                JsonArray(expanded.map { normalizeSchemaContainers(it, itemSchema) })
+            }
+            else -> expanded
+        }
     }
 
     internal fun invalidToolArguments(calls: List<DeepSeekFunctionCall>): String? {
@@ -596,8 +777,11 @@ class DeepSeekGenerationClient(
         else -> "DeepSeek request failed (HTTP $statusCode)."
     }
 
-    private fun httpErrorMessage(connection: HttpURLConnection): String {
-        val generic = httpErrorMessage(connection.responseCode)
+    private fun httpErrorMessage(connection: HttpURLConnection): String =
+        httpErrorMessage(connection, GenerationProvider.DEEPSEEK)
+
+    private fun httpErrorMessage(connection: HttpURLConnection, provider: GenerationProvider): String {
+        val generic = httpErrorMessage(connection.responseCode, provider)
         if (connection.responseCode !in 400..499) return generic
         val payload = runCatching {
             connection.errorStream?.bufferedReader()?.use { it.readText() }
@@ -612,6 +796,37 @@ class DeepSeekGenerationClient(
         return (detail ?: safePayload.takeIf(String::isNotBlank))
             ?.let { "$generic $it" }
             ?: generic
+    }
+
+    internal fun httpErrorMessage(statusCode: Int, provider: GenerationProvider): String {
+        val name = if (provider == GenerationProvider.CEREBRAS) "Cerebras" else "DeepSeek"
+        return when (statusCode) {
+            HttpURLConnection.HTTP_UNAUTHORIZED,
+            HttpURLConnection.HTTP_FORBIDDEN -> "$name rejected the API key. Update it in Settings."
+            429 -> "$name is rate-limited. Try again shortly."
+            in 500..599 -> "$name is temporarily unavailable."
+            else -> "$name request failed (HTTP $statusCode)."
+        }
+    }
+
+    private fun apiKey(model: DeepSeekGenerationModel): String {
+        val key = when (model.provider) {
+            GenerationProvider.DEEPSEEK -> apiKeyProvider()
+            GenerationProvider.CEREBRAS -> cerebrasApiKeyProvider()
+        }?.trim().orEmpty()
+        val providerName = if (model.provider == GenerationProvider.CEREBRAS) "Cerebras" else "DeepSeek"
+        require(key.isNotEmpty()) { "$providerName API key is not configured." }
+        return key
+    }
+
+    private fun endpointFor(model: DeepSeekGenerationModel): URL = when (model.provider) {
+        GenerationProvider.DEEPSEEK -> endpointUrl
+        GenerationProvider.CEREBRAS -> cerebrasEndpointUrl
+    }
+
+    private fun GenerationProvider.displayName(): String = when (this) {
+        GenerationProvider.DEEPSEEK -> "DeepSeek"
+        GenerationProvider.CEREBRAS -> "Cerebras"
     }
 
     private companion object {
@@ -633,8 +848,18 @@ class DeepSeekGenerationClient(
         const val DEEPSEEK_PATH = "/chat/completions"
         const val DEEPSEEK_RESPONSES_PATH = "/responses"
         const val DEEPSEEK_STRICT_RESPONSES_PATH = "/beta/responses"
+        const val CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions"
         const val SSE_DATA_PREFIX = "data:"
         const val SSE_DONE = "[DONE]"
+        val CEREBRAS_UNSUPPORTED_SCHEMA_KEYWORDS = setOf(
+            "format",
+            "maxItems",
+            "maxLength",
+            "minItems",
+            "minLength",
+            "pattern",
+            "uniqueItems"
+        )
         val json = Json { ignoreUnknownKeys = true }
         val SCHEMA_NAME = Regex("[A-Za-z0-9_-]{1,64}")
         val TOOL_NAME = Regex("[A-Za-z0-9_-]{1,128}")
@@ -667,6 +892,8 @@ class DeepSeekGenerationClient(
         null,
         null
     ).toURL()
+
+    private val cerebrasEndpointUrl: URL = URI(CEREBRAS_ENDPOINT).toURL()
 }
 
 internal data class ResponsesStreamEvent(

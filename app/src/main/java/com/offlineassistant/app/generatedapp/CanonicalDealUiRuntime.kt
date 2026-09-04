@@ -47,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BarChart
@@ -82,6 +83,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
@@ -89,12 +91,15 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.Umbrella
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -102,6 +107,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -146,9 +153,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -179,9 +188,20 @@ import kotlinx.serialization.json.longOrNull
 internal data class CanonicalDealUiProgram(
     val title: String,
     val rootStateType: String,
+    val metadata: CanonicalDealUiCheckedMetadata,
     val nodes: List<CanonicalUiNode>,
     val updates: Map<String, String>,
     val tokens: Map<String, CanonicalUiExpr>
+)
+
+internal data class CanonicalDealUiCheckedMetadata(
+    val rootStateType: String,
+    val reachableInputActions: Set<String>,
+    val effectCompletionActions: Set<String>,
+    val usedComponents: Set<String>,
+    val componentCapabilities: Map<String, String>,
+    val packVersions: Map<String, String>,
+    val packDigests: Map<String, String>
 )
 
 internal fun CanonicalDealUiProgram.displayTitle(state: JsonObject, fallback: String): String = nodes.firstNotNullOfOrNull { it.displayTitle(state, this) }
@@ -264,12 +284,30 @@ internal object CanonicalDealUiParser {
         return CanonicalDealUiProgram(
             title = root.getValue("title").jsonPrimitive.content,
             rootStateType = root.getValue("rootStateType").jsonPrimitive.content,
+            metadata = metadata(root.getValue("metadata").jsonObject),
             nodes = root.getValue("nodes").jsonArray.map(::node),
             updates = root.getValue("updates").jsonObject.mapValues { it.value.jsonPrimitive.content },
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
+            .also(CanonicalDealUiProgram::validateCanonicalSurfaces)
     }
+
+    private fun metadata(value: JsonObject) = CanonicalDealUiCheckedMetadata(
+        rootStateType = value.getValue("rootStateType").jsonPrimitive.content,
+        reachableInputActions = value.getValue("reachableInputActions").jsonArray
+            .mapTo(linkedSetOf()) { it.jsonPrimitive.content },
+        effectCompletionActions = value.getValue("effectCompletionActions").jsonArray
+            .mapTo(linkedSetOf()) { it.jsonPrimitive.content },
+        usedComponents = value.getValue("usedComponents").jsonArray
+            .mapTo(linkedSetOf()) { it.jsonPrimitive.content },
+        componentCapabilities = value.getValue("componentCapabilities").jsonObject
+            .mapValues { it.value.jsonPrimitive.content },
+        packVersions = value.getValue("packVersions").jsonObject
+            .mapValues { it.value.jsonPrimitive.content },
+        packDigests = value.getValue("packDigests").jsonObject
+            .mapValues { it.value.jsonPrimitive.content }
+    )
 
     private fun node(element: JsonElement): CanonicalUiNode {
         val value = element.jsonObject
@@ -334,8 +372,102 @@ internal object CanonicalDealUiParser {
         }
     }
 
+    internal fun parseExpressionForRuntime(element: JsonElement): CanonicalUiExpr = expression(element)
+
     private val JSON = Json { ignoreUnknownKeys = false }
 }
+
+/** A v12 root contains complete runtime surfaces, not unrelated visual fragments. */
+internal fun CanonicalDealUiProgram.validateCanonicalSurfaces() {
+    if (metadata.packVersions.values.none { it == CanonicalDealUiPack.VERSION }) return
+    val roots = nodes.flatMap(CanonicalUiNode::rootCalls)
+    require(roots.size == 1) { "UIR001: Deal UI v12 requires exactly one compiler-owned Root" }
+    val surfaces = roots.single().children
+    require(
+        surfaces.all { node ->
+            node is CanonicalUiNode.Call && node.name.substringAfterLast('.') in TOP_LEVEL_SURFACES
+        }
+    ) {
+        "UIR002: top-level visual content must be wrapped in ui.Route; only ui.Widget and host clocks may be siblings"
+    }
+
+    val routes = surfaces.filterIsInstance<CanonicalUiNode.Call>()
+        .filter { it.name.substringAfterLast('.') == "Route" }
+    require(routes.isNotEmpty()) { "UIR003: Deal UI v12 requires at least one ui.Route application surface" }
+    val routeNames = routes.map { route ->
+        require(route.children.isNotEmpty()) { "UIR004: ui.Route must contain a complete screen" }
+        route.staticString("route")
+            .takeIf { !it.isNullOrBlank() }
+            ?: error("UIR005: ui.Route route must be a non-empty static string")
+    }
+    require(routeNames.distinct().size == routeNames.size) {
+        "UIR006: every ui.Route must have a unique route value"
+    }
+
+    val activeRoutes = routes.map { route -> route.arguments["activeRoute"] }
+    require(activeRoutes.none { it == null }) { "UIR007: every ui.Route requires activeRoute" }
+    if (routes.size > 1) {
+        val paths = activeRoutes.map { expression ->
+            expression as? CanonicalUiExpr.Path
+                ?: error("UIR008: multiple screens must share one state-backed activeRoute path")
+        }
+        require(paths.all { it.parts.firstOrNull() == "state" }) {
+            "UIR009: activeRoute must read the root state"
+        }
+        require(paths.map(CanonicalUiExpr.Path::parts).distinct().size == 1) {
+            "UIR010: every screen must use the same activeRoute state path"
+        }
+    }
+}
+
+/** Validates the checked UI against the state that DEAL actually exposes at launch. */
+internal fun CanonicalDealUiProgram.validateInitialSurface(state: JsonObject) {
+    val routes = nodes.flatMap(CanonicalUiNode::routeCalls)
+    val evaluatedRoutes = routes.map { route ->
+        val routeName = runCatching { route.value("route", state, emptyMap(), this).asString() }
+            .getOrElse { failure ->
+                error("UIR011: initial ui.Route route cannot be evaluated: ${failure.message}")
+            }
+        val activeRoute = runCatching { route.value("activeRoute", state, emptyMap(), this).asString() }
+            .getOrElse { failure ->
+                error("UIR011: initial ui.Route activeRoute cannot be evaluated: ${failure.message}")
+            }
+        routeName to activeRoute
+    }
+    require(evaluatedRoutes.any { (routeName, activeRoute) -> routeName == activeRoute }) {
+        val routeNames = evaluatedRoutes.map { it.first }.distinct().joinToString().ifBlank { "none" }
+        val activeRoutes = evaluatedRoutes.map { it.second }.distinct().joinToString().ifBlank { "empty" }
+        "UIR011: initial DEAL state must activate at least one ui.Route; " +
+            "declared routes=[$routeNames], activeRoute=[$activeRoutes]"
+    }
+}
+
+private fun CanonicalUiNode.rootCalls(): List<CanonicalUiNode.Call> = when (this) {
+    is CanonicalUiNode.Call -> buildList {
+        if (name.substringAfterLast('.') == "Root") add(this@rootCalls)
+        children.flatMapTo(this, CanonicalUiNode::rootCalls)
+    }
+
+    is CanonicalUiNode.When -> (thenNodes + elseNodes).flatMap(CanonicalUiNode::rootCalls)
+    is CanonicalUiNode.ForEach -> children.flatMap(CanonicalUiNode::rootCalls)
+    is CanonicalUiNode.Scope -> children.flatMap(CanonicalUiNode::rootCalls)
+}
+
+private fun CanonicalUiNode.routeCalls(): List<CanonicalUiNode.Call> = when (this) {
+    is CanonicalUiNode.Call -> buildList {
+        if (name.substringAfterLast('.') == "Route") add(this@routeCalls)
+        children.flatMapTo(this, CanonicalUiNode::routeCalls)
+    }
+
+    is CanonicalUiNode.When -> (thenNodes + elseNodes).flatMap(CanonicalUiNode::routeCalls)
+    is CanonicalUiNode.ForEach -> children.flatMap(CanonicalUiNode::routeCalls)
+    is CanonicalUiNode.Scope -> children.flatMap(CanonicalUiNode::routeCalls)
+}
+
+private fun CanonicalUiNode.Call.staticString(name: String): String? =
+    ((arguments[name] as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)?.contentOrNull
+
+private val TOP_LEVEL_SURFACES = setOf("Route", "Widget", "FrameClock", "MinuteClock")
 
 private fun CanonicalDealUiProgram.validateAppTheme() {
     val themes = nodes.flatMap(CanonicalUiNode::themeCalls)
@@ -425,7 +557,17 @@ private fun CanonicalUiNode.validateWidgetNode() {
 private val WIDGET_COMPONENTS = setOf(
     "Column", "Row", "Stack", "Grid", "Card", "Section", "Text", "IntText", "Icon",
     "IconButton", "Button", "ProgressBar", "ProgressRing", "Spacer", "Badge", "Stat",
-    "IntStat", "ListItem", "Checkbox", "Toggle", "Divider"
+    "IntStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
+)
+
+internal val canonicalRendererComponents = setOf(
+    "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button",
+    "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
+    "Column", "Dialog", "Divider", "EmptyState", "FrameClock", "Grid", "Icon", "IconButton", "Image", "IntStat",
+    "IntText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
+    "PointerSurface", "ProgressBar", "ProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
+    "Tabs", "Text", "TextField", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
 
 internal data class CanonicalUiAction(
@@ -441,7 +583,7 @@ internal fun CanonicalDealUiRenderer(
     onAction: (CanonicalUiAction) -> Unit,
     hostScrolling: Boolean = false
 ) {
-    GeneratedAppTheme(GeneratedAppThemeSpec.DEFAULT) {
+    GeneratedAppTheme(program.themeSpec()) {
         Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             CompositionLocalProvider(LocalCanonicalHostScrolling provides hostScrolling) {
                 CanonicalNodes(program, state, emptyMap(), program.nodes, onAction, Modifier.fillMaxSize())
@@ -548,10 +690,11 @@ private fun RenderCall(
         }
 
         "Root" -> Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            val maximumContentWidth = if (program.hasSpatialSurface()) 560.dp else 840.dp
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 840.dp)
+                    .widthIn(max = maximumContentWidth)
                     .then(
                         if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
                             Modifier.verticalScroll(rememberScrollState())
@@ -575,18 +718,36 @@ private fun RenderCall(
 
         "Row" -> if (value("wrap").asBoolean(default = true)) {
             FlowRow(
-                modifier = modifier.padding(padding),
+                modifier = modifier.fillMaxWidth().padding(padding),
                 horizontalArrangement = horizontalArrangement(value("horizontal").asString(), spacing),
                 verticalArrangement = Arrangement.spacedBy(spacing),
-                content = { children(Modifier) }
-            )
+            ) {
+                call.children.forEach { child ->
+                    val childModifier = if (child.expandsInRow()) {
+                        Modifier.weight(1f).widthIn(min = 144.dp)
+                    } else {
+                        Modifier
+                    }
+                    CanonicalNode(program, state, scope, child, onAction, childModifier)
+                }
+            }
         } else {
             Row(
-                modifier = modifier.padding(padding),
+                modifier = modifier.fillMaxWidth().padding(padding),
                 horizontalArrangement = horizontalArrangement(value("horizontal").asString(), spacing),
                 verticalAlignment = verticalAlignment(value("vertical").asString()),
-                content = { children(Modifier) }
-            )
+            ) {
+                call.children.forEach { child ->
+                    CanonicalNode(
+                        program,
+                        state,
+                        scope,
+                        child,
+                        onAction,
+                        if (child.expandsInRow()) Modifier.weight(1f) else Modifier
+                    )
+                }
+            }
         }
 
         "Stack" -> Box(modifier.fillMaxWidth().padding(padding)) {
@@ -596,6 +757,7 @@ private fun RenderCall(
         "Grid" -> BoxWithConstraints(modifier.fillMaxWidth().padding(padding)) {
             val maximumColumns = value("columns").asInt().coerceIn(1, 8)
             val minimumCellWidth = value("minimumCellWidth").asInt().coerceAtLeast(0)
+            val cellAspectRatio = value("cellAspectRatio").asFloat().takeIf { it > 0f }
             val columns = if (minimumCellWidth > 0) {
                 (maxWidth.value / minimumCellWidth).toInt().coerceIn(1, maximumColumns)
             } else {
@@ -606,7 +768,12 @@ private fun RenderCall(
                 maxItemsInEachRow = columns,
                 horizontalArrangement = Arrangement.spacedBy(spacing),
                 verticalArrangement = Arrangement.spacedBy(spacing),
-                content = { children(Modifier.weight(1f)) }
+                content = {
+                    val cellModifier = Modifier.weight(1f).then(
+                        cellAspectRatio?.let { Modifier.aspectRatio(it) } ?: Modifier
+                    )
+                    children(cellModifier)
+                }
             )
         }
 
@@ -636,7 +803,9 @@ private fun RenderCall(
             elevation = CardDefaults.cardElevation(defaultElevation = visuals.cardElevation)
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(padding.coerceAtLeast(DealStudioSpacing.Lg)),
+                Modifier.fillMaxWidth().padding(
+                    padding.coerceAtLeast(DealStudioSpacing.Md * visuals.densityScale)
+                ),
                 verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
             ) { children(Modifier.fillMaxWidth()) }
         }
@@ -728,6 +897,79 @@ private fun RenderCall(
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
+            }
+        }
+
+        "Tile" -> {
+            val selected = value("selected").asBoolean()
+            val highlighted = value("highlighted").asBoolean()
+            val tone = value("tone").asString()
+            val label = value("accessibilityLabel").asString()
+            val clickAction = action("onClick")
+            val compactThreshold = with(LocalDensity.current) { 80.dp.roundToPx() }
+            var tileSize by remember { mutableStateOf(IntSize.Zero) }
+            val container = when {
+                selected -> MaterialTheme.colorScheme.primaryContainer
+                highlighted -> MaterialTheme.colorScheme.secondaryContainer
+                else -> toneColor(tone)
+            }
+            val foreground = when {
+                selected -> MaterialTheme.colorScheme.onPrimaryContainer
+                highlighted -> MaterialTheme.colorScheme.onSecondaryContainer
+                else -> textTone(tone)
+            }
+            Surface(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .onSizeChanged { tileSize = it }
+                    .then(if (clickAction != null) Modifier.clickable { emit("onClick", null) } else Modifier)
+                    .semantics { contentDescription = label },
+                shape = MaterialTheme.shapes.small,
+                color = container,
+                contentColor = foreground,
+                border = BorderStroke(
+                    if (selected || highlighted) 2.dp else 1.dp,
+                    if (selected) MaterialTheme.colorScheme.primary else cardBorder(tone)
+                )
+            ) {
+                Box(
+                    Modifier.fillMaxSize().padding(6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val iconName = value("icon").asString()
+                    if (iconName.isNotBlank()) {
+                        Icon(icon(iconName), contentDescription = null, Modifier.size(28.dp))
+                    } else {
+                        val glyph = canonicalGlyph(value("glyph").asString())
+                        val compact = tileSize != IntSize.Zero &&
+                            (tileSize.width < compactThreshold || tileSize.height < compactThreshold)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                glyph,
+                                style = when {
+                                    glyph.length <= 2 -> MaterialTheme.typography.headlineSmall
+                                    compact -> MaterialTheme.typography.labelMedium
+                                    else -> MaterialTheme.typography.titleMedium
+                                },
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!compact) value("supporting").asString().takeIf(String::isNotBlank)?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -823,16 +1065,22 @@ private fun RenderCall(
         }
 
         "Choice" -> Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val selected = value("selected").asInt()
-            val action = call.arguments["onSelect"] as? CanonicalUiExpr.Action
-            (value("options") as? JsonArray).orEmpty().forEachIndexed { index, option ->
+            val items = collectTypedItems(call.children, "ChoiceItem", state, scope, program)
+            items.forEach { (item, itemScope) ->
+                fun itemValue(name: String) = item.arguments[name]?.let {
+                    evaluate(it, state, itemScope, program.tokens, null)
+                }
+                val action = item.arguments["onClick"] as? CanonicalUiExpr.Action
                 FilterChip(
-                    selected = index == selected,
-                    onClick = { action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(index))) } },
-                    label = { Text(option.asString()) }
+                    selected = itemValue("selected").asBoolean(),
+                    onClick = { action?.let { onAction(it.resolve(state, itemScope, program.tokens, null)) } },
+                    label = { Text(itemValue("label").asString()) },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                 )
             }
         }
+
+        "ChoiceItem" -> Unit
 
         "Slider" -> Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val minimum = value("minimum").asInt()
@@ -873,7 +1121,10 @@ private fun RenderCall(
             color = toneColor(value("tone").asString()),
             border = BorderStroke(1.dp, cardBorder(value("tone").asString()))
         ) {
-            Column(Modifier.padding(DealStudioSpacing.Lg), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                Modifier.padding(DealStudioSpacing.Md * visuals.densityScale),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     value("icon").asString().takeIf(String::isNotBlank)?.let {
                         Icon(icon(it), contentDescription = null, Modifier.size(18.dp), tint = textTone(value("tone").asString()))
@@ -899,7 +1150,7 @@ private fun RenderCall(
             }
         }
 
-        "ListItem" -> Surface(
+        "ListItem", "IntListItem" -> Surface(
             modifier = modifier
                 .fillMaxWidth()
                 .then(if (action("onClick") != null) Modifier.clickable { emit("onClick", null) } else Modifier)
@@ -929,7 +1180,15 @@ private fun RenderCall(
                             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    value("trailing").asString().takeIf(String::isNotBlank)?.let {
+                    val trailingText = if (name == "IntListItem") {
+                        value("trailingPrefix").asString() +
+                            value("trailingValue").asInt().toString()
+                                .padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
+                            value("trailingSuffix").asString()
+                    } else {
+                        value("trailing").asString()
+                    }
+                    trailingText.takeIf(String::isNotBlank)?.let {
                         Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -1062,67 +1321,62 @@ private fun RenderCall(
         }
 
         "Tabs" -> {
-            val options = value("options").asStringList()
-            if (options.isNotEmpty()) {
-                val selected = value("selected").asInt().coerceIn(options.indices)
+            val items = collectTypedItems(call.children, "TabItem", state, scope, program)
+            if (items.isNotEmpty()) {
+                val selected = items.indexOfFirst { (item, itemScope) ->
+                    item.arguments["selected"]?.let {
+                        evaluate(it, state, itemScope, program.tokens, null)
+                    }.asBoolean()
+                }.coerceAtLeast(0)
                 PrimaryScrollableTabRow(selectedTabIndex = selected, modifier = modifier.fillMaxWidth()) {
-                    options.forEachIndexed { index, label ->
+                    items.forEachIndexed { index, (item, itemScope) ->
+                        fun itemValue(name: String) = item.arguments[name]?.let {
+                            evaluate(it, state, itemScope, program.tokens, null)
+                        }
+                        val action = item.arguments["onClick"] as? CanonicalUiExpr.Action
                         Tab(
                             selected = index == selected,
-                            onClick = { emit("onSelect", JsonPrimitive(index)) },
-                            text = { Text(label) }
+                            onClick = { action?.let { onAction(it.resolve(state, itemScope, program.tokens, null)) } },
+                            text = { Text(itemValue("label").asString()) },
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                         )
                     }
                 }
             }
         }
 
+        "TabItem" -> Unit
+
         "NavigationBar" -> {
-            val labels = value("labels").asStringList()
-            val icons = value("icons").asStringList()
-            if (call.children.isNotEmpty()) {
-                val items = collectNavigationItems(call.children, state, scope, program)
-                NavigationBar(modifier = modifier.fillMaxWidth()) {
-                    items.forEach { (item, itemScope) ->
-                        val itemValue = { key: String ->
-                            item.arguments[key]?.let {
-                                evaluate(it, state, itemScope, program.tokens, null)
-                            }
+            val items = collectTypedItems(call.children, "NavigationItem", state, scope, program)
+            NavigationBar(modifier = modifier.fillMaxWidth()) {
+                items.forEach { (item, itemScope) ->
+                    val itemValue = { key: String ->
+                        item.arguments[key]?.let {
+                            evaluate(it, state, itemScope, program.tokens, null)
                         }
-                        val itemAction = item.arguments["onClick"] as? CanonicalUiExpr.Action
-                        NavigationBarItem(
-                            selected = itemValue("selected").asBoolean(),
-                            onClick = {
-                                itemAction?.let {
-                                    onAction(it.resolve(state, itemScope, program.tokens, null))
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    icon(itemValue("icon").asString()),
-                                    contentDescription = null
-                                )
-                            },
-                            label = { Text(itemValue("label").asString()) },
-                            modifier = Modifier.semantics {
-                                itemValue("accessibilityLabel").asString()
-                                    .takeIf(String::isNotBlank)
-                                    ?.let { contentDescription = it }
+                    }
+                    val itemAction = item.arguments["onClick"] as? CanonicalUiExpr.Action
+                    NavigationBarItem(
+                        selected = itemValue("selected").asBoolean(),
+                        onClick = {
+                            itemAction?.let {
+                                onAction(it.resolve(state, itemScope, program.tokens, null))
                             }
-                        )
-                    }
-                }
-            } else if (labels.isNotEmpty()) {
-                val selected = value("selected").asInt().coerceIn(labels.indices)
-                NavigationBar(modifier = modifier.fillMaxWidth()) {
-                    labels.forEachIndexed { index, label ->
-                        NavigationBarItem(
-                            selected = index == selected,
-                            onClick = { emit("onSelect", JsonPrimitive(index)) },
-                            icon = { Icon(icon(icons.getOrElse(index) { "info" }), contentDescription = null) },
-                            label = { Text(label) }
-                        )
-                    }
+                        },
+                        icon = {
+                            Icon(
+                                icon(itemValue("icon").asString()),
+                                contentDescription = null
+                            )
+                        },
+                        label = { Text(itemValue("label").asString()) },
+                        modifier = Modifier.semantics {
+                            itemValue("accessibilityLabel").asString()
+                                .takeIf(String::isNotBlank)
+                                ?.let { contentDescription = it }
+                        }
+                    )
                 }
             }
         }
@@ -1235,7 +1489,7 @@ private fun RenderCall(
             Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
         }
 
-        "Modal" -> if (value("visible").asBoolean()) {
+        "Modal", "Dialog" -> if (value("visible").asBoolean()) {
             Dialog(onDismissRequest = { emit("onDismiss", null) }) {
                 Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 8.dp) {
                     Column(Modifier.fillMaxWidth().padding(20.dp)) { children(Modifier.fillMaxWidth()) }
@@ -1250,6 +1504,40 @@ private fun RenderCall(
                 }
             }
         }
+
+        "Menu" -> Box(modifier) {
+            val items = collectTypedItems(call.children, "MenuItem", state, scope, program)
+            DropdownMenu(
+                expanded = value("visible").asBoolean(),
+                onDismissRequest = { emit("onDismiss", null) }
+            ) {
+                items.forEach { (item, itemScope) ->
+                    fun itemValue(name: String) = item.arguments[name]?.let {
+                        evaluate(it, state, itemScope, program.tokens, null)
+                    }
+                    val itemAction = item.arguments["onClick"] as? CanonicalUiExpr.Action
+                    DropdownMenuItem(
+                        text = { Text(itemValue("text").asString()) },
+                        onClick = {
+                            itemAction?.let { onAction(it.resolve(state, itemScope, program.tokens, null)) }
+                        },
+                        enabled = itemValue("enabled").asBoolean(default = true),
+                        leadingIcon = itemValue("icon").asString().takeIf(String::isNotBlank)?.let { iconName ->
+                            { Icon(icon(iconName), contentDescription = null) }
+                        },
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .semantics {
+                                itemValue("accessibilityLabel").asString()
+                                    .takeIf(String::isNotBlank)
+                                    ?.let { contentDescription = it }
+                            }
+                    )
+                }
+            }
+        }
+
+        "MenuItem" -> Unit
 
         "CapabilityNotice" -> if (!value("available").asBoolean()) {
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2D8))) {
@@ -1438,8 +1726,9 @@ private fun collectCanvasShapes(
     }
 }
 
-private fun collectNavigationItems(
+private fun collectTypedItems(
     nodes: List<CanonicalUiNode>,
+    component: String,
     state: JsonObject,
     scope: Map<String, JsonElement>,
     program: CanonicalDealUiProgram
@@ -1447,16 +1736,17 @@ private fun collectNavigationItems(
     nodes.forEach { node ->
         when (node) {
             is CanonicalUiNode.Call -> {
-                if (node.name.substringAfterLast('.') == "NavigationItem") add(node to scope)
+                if (node.name.substringAfterLast('.') == component) add(node to scope)
             }
 
             is CanonicalUiNode.When -> addAll(
-                collectNavigationItems(
+                collectTypedItems(
                     nodes = if (evaluate(node.condition, state, scope, program.tokens, null).asBoolean()) {
                         node.thenNodes
                     } else {
                         node.elseNodes
                     },
+                    component = component,
                     state = state,
                     scope = scope,
                     program = program
@@ -1468,8 +1758,9 @@ private fun collectNavigationItems(
                     ?: JsonArray(emptyList())
                 items.forEach { item ->
                     addAll(
-                        collectNavigationItems(
+                        collectTypedItems(
                             nodes = node.children,
+                            component = component,
                             state = state,
                             scope = scope + (node.item to item),
                             program = program
@@ -1482,7 +1773,7 @@ private fun collectNavigationItems(
                 val nested = scope + node.bindings.mapValues {
                     evaluate(it.value, state, scope, program.tokens, null)
                 }
-                addAll(collectNavigationItems(node.children, state, nested, program))
+                addAll(collectTypedItems(node.children, component, state, nested, program))
             }
         }
     }
@@ -1575,8 +1866,7 @@ private fun decodeLiteral(
     payload: JsonElement?
 ): JsonElement = when (value) {
     is JsonObject -> if (value["kind"] != null) {
-        val encoded = Json.encodeToString(JsonObject.serializer(), value)
-        evaluate(CanonicalDealUiParser.parseExpressionForRuntime(encoded), state, scope, tokens, payload)
+        evaluate(CanonicalDealUiParser.parseExpressionForRuntime(value), state, scope, tokens, payload)
     } else {
         JsonObject(value.mapValues { decodeLiteral(it.value, state, scope, tokens, payload) })
     }
@@ -1584,11 +1874,6 @@ private fun decodeLiteral(
     is JsonArray -> JsonArray(value.map { decodeLiteral(it, state, scope, tokens, payload) })
 
     else -> value
-}
-
-private fun CanonicalDealUiParser.parseExpressionForRuntime(encoded: String): CanonicalUiExpr {
-    val wrapper = """{"version":"canonical-dealui-ir-v1","title":"x","rootStateType":"X","nodes":[],"updates":{},"tokens":{"x":$encoded}}"""
-    return parse(wrapper).tokens.getValue("x")
 }
 
 private fun resolvePath(
@@ -1657,6 +1942,9 @@ private fun binary(
 }
 
 internal fun JsonElement?.asString(): String = (this as? JsonPrimitive)?.contentOrNull.orEmpty()
+internal fun canonicalGlyph(value: String): String = UNICODE_GLYPH_ESCAPE.replace(value) { match ->
+    match.groupValues[1].toInt(16).toChar().toString()
+}
 internal fun JsonElement?.displayString(): String = when (this) {
     null, JsonNull -> ""
     is JsonPrimitive -> content
@@ -1665,9 +1953,9 @@ internal fun JsonElement?.displayString(): String = when (this) {
 internal fun JsonElement?.asInt(): Int = (this as? JsonPrimitive)?.intOrNull
     ?: (this as? JsonPrimitive)?.doubleOrNull?.toInt()
     ?: 0
+private fun JsonElement?.asFloat(): Float = (this as? JsonPrimitive)?.doubleOrNull?.toFloat() ?: 0f
 internal fun JsonElement?.asBoolean(default: Boolean = false): Boolean = (this as? JsonPrimitive)?.booleanOrNull ?: default
 private fun JsonElement?.asIntList(): List<Int> = (this as? JsonArray).orEmpty().map(JsonElement::asInt)
-private fun JsonElement?.asStringList(): List<String> = (this as? JsonArray).orEmpty().map(JsonElement::asString)
 private fun JsonElement?.tokenInt(): Int = (this as? JsonObject)?.get("value").asInt()
 private fun JsonElement?.tokenString(): String = (this as? JsonObject)?.get("value").asString()
 private fun JsonElement.toPlatformValue(): Any? = when (this) {
@@ -1764,6 +2052,7 @@ private fun icon(name: String): ImageVector = when (name.lowercase()) {
     "check_circle", "task_alt" -> Icons.Default.CheckCircle
     "close", "cancel" -> Icons.Default.Close
     "play" -> Icons.Default.PlayArrow
+    "play_circle" -> Icons.Default.PlayCircle
     "pause" -> Icons.Default.Pause
     "refresh", "reset" -> Icons.Default.Refresh
     "back", "previous" -> Icons.AutoMirrored.Filled.ArrowBack
@@ -1778,6 +2067,7 @@ private fun icon(name: String): ImageVector = when (name.lowercase()) {
     "calendar", "schedule" -> Icons.Default.CalendarMonth
     "list", "tasks", "todo" -> Icons.AutoMirrored.Filled.List
     "game", "gamepad" -> Icons.Default.Gamepad
+    "sports_esports" -> Icons.Default.SportsEsports
     "photo", "image" -> Icons.Default.Photo
     "home" -> Icons.Default.Home
     "search" -> Icons.Default.Search
@@ -1793,6 +2083,9 @@ private fun icon(name: String): ImageVector = when (name.lowercase()) {
     "location", "place" -> Icons.Default.LocationOn
     "weather", "sun" -> Icons.Default.WbSunny
     "cloud" -> Icons.Default.Cloud
+    "rain" -> Icons.Default.Umbrella
+    "air", "wind" -> Icons.Default.Air
+    "swap", "swap_horiz" -> Icons.Default.SwapHoriz
     "energy", "bolt" -> Icons.Default.Bolt
     "food", "meal" -> Icons.Default.Restaurant
     "sleep", "bed" -> Icons.Default.Bedtime
@@ -1819,7 +2112,28 @@ private fun icon(name: String): ImageVector = when (name.lowercase()) {
 
 private val LocalCanonicalHostScrolling = staticCompositionLocalOf { false }
 
-private fun CanonicalDealUiProgram.needsHostScrolling(): Boolean = !nodes.any { it.containsCall("Scroll") || it.containsCall("PointerSurface") || it.containsCall("Canvas") }
+private fun CanonicalDealUiProgram.needsHostScrolling(): Boolean = !nodes.any { it.containsCall("Scroll") }
+
+private fun CanonicalDealUiProgram.hasSpatialSurface(): Boolean = nodes.any {
+    it.containsCall("Canvas") || it.containsCall("PointerSurface") || it.containsCall("Tile")
+}
+
+private val UNICODE_GLYPH_ESCAPE = Regex("""\\u([0-9A-Fa-f]{4})""")
+
+private fun CanonicalUiNode.expandsInRow(): Boolean = this is CanonicalUiNode.Call &&
+    name.substringAfterLast('.') in ROW_EXPANDING_COMPONENTS
+
+private val ROW_EXPANDING_COMPONENTS = setOf(
+    "Card",
+    "Stat",
+    "IntStat",
+    "ListItem",
+    "TextField",
+    "Toggle",
+    "Slider",
+    "ProgressBar",
+    "ProgressRing"
+)
 
 private fun CanonicalUiNode.containsCall(name: String): Boolean = when (this) {
     is CanonicalUiNode.Call -> this.name.substringAfterLast('.') == name || children.any { it.containsCall(name) }

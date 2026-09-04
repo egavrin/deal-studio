@@ -26,6 +26,7 @@ internal class CanonicalDealUiGraphCompiler(
     private val deferredSections = mutableListOf<DeferredSection>()
     private var complete = false
     private var checkedIr: String? = null
+    private var checkedCoverage = UiCoverage(requiredActions, requiredCapabilityComponents)
     private var activeBatchHash: String? = null
     private var pendingRepairSectionId: String? = null
     private var theme = GeneratedAppThemeSpec.DEFAULT
@@ -43,7 +44,6 @@ internal class CanonicalDealUiGraphCompiler(
 
     fun snapshot(): CanonicalDealUiGraphSnapshot {
         val source = render(acceptedSections)
-        val coverage = coverage(acceptedSections)
         return CanonicalDealUiGraphSnapshot(
             graphHash = sha256(source),
             partialDealUi = source,
@@ -52,8 +52,9 @@ internal class CanonicalDealUiGraphCompiler(
             acceptedPatches = acceptedSections.size,
             acceptedSectionIds = acceptedSections.map(AcceptedSection::id),
             pendingRepairSectionId = pendingRepairSectionId,
-            pendingActionNames = coverage.pendingActions.sorted(),
-            pendingCapabilityComponents = coverage.pendingCapabilityComponents.sorted(),
+            deferredSectionCount = deferredSections.size,
+            pendingActionNames = checkedCoverage.pendingActions.sorted(),
+            pendingCapabilityComponents = checkedCoverage.pendingCapabilityComponents.sorted(),
             rejectedPatches = rejectedPatches
         )
     }
@@ -120,7 +121,14 @@ internal class CanonicalDealUiGraphCompiler(
                                     put("type", "string")
                                     put("minLength", 1)
                                     put("maxLength", MAX_SECTION_CHARS)
-                                    if (obligations.isNotBlank()) {
+                                    if (pendingRepairSectionId != null) {
+                                        put(
+                                            "description",
+                                            "Return a complete corrected replacement for the rejected section. " +
+                                                "Resolve this exact compiler diagnostic and do not repeat the " +
+                                                "rejected expression: ${lastDiagnostic.take(DIAGNOSTIC_DESCRIPTION_CHARS)}"
+                                        )
+                                    } else if (obligations.isNotBlank()) {
                                         put(
                                             "description",
                                             "The cumulative UI must satisfy these compiler-owned obligations before " +
@@ -151,8 +159,9 @@ internal class CanonicalDealUiGraphCompiler(
             name = SUBMIT_DEAL_UI_SECTIONS_TOOL_NAME,
             description = pendingRepairSectionId?.let { sectionId ->
                 "Repair only the rejected '$sectionId' Deal UI section in one checked batch."
-            } ?: "Select one compact application theme and submit 2-$MAX_BATCH_SECTIONS cohesive top-level " +
-                "Deal UI sections. The compiler owns the theme and root boundaries and validates every section. " +
+            } ?: "Select one compact application theme and submit 1-$MAX_BATCH_SECTIONS complete runtime " +
+                "surfaces. Every application screen is one ui.Route; ui.Widget and host clocks are separate surfaces. " +
+                "The compiler owns the theme and root boundaries and validates every surface. " +
                 obligations.takeIf(String::isNotBlank).orEmpty(),
             parameters = parameters,
             strict = true
@@ -261,27 +270,24 @@ internal class CanonicalDealUiGraphCompiler(
         }
 
         val candidateSections = acceptedSections + AcceptedSection(sectionId, normalizedBody)
-        val source = CanonicalSourceNormalizer.dealUi(render(candidateSections))
-        val coverage = coverage(candidateSections)
-        val finalProjection = isFinal &&
-            candidateSections.size >= MIN_PROGRESSIVE_SECTIONS &&
-            coverage.isComplete
+        val source = render(candidateSections)
         val started = System.nanoTime()
-        val result = runCatching { validateProjection(source, finalProjection) }
+        val result = runCatching { checkedProjection(source, isFinal, candidateSections.size) }
         validationLatencyMs += (System.nanoTime() - started).coerceAtLeast(0) / 1_000_000
         return result.fold(
-            onSuccess = { ir ->
+            onSuccess = { projection ->
                 acceptedSections += AcceptedSection(sectionId, normalizedBody)
                 if (pendingRepairSectionId == sectionId) pendingRepairSectionId = null
-                checkedIr = ir
-                complete = finalProjection
+                checkedIr = projection.ir
+                checkedCoverage = projection.coverage
+                complete = projection.final
                 lastRejectedBody = ""
                 lastDiagnostic = when {
                     isFinal && acceptedSections.size < MIN_PROGRESSIVE_SECTIONS ->
-                        "Append at least ${MIN_PROGRESSIVE_SECTIONS - acceptedSections.size} more independent " +
-                            "top-level section before finalizing"
+                        "Append at least ${MIN_PROGRESSIVE_SECTIONS - acceptedSections.size} more complete " +
+                            "runtime surface before finalizing"
 
-                    isFinal && !coverage.isComplete -> coverage.diagnostic()
+                    isFinal && !projection.coverage.isComplete -> projection.coverage.diagnostic()
 
                     else -> ""
                 }
@@ -307,10 +313,10 @@ internal class CanonicalDealUiGraphCompiler(
 
     fun finishSource(): String {
         require(complete) { "Deal UI graph has not been finalized" }
-        return CanonicalSourceNormalizer.dealUi(render(acceptedSections))
+        return render(acceptedSections)
     }
 
-    fun previewSource(): String = CanonicalSourceNormalizer.dealUi(render(acceptedSections))
+    fun previewSource(): String = render(acceptedSections)
 
     fun currentIr(): String = requireNotNull(checkedIr) { "No Deal UI section has been accepted" }
 
@@ -347,7 +353,9 @@ internal class CanonicalDealUiGraphCompiler(
     }
 
     private fun validateSection(sectionId: String, body: String) {
-        require(sectionId.matches(SECTION_ID)) { "Deal UI section id must be a lowercase identifier" }
+        require(sectionId.matches(SECTION_ID)) {
+            "Deal UI section id must be a lowercase slug containing letters, digits, underscores or hyphens"
+        }
         require(acceptedSections.none { it.id == sectionId }) { "Deal UI section $sectionId already exists" }
         require(deferredSections.none { it.id == sectionId }) { "Deal UI section $sectionId is already deferred" }
         require(body.isNotBlank()) { "Deal UI section body cannot be empty" }
@@ -372,26 +380,23 @@ internal class CanonicalDealUiGraphCompiler(
         while (!complete && pendingRepairSectionId == null && deferredSections.isNotEmpty()) {
             val deferred = deferredSections.removeAt(0)
             val candidateSections = acceptedSections + AcceptedSection(deferred.id, deferred.body)
-            val source = CanonicalSourceNormalizer.dealUi(render(candidateSections))
-            val coverage = coverage(candidateSections)
-            val finalProjection = deferred.isFinal &&
-                candidateSections.size >= MIN_PROGRESSIVE_SECTIONS &&
-                coverage.isComplete
+            val source = render(candidateSections)
             val started = System.nanoTime()
-            val result = runCatching { validateProjection(source, finalProjection) }
+            val result = runCatching { checkedProjection(source, deferred.isFinal, candidateSections.size) }
             validationLatencyMs += (System.nanoTime() - started).coerceAtLeast(0) / 1_000_000
             result.fold(
-                onSuccess = { ir ->
+                onSuccess = { projection ->
                     acceptedSections += AcceptedSection(deferred.id, deferred.body)
-                    checkedIr = ir
-                    complete = finalProjection
+                    checkedIr = projection.ir
+                    checkedCoverage = projection.coverage
+                    complete = projection.final
                     lastRejectedBody = ""
                     lastDiagnostic = when {
                         deferred.isFinal && acceptedSections.size < MIN_PROGRESSIVE_SECTIONS ->
-                            "Append at least ${MIN_PROGRESSIVE_SECTIONS - acceptedSections.size} more independent " +
-                                "top-level section before finalizing"
+                            "Append at least ${MIN_PROGRESSIVE_SECTIONS - acceptedSections.size} more complete " +
+                                "runtime surface before finalizing"
 
-                        deferred.isFinal && !coverage.isComplete -> coverage.diagnostic()
+                        deferred.isFinal && !projection.coverage.isComplete -> projection.coverage.diagnostic()
 
                         else -> ""
                     }
@@ -432,10 +437,21 @@ internal class CanonicalDealUiGraphCompiler(
         appendLine("}")
     }
 
-    private fun coverage(sections: List<AcceptedSection>): UiCoverage {
-        val code = sections.joinToString("\n", transform = AcceptedSection::body).codeOnly()
-        val boundActions = ACTION_CONSTRUCTOR.findAll(code).map { it.groupValues[1] }.toSet()
-        val hostComponents = HOST_COMPONENT.findAll(code).map { it.groupValues[1] }.toSet()
+    private fun checkedProjection(source: String, requestedFinal: Boolean, sectionCount: Int): CheckedProjection {
+        val previewIr = validateProjection(source, false)
+        val previewProgram = CanonicalDealUiParser.parse(previewIr)
+        val coverage = coverage(previewProgram)
+        val final = requestedFinal && sectionCount >= MIN_PROGRESSIVE_SECTIONS && coverage.isComplete
+        return CheckedProjection(
+            ir = if (final) validateProjection(source, true) else previewIr,
+            coverage = coverage,
+            final = final
+        )
+    }
+
+    private fun coverage(program: CanonicalDealUiProgram): UiCoverage {
+        val boundActions = program.metadata.reachableInputActions
+        val hostComponents = program.metadata.usedComponents.mapTo(linkedSetOf()) { it.substringAfterLast('.') }
         return UiCoverage(
             pendingActions = requiredActions - boundActions,
             pendingCapabilityComponents = requiredCapabilityComponents - hostComponents
@@ -505,16 +521,15 @@ internal class CanonicalDealUiGraphCompiler(
 
     private companion object {
         const val MAX_SECTION_CHARS = 24_000
+        const val DIAGNOSTIC_DESCRIPTION_CHARS = 800
         const val MAX_SECTION_ID_CHARS = 40
         const val MAX_BATCH_SECTIONS = 6
-        const val MIN_PROGRESSIVE_SECTIONS = 2
+        const val MIN_PROGRESSIVE_SECTIONS = 1
         val THEME_PROPERTIES = listOf("primary", "secondary", "style", "shape", "density", "surface")
         val JSON = Json { ignoreUnknownKeys = false }
         val BOUNDARY_DECLARATION = Regex("\\b(?:import|export|view)\\b|@ui-root")
         val ROOT_COMPONENT = Regex("\\bui\\.Root\\s*\\(")
-        val ACTION_CONSTRUCTOR = Regex("\\baction\\s+app\\.([A-Z][A-Za-z0-9]{0,47})\\s*\\{")
-        val HOST_COMPONENT = Regex("\\bui\\.(MinuteClock|FrameClock|PointerSurface)\\s*\\(")
-        val SECTION_ID = Regex("[a-z][a-z0-9_]{0,39}")
+        val SECTION_ID = Regex("[a-z][a-z0-9_-]{0,39}")
     }
 }
 
@@ -528,6 +543,8 @@ private fun kotlinx.serialization.json.JsonObjectBuilder.enumProperty(name: Stri
 private data class AcceptedSection(val id: String, val body: String)
 
 private data class DeferredSection(val id: String, val body: String, val isFinal: Boolean)
+
+private data class CheckedProjection(val ir: String, val coverage: UiCoverage, val final: Boolean)
 
 private data class UiCoverage(
     val pendingActions: Set<String>,
@@ -552,6 +569,7 @@ internal data class CanonicalDealUiGraphSnapshot(
     val acceptedPatches: Int,
     val acceptedSectionIds: List<String>,
     val pendingRepairSectionId: String?,
+    val deferredSectionCount: Int,
     val pendingActionNames: List<String>,
     val pendingCapabilityComponents: List<String>,
     val rejectedPatches: Int

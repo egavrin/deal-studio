@@ -1,5 +1,6 @@
 package com.offlineassistant.deepseek
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.int
@@ -15,6 +16,145 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DeepSeekGenerationClientTest {
+    @Test
+    fun `cerebras compiler tool request uses OpenAI chat envelope`() {
+        val client = DeepSeekGenerationClient(
+            apiKeyProvider = { null },
+            cerebrasApiKeyProvider = { "csk-test" }
+        )
+        val body = client.toolRequestBody(
+            DeepSeekToolRequest(
+                model = DeepSeekGenerationModel.CEREBRAS_QWEN_27B,
+                instructions = "Fill the checked hole.",
+                input = "Base graph hash: abc",
+                tools = listOf(
+                    DeepSeekFunctionTool(
+                        name = "repair_deal_batch",
+                        description = "Repair one typed body",
+                        parameters = buildJsonObject { put("type", "object") }
+                    )
+                ),
+                maxOutputTokens = 4096
+            )
+        )
+
+        assertEquals("qwen-3.8-27b", body["model"]!!.jsonPrimitive.content)
+        assertEquals("low", body["reasoning_effort"]!!.jsonPrimitive.content)
+        assertEquals("required", body["tool_choice"]!!.jsonPrimitive.content)
+        assertFalse(body["parallel_tool_calls"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals(
+            "repair_deal_batch",
+            body["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content
+        )
+    }
+
+    @Test
+    fun `cerebras strips unsupported constraints from strict tool schemas`() {
+        val client = DeepSeekGenerationClient(
+            apiKeyProvider = { null },
+            cerebrasApiKeyProvider = { "csk-test" }
+        )
+        val parameters = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("body") {
+                    put("type", "string")
+                    put("minLength", 1)
+                    put("maxLength", 4096)
+                    put("pattern", ".+")
+                }
+            }
+            put("additionalProperties", false)
+        }
+
+        val body = client.toolRequestBody(
+            DeepSeekToolRequest(
+                model = DeepSeekGenerationModel.CEREBRAS_QWEN_27B,
+                instructions = "Fill the checked body.",
+                input = "Body id: update:onTap",
+                tools = listOf(DeepSeekFunctionTool("submit_body", "Submit a body", parameters)),
+                maxOutputTokens = 4096
+            )
+        )
+
+        val function = body["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject
+        val schema = function["parameters"]!!.jsonObject
+        val bodySchema = schema["properties"]!!.jsonObject["body"]!!.jsonObject
+        assertEquals("string", bodySchema["type"]!!.jsonPrimitive.content)
+        assertFalse("minLength" in bodySchema)
+        assertFalse("maxLength" in bodySchema)
+        assertFalse("pattern" in bodySchema)
+        assertTrue("minLength" in parameters["properties"]!!.jsonObject["body"]!!.jsonObject)
+    }
+
+    @Test
+    fun `cerebras unwraps stringified containers using the compiler tool schema`() {
+        val client = DeepSeekGenerationClient(
+            apiKeyProvider = { null },
+            cerebrasApiKeyProvider = { "csk-test" }
+        )
+        val parameters = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("sections") {
+                    put("type", "array")
+                    putJsonObject("items") {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("section_id") { put("type", "string") }
+                        }
+                    }
+                }
+            }
+        }
+        val request = DeepSeekToolRequest(
+            model = DeepSeekGenerationModel.CEREBRAS_QWEN_27B,
+            instructions = "Submit sections.",
+            input = "Build UI.",
+            tools = listOf(DeepSeekFunctionTool("submit_sections", "Submit sections", parameters)),
+            maxOutputTokens = 128
+        )
+        val raw = DeepSeekFunctionCall(
+            callId = "call-1",
+            name = "submit_sections",
+            arguments = """{"sections":"[{\"section_id\":\"main\"}]"}"""
+        )
+
+        val normalized = client.normalizeToolArguments(request, listOf(raw)).single()
+        val sections = Json.parseToJsonElement(normalized.arguments).jsonObject["sections"]!!.jsonArray
+
+        assertEquals("main", sections.single().jsonObject["section_id"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `cerebras model requires its own provider key`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "deepseek-only" })
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            client.generateTools(
+                DeepSeekToolRequest(
+                    model = DeepSeekGenerationModel.CEREBRAS_QWEN_27B,
+                    instructions = "Call the compiler.",
+                    input = "Build an app.",
+                    tools = listOf(
+                        DeepSeekFunctionTool(
+                            name = "submit_deal_declarations",
+                            description = "Submit declarations",
+                            parameters = buildJsonObject { put("type", "object") }
+                        )
+                    ),
+                    maxOutputTokens = 128
+                )
+            )
+        }
+
+        assertEquals("Cerebras API key is not configured.", error.message)
+        assertEquals(
+            "Cerebras rejected the API key. Update it in Settings.",
+            client.httpErrorMessage(401, GenerationProvider.CEREBRAS)
+        )
+    }
+
     @Test
     fun `request selects the explicit non-thinking model`() {
         val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })

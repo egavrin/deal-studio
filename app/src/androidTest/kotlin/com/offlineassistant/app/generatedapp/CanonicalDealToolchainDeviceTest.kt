@@ -14,7 +14,7 @@ class CanonicalDealToolchainDeviceTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
 
-        toolchain.validateDealOnly(SOURCE)
+        toolchain.validateDealForUi(SOURCE)
         val contract = AppInterfaceCompiler.parse(toolchain.extractAppInterface(SOURCE))
 
         assertEquals("CounterState", contract.rootState)
@@ -22,6 +22,53 @@ class CanonicalDealToolchainDeviceTest {
         assertEquals(listOf("IncrementAction"), contract.actions.map(AppInterfaceType::name))
         assertEquals(listOf("clock.minute"), contract.capabilities)
         assertTrue(contract.actions.single().fields.any { it.name == "amount" && it.type == "int" })
+    }
+
+    @Test
+    fun rejectsBorrowedStateMutationBeforeDealUiGeneration() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+
+        val failure = runCatching { toolchain.validateDealForUi(BORROWED_MUTATION_SOURCE) }.exceptionOrNull()
+
+        assertTrue(failure?.message.orEmpty(), failure?.message.orEmpty().contains("UI2050"))
+        assertTrue(failure?.message.orEmpty().contains("borrowed immutable"))
+    }
+
+    @Test
+    fun acceptsNonEmptyArrayLiteralsFromCoreDeal() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+
+        toolchain.validateDealForUi(ARRAY_LITERAL_SOURCE)
+        val contract = AppInterfaceCompiler.parse(toolchain.extractAppInterface(ARRAY_LITERAL_SOURCE))
+
+        assertEquals("ArrayState", contract.rootState)
+        assertEquals("string[]", contract.types.single().fields.single().type)
+    }
+
+    @Test
+    fun reportsReservedLocalIdentifierFromPinnedCoreDeal() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+
+        val failure = runCatching { toolchain.validateDealForUi(RESERVED_LOCAL_SOURCE) }.exceptionOrNull()
+
+        assertTrue(failure?.message.orEmpty(), failure?.message.orEmpty().contains("E1007"))
+        assertTrue(failure?.message.orEmpty().contains("'from' is a reserved keyword"))
+    }
+
+    @Test
+    fun reportsNamespacedStructuralControlFlowFromPinnedDealUi() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+
+        val failure = runCatching {
+            toolchain.compilePortable(SOURCE, NAMESPACED_WHEN_UI, CanonicalDealUiPack.source)
+        }.exceptionOrNull()
+
+        assertTrue(failure?.message.orEmpty(), failure?.message.orEmpty().contains("UI1014"))
+        assertTrue(failure?.message.orEmpty().contains("When(...) instead of ui.When(...)"))
     }
 
     @Test
@@ -46,6 +93,7 @@ class CanonicalDealToolchainDeviceTest {
             "AppTheme",
             "Section",
             "Grid",
+            "Tile",
             "Stat",
             "Badge",
             "ListItem",
@@ -58,8 +106,14 @@ class CanonicalDealToolchainDeviceTest {
             "Checkbox",
             "Stepper",
             "Tabs",
+            "TabItem",
+            "Choice",
+            "ChoiceItem",
             "NavigationBar",
             "NavigationItem",
+            "Dialog",
+            "Menu",
+            "MenuItem",
             "BarChart",
             "Sparkline",
             "Avatar",
@@ -105,9 +159,7 @@ class CanonicalDealToolchainDeviceTest {
 
         val record = library.save(
             bundle,
-            title = "Pointer surface",
-            uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
-            logicBackend = GeneratedModelBackend.DEEPSEEK_FLASH
+            title = "Pointer surface"
         )
         val restored = restoreCanonicalGeneratedApp(library.loadRecords().single(), toolchain)
 
@@ -150,9 +202,7 @@ class CanonicalDealToolchainDeviceTest {
                 dealCachedInputTokens = 0,
                 dealOutputTokens = 0
             ),
-            title = "Pointer state",
-            uiBackend = GeneratedModelBackend.DEEPSEEK_FLASH,
-            logicBackend = GeneratedModelBackend.DEEPSEEK_FLASH
+            title = "Pointer state"
         )
         val store = CanonicalGeneratedAppStateStore(directory, useDirectDirectory = true)
         val firstRuntime = toolchain.createRuntime(POINTER_SOURCE)
@@ -171,6 +221,24 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     private companion object {
+        const val ARRAY_LITERAL_SOURCE = """
+            export class ArrayState {
+              labels: string[] = [];
+            }
+
+            export class ResetAction {}
+
+            export function initialState(): ArrayState {
+              let labels: string[] = ["first", "second"];
+              return { labels: labels };
+            }
+
+            // @ui-update
+            export function onReset(state: ArrayState, action: ResetAction): ArrayState {
+              return { labels: ["first", "second"] };
+            }
+        """
+
         const val SOURCE = """
             // generated-capability: clock.minute
 
@@ -191,6 +259,17 @@ class CanonicalDealToolchainDeviceTest {
             export function onIncrement(state: CounterState, action: IncrementAction): CounterState {
               let next: int = state.count + action.amount;
               return { count: next, label: platformIntText(next) };
+            }
+        """
+
+        const val NAMESPACED_WHEN_UI = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.CounterState): View {
+              ui.When(state.count > 0) {
+                ui.Text(value: state.label)
+              }
             }
         """
 
@@ -216,6 +295,36 @@ class CanonicalDealToolchainDeviceTest {
             // @ui-update
             export function onPointer(state: PointerState, action: PointerAction): PointerState {
               return { x: action.x, y: action.y, phase: action.phase };
+            }
+        """
+
+        const val BORROWED_MUTATION_SOURCE = """
+            export class AppState {
+              count: int = 0;
+            }
+
+            export class IncrementAction {}
+
+            export function initialState(): AppState {
+              return { count: 0 };
+            }
+
+            // @ui-update
+            export function onIncrement(state: AppState, action: IncrementAction): AppState {
+              let alias: AppState = state;
+              alias.count = state.count + 1;
+              return alias;
+            }
+        """
+
+        const val RESERVED_LOCAL_SOURCE = """
+            export class AppState { value: int = 0; }
+            export class TapAction {}
+            export function initialState(): AppState { return { value: 0 }; }
+            // @ui-update
+            export function onTap(state: AppState, action: TapAction): AppState {
+              let from: int = state.value;
+              return { value: from };
             }
         """
 
@@ -321,6 +430,17 @@ class CanonicalDealToolchainDeviceTest {
                     ui.Badge(text: "On track", tone: "positive", icon: "check")
                   }
                   ui.IntText(value: state.value, prefix: "Day ", suffix: " of 100", minimumDigits: 2, style: ui.textTitle)
+                  ui.Grid(columns: 4, cellAspectRatio: 1.0, spacing: ui.spaceXs) {
+                    ui.Tile(
+                      glyph: "A",
+                      tone: "accent",
+                      supporting: "1",
+                      selected: true,
+                      highlighted: false,
+                      onClick: action app.TapAction {},
+                      accessibilityLabel: "Interactive tile A1"
+                    )
+                  }
                   ui.ListItem(
                     title: "Review schedule",
                     subtitle: "Open the next item",
@@ -341,19 +461,20 @@ class CanonicalDealToolchainDeviceTest {
                   ui.IconButton(icon: "edit", onClick: action app.TapAction {}, accessibilityLabel: "Edit")
                   ui.Checkbox(checked: true, label: "Enabled", supporting: "Product setting", accessibilityLabel: "Enabled")
                   ui.Stepper(value: state.value, minimum: 0, maximum: 100, label: "Quantity")
-                  ui.Tabs(options: state.tabLabels, selected: 0, accessibilityLabel: "Range")
+                  ui.Tabs(accessibilityLabel: "Range") {
+                    ui.TabItem(label: "Today", selected: true, onClick: action app.TapAction {}, accessibilityLabel: "Today")
+                    ui.TabItem(label: "Week", selected: false, onClick: action app.TapAction {}, accessibilityLabel: "Week")
+                  }
+                  ui.Choice(accessibilityLabel: "View density") {
+                    ui.ChoiceItem(label: "Compact", selected: true, onClick: action app.TapAction {}, accessibilityLabel: "Compact")
+                    ui.ChoiceItem(label: "Comfortable", selected: false, onClick: action app.TapAction {}, accessibilityLabel: "Comfortable")
+                  }
                   ui.BarChart(series: state.chartValues, maximum: 50, label: "Weekly progress", tone: "accent")
                   ui.Sparkline(series: state.chartValues, maximum: 50, label: "Trend", tone: "positive")
                   ui.Avatar(initials: "DS", description: "Profile", size: 48)
                   ui.AnimatedVisibility(visible: true) {
                     ui.Text(value: "Visible content", style: ui.textBody)
                   }
-                  ui.NavigationBar(
-                    labels: state.tabLabels,
-                    icons: state.navigationIcons,
-                    selected: 0,
-                    accessibilityLabel: "App navigation"
-                  )
                   ui.NavigationBar(accessibilityLabel: "Composed app navigation") {
                     ui.NavigationItem(
                       label: "Today",
@@ -369,6 +490,13 @@ class CanonicalDealToolchainDeviceTest {
                       onClick: action app.TapAction {},
                       accessibilityLabel: "History"
                     )
+                  }
+                  ui.Dialog(visible: false, onDismiss: action app.TapAction {}, accessibilityLabel: "Details") {
+                    ui.Text(value: "Dialog content", style: ui.textBody)
+                  }
+                  ui.Menu(visible: false, onDismiss: action app.TapAction {}, accessibilityLabel: "Actions") {
+                    ui.MenuItem(text: "Edit", icon: "edit", enabled: true, onClick: action app.TapAction {}, accessibilityLabel: "Edit")
+                    ui.MenuItem(text: "Delete", icon: "delete", enabled: true, onClick: action app.TapAction {}, accessibilityLabel: "Delete")
                   }
                   ui.Spacer(size: ui.spaceSm)
                   ui.EmptyState(
