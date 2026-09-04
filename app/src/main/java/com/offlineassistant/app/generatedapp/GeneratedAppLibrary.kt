@@ -24,6 +24,7 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val dealUiSourceSha256: String,
     val dealCompilerRevision: String,
     val dealUiCompilerRevision: String,
+    val streamingCompilerRevision: String = "",
     val componentPackVersion: String,
     val componentPackSha256: String,
     val toolchainSha256: String,
@@ -77,6 +78,12 @@ internal fun restoreCanonicalGeneratedApp(
     }
     require(record.dealUiCompilerRevision == CanonicalDealToolchain.DEAL_UI_REVISION) {
         "Required Deal UI compiler revision is unavailable"
+    }
+    require(
+        record.streamingCompilerRevision.isBlank() ||
+            record.streamingCompilerRevision == CanonicalDealToolchain.STREAMING_COMPILER_REVISION
+    ) {
+        "Required streaming compiler revision is unavailable"
     }
     require(record.toolchainSha256 == CanonicalDealToolchain.ARTIFACT_SHA256) {
         "Required canonical toolchain is unavailable"
@@ -225,6 +232,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         dealUiSourceSha256 = bundle.dealUiSource.sha256(),
         dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
         dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
+        streamingCompilerRevision = CanonicalDealToolchain.STREAMING_COMPILER_REVISION,
         componentPackVersion = CanonicalDealUiPack.VERSION,
         componentPackSha256 = CanonicalDealUiPack.SHA256,
         toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,

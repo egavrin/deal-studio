@@ -13,6 +13,7 @@ fi
 
 : "${DEAL_REPO:?Set DEAL_REPO to the pinned DEAL checkout}"
 : "${DEAL_UI_REPO:?Set DEAL_UI_REPO to the pinned Deal UI checkout}"
+: "${STREAMING_COMPILER_REPO:?Set STREAMING_COMPILER_REPO to the pinned streaming-compiler checkout}"
 : "${ANDROID_SDK_ROOT:=/opt/homebrew/share/android-commandlinetools}"
 
 # shellcheck source=/dev/null
@@ -52,6 +53,7 @@ require_clean_revision() {
 
 require_clean_revision "$DEAL_REPO" "$DEAL_REVISION" "DEAL"
 require_clean_revision "$DEAL_UI_REPO" "$DEAL_UI_REVISION" "Deal UI"
+require_clean_revision "$STREAMING_COMPILER_REPO" "$STREAMING_COMPILER_REVISION" "streaming-compiler"
 
 ACTUAL_JAVAC=$(javac -version 2>&1 | awk '{print $2}')
 [[ "$ACTUAL_JAVAC" == "$JAVAC_VERSION" ]] || {
@@ -92,6 +94,7 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiCompilerWorkspace.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalCompiler.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiIrDumper.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/CanonicalRefinementSession.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealUiJson.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealRuntime.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealToolchainBridge.java"
@@ -115,5 +118,6 @@ elif [[ "$DIGEST" != "$DEX_SHA256" ]]; then
   exit 1
 fi
 
-printf 'Deal: %s\nDeal UI: %s\nPack: %s (%s)\nSHA-256: %s\n' \
-  "$DEAL_REVISION" "$DEAL_UI_REVISION" "$COMPONENT_PACK_VERSION" "$COMPONENT_PACK_SHA256" "$DIGEST"
+printf 'Deal: %s\nDeal UI: %s\nStreaming compiler: %s\nPack: %s (%s)\nSHA-256: %s\n' \
+  "$DEAL_REVISION" "$DEAL_UI_REVISION" "$STREAMING_COMPILER_REVISION" \
+  "$COMPONENT_PACK_VERSION" "$COMPONENT_PACK_SHA256" "$DIGEST"

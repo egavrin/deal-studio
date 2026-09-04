@@ -56,6 +56,30 @@ internal class CanonicalDealToolchain(
         arrayOf(dealSource, source, packSource, baseDigest, operationsJson)
     ) as String).jsonObject()
 
+    fun createRefinementSession(
+        dealSource: String,
+        dealUiSource: String,
+        packSource: String,
+        instruction: String,
+        maxRounds: Int = 8,
+        maxSemanticRepairs: Int = 2
+    ): CanonicalStreamingRefinementSession {
+        val bridge = bridgeClass()
+        val session = invokeBridge(
+            "createRefinementSession",
+            arrayOf(
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                Int::class.javaPrimitiveType!!,
+                Int::class.javaPrimitiveType!!
+            ),
+            arrayOf(dealSource, dealUiSource, packSource, instruction, maxRounds, maxSemanticRepairs)
+        )
+        return CanonicalStreamingRefinementSession(bridge, session)
+    }
+
     fun inspectDealPrefix(source: String): CanonicalDealPrefixInspection {
         if (source.isBlank()) return CanonicalDealPrefixInspection(impossible = false, diagnostics = emptyList())
         val raw = invokeBridge(
@@ -217,9 +241,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "2d8dd8385d0f9bfe91100fc92bb2fe16f58f81fbe2762f49a8ac9392de3fb51a"
+        const val ARTIFACT_SHA256 = "585af022fd3ab8ba16e2e9a9fc687a9319aaab52422e67158e4fca5a028c0d4c"
         const val DEAL_REVISION = "cc250e4103d070977a29154a4ea130135971da7c"
         const val DEAL_UI_REVISION = "c3b79e693a74f886d20c444de2c9a39ca3179e05"
+        const val STREAMING_COMPILER_REVISION = "119ab7b468f005121eb0a6f179c988147003dc3b"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -231,6 +256,36 @@ internal class CanonicalDealToolchain(
 }
 
 private fun String.jsonObject(): JsonObject = Json.parseToJsonElement(this).jsonObject
+
+internal class CanonicalStreamingRefinementSession(
+    private val bridge: Class<*>,
+    private val session: Any
+) {
+    fun nextRequest(): JsonObject = invoke("refinementNextRequest").jsonObject()
+
+    fun acceptToolCall(name: String, arguments: String): JsonObject = invoke(
+        "refinementAcceptToolCall",
+        arrayOf(String::class.java, String::class.java),
+        arrayOf(name, arguments)
+    ).jsonObject()
+
+    fun result(): JsonObject = invoke("refinementResult").jsonObject()
+
+    @Suppress("SpreadOperator")
+    private fun invoke(
+        method: String,
+        extraTypes: Array<Class<*>> = emptyArray(),
+        extraValues: Array<Any?> = emptyArray()
+    ): String = try {
+        bridge.getMethod(method, Any::class.java, *extraTypes)
+            .invoke(null, session, *extraValues) as String
+    } catch (failure: InvocationTargetException) {
+        throw IllegalArgumentException(
+            failure.targetException.message ?: "Streaming compiler refinement failed",
+            failure
+        )
+    }
+}
 
 internal data class CanonicalDealPrefixInspection(
     val impossible: Boolean,

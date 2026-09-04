@@ -13,9 +13,55 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 
 @RunWith(AndroidJUnit4::class)
 class CanonicalDealToolchainDeviceTest {
+    @Test
+    fun portableStreamingCompilerOwnsRepairScopeOnDevice() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val inspection = toolchain.inspectCanonicalApp(POINTER_SOURCE, POINTER_UI, CanonicalDealUiPack.source)
+        val dealInspection = inspection.getValue("deal").jsonObject
+        val handlerId = dealInspection.getValue("symbols").jsonArray
+            .map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "onPointer" }
+            .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
+        val bodyId = dealInspection.getValue("nodes").jsonArray
+            .map { it.jsonObject }
+            .single {
+                it.getValue("kind").jsonPrimitive.content == "function-body" &&
+                    it.getValue("ownerId").jsonObject.getValue("value").jsonPrimitive.content == handlerId
+            }
+            .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
+        val session = toolchain.createRefinementSession(
+            POINTER_SOURCE,
+            POINTER_UI,
+            CanonicalDealUiPack.source,
+            "Offset the pointer x coordinate by one"
+        )
+
+        session.acceptToolCall("query_deal_node", buildJsonObject { put("targetId", bodyId) }.toString())
+        val repair = session.acceptToolCall(
+            "apply_deal_changes",
+            changeArguments(bodyId, "return missing;")
+        )
+
+        val repairToolNames = repair.getValue("tools").jsonArray.map {
+            it.jsonObject.getValue("name").jsonPrimitive.content
+        }
+        assertEquals(listOf("apply_deal_changes"), repairToolNames)
+
+        val result = session.acceptToolCall(
+            "apply_deal_changes",
+            changeArguments(bodyId, "return { x: action.x + 1, y: action.y, phase: action.phase };")
+        )
+
+        assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
+        assertTrue(result.getValue("deal").jsonPrimitive.content.contains("action.x + 1"))
+        assertEquals(POINTER_UI, result.getValue("dealUi").jsonPrimitive.content)
+    }
+
     @Test
     fun appliesCompilerOwnedCanonicalChangesWithoutSourceScanning() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -294,6 +340,17 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     private companion object {
+        fun changeArguments(targetId: String, body: String): String = buildJsonObject {
+            putJsonArray("operations") {
+                add(buildJsonObject {
+                    put("operation", "replaceFunctionBody")
+                    put("targetId", targetId)
+                    put("body", body)
+                })
+            }
+            put("final", true)
+        }.toString()
+
         const val ARRAY_LITERAL_SOURCE = """
             export class ArrayState {
               labels: string[] = [];
@@ -407,13 +464,17 @@ class CanonicalDealToolchainDeviceTest {
 
             // @ui-root
             export view App(state: app.PointerState): View {
-              ui.PointerSurface(
-                coordinateWidth: 640,
-                coordinateHeight: 800,
-                onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
-                accessibilityLabel: "Pointer surface"
-              ) {
-                ui.Canvas(width: 640, height: 800, accessibilityLabel: "Canvas") {}
+              ui.Root() {
+                ui.Route(route: "main", activeRoute: "main") {
+                  ui.PointerSurface(
+                    coordinateWidth: 640,
+                    coordinateHeight: 800,
+                    onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
+                    accessibilityLabel: "Pointer surface"
+                  ) {
+                    ui.Canvas(width: 640, height: 800, accessibilityLabel: "Canvas") {}
+                  }
+                }
               }
             }
         """
@@ -494,6 +555,7 @@ class CanonicalDealToolchainDeviceTest {
                 surface: "tonal"
               ) {
                 ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+                ui.Route(route: "main", activeRoute: "main") {
                 ui.TopBar(title: state.title, subtitle: state.subtitle, leadingIcon: "home") {
                   ui.IconButton(icon: "settings", onClick: action app.TapAction {}, accessibilityLabel: "Settings")
                 }
@@ -588,6 +650,7 @@ class CanonicalDealToolchainDeviceTest {
                     onDismiss: action app.TapAction {},
                     accessibilityLabel: "Saved"
                   )
+                }
                 }
                 }
               }

@@ -33,6 +33,7 @@ import deal.ui.UiModel;
 import deal.ui.UiParser;
 import deal.ui.UiCompilerWorkspace;
 import deal.semantic.ir.CanonicalJson;
+import streaming.compiler.CanonicalRefinementSession;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -98,6 +99,39 @@ public final class CanonicalDealToolchainBridge {
         return CompilerProtocolJson.encode(CanonicalCompiler.applyDealUiChange(
                 dealSource, source, packSource, PACK_SPECIFIER, baseDigest,
                 dealUiOperations(operationsJson)));
+    }
+
+    /** Creates the provider-neutral LLM orchestration session owned by streaming-compiler. */
+    public static Object createRefinementSession(
+            String dealSource,
+            String dealUiSource,
+            String packSource,
+            String instruction,
+            int maxRounds,
+            int maxSemanticRepairs) {
+        return new CanonicalRefinementSession(
+                dealSource,
+                dealUiSource,
+                packSource,
+                PACK_SPECIFIER,
+                instruction,
+                maxRounds,
+                maxSemanticRepairs);
+    }
+
+    public static String refinementNextRequest(Object session) {
+        return ((CanonicalRefinementSession) session).nextRequestJson();
+    }
+
+    public static String refinementAcceptToolCall(
+            Object session,
+            String name,
+            String argumentsJson) {
+        return ((CanonicalRefinementSession) session).acceptToolCallJson(name, argumentsJson);
+    }
+
+    public static String refinementResult(Object session) {
+        return ((CanonicalRefinementSession) session).resultJson();
     }
 
     public static String validateAndDump(

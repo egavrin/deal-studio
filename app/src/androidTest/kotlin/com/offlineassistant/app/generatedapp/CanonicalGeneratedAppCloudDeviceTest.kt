@@ -255,6 +255,59 @@ class CanonicalGeneratedAppCloudDeviceTest {
     }
 
     @Test
+    fun portableStreamingCompilerRefinesAValidCanonicalFixture() {
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val toolchain = CanonicalDealToolchain(context)
+            val original = CanonicalGeneratedAppBundle(
+                request = "Build a counter",
+                appInterface = toolchain.extractAppInterface(REFINEMENT_FIXTURE_DEAL),
+                dealGraphLog = "fixture",
+                dealUiGraphLog = "fixture",
+                dealSource = REFINEMENT_FIXTURE_DEAL,
+                dealUiSource = REFINEMENT_FIXTURE_UI,
+                checkedUiIr = toolchain.compilePortable(
+                    REFINEMENT_FIXTURE_DEAL,
+                    REFINEMENT_FIXTURE_UI,
+                    CanonicalDealUiPack.source
+                ),
+                dealLatencyMs = 0,
+                dealUiLatencyMs = 0,
+                wallLatencyMs = 0,
+                dealTimeToFirstPatchMs = null,
+                dealUiTimeToFirstTokenMs = null,
+                validationLatencyMs = 0,
+                repairLatencyMs = 0,
+                repairPasses = 0,
+                dealGraphRounds = 0,
+                dealUiGraphRounds = 0,
+                dealAcceptedPatches = 0,
+                dealRejectedPatches = 0,
+                dealTypedHoles = 0,
+                dealInputTokens = 0,
+                dealCachedInputTokens = 0,
+                dealOutputTokens = 0
+            )
+
+            val refined = CanonicalGeneratedAppRefiner(
+                context = context,
+                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY }
+            ).refine(
+                bundle = original,
+                request = "Change only the existing AppTheme primary color to #D97706. Do not modify DEAL behavior.",
+                dealModel = DeepSeekGenerationModel.FLASH,
+                dealUiModel = DeepSeekGenerationModel.FLASH
+            )
+
+            assertEquals(REFINEMENT_FIXTURE_DEAL, refined.bundle.dealSource)
+            assertTrue(refined.bundle.dealUiSource.contains("#D97706"))
+            assertTrue(refined.changedDealUi)
+            validateRunnableBundle(context, refined.bundle)
+        }
+    }
+
+    @Test
     fun tetrisDevelopsThroughSmallCanonicalRevisions() {
         runBlocking {
             val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -756,6 +809,35 @@ class CanonicalGeneratedAppCloudDeviceTest {
 
     private companion object {
         const val RENDER_TIMEOUT_MS = 10_000L
+
+        const val REFINEMENT_FIXTURE_DEAL = """
+            export class AppState { title: string = "Counter"; count: int = 0; }
+            export class IncrementAction {}
+            export function initialState(): AppState { return { title: "Counter", count: 0 }; }
+            // @ui-update
+            export function onIncrement(state: AppState, action: IncrementAction): AppState {
+              return { title: state.title, count: state.count + 1 };
+            }
+        """
+
+        const val REFINEMENT_FIXTURE_UI = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+              ui.AppTheme(primary: "#2563EB", secondary: "#0F766E", style: "clean", shape: "rounded", density: "comfortable", surface: "tonal") {
+                ui.Root() {
+                  ui.Route(route: "main", activeRoute: "main") {
+                    ui.Column(spacing: ui.spaceMd, padding: ui.spaceMd) {
+                      ui.Text(value: state.title, style: ui.textTitle)
+                      ui.IntText(value: state.count, style: ui.textDisplay)
+                      ui.Button(text: "Increment", icon: "add", onClick: action app.IncrementAction {}, accessibilityLabel: "Increment")
+                    }
+                  }
+                }
+              }
+            }
+        """
 
         const val COUNTER_REQUEST = """
             Build a compact adaptive counter named Counter. Show the current integer count and one accessible
