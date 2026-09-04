@@ -51,6 +51,15 @@ class GeneratedAppThemeTest {
         )
     }
 
+    @Test
+    fun `renderer safely resolves theme strings admitted by the component pack`() {
+        val vivid = themeNode().replace(literal("expressive"), literal("vivid"))
+
+        val program = CanonicalDealUiParser.parse(ir(vivid))
+
+        assertEquals(GeneratedAppThemeSpec.DEFAULT_STYLE, program.themeSpec().style)
+    }
+
     private fun ir(nodes: String): String = """
         {
           "version":"canonical-dealui-ir-v1",

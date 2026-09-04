@@ -8,12 +8,15 @@ import java.lang.reflect.InvocationTargetException
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 
 internal class CanonicalDealToolchain(
     private val context: Context
@@ -241,10 +244,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "585af022fd3ab8ba16e2e9a9fc687a9319aaab52422e67158e4fca5a028c0d4c"
-        const val DEAL_REVISION = "cc250e4103d070977a29154a4ea130135971da7c"
-        const val DEAL_UI_REVISION = "c3b79e693a74f886d20c444de2c9a39ca3179e05"
-        const val STREAMING_COMPILER_REVISION = "119ab7b468f005121eb0a6f179c988147003dc3b"
+        const val ARTIFACT_SHA256 = "a80b9c0d55ad3aa4421e9d76425c3d2bdc4dde2edc98957b337a59d7efe44d09"
+        const val DEAL_REVISION = "dec8cf9280af0f17d447d6ebfb3c51932b86cb9a"
+        const val DEAL_UI_REVISION = "2d5103771586b78265c01173fb712fe429302fd4"
+        const val STREAMING_COMPILER_REVISION = "5796528e2bd1f74f209067330bd651503735adb8"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -268,6 +271,22 @@ internal class CanonicalStreamingRefinementSession(
         arrayOf(String::class.java, String::class.java),
         arrayOf(name, arguments)
     ).jsonObject()
+
+    fun acceptToolCalls(calls: List<Pair<String, String>>): JsonObject {
+        val encoded = buildJsonArray {
+            calls.forEach { (name, arguments) ->
+                add(buildJsonObject {
+                    put("name", name)
+                    put("arguments", Json.parseToJsonElement(arguments))
+                })
+            }
+        }.toString()
+        return invoke(
+            "refinementAcceptToolCalls",
+            arrayOf(String::class.java),
+            arrayOf(encoded)
+        ).jsonObject()
+    }
 
     fun result(): JsonObject = invoke("refinementResult").jsonObject()
 

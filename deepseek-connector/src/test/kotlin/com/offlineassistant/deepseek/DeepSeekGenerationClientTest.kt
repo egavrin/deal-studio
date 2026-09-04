@@ -1,6 +1,8 @@
 package com.offlineassistant.deepseek
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.int
@@ -8,6 +10,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -386,5 +389,111 @@ class DeepSeekGenerationClientTest {
 
         assertTrue(client.invalidToolArguments(listOf(malformed)).orEmpty().contains("submit_deal_program"))
         assertEquals(null, client.invalidToolArguments(listOf(valid)))
+    }
+
+    @Test
+    fun `compiler arguments outside the issued schema are transport failures`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val request = DeepSeekToolRequest(
+            model = DeepSeekGenerationModel.FLASH,
+            instructions = "Apply one compiler operation.",
+            input = "Update the selected function.",
+            tools = listOf(
+                DeepSeekFunctionTool(
+                    name = "apply_deal_changes",
+                    description = "Apply one change.",
+                    parameters = buildJsonObject {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("operation") {
+                                put("type", "string")
+                                put("const", "replaceFunctionBody")
+                            }
+                        }
+                        put("required", buildJsonArray { add(JsonPrimitive("operation")) })
+                        put("additionalProperties", false)
+                    }
+                )
+            ),
+            maxOutputTokens = 256
+        )
+        val invalid = DeepSeekFunctionCall("call-1", "apply_deal_changes", """{"operation":"replaceBody"}""")
+        val valid = invalid.copy(arguments = """{"operation":"replaceFunctionBody"}""")
+
+        assertTrue(client.invalidToolArguments(request, listOf(invalid)).orEmpty().contains("replaceFunctionBody"))
+        assertEquals(null, client.invalidToolArguments(request, listOf(valid)))
+    }
+
+    @Test
+    fun `compiler anyOf diagnostics follow operation and target discriminators`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        fun operation(target: String, property: String) = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("operation") { put("type", "string"); put("const", "setProperty") }
+                putJsonObject("targetId") { put("type", "string"); put("const", target) }
+                putJsonObject("property") { put("type", "string"); put("const", property) }
+                putJsonObject("expression") { put("type", "string") }
+            }
+            put("required", buildJsonArray {
+                listOf("operation", "targetId", "property", "expression").forEach { add(JsonPrimitive(it)) }
+            })
+            put("additionalProperties", false)
+        }
+        val request = DeepSeekToolRequest(
+            model = DeepSeekGenerationModel.FLASH,
+            instructions = "Edit UI.",
+            input = "Add tone.",
+            tools = listOf(DeepSeekFunctionTool(
+                "apply_deal_ui_changes",
+                "Apply UI change.",
+                buildJsonObject {
+                    putJsonArray("anyOf") {
+                        add(operation("node-a", "text"))
+                        add(operation("node-b", "tone"))
+                    }
+                }
+            )),
+            maxOutputTokens = 256
+        )
+        val invalid = DeepSeekFunctionCall(
+            "call-1",
+            "apply_deal_ui_changes",
+            """{"operation":"setProperty","targetId":"node-b","property":"color","expression":"\"accent\""}"""
+        )
+
+        val error = client.invalidToolArguments(request, listOf(invalid)).orEmpty()
+        assertTrue(error, error.contains("property must equal \"tone\""))
+        assertTrue(error, !error.contains("text"))
+    }
+
+    @Test
+    fun `empty compiler transaction is rejected by transport schema`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val request = DeepSeekToolRequest(
+            model = DeepSeekGenerationModel.FLASH,
+            instructions = "Apply one transaction.",
+            input = "Update behavior.",
+            tools = listOf(DeepSeekFunctionTool(
+                "apply_deal_changes",
+                "Apply DEAL changes.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("operations") {
+                            put("type", "array")
+                            put("minItems", 1)
+                            put("items", buildJsonObject { put("type", "object") })
+                        }
+                    }
+                    put("required", buildJsonArray { add(JsonPrimitive("operations")) })
+                }
+            )),
+            maxOutputTokens = 256
+        )
+        val invalid = DeepSeekFunctionCall("call-1", "apply_deal_changes", """{"operations":[]}""")
+
+        val error = client.invalidToolArguments(request, listOf(invalid)).orEmpty()
+        assertTrue(error, error.contains("at least 1 item"))
     }
 }

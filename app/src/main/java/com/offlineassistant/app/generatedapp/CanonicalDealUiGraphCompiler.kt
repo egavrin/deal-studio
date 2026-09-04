@@ -67,6 +67,13 @@ internal class CanonicalDealUiGraphCompiler(
         } else {
             1
         }
+        val completionSectionId = if (
+            acceptedSections.isNotEmpty() && pendingRepairSectionId == null
+        ) {
+            "completion-${acceptedSections.size + 1}"
+        } else {
+            null
+        }
         val expectsTheme = !themeSelected && pendingRepairSectionId == null
         val obligations = snapshot().obligationSummary()
         val parameters = buildJsonObject {
@@ -102,7 +109,10 @@ internal class CanonicalDealUiGraphCompiler(
                 putJsonObject("sections") {
                     put("type", "array")
                     put("minItems", minimumBatchSections)
-                    put("maxItems", if (pendingRepairSectionId == null) MAX_BATCH_SECTIONS else 1)
+                    put(
+                        "maxItems",
+                        if (pendingRepairSectionId == null && completionSectionId == null) MAX_BATCH_SECTIONS else 1
+                    )
                     put(
                         "items",
                         buildJsonObject {
@@ -111,6 +121,8 @@ internal class CanonicalDealUiGraphCompiler(
                                 putJsonObject("section_id") {
                                     put("type", "string")
                                     pendingRepairSectionId?.let { sectionId ->
+                                        putJsonArray("enum") { add(JsonPrimitive(sectionId)) }
+                                    } ?: completionSectionId?.let { sectionId ->
                                         putJsonArray("enum") { add(JsonPrimitive(sectionId)) }
                                     } ?: run {
                                         put("minLength", 1)

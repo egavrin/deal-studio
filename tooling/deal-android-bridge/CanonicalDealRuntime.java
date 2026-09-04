@@ -89,8 +89,14 @@ final class CanonicalDealRuntime {
             if (!(value instanceof ClassDeclaration) && !(value instanceof FunctionDeclaration)) {
                 throw new IllegalArgumentException("Generated app.deal may contain only classes and functions at module scope");
             }
-            if (value instanceof FunctionDeclaration function && (function.isAsync() || function.isExternal())) {
-                throw new IllegalArgumentException("Generated app.deal runtime supports synchronous internal functions only");
+            if (value instanceof FunctionDeclaration function && function.isAsync()) {
+                throw new IllegalArgumentException("Generated app.deal runtime supports synchronous functions only");
+            }
+            if (value instanceof FunctionDeclaration function
+                    && function.isExternal()
+                    && !isPlatformBuiltin(function.name())) {
+                throw new IllegalArgumentException(
+                        "Generated app.deal runtime does not provide external function " + function.name());
             }
         }
         if (!functions.containsKey("initialState")) {
@@ -100,8 +106,9 @@ final class CanonicalDealRuntime {
 
     private Object call(String name, List<Object> arguments) {
         step();
+        if (isPlatformBuiltin(name)) return builtin(name, arguments);
         FunctionDeclaration function = functions.get(name);
-        if (function == null) return builtin(name, arguments);
+        if (function == null || function.isExternal()) return builtin(name, arguments);
         if (arguments.size() != function.params().size()) {
             throw new IllegalArgumentException("Invalid argument count for " + name);
         }
@@ -146,6 +153,14 @@ final class CanonicalDealRuntime {
                 yield Math.max(integer(arguments.get(1)), Math.min(value, integer(arguments.get(2))));
             }
             default -> throw new IllegalArgumentException("Unsupported Deal function: " + name);
+        };
+    }
+
+    private static boolean isPlatformBuiltin(String name) {
+        return switch (name) {
+            case "platformIntText", "platformNumberText", "platformPad2", "platformMinInt",
+                    "platformMaxInt", "platformAbsInt", "platformClampInt" -> true;
+            default -> false;
         };
     }
 

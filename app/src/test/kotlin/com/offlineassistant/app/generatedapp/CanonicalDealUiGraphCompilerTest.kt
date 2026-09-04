@@ -174,6 +174,8 @@ class CanonicalDealUiGraphCompilerTest {
 
         val nextTool = compiler.currentTool()
         assertTrue(nextTool.description.contains("SetWeightAction"))
+        assertTrue(nextTool.parameters.toString().contains("completion-3"))
+        assertTrue(nextTool.parameters.toString().contains("\"maxItems\":1"))
         val controls = compiler.apply(
             call(
                 compiler.snapshot().graphHash,

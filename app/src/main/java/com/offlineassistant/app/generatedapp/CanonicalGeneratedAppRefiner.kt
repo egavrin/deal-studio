@@ -44,8 +44,9 @@ internal class CanonicalGeneratedAppRefiner(
     ): CanonicalRefinementResult = withContext(Dispatchers.IO) {
         require(request.isNotBlank()) { "Refinement request is empty" }
         val wall = TimeSource.Monotonic.markNow()
+        val canonicalInputDeal = canonicalDealWithPlatformAbi(bundle.dealSource)
         val session = toolchain.createRefinementSession(
-            dealSource = bundle.dealSource,
+            dealSource = canonicalInputDeal,
             dealUiSource = bundle.dealUiSource,
             packSource = CanonicalDealUiPack.source,
             instruction = request
@@ -69,23 +70,38 @@ internal class CanonicalGeneratedAppRefiner(
                     "Updating the checked interface..."
                 }
             )
-            val semanticRepairsBefore = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull ?: 0
-            val result = modelClient.generateTools(
-                DeepSeekToolRequest(
-                    model = model,
-                    instructions = protocol.getValue("instructions").jsonPrimitive.content,
-                    input = protocol.getValue("input").jsonPrimitive.content,
-                    tools = tools,
-                    maxOutputTokens = MAX_REFINEMENT_OUTPUT_TOKENS,
-                    temperature = 0.0
+            lateinit var result: com.offlineassistant.deepseek.DeepSeekToolGenerationResult
+            var transportAttempt = 0
+            do {
+                transportAttempt++
+                val retryInstruction = if (transportAttempt == 1) {
+                    ""
+                } else {
+                    "\nTransport retry: return one atomic write call or a batch containing only query tools. " +
+                        "Do not emit prose or multiple write calls."
+                }
+                result = modelClient.generateTools(
+                    DeepSeekToolRequest(
+                        model = model,
+                        instructions = protocol.getValue("instructions").jsonPrimitive.content + retryInstruction,
+                        input = protocol.getValue("input").jsonPrimitive.content,
+                        tools = tools,
+                        maxOutputTokens = MAX_REFINEMENT_OUTPUT_TOKENS,
+                        temperature = 0.0
+                    )
                 )
-            )
-            require(result.calls.size == 1) {
-                "Streaming compiler requires exactly one tool call per refinement round"
+                val validTransport = result.calls.isValidCompilerBatch()
+                metrics.recordModelRound(artifact, result, compilerRound = validTransport)
+                if (!validTransport) {
+                    onProgress("Retrying an incomplete compiler response...")
+                }
+            } while (!result.calls.isValidCompilerBatch() && transportAttempt < MAX_TRANSPORT_ATTEMPTS)
+            require(result.calls.isValidCompilerBatch()) {
+                "Model returned a non-atomic compiler batch ${result.calls.map { it.name }} " +
+                    "after $transportAttempt transport attempts"
             }
-            metrics.recordModelRound(artifact, result)
-            val call = result.calls.single()
-            protocol = session.acceptToolCall(call.name, call.arguments)
+            val semanticRepairsBefore = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull ?: 0
+            protocol = session.acceptToolCalls(result.calls.map { it.name to it.arguments })
             val semanticRepairsAfter = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull
                 ?: session.result()["semanticRepairs"]?.jsonPrimitive?.intOrNull
                 ?: semanticRepairsBefore
@@ -93,7 +109,9 @@ internal class CanonicalGeneratedAppRefiner(
                 metrics.recordSemanticRepair(artifact, result.latencyMs)
                 onProgress("Repairing only the compiler-rejected unit...")
             }
-            metrics.recordTool(call.name, semanticRepairsAfter == semanticRepairsBefore)
+            result.calls.forEach { call ->
+                metrics.recordTool(call.name, semanticRepairsAfter == semanticRepairsBefore)
+            }
         }
 
         val canonical = if (protocol.status() == "complete") protocol else session.result()
@@ -155,10 +173,16 @@ internal class CanonicalGeneratedAppRefiner(
 
     private companion object {
         const val MAX_REFINEMENT_OUTPUT_TOKENS = 4_096
+        const val MAX_TRANSPORT_ATTEMPTS = 3
     }
 }
 
 private enum class Artifact { DEAL, DEAL_UI }
+
+private val QUERY_TOOLS = setOf("query_deal_symbol", "query_deal_node", "query_deal_ui_node")
+
+private fun List<com.offlineassistant.deepseek.DeepSeekFunctionCall>.isValidCompilerBatch(): Boolean =
+    size == 1 || (isNotEmpty() && all { it.name in QUERY_TOOLS })
 
 private class RefinementMetrics {
     var dealLatencyMs = 0L
@@ -182,18 +206,19 @@ private class RefinementMetrics {
 
     fun recordModelRound(
         artifact: Artifact,
-        result: com.offlineassistant.deepseek.DeepSeekToolGenerationResult
+        result: com.offlineassistant.deepseek.DeepSeekToolGenerationResult,
+        compilerRound: Boolean = true
     ) {
         if (artifact == Artifact.DEAL) {
             dealLatencyMs += result.latencyMs
-            dealRounds++
+            if (compilerRound) dealRounds++
             if (dealTimeToFirstCallMs == null) dealTimeToFirstCallMs = result.timeToFirstCallMs
             dealInputTokens += result.inputTokens ?: 0
             dealCachedInputTokens += result.cachedInputTokens ?: 0
             dealOutputTokens += result.outputTokens ?: 0
         } else {
             dealUiLatencyMs += result.latencyMs
-            dealUiRounds++
+            if (compilerRound) dealUiRounds++
             if (dealUiTimeToFirstCallMs == null) dealUiTimeToFirstCallMs = result.timeToFirstCallMs
             dealUiInputTokens += result.inputTokens ?: 0
             dealUiCachedInputTokens += result.cachedInputTokens ?: 0

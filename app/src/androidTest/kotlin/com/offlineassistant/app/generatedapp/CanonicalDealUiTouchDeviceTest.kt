@@ -207,7 +207,7 @@ class CanonicalDealUiTouchDeviceTest {
 
         const val TILE_DEAL = """
             export class TileItem { id: int = 0; glyph: string = ""; label: string = ""; }
-            export class AppState { items: TileItem[] = []; }
+            export class AppState { route: string = "main"; items: TileItem[] = []; }
             export class TapAction { id: int = 0; }
             export function initialState(): AppState {
               let items: TileItem[] = [];
@@ -219,7 +219,7 @@ class CanonicalDealUiTouchDeviceTest {
               items[items.length] = { id: 6, glyph: "F", label: "Tile six" };
               items[items.length] = { id: 7, glyph: "G", label: "Tile seven" };
               items[items.length] = { id: 8, glyph: "H", label: "Tile eight" };
-              return { items: items };
+              return { route: "main", items: items };
             }
             // @ui-update
             export function onTap(state: AppState, action: TapAction): AppState { return state; }
@@ -230,14 +230,23 @@ class CanonicalDealUiTouchDeviceTest {
             import * as ui from "./platform-ui.dealui-pack";
             // @ui-root
             export view App(state: app.AppState): View {
-              ui.Grid(columns: 8, cellAspectRatio: 1.0, spacing: ui.spaceXs) {
-                ForEach(state.items, item: app.TileItem, key: item.id) {
-                  ui.Tile(
-                    glyph: item.glyph,
-                    tone: "surface",
-                    onClick: action app.TapAction { id: item.id },
-                    accessibilityLabel: item.label
-                  )
+              ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+                ui.Route(route: "main", activeRoute: state.route) {
+                  ui.Row(spacing: ui.spaceMd) {
+                    ui.Card(tone: "surface") {
+                      ui.Grid(columns: 8, cellAspectRatio: 1.0, spacing: ui.spaceXs) {
+                        ForEach(state.items, item: app.TileItem, key: item.id) {
+                          ui.Tile(
+                            glyph: item.glyph,
+                            tone: "surface",
+                            onClick: action app.TapAction { id: item.id },
+                            accessibilityLabel: item.label
+                          )
+                        }
+                      }
+                    }
+                    ui.Text(value: "Status", style: ui.textBody)
+                  }
                 }
               }
             }

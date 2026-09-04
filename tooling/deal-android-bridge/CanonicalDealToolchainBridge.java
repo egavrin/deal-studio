@@ -130,6 +130,10 @@ public final class CanonicalDealToolchainBridge {
         return ((CanonicalRefinementSession) session).acceptToolCallJson(name, argumentsJson);
     }
 
+    public static String refinementAcceptToolCalls(Object session, String callsJson) {
+        return ((CanonicalRefinementSession) session).acceptToolCallsJson(callsJson);
+    }
+
     public static String refinementResult(Object session) {
         return ((CanonicalRefinementSession) session).resultJson();
     }
@@ -418,7 +422,9 @@ public final class CanonicalDealToolchainBridge {
     }
 
     private static String sourceWithPrelude(String source) {
-        return source + GENERATED_APP_PRELUDE;
+        return source.contains("function platformIntText(value: int): string")
+                ? source
+                : source + GENERATED_APP_PRELUDE;
     }
 
     private static String normalizeDirectives(String source) {

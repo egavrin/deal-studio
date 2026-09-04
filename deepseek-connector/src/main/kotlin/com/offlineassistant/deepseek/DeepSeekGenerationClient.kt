@@ -10,8 +10,10 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -587,16 +589,26 @@ class DeepSeekGenerationClient(
         var combined: ToolResponsesExecution? = null
         var lastProtocolError = ""
         repeat(MAX_TOOL_PROTOCOL_ATTEMPTS) { attemptIndex ->
+            val attemptRequest = if (lastProtocolError.isBlank()) {
+                request
+            } else {
+                request.copy(
+                    instructions = request.instructions +
+                        "\nYour previous tool arguments violated the issued compiler schema: " +
+                        lastProtocolError.take(MAX_ERROR_DETAIL_CHARS) +
+                        "\nRetry the same task using only exact tool and operation values from the schema."
+                )
+            }
             val attempt = try {
-                executeToolResponses(request, apiKey, started, onArgumentsDelta)
+                executeToolResponses(attemptRequest, apiKey, started, onArgumentsDelta)
             } catch (failure: IOException) {
                 lastProtocolError = failure.message ?: failure.javaClass.simpleName
                 if (attemptIndex == MAX_TOOL_PROTOCOL_ATTEMPTS - 1) throw failure
                 return@repeat
             }
             combined = combined?.plus(attempt) ?: attempt
-            val normalizedCalls = normalizeToolArguments(request, attempt.calls)
-            val protocolError = invalidToolArguments(normalizedCalls)
+            val normalizedCalls = normalizeToolArguments(attemptRequest, attempt.calls)
+            val protocolError = invalidToolArguments(attemptRequest, normalizedCalls)
             if (protocolError == null) {
                 return requireNotNull(combined).copy(
                     calls = normalizedCalls,
@@ -657,6 +669,87 @@ class DeepSeekGenerationClient(
                 ?.let { failure ->
                     "${call.name}: ${failure.message}; arguments=${call.arguments.take(MAX_ERROR_DETAIL_CHARS)}"
                 }
+        }
+    }
+
+    internal fun invalidToolArguments(
+        request: DeepSeekToolRequest,
+        calls: List<DeepSeekFunctionCall>
+    ): String? {
+        invalidToolArguments(calls)?.let { return it }
+        val tools = request.tools.associateBy(DeepSeekFunctionTool::name)
+        return calls.firstNotNullOfOrNull { call ->
+            val tool = tools[call.name]
+                ?: return@firstNotNullOfOrNull "unknown compiler tool '${call.name}'"
+            val arguments = json.parseToJsonElement(call.arguments)
+            schemaViolation(arguments, tool.parameters, "$")
+                ?.let { "${call.name}: $it" }
+        }
+    }
+
+    private fun schemaViolation(value: JsonElement, schema: JsonObject, path: String): String? {
+        (schema["anyOf"] as? JsonArray)?.let { alternatives ->
+            var candidates = alternatives.mapNotNull { it as? JsonObject }
+            val objectValue = value as? JsonObject
+            for (discriminator in listOf("operation", "targetId")) {
+                val actual = objectValue?.get(discriminator) ?: continue
+                val matching = candidates.filter { alternative ->
+                    alternative["properties"]?.jsonObject
+                        ?.get(discriminator)?.jsonObject
+                        ?.get("const") == actual
+                }
+                if (matching.isNotEmpty()) candidates = matching
+            }
+            val violations = candidates.mapNotNull { alternative -> schemaViolation(value, alternative, path) }
+            if (violations.size == candidates.size) {
+                return "$path does not match any allowed compiler operation: " +
+                    violations.distinct().take(3).joinToString("; ")
+            }
+        }
+        schema["const"]?.let { expected ->
+            if (value != expected) return "$path must equal $expected, found $value"
+        }
+        (schema["enum"] as? JsonArray)?.let { allowed ->
+            if (value !in allowed) return "$path must be one of $allowed, found $value"
+        }
+        return when (schema["type"]?.jsonPrimitive?.contentOrNull) {
+            "object" -> {
+                val objectValue = value as? JsonObject ?: return "$path must be an object"
+                val properties = schema["properties"] as? JsonObject ?: JsonObject(emptyMap())
+                val required = (schema["required"] as? JsonArray)
+                    ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    .orEmpty()
+                required.firstOrNull { it !in objectValue }?.let { return "$path.$it is required" }
+                if (schema["additionalProperties"]?.jsonPrimitive?.booleanOrNull == false) {
+                    objectValue.keys.firstOrNull { it !in properties }?.let {
+                        return "$path.$it is not an allowed property"
+                    }
+                }
+                objectValue.entries.firstNotNullOfOrNull { (name, child) ->
+                    (properties[name] as? JsonObject)?.let {
+                        schemaViolation(child, it, "$path.$name")
+                    }
+                }
+            }
+            "array" -> {
+                val arrayValue = value as? JsonArray ?: return "$path must be an array"
+                schema["minItems"]?.jsonPrimitive?.intOrNull?.let { minimum ->
+                    if (arrayValue.size < minimum) return "$path must contain at least $minimum item(s)"
+                }
+                schema["maxItems"]?.jsonPrimitive?.intOrNull?.let { maximum ->
+                    if (arrayValue.size > maximum) return "$path must contain at most $maximum item(s)"
+                }
+                val itemSchema = schema["items"] as? JsonObject
+                if (itemSchema == null) null else arrayValue.withIndex().firstNotNullOfOrNull { (index, child) ->
+                    schemaViolation(child, itemSchema, "$path[$index]")
+                }
+            }
+            "string" -> if (value is JsonPrimitive && value.isString) null else "$path must be a string"
+            "integer" -> if (value is JsonPrimitive && value.intOrNull != null) null else "$path must be an integer"
+            "number" -> if (value is JsonPrimitive && value.doubleOrNull != null) null else "$path must be a number"
+            "boolean" -> if (value is JsonPrimitive && value.booleanOrNull != null) null else "$path must be a boolean"
+            null -> null
+            else -> "$path uses an unsupported schema type"
         }
     }
 

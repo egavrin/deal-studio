@@ -315,22 +315,65 @@ class CanonicalGeneratedAppCloudDeviceTest {
                 ?.let(DeepSeekGenerationModel::valueOf)
                 ?: DeepSeekGenerationModel.FLASH
             val directory = File(context.filesDir, "canonical-live").apply { mkdirs() }
+            var partialDeal = ""
+            var partialDealUi = ""
+            val started = SystemClock.elapsedRealtime()
+            val compilerTrace = StringBuilder()
+            val phaseTrace = StringBuilder()
             val compiler = CanonicalGeneratedAppCloudCompiler(
                 context = context,
                 apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
-                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY }
+                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY },
+                compilerToolTrace = { call ->
+                    compilerTrace.appendLine("${SystemClock.elapsedRealtime() - started}ms\t$call")
+                }
             )
-            var bundle = compiler.generate(
-                request = TETRIS_FOUNDATION_REQUEST,
-                dealModel = model,
-                dealUiModel = model
-            )
+            var bundle = loadCheckedTetrisFoundation(context, directory) ?: runCatching {
+                compiler.generate(
+                    request = TETRIS_FOUNDATION_REQUEST,
+                    dealModel = model,
+                    dealUiModel = model,
+                    onProgress = { phase, partial ->
+                        phaseTrace.appendLine("${SystemClock.elapsedRealtime() - started}ms\t$phase")
+                        when (phase) {
+                            CanonicalGenerationPhase.DEAL -> partialDeal = partial
+                            CanonicalGenerationPhase.DEAL_UI -> partialDealUi = partial
+                            else -> Unit
+                        }
+                    },
+                    onUiPreview = { preview -> partialDealUi = preview.dealUiSource }
+                )
+            }.getOrElse { failure ->
+                File(directory, "tetris-stage-0.failed.deal").writeText(partialDeal)
+                File(directory, "tetris-stage-0.failed.dealui").writeText(partialDealUi)
+                File(directory, "tetris-stage-0.failed.compiler-tools.log").writeText(compilerTrace.toString())
+                File(directory, "tetris-stage-0.failed.phases.log").writeText(phaseTrace.toString())
+                File(directory, "tetris-stage-0.failure.txt").writeText(failure.stackTraceToString())
+                throw AssertionError(
+                    buildString {
+                        appendLine(failure.stackTraceToString())
+                        appendLine("--- LAST CHECKED DEAL PROJECTION ---")
+                        appendLine(partialDeal)
+                        appendLine("--- LAST DEAL UI PROJECTION ---")
+                        appendLine(partialDealUi)
+                        appendLine("--- COMPILER TOOL TRACE ---")
+                        appendLine(compilerTrace)
+                        appendLine("--- PHASE TRACE ---")
+                        appendLine(phaseTrace)
+                    },
+                    failure
+                )
+            }
             validateRunnableBundle(context, bundle)
             writeSuccessfulArtifacts(directory, "tetris-stage-0", bundle, StringBuilder(), StringBuilder())
 
             val library = CanonicalGeneratedAppLibrary(context)
-            var record = library.save(bundle, "Tetris repair lab")
+            var record = library.save(bundle, "Tetris")
             val refinementRequests = listOf(
+                "Make horizontal movement clamp reliably at both board edges and reject occupied-cell collisions. " +
+                    "Replace only the smallest existing DEAL helper or update body; keep all other behavior and UI unchanged.",
+                "Make frame ticks, falling and pause or resume transitions deterministic. Preserve movement, scoring, " +
+                    "board declarations, controls and presentation.",
                 "Make completed-row detection and clearing reliable for multiple rows at once. " +
                     "Update only the smallest existing DEAL helper bodies needed; preserve controls and presentation.",
                 "Make rotation reject wall and occupied-cell collisions, and make spawn collision enter game over. " +
@@ -356,7 +399,7 @@ class CanonicalGeneratedAppCloudDeviceTest {
                     "Tetris stage ${index + 1} must change at least one canonical artifact",
                     previous.dealSource != bundle.dealSource || previous.dealUiSource != bundle.dealUiSource
                 )
-                record = library.update(record.id, bundle, "Tetris repair lab")
+                record = library.update(record.id, bundle, "Tetris")
                 writeSuccessfulArtifacts(
                     directory,
                     "tetris-stage-${index + 1}",
@@ -366,11 +409,100 @@ class CanonicalGeneratedAppCloudDeviceTest {
                 )
             }
 
-            assertEquals(4, record.revision)
+            assertEquals(6, record.revision)
             val restored = restoreCanonicalGeneratedApp(record, CanonicalDealToolchain(context))
             restored.program.validateInitialSurface(restored.initialState)
             assertSavedAppRenders(record)
         }
+    }
+
+    @Test
+    fun tetrisBoardVisualRefinementChangesOnlyDealUi() {
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val model = InstrumentationRegistry.getArguments().getString("benchmark_model")
+                ?.let(DeepSeekGenerationModel::valueOf)
+                ?: DeepSeekGenerationModel.FLASH
+            val directory = File(context.filesDir, "canonical-live")
+            val original = requireNotNull(loadCheckedTetrisStage(context, directory, 5)) {
+                "Run tetrisDevelopsThroughSmallCanonicalRevisions first"
+            }
+
+            val refinement = CanonicalGeneratedAppRefiner(
+                context = context,
+                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY }
+            ).refine(
+                bundle = original,
+                request = "Make each board tile visibly reflect its Cell item: bind occupied state and color to the " +
+                    "tile instead of rendering every dynamic collection item identically. Keep the DEAL program and " +
+                    "all unrelated UI nodes unchanged.",
+                dealModel = model,
+                dealUiModel = model
+            )
+
+            assertEquals(original.dealSource, refinement.bundle.dealSource)
+            assertTrue(refinement.changedDealUi)
+            validateRunnableBundle(context, refinement.bundle)
+            writeSuccessfulArtifacts(
+                directory,
+                "tetris-stage-6",
+                refinement.bundle,
+                StringBuilder(),
+                StringBuilder()
+            )
+            val library = CanonicalGeneratedAppLibrary(context)
+            val saved = library.loadRecords().firstOrNull { it.title == "Tetris" }
+                ?: library.save(original, "Tetris")
+            library.update(saved.id, refinement.bundle, "Tetris")
+        }
+    }
+
+    private fun loadCheckedTetrisFoundation(
+        context: android.content.Context,
+        directory: File
+    ): CanonicalGeneratedAppBundle? {
+        return loadCheckedTetrisStage(context, directory, 0)
+    }
+
+    private fun loadCheckedTetrisStage(
+        context: android.content.Context,
+        directory: File,
+        stage: Int
+    ): CanonicalGeneratedAppBundle? {
+        val dealFile = File(directory, "tetris-stage-$stage.deal")
+        val dealUiFile = File(directory, "tetris-stage-$stage.dealui")
+        if (!dealFile.isFile || !dealUiFile.isFile) return null
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = canonicalDealWithPlatformAbi(dealFile.readText())
+        val dealUi = dealUiFile.readText()
+        val checkedUiIr = toolchain.compilePortable(deal, dealUi, CanonicalDealUiPack.source)
+        toolchain.createRuntime(deal).snapshot()
+        return CanonicalGeneratedAppBundle(
+            request = TETRIS_FOUNDATION_REQUEST,
+            appInterface = toolchain.extractAppInterface(deal),
+            dealGraphLog = "restored compiler-accepted Tetris foundation",
+            dealUiGraphLog = "restored compiler-accepted Tetris foundation",
+            dealSource = deal,
+            dealUiSource = dealUi,
+            checkedUiIr = checkedUiIr,
+            dealLatencyMs = 0,
+            dealUiLatencyMs = 0,
+            wallLatencyMs = 0,
+            dealTimeToFirstPatchMs = null,
+            dealUiTimeToFirstTokenMs = null,
+            validationLatencyMs = 0,
+            repairLatencyMs = 0,
+            repairPasses = 0,
+            dealGraphRounds = 0,
+            dealUiGraphRounds = 0,
+            dealAcceptedPatches = 0,
+            dealRejectedPatches = 0,
+            dealTypedHoles = 0,
+            dealInputTokens = 0,
+            dealCachedInputTokens = 0,
+            dealOutputTokens = 0
+        )
     }
 
     private fun validateRunnableBundle(

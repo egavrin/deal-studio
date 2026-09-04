@@ -153,6 +153,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -479,7 +480,7 @@ private fun CanonicalDealUiProgram.validateAppTheme() {
         fun literal(name: String): String = ((theme.arguments.getValue(name) as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)
             ?.contentOrNull
             ?: error("AppTheme $name must be a static string literal")
-        GeneratedAppThemeSpec.validated(
+        GeneratedAppThemeSpec.DEFAULT.withRuntimeValues(
             primary = literal("primary"),
             secondary = literal("secondary"),
             style = literal("style"),
@@ -716,7 +717,10 @@ private fun RenderCall(
             content = { children(Modifier) }
         )
 
-        "Row" -> if (value("wrap").asBoolean(default = true)) {
+        "Row" -> if (
+            value("wrap").asBoolean(default = true) &&
+            call.children.none { it.requiresBoundedLayout() }
+        ) {
             FlowRow(
                 modifier = modifier.fillMaxWidth().padding(padding),
                 horizontalArrangement = horizontalArrangement(value("horizontal").asString(), spacing),
@@ -729,6 +733,19 @@ private fun RenderCall(
                         Modifier
                     }
                     CanonicalNode(program, state, scope, child, onAction, childModifier)
+                }
+            }
+        } else if (
+            value("wrap").asBoolean(default = true) &&
+            LocalConfiguration.current.screenWidthDp < ADAPTIVE_ROW_BREAKPOINT_DP
+        ) {
+            Column(
+                modifier = modifier.fillMaxWidth().padding(padding),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+                horizontalAlignment = horizontalAlignment(value("horizontal").asString()),
+            ) {
+                call.children.forEach { child ->
+                    CanonicalNode(program, state, scope, child, onAction, Modifier.fillMaxWidth())
                 }
             }
         } else {
@@ -755,9 +772,10 @@ private fun RenderCall(
         }
 
         "Grid" -> BoxWithConstraints(modifier.fillMaxWidth().padding(padding)) {
-            val maximumColumns = value("columns").asInt().coerceIn(1, 8)
+            val maximumColumns = value("columns").asInt().coerceIn(1, 64)
             val minimumCellWidth = value("minimumCellWidth").asInt().coerceAtLeast(0)
             val cellAspectRatio = value("cellAspectRatio").asFloat().takeIf { it > 0f }
+                ?: if (call.children.all { it.containsOnlyTileContent() }) 1f else null
             val columns = if (minimumCellWidth > 0) {
                 (maxWidth.value / minimumCellWidth).toInt().coerceIn(1, maximumColumns)
             } else {
@@ -921,7 +939,13 @@ private fun RenderCall(
             Surface(
                 modifier = modifier
                     .fillMaxWidth()
-                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .then(
+                        if (clickAction != null) {
+                            Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .onSizeChanged { tileSize = it }
                     .then(if (clickAction != null) Modifier.clickable { emit("onClick", null) } else Modifier)
                     .semantics { contentDescription = label },
@@ -2122,6 +2146,20 @@ private val UNICODE_GLYPH_ESCAPE = Regex("""\\u([0-9A-Fa-f]{4})""")
 
 private fun CanonicalUiNode.expandsInRow(): Boolean = this is CanonicalUiNode.Call &&
     name.substringAfterLast('.') in ROW_EXPANDING_COMPONENTS
+
+private fun CanonicalUiNode.requiresBoundedLayout(): Boolean = containsCall("Grid")
+
+private fun CanonicalUiNode.containsOnlyTileContent(): Boolean = when (this) {
+    is CanonicalUiNode.Call ->
+        name.substringAfterLast('.') == "Tile" || children.isNotEmpty() && children.all { it.containsOnlyTileContent() }
+    is CanonicalUiNode.ForEach -> children.isNotEmpty() && children.all { it.containsOnlyTileContent() }
+    is CanonicalUiNode.When ->
+        (thenNodes.isNotEmpty() && thenNodes.all { it.containsOnlyTileContent() }) &&
+            (elseNodes.isEmpty() || elseNodes.all { it.containsOnlyTileContent() })
+    is CanonicalUiNode.Scope -> children.isNotEmpty() && children.all { it.containsOnlyTileContent() }
+}
+
+private const val ADAPTIVE_ROW_BREAKPOINT_DP = 600
 
 private val ROW_EXPANDING_COMPONENTS = setOf(
     "Card",
