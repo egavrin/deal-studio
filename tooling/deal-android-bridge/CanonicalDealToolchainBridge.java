@@ -1,14 +1,5 @@
 package com.offlineassistant.dealtoolchain;
 
-import deal.ast.ArrayType;
-import deal.ast.ClassDeclaration;
-import deal.ast.ClassField;
-import deal.ast.ExportDeclaration;
-import deal.ast.FunctionDeclaration;
-import deal.ast.NamedType;
-import deal.ast.ProgramNode;
-import deal.ast.StatementNode;
-import deal.ast.TypeNode;
 import deal.checker.CheckResult;
 import deal.checker.ModuleResolver;
 import deal.checker.NameResolver;
@@ -41,8 +32,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.ArrayList;
 
 /** Android reflection boundary for the pinned production Deal and Deal UI frontends. */
@@ -51,8 +40,6 @@ public final class CanonicalDealToolchainBridge {
     private static final Path UI_FILE = Path.of("/generated/app.dealui");
     private static final Path PACK_FILE = Path.of("/generated/platform-ui.dealui-pack");
     private static final String PACK_SPECIFIER = "./platform-ui.dealui-pack";
-    private static final Pattern CAPABILITY = Pattern.compile(
-            "(?m)^\\s*//\\s*generated-capability:\\s*([a-z][a-z0-9.]*)\\s*$");
     /**
      * Compiler-visible declarations for the small, deterministic host surface implemented by
      * {@link CanonicalDealRuntime}. They are appended so diagnostics keep the generated source's
@@ -194,62 +181,15 @@ public final class CanonicalDealToolchainBridge {
     public static String extractAppInterface(String dealSource) {
         requireText(dealSource, "app.deal");
         validateDealForUi(dealSource);
-        ParseResult parsed = new Parser(
-                new Lexer(normalizeDirectives(dealSource), DEAL_FILE.toString()).tokenize().tokens(),
-                DEAL_FILE.toString()).parse();
-        Map<String, ClassDeclaration> classes = new LinkedHashMap<>();
-        List<FunctionDeclaration> functions = new java.util.ArrayList<>();
-        for (StatementNode statement : parsed.program().statements()) {
-            StatementNode declaration = statement instanceof ExportDeclaration export
-                    ? export.declaration()
-                    : statement;
-            if (declaration instanceof ClassDeclaration value) classes.put(value.name(), value);
-            if (declaration instanceof FunctionDeclaration value) functions.add(value);
-        }
-        FunctionDeclaration initial = functions.stream()
-                .filter(function -> "initialState".equals(function.name()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("app.deal does not export initialState()"));
-        String rootState = typeName(initial.returnType());
-        if (!classes.containsKey(rootState)) {
-            throw new IllegalArgumentException("initialState() return type is not a generated class: " + rootState);
-        }
-        Set<String> actionNames = new LinkedHashSet<>();
-        for (FunctionDeclaration function : functions) {
-            if (function.params().size() != 2 || "initialState".equals(function.name())) continue;
-            String stateType = typeName(function.params().get(0).type());
-            String actionType = typeName(function.params().get(1).type());
-            if (rootState.equals(stateType) && rootState.equals(typeName(function.returnType()))) {
-                actionNames.add(actionType);
-            }
-        }
-        if (actionNames.isEmpty()) {
-            throw new IllegalArgumentException("app.deal does not expose any generated UI action");
-        }
-        for (String actionName : actionNames) {
-            if (!classes.containsKey(actionName)) {
-                throw new IllegalArgumentException("UI action type is not a generated class: " + actionName);
-            }
-        }
-
-        StringBuilder out = new StringBuilder(2048);
-        out.append('{');
-        jsonField(out, "version", "app-interface-v1");
-        out.append(',');
-        jsonField(out, "root_state", rootState);
-        out.append(',').append("\"types\":");
-        appendTypes(out, classes, actionNames, false);
-        out.append(',').append("\"actions\":");
-        appendTypes(out, classes, actionNames, true);
-        out.append(',').append("\"capabilities\":[");
-        Matcher matcher = CAPABILITY.matcher(dealSource);
-        boolean first = true;
-        while (matcher.find()) {
-            if (!first) out.append(',');
-            jsonString(out, matcher.group(1));
-            first = false;
-        }
-        return out.append("]}").toString();
+        var snapshot = CanonicalCompiler.extractAppInterface(dealSource);
+        if (snapshot == null) throw new IllegalArgumentException("app.deal has no AppInterface");
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("version", "app-interface-v1");
+        result.put("root_state", snapshot.rootState());
+        result.put("types", interfaceTypes(snapshot.types()));
+        result.put("actions", interfaceTypes(snapshot.actions()));
+        result.put("capabilities", snapshot.capabilities());
+        return CompilerProtocolJson.encode(result);
     }
 
     public static Object createRuntime(String dealSource) {
@@ -360,61 +300,12 @@ public final class CanonicalDealToolchainBridge {
         requireNoErrors("Deal type checker", checked.diagnostics());
     }
 
-    private static void appendTypes(
-            StringBuilder out,
-            Map<String, ClassDeclaration> classes,
-            Set<String> actionNames,
-            boolean actions) {
-        out.append('[');
-        boolean firstType = true;
-        for (ClassDeclaration declaration : classes.values()) {
-            if (actionNames.contains(declaration.name()) != actions) continue;
-            if (!firstType) out.append(',');
-            out.append('{');
-            jsonField(out, "name", declaration.name());
-            out.append(',').append("\"fields\":[");
-            boolean firstField = true;
-            for (ClassField field : declaration.fields()) {
-                if (!firstField) out.append(',');
-                out.append('{');
-                jsonField(out, "name", field.name());
-                out.append(',');
-                jsonField(out, "type", typeName(field.type()));
-                out.append('}');
-                firstField = false;
-            }
-            out.append("]}");
-            firstType = false;
-        }
-        out.append(']');
-    }
-
-    private static String typeName(TypeNode type) {
-        if (type instanceof NamedType named) return named.name();
-        if (type instanceof ArrayType array) return typeName(array.elementType()) + "[]";
-        throw new IllegalArgumentException("Generated app contract uses unsupported type: " + type);
-    }
-
-    private static void jsonField(StringBuilder out, String name, String value) {
-        jsonString(out, name);
-        out.append(':');
-        jsonString(out, value);
-    }
-
-    private static void jsonString(StringBuilder out, String value) {
-        out.append('"');
-        for (int index = 0; index < value.length(); index++) {
-            char current = value.charAt(index);
-            switch (current) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                default -> out.append(current);
-            }
-        }
-        out.append('"');
+    private static List<Map<String, Object>> interfaceTypes(
+            List<deal.compiler.CompilerProtocol.TypeSnapshot> values) {
+        return values.stream().map(type -> Map.<String, Object>of(
+                "name", type.name(),
+                "fields", type.fields().stream().map(field -> Map.of(
+                        "name", field.name(), "type", field.type())).toList())).toList();
     }
 
     private static String compilerSource(String source) {
@@ -502,6 +393,9 @@ public final class CanonicalDealToolchainBridge {
             String name = CompilerProtocolJson.stringField(operation, "operation");
             SemanticId target = new SemanticId(CompilerProtocolJson.stringField(operation, "targetId"));
             result.add(switch (name) {
+                case UiCompilerWorkspace.ADD_VIEW -> new UiCompilerWorkspace.AddView(
+                        target, CompilerProtocolJson.stringField(operation, "source"));
+                case UiCompilerWorkspace.REMOVE_VIEW -> new UiCompilerWorkspace.RemoveView(target);
                 case UiCompilerWorkspace.REPLACE_VIEW_BODY -> new UiCompilerWorkspace.ReplaceViewBody(
                         target, CompilerProtocolJson.stringField(operation, "body"));
                 case UiCompilerWorkspace.REPLACE_SUBTREE -> new UiCompilerWorkspace.ReplaceSubtree(

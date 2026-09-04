@@ -59,7 +59,11 @@ internal data class CanonicalGeneratedAppBundle(
     val firstInteractivePreviewMs: Long? = null,
     val dealModelId: String = "deepseek-chat",
     val dealUiModelId: String = "deepseek-chat",
-    val promptDigest: String = ""
+    val promptDigest: String = "",
+    val compilerProtocolVersion: String = "compiler-protocol-v2",
+    val agentSurfaceVersion: String = "legacy-greenfield-v1",
+    val agentSurfaceBytes: Int = 0,
+    val agentSurfaceEstimatedTokens: Int = 0
 )
 
 internal enum class CanonicalGenerationPhase {

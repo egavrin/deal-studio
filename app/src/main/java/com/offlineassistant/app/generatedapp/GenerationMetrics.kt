@@ -111,3 +111,9 @@ internal fun formatGenerationRate(tokensPerSecond: Double?): String = tokensPerS
     ?.takeIf { it.isFinite() && it > 0.0 }
     ?.let { String.format(Locale.US, "%.1f tok/s", it) }
     ?: "\u2014"
+
+internal fun formatGenerationBytes(bytes: Int): String = when {
+    bytes <= 0 -> "\u2014"
+    bytes < 1_024 -> "$bytes B"
+    else -> String.format(Locale.US, "%.1f KB", bytes / 1_024.0)
+}

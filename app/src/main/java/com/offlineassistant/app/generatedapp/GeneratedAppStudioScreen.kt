@@ -528,7 +528,7 @@ private fun GenerationDetails(bundle: CanonicalGeneratedAppBundle) {
             GenerationSummary(metrics)
             GenerationStageCards(metrics)
             GenerationTokenGrid(metrics)
-            GenerationCompilerSummary(metrics)
+            GenerationCompilerSummary(bundle, metrics)
             Text(
                 "${bundle.dealModelId} for DEAL · ${bundle.dealUiModelId} for Deal UI · pack ${CanonicalDealUiPack.VERSION}",
                 style = MaterialTheme.typography.bodySmall,
@@ -692,7 +692,10 @@ private fun GenerationTokenGrid(metrics: CanonicalGenerationMetrics) {
 }
 
 @Composable
-private fun GenerationCompilerSummary(metrics: CanonicalGenerationMetrics) {
+private fun GenerationCompilerSummary(
+    bundle: CanonicalGeneratedAppBundle,
+    metrics: CanonicalGenerationMetrics
+) {
     Surface(
         Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -715,6 +718,21 @@ private fun GenerationCompilerSummary(metrics: CanonicalGenerationMetrics) {
                 Text(
                     "Validation ${formatGenerationDuration(metrics.validationDurationMs)} · " +
                         "${metrics.repairPasses} repairs · ${metrics.typedHoles} typed holes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.74f)
+                )
+                HorizontalDivider(
+                    Modifier.padding(vertical = 6.dp),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.14f)
+                )
+                Text(
+                    "Protocol ${bundle.compilerProtocolVersion.removePrefix("compiler-protocol-")} · " +
+                        "Surface ${bundle.agentSurfaceVersion.removePrefix("agent-surface-")}",
+                    style = MaterialTheme.typography.labelMedium
+                )
+                Text(
+                    "Agent context ${formatGenerationBytes(bundle.agentSurfaceBytes)} · " +
+                        "~${formatGenerationTokens(bundle.agentSurfaceEstimatedTokens)} tokens",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.74f)
                 )

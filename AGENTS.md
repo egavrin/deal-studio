@@ -54,6 +54,22 @@ Compose only renders checked portable Deal UI IR and sends typed events back to 
 
 Cloud generation is sequential and compiler-guided:
 
+The rich `compiler-protocol-v2` API is an internal capability surface. Models never receive its full
+schema, graph, source or identifier set. The Java generation engine asks the transpilers for a
+step-specific `agent-surface-v2` containing short revision-scoped aliases, minimal semantic slices,
+the currently legal operations and stable structured diagnostics. A write is legal only after the
+target was queried in the current source revision and carries compiler-issued source and target
+fingerprints. Accepted writes expire all aliases. Stale aliases, digests and fingerprints are
+rejected before candidate mutation.
+
+Refinement uses this v2 protocol in production. During cutover, the engine also applies each
+authorized ChangeSet through the unguarded v1 API in shadow and records parity; a precondition
+failure is never shadow-applied. The old greenfield graph protocol described below is a temporary
+migration adapter only. It may remain runnable while upstream typed-hole generation is completed,
+but it must not gain new semantics, source scanners, repair heuristics or product features. The
+migration is not complete until initial DEAL and Deal UI generation use the same compiler-owned v2
+workspace and the Kotlin graph compilers are deleted.
+
 1. The selected cloud model calls `submit_deal_program` once with nominal types, external actions, reusable helper
    signatures, capabilities and every compact function body. The model does not select a separate
    root-state name; the compiler infers the unique root from nominal type references.

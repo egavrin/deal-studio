@@ -21,30 +21,33 @@ class CanonicalDealToolchainDeviceTest {
     fun portableStreamingCompilerOwnsRepairScopeOnDevice() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
-        val inspection = toolchain.inspectCanonicalApp(POINTER_SOURCE, POINTER_UI, CanonicalDealUiPack.source)
-        val dealInspection = inspection.getValue("deal").jsonObject
-        val handlerId = dealInspection.getValue("symbols").jsonArray
-            .map { it.jsonObject }
-            .single { it.getValue("name").jsonPrimitive.content == "onPointer" }
-            .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
-        val bodyId = dealInspection.getValue("nodes").jsonArray
-            .map { it.jsonObject }
-            .single {
-                it.getValue("kind").jsonPrimitive.content == "function-body" &&
-                    it.getValue("ownerId").jsonObject.getValue("value").jsonPrimitive.content == handlerId
-            }
-            .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
         val session = toolchain.createRefinementSession(
             POINTER_SOURCE,
             POINTER_UI,
             CanonicalDealUiPack.source,
             "Offset the pointer x coordinate by one"
         )
+        val request = session.nextRequest()
+        val input = kotlinx.serialization.json.Json.parseToJsonElement(
+            request.getValue("input").jsonPrimitive.content
+        ).jsonObject
+        val dealSurface = input.getValue("deal").jsonObject
+        val handler = dealSurface.getValue("symbols").jsonArray
+            .map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "onPointer" }
+            .getValue("target").jsonPrimitive.content
+        val body = dealSurface.getValue("nodes").jsonArray
+            .map { it.jsonObject }
+            .single {
+                it.getValue("kind").jsonPrimitive.content == "function-body" &&
+                    it.getValue("owner").jsonPrimitive.content == handler
+            }
+            .getValue("target").jsonPrimitive.content
 
-        session.acceptToolCall("query_deal_node", buildJsonObject { put("targetId", bodyId) }.toString())
+        session.acceptToolCall("query_deal_node", buildJsonObject { put("target", body) }.toString())
         val repair = session.acceptToolCall(
             "apply_deal_changes",
-            changeArguments(bodyId, "return missing;")
+            changeArguments(body, "return missing;")
         )
 
         val repairToolNames = repair.getValue("tools").jsonArray.map {
@@ -54,12 +57,53 @@ class CanonicalDealToolchainDeviceTest {
 
         val result = session.acceptToolCall(
             "apply_deal_changes",
-            changeArguments(bodyId, "return { x: action.x + 1, y: action.y, phase: action.phase };")
+            changeArguments(body, "return { x: action.x + 1, y: action.y, phase: action.phase };")
         )
 
         assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
         assertTrue(result.getValue("deal").jsonPrimitive.content.contains("action.x + 1"))
         assertEquals(POINTER_UI, result.getValue("dealUi").jsonPrimitive.content)
+    }
+
+    @Test
+    fun portableStreamingCompilerAddsACompilerOwnedViewOnDevice() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val session = toolchain.createRefinementSession(
+            POINTER_SOURCE,
+            POINTER_UI,
+            CanonicalDealUiPack.source,
+            "Add a compact read-only detail view"
+        )
+        val queried = session.acceptToolCall(
+            "query_deal_ui_document",
+            buildJsonObject { put("target", "D1") }.toString()
+        )
+        assertTrue(queried.getValue("tools").jsonArray.any {
+            it.jsonObject.getValue("name").jsonPrimitive.content == "apply_deal_ui_changes"
+        })
+
+        val result = session.acceptToolCall(
+            "apply_deal_ui_changes",
+            buildJsonObject {
+                putJsonArray("operations") {
+                    add(buildJsonObject {
+                        put("operation", "addView")
+                        put("target", "D1")
+                        put(
+                            "source",
+                            "export view Detail(state: app.PointerState): View { " +
+                                "ui.Text(value: \"Pointer details\") }"
+                        )
+                    })
+                }
+                put("final", true)
+            }.toString()
+        )
+
+        assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
+        assertTrue(result.getValue("dealUi").jsonPrimitive.content.contains("export view Detail"))
+        assertEquals(POINTER_SOURCE, result.getValue("deal").jsonPrimitive.content)
     }
 
     @Test
@@ -340,11 +384,11 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     private companion object {
-        fun changeArguments(targetId: String, body: String): String = buildJsonObject {
+        fun changeArguments(target: String, body: String): String = buildJsonObject {
             putJsonArray("operations") {
                 add(buildJsonObject {
                     put("operation", "replaceFunctionBody")
-                    put("targetId", targetId)
+                    put("target", target)
                     put("body", body)
                 })
             }

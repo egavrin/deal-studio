@@ -53,6 +53,10 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val dealUiOutputTokens: Int = 0,
     val dealUiAcceptedPatches: Int = 0,
     val firstInteractivePreviewMs: Long? = null,
+    val compilerProtocolVersion: String = "compiler-protocol-v1",
+    val agentSurfaceVersion: String = "legacy-greenfield-v1",
+    val agentSurfaceBytes: Int = 0,
+    val agentSurfaceEstimatedTokens: Int = 0,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -132,7 +136,11 @@ internal fun restoreCanonicalGeneratedApp(
         firstInteractivePreviewMs = record.firstInteractivePreviewMs,
         dealModelId = record.dealModelId,
         dealUiModelId = record.dealUiModelId,
-        promptDigest = record.promptDigest
+        promptDigest = record.promptDigest,
+        compilerProtocolVersion = record.compilerProtocolVersion,
+        agentSurfaceVersion = record.agentSurfaceVersion,
+        agentSurfaceBytes = record.agentSurfaceBytes,
+        agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
@@ -261,6 +269,10 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         dealUiOutputTokens = bundle.dealUiOutputTokens,
         dealUiAcceptedPatches = bundle.dealUiAcceptedPatches,
         firstInteractivePreviewMs = bundle.firstInteractivePreviewMs,
+        compilerProtocolVersion = bundle.compilerProtocolVersion,
+        agentSurfaceVersion = bundle.agentSurfaceVersion,
+        agentSurfaceBytes = bundle.agentSurfaceBytes,
+        agentSurfaceEstimatedTokens = bundle.agentSurfaceEstimatedTokens,
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = System.currentTimeMillis(),
         revision = revision,

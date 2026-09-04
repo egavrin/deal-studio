@@ -171,25 +171,11 @@ internal class CanonicalDealToolchain(
                 String::class.java
             ).invoke(null, dealSource, dealUiSource, packSource) as String
         } catch (failure: InvocationTargetException) {
-            val message = failure.targetException.message ?: "Canonical Deal UI compilation failed"
             throw IllegalArgumentException(
-                message + dealUiDiagnosticContext(message, dealUiSource),
+                failure.targetException.message ?: "Canonical Deal UI compilation failed",
                 failure
             )
         }
-    }
-
-    private fun dealUiDiagnosticContext(message: String, source: String): String {
-        val location = Regex("/generated/app\\.dealui:(\\d+):(\\d+)").find(message) ?: return ""
-        val lineNumber = location.groupValues[1].toIntOrNull() ?: return ""
-        val column = location.groupValues[2].toIntOrNull() ?: return ""
-        val line = source.lineSequence().drop(lineNumber - 1).firstOrNull() ?: return ""
-        val guidance = if ("UI2020" in message || "UI2031" in message) {
-            "\nHint: Deal UI never coerces numbers to strings. Use ui.IntText(value: number, prefix: \"...\", suffix: \"...\", minimumDigits: 1), or separate Text and IntText nodes."
-        } else {
-            ""
-        }
-        return "\n${lineNumber.toString().padStart(4)} | $line\n     | ${" ".repeat((column - 1).coerceAtLeast(0))}^$guidance"
     }
 
     fun createRuntime(dealSource: String): CanonicalDealRuntimeSession {
@@ -244,10 +230,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "a80b9c0d55ad3aa4421e9d76425c3d2bdc4dde2edc98957b337a59d7efe44d09"
-        const val DEAL_REVISION = "dec8cf9280af0f17d447d6ebfb3c51932b86cb9a"
-        const val DEAL_UI_REVISION = "2d5103771586b78265c01173fb712fe429302fd4"
-        const val STREAMING_COMPILER_REVISION = "5796528e2bd1f74f209067330bd651503735adb8"
+        const val ARTIFACT_SHA256 = "bdc2bd3cad6bb57e3278d2df74371482bbb28178abe430c4412cf880fb2dbc9f"
+        const val DEAL_REVISION = "b436bdadb1372dd890331b5922c33d0715195eaf"
+        const val DEAL_UI_REVISION = "4ca8671256015dde247328c6db13c48ed2264074"
+        const val STREAMING_COMPILER_REVISION = "e2851a4021efdcc60347bd00cfa52dacbca2e224"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"

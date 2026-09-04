@@ -55,9 +55,11 @@ internal class CanonicalGeneratedAppRefiner(
         val metrics = RefinementMetrics()
 
         while (protocol.status() == "request") {
+            metrics.recordSurface(protocol)
             val tools = protocol.functionTools()
             val usesDealModel = tools.any { tool ->
                 tool.name == "query_deal_symbol" ||
+                    tool.name == "query_deal_module" ||
                     tool.name == "query_deal_node" ||
                     tool.name == "apply_deal_changes"
             }
@@ -160,7 +162,14 @@ internal class CanonicalGeneratedAppRefiner(
                 dealUiCachedInputTokens = metrics.dealUiCachedInputTokens,
                 dealUiOutputTokens = metrics.dealUiOutputTokens,
                 firstInteractivePreviewMs = wallLatencyMs,
-                promptDigest = sha256(bundle.promptDigest + "\u0000" + request)
+                promptDigest = sha256(bundle.promptDigest + "\u0000" + request),
+                compilerProtocolVersion = canonical["inspection"]?.jsonObject
+                    ?.get("deal")?.jsonObject
+                    ?.get("protocolVersion")?.jsonPrimitive?.contentOrNull
+                    ?: "compiler-protocol-v2",
+                agentSurfaceVersion = "agent-surface-v2",
+                agentSurfaceBytes = metrics.agentSurfaceBytes,
+                agentSurfaceEstimatedTokens = metrics.agentSurfaceEstimatedTokens
             ),
             changedDeal = changedDeal,
             changedDealUi = changedDealUi
@@ -179,7 +188,14 @@ internal class CanonicalGeneratedAppRefiner(
 
 private enum class Artifact { DEAL, DEAL_UI }
 
-private val QUERY_TOOLS = setOf("query_deal_symbol", "query_deal_node", "query_deal_ui_node")
+private val QUERY_TOOLS = setOf(
+    "query_deal_module",
+    "query_deal_symbol",
+    "query_deal_node",
+    "query_deal_ui_document",
+    "query_deal_ui_view",
+    "query_deal_ui_node"
+)
 
 private fun List<com.offlineassistant.deepseek.DeepSeekFunctionCall>.isValidCompilerBatch(): Boolean =
     size == 1 || (isNotEmpty() && all { it.name in QUERY_TOOLS })
@@ -203,6 +219,15 @@ private class RefinementMetrics {
     var dealUiInputTokens = 0
     var dealUiCachedInputTokens = 0
     var dealUiOutputTokens = 0
+    var agentSurfaceBytes = 0
+    var agentSurfaceEstimatedTokens = 0
+
+    fun recordSurface(protocol: JsonObject) {
+        val surface = protocol["surfaceMetrics"]?.jsonObject ?: return
+        agentSurfaceBytes += (surface["inputBytes"]?.jsonPrimitive?.intOrNull ?: 0) +
+            (surface["toolSchemaBytes"]?.jsonPrimitive?.intOrNull ?: 0)
+        agentSurfaceEstimatedTokens += surface["approxInputTokens"]?.jsonPrimitive?.intOrNull ?: 0
+    }
 
     fun recordModelRound(
         artifact: Artifact,
