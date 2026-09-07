@@ -156,8 +156,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -582,6 +582,8 @@ private fun RenderCall(
     val name = call.name.substringAfterLast('.')
     val value = { key: String -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) } }
     val visuals = LocalGeneratedAppVisuals.current
+    val density = LocalDensity.current
+    val containerSize = LocalWindowInfo.current.containerSize
     val spacing = (value("spacing").tokenInt() * visuals.densityScale).dp
     val padding = (value("padding").tokenInt() * visuals.densityScale).dp
     val action = { key: String -> call.arguments[key] as? CanonicalUiExpr.Action }
@@ -664,7 +666,7 @@ private fun RenderCall(
             }
         } else if (
             value("wrap").asBoolean(default = true) &&
-            LocalConfiguration.current.screenWidthDp < ADAPTIVE_ROW_BREAKPOINT_DP
+            containerSize.width < with(density) { ADAPTIVE_ROW_BREAKPOINT_DP.dp.roundToPx() }
         ) {
             Column(
                 modifier = modifier.fillMaxWidth().padding(padding),
@@ -757,7 +759,7 @@ private fun RenderCall(
         "Scroll" -> {
             val viewport = LocalCanonicalViewportHeight.current
                 .takeIf { it.value.isFinite() && it.value > 0f }
-                ?: LocalConfiguration.current.screenHeightDp.coerceAtLeast(1).dp
+                ?: with(density) { containerSize.height.coerceAtLeast(1).toDp() }
             // Studio previews and nested scroll content can supply an unbounded height.
             BoxWithConstraints(modifier.fillMaxWidth().padding(padding)) {
                 val limit = if (constraints.hasBoundedHeight) maxHeight else viewport
