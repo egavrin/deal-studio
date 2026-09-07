@@ -1,100 +1,157 @@
 # DEAL Studio
 
-DEAL Studio is an Android application that generates small interactive applications from a natural
-language brief. DeepSeek authors a typed DEAL behaviour program and a pure Deal UI view; the app
-compiles both with a pinned production toolchain and renders the checked result with native Compose.
+DEAL Studio is an Android environment for generating, running, refining and saving small interactive
+applications from a natural-language request. Generated behavior is written in DEAL, presentation is
+written in Deal UI, and only compiler-checked canonical applications reach the native Compose
+runtime.
 
-The former offline voice assistant has been removed from the product APK. Its complete pre-split
-workspace is preserved on `egavrin/assistant-backup-2026-09-03`.
+Examples include utilities, trackers, widgets, dashboards and small touch-controlled games. The
+system is intentionally general: production code must not contain branches, components or validators
+specialized for acceptance scenarios.
+
+> **Status:** internal alpha. Canonical generation, native rendering, persistence, fullscreen and
+> home-screen surfaces exist. Generation reliability, repair quality, latency and visual acceptance
+> are still under active validation; this is not a production release.
 
 ## Product Flow
 
 ```text
-user brief
-   |
-   v
-DeepSeek compiler tools
-   |
-   +-- create_deal_program       nominal state, actions, helpers, capabilities
-   +-- apply_deal_graph_patch    batched typed function-body fills
-   |
-   v
-production-checked app.deal
-   |
-   v
-extracted read-only AppInterfaceV1
-   |
-   v
-DeepSeek Deal UI compiler tool
-   |
-   v
-checked app.dealui -> portable IR -> native Compose
-   |
-   v
-interactive runtime / local saved-app library
-   |
-   +-- dedicated generated-app screen and pinned app icon
-   +-- adaptive interactive home-screen widget
+natural-language request
+  -> DEAL Streaming Compiler
+  -> compact compiler-owned Agent Surface
+  -> selected cloud model calls DEAL construction API
+  -> production-checked app.deal
+  -> compiler-extracted AppInterface
+  -> selected cloud model calls Deal UI construction API
+  -> production-checked app.dealui
+  -> checked portable UI IR
+  -> native Compose renderer + bounded DEAL runtime
+  -> preview, fullscreen app, saved library and home-screen widget
 ```
 
-DEAL owns state and behaviour. Deal UI owns presentation and typed event bindings. There is no
-generated planner file, JSON AST or application template. Compiler tools accept compact semantic
-units and reject invalid updates before they become runnable.
+The model calls a narrow compiler API rather than submitting a JSON application plan or arbitrary
+Android code. DEAL and Deal UI compilers own semantic validation and diagnostics. Studio orchestrates
+provider calls, stores canonical sources, runs the accepted behavior and renders checked UI.
+
+At runtime no LLM request is required:
+
+```text
+Compose control -- nominal action --> DEAL handler
+DEAL handler -- replacement AppState --> Compose recomposition
+```
 
 ## Current Capabilities
 
-- DeepSeek Flash and Pro can be selected independently for behaviour and UI; Flash is the default
-  for a fresh installation.
-- The cloud path generates DEAL first and Deal UI second from the exact verified interface.
-- Canonical applications run in a sandboxed native Compose renderer.
-- Fullscreen mode uses the same runtime and preserves state when returning to Studio.
-- Canonical `app.deal` and `app.dealui` can be saved with provenance and recompiled on restore.
-- Saved applications have live, noninteractive previews and reopen as interactive runtimes.
-- A saved canonical app can be added to the Android home screen as an app icon or an interactive,
-  resizable widget. Both use the same checked DEAL handlers and source-bound durable state.
-- One natural-language refinement request is routed to narrow behaviour and UI edit agents; the
-  previous app remains active unless the complete revision validates.
-- Generic Deal UI pack v10 includes adaptive layout, semantic text/list/stat/status components,
-  controls, icons, HTTPS images, progress, navigation surfaces, overlays, clock and canvas input.
-- The local llama.cpp runtime remains available for future Gemma/Qwen evaluation; local model files
-  are not bundled in the APK.
+- Sequential canonical generation: DEAL behavior first, Deal UI second against the exact extracted
+  AppInterface.
+- Independent model selection for behavior and UI.
+- DeepSeek Flash and Pro providers.
+- Cerebras Qwen 27B and GPT-OSS 120B providers.
+- Compiler-owned construction and scoped semantic repair through the embedded Streaming Compiler.
+- Native Compose rendering from checked Deal UI IR.
+- Per-application themes, adaptive layout, semantic controls, icons, charts, canvas and pointer input.
+- Fullscreen execution using the same runtime session as Studio preview.
+- Canonical source inspection and copy support for `app.deal` and `app.dealui`.
+- Saved application library with source-bound durable state and live previews.
+- Generated-app activity, launcher shortcut and bounded interactive home-screen widget projection.
+- Natural-language refinement with atomic rollback to the previous runnable revision on failure.
+- Generation metrics for latency, compiler rounds, repair passes and provider token usage.
+- **Surprise me** generation plus internal smoke/soak scripts for varied applications.
 
-The debug APK is about 26 MB. It contains the native llama runtime and the pinned DEAL toolchain, but
-does not contain speech, TTS, RuBERT or assistant model assets.
+The current component contract is generated from the tracked Deal UI pack v13:
+[`tooling/deal-ui-pack/deal-studio-v13.dealui-pack`](tooling/deal-ui-pack/deal-studio-v13.dealui-pack).
 
-## Build And Install
+## Architecture
+
+```text
+app/                    Studio shell, canonical orchestration, runtime and Compose renderer
+deepseek-connector/     DeepSeek and Cerebras streaming tool-call transport
+tooling/deal-android-bridge/
+                        reflection/Dex adapter to pinned compiler and runtime APIs
+tooling/deal-ui-pack/   versioned source-of-truth component pack
+scripts/                toolchain builds, smoke runs and protocol benchmarks
+artifacts/              retained internal experiment output; not product source
+```
+
+Important implementation entry points:
+
+- `GeneratedAppStudioViewModel.kt` owns the product session state machine.
+- `CanonicalGeneratedAppCompiler.kt` hosts the provider-neutral Streaming Compiler request loop.
+- `CanonicalGeneratedAppRefiner.kt` applies natural-language revisions atomically.
+- `CanonicalDealToolchain.kt` loads the pinned compiler bridge.
+- `CanonicalDealUiRuntime.kt` maps checked Deal UI nodes to native Compose.
+- `GeneratedAppActivity.kt` runs a saved application fullscreen.
+- `GeneratedAppWidgetProvider.kt` projects supported canonical UI onto Android widgets.
+
+The generated application's canonical artifacts are exactly:
+
+```text
+app.deal
+app.dealui
+metadata
+```
+
+AppInterface, semantic graphs, checked UI IR and runtime instances are derived data and are rebuilt
+when needed.
+
+## Build
 
 Prerequisites:
 
 - JDK 17;
 - Android SDK and Build Tools 37;
-- an ARM64 Android device for production-toolchain device tests.
+- an ARM64 Android device for connected compiler/runtime tests;
+- pinned local DEAL, Deal UI and Streaming Compiler checkouts when rebuilding the embedded toolchain.
+
+Build the debug application:
 
 ```bash
 ./gradlew :app:assembleDebug
+```
+
+Install and open it:
+
+```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.dealstudio.app.debug/com.offlineassistant.app.DealStudioActivity
 ```
 
-The application id is `com.dealstudio.app`; debug builds use `com.dealstudio.app.debug`. The Kotlin
-package namespace remains temporarily unchanged.
+The release application id is `com.dealstudio.app`; debug builds use
+`com.dealstudio.app.debug`. The Kotlin package namespace is still
+`com.offlineassistant` for migration compatibility.
 
-## DeepSeek Key
+## Provider Keys
 
-Debug builds may provision the disposable development key from `local.properties` or the
-`DEEPSEEK_API_KEY` Gradle property. The first launch copies it into Android Keystore-backed encrypted
-storage. A user can replace or remove it from the key action in the top bar. Release builds compile
-with no embedded key and require BYOK.
+Studio uses bring-your-own-key storage backed by Android encrypted preferences. Debug builds may
+provision disposable development keys from `local.properties` or Gradle properties:
 
 ```properties
 DEEPSEEK_API_KEY=replace-with-development-key
+CEREBRAS_API_KEY=replace-with-development-key
 ```
 
-Do not add a production credential to source control.
+Release builds do not embed provider credentials. Never commit real API keys, request traces
+containing credentials or populated `local.properties` files.
+
+## Pinned Compiler Toolchain
+
+The Android compiler bridge is rebuilt with:
+
+```bash
+scripts/build_deal_android_toolchain.sh
+```
+
+Its lock records DEAL, Deal UI and Streaming Compiler revisions, component-pack identity, Java/build
+inputs and the resulting DEX digest. The embedded artifact is loaded read-only and verified before
+use.
+
+The current Android runtime is a bounded interpreter for the synchronous generated DEAL subset. It
+is a host implementation detail, not a second language definition. Syntax, type checking, semantic
+editing and diagnostics remain owned by the upstream compilers.
 
 ## Validation
 
-Host checks:
+Run host checks:
 
 ```bash
 ./gradlew :app:testDebugUnitTest :deepseek-connector:testDebugUnitTest
@@ -102,7 +159,7 @@ Host checks:
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 ```
 
-Focused connected checks:
+Run focused connected checks after installing both APKs:
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
@@ -112,46 +169,22 @@ adb shell am instrument -w -r \
   com.dealstudio.app.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-The product acceptance matrix is tic-tac-toe, Arkanoid, todo, weather, medication, exam, health and
-chess. A scenario passes only when generation, interaction, fullscreen state, save/restore,
-refinement, responsive layout, accessibility and screenshot quality all pass. Compiling alone is
-not sufficient.
-
-## Architecture
-
-Important implementation areas:
-
-```text
-app/src/main/java/com/offlineassistant/app/DealStudioActivity.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealProgramGraphCompiler.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppCompiler.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiGraphCompiler.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiPack.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiRuntime.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppActivity.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppWidgetProvider.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppWidgetProjection.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalGeneratedAppRefiner.kt
-app/src/main/java/com/offlineassistant/app/generatedapp/GeneratedAppLibrary.kt
-deepseek-connector/src/main/kotlin/com/offlineassistant/deepseek/DeepSeekGenerationClient.kt
-```
-
-The embedded production compiler is built by:
-
-```bash
-scripts/build_deal_android_toolchain.sh
-```
-
-The normative engineering rules are in [AGENTS.md](AGENTS.md). The compiler protocol and remaining
-acceptance work are tracked in
-[2026-09-03-deepseek-deal-ui-streaming-compiler.md](docs/superpowers/plans/2026-09-03-deepseek-deal-ui-streaming-compiler.md).
+The deterministic acceptance matrix includes medication, exam, health, todo, weather,
+tic-tac-toe, Arkanoid and chess, plus rotating held-out requests. Compiler acceptance alone is not a
+product pass: the result must launch, respond to touch, survive save/restore and refinement, adapt to
+supported widths, and remain usable in light and dark modes.
 
 ## Safety Boundary
 
-Generated source is data, not trusted Android code. The app never evaluates arbitrary Kotlin,
-JavaScript or native code. DEAL and Deal UI pass strict parsers, type and capability checks, bounded
-resource validation and runtime smoke checks. Invalid, partial or cancelled output is not executed.
-Saved applications remain inside DEAL Studio; no arbitrary APK is emitted. A pinned generated-app
-icon is a shortcut into `GeneratedAppActivity`, not an independently installed package. A home-screen
-widget is a bounded Android `RemoteViews` projection. Its actions enter only through a private
-receiver and are resolved to the same nominal DEAL updates used by the full app.
+Generated source is untrusted data. Studio does not evaluate arbitrary Kotlin, JavaScript or native
+code and does not emit arbitrary APKs. Candidates pass pinned parsers, type and capability checks
+before execution. The runtime imposes step, call-depth and collection bounds. A failed or cancelled
+generation keeps the previous runnable application.
+
+Saved applications remain inside DEAL Studio. A launcher icon opens `GeneratedAppActivity`; a home
+screen widget is a constrained Android projection whose actions resolve to the same nominal DEAL
+handlers as the full application.
+
+Normative engineering constraints are documented in [AGENTS.md](AGENTS.md). The external generation
+engine is maintained in
+[`egavrin/deal-streaming-compiler`](https://github.com/egavrin/deal-streaming-compiler).
