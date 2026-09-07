@@ -1,148 +1,190 @@
-# Android Offline Assistant PoC
+# DEAL Studio
 
-Private Android technology demo of a voice-first assistant whose speech recognition, command routing, general-question LLM and speech synthesis run on the phone.
+DEAL Studio is an Android environment for generating, running, refining and saving small interactive
+applications from a natural-language request. Generated behavior is written in DEAL, presentation is
+written in Deal UI, and only compiler-checked canonical applications reach the native Compose
+runtime.
 
-The current PoC demonstrates the complete vertical path:
+Examples include utilities, trackers, widgets, dashboards and small touch-controlled games. The
+system is intentionally general: production code must not contain branches, components or validators
+specialized for acceptance scenarios.
 
-- T-one streaming ASR by default, with Whisper Base and Zipformer selectable in Settings;
-- RuBERT-tiny2 intent and slot classification for deterministic actions;
-- Qwen2.5 0.5B through llama.cpp for plain-text answers to general questions;
-- Silero v5.5 RU/Xenia through ONNX Runtime for local speech output;
-- Jetpack Compose chat with structured result widgets and streaming responses;
-- offline timer, alarm, reminder, note, calculator, app launch, help and mock/cache weather flows;
-- Debug, widget preview, model telemetry and device acceptance tooling.
+> **Status:** internal alpha. Canonical generation, native rendering, persistence, fullscreen and
+> home-screen surfaces exist. Generation reliability, repair quality, latency and visual acceptance
+> are still under active validation; this is not a production release.
 
-Qwen is deliberately not an action parser. It does not generate command JSON or repair RuBERT classifications.
+## Product Flow
+
+```text
+natural-language request
+  -> DEAL Streaming Compiler
+  -> compact compiler-owned Agent Surface
+  -> selected cloud model calls DEAL construction API
+  -> production-checked app.deal
+  -> compiler-extracted AppInterface
+  -> selected cloud model calls Deal UI construction API
+  -> production-checked app.dealui
+  -> checked portable UI IR
+  -> native Compose renderer + bounded DEAL runtime
+  -> preview, fullscreen app, saved library and home-screen widget
+```
+
+The model calls a narrow compiler API rather than submitting a JSON application plan or arbitrary
+Android code. DEAL and Deal UI compilers own semantic validation and diagnostics. Studio orchestrates
+provider calls, stores canonical sources, runs the accepted behavior and renders checked UI.
+
+At runtime no LLM request is required:
+
+```text
+Compose control -- nominal action --> DEAL handler
+DEAL handler -- replacement AppState --> Compose recomposition
+```
+
+## Current Capabilities
+
+- Sequential canonical generation: DEAL behavior first, Deal UI second against the exact extracted
+  AppInterface.
+- Independent model selection for behavior and UI.
+- DeepSeek Flash and Pro providers.
+- Cerebras Qwen 27B and GPT-OSS 120B providers.
+- Compiler-owned construction and scoped semantic repair through the embedded Streaming Compiler.
+- Native Compose rendering from checked Deal UI IR.
+- Per-application themes, adaptive layout, semantic controls, icons, charts, canvas and pointer input.
+- Fullscreen execution using the same runtime session as Studio preview.
+- Canonical source inspection and copy support for `app.deal` and `app.dealui`.
+- Saved application library with source-bound durable state and live previews.
+- Generated-app activity, launcher shortcut and bounded interactive home-screen widget projection.
+- Natural-language refinement with atomic rollback to the previous runnable revision on failure.
+- Generation metrics for latency, compiler rounds, repair passes and provider token usage.
+- **Surprise me** generation plus internal smoke/soak scripts for varied applications.
+
+The current component contract is generated from the tracked Deal UI pack v13:
+[`tooling/deal-ui-pack/deal-studio-v13.dealui-pack`](tooling/deal-ui-pack/deal-studio-v13.dealui-pack).
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    Input["Text or microphone"] --> ASR["T-one / Whisper / Zipformer"]
-    ASR --> Transcript["Final transcript"]
-    Input --> Transcript
-    Transcript --> NLU["RuBERT-tiny2 intent + slots"]
-    NLU -->|"Action intent"| Normalize["Generic slot normalization"]
-    Normalize --> Skill["Typed Skill"]
-    Skill --> Response["AssistantResponse + WidgetPayload"]
-    NLU -->|"General question"| Qwen["Qwen plain-text streaming answer"]
-    Qwen --> Response
-    Response --> UI["Compose chat + widget registry"]
-    Response --> TTS["Silero Xenia streaming TTS"]
+```text
+app/                    Studio shell, canonical orchestration, runtime and Compose renderer
+deepseek-connector/     DeepSeek and Cerebras streaming tool-call transport
+tooling/deal-android-bridge/
+                        reflection/Dex adapter to pinned compiler and runtime APIs
+tooling/deal-ui-pack/   versioned source-of-truth component pack
+scripts/                toolchain builds, smoke runs and protocol benchmarks
+artifacts/              retained internal experiment output; not product source
 ```
 
-Reusable contracts, NLU normalization and skills live in `:core`. Android UI, permissions, persistence, model runtimes, JNI and platform adapters live in `:app`.
+Important implementation entry points:
 
-## Repository Layout
+- `GeneratedAppStudioViewModel.kt` owns the product session state machine.
+- `CanonicalGeneratedAppCompiler.kt` hosts the provider-neutral Streaming Compiler request loop.
+- `CanonicalGeneratedAppRefiner.kt` applies natural-language revisions atomically.
+- `CanonicalDealToolchain.kt` loads the pinned compiler bridge.
+- `CanonicalDealUiRuntime.kt` maps checked Deal UI nodes to native Compose.
+- `GeneratedAppActivity.kt` runs a saved application fullscreen.
+- `GeneratedAppWidgetProvider.kt` projects supported canonical UI onto Android widgets.
+
+The generated application's canonical artifacts are exactly:
 
 ```text
-app/                 Android application, Compose UI, JNI and model adapters
-benchmark/           Macrobenchmark and baseline-profile journeys
-core/                Pure Kotlin assistant contracts, routing and skills
-docs/                Product, design, implementation and acceptance documents
-scripts/             Host and connected-device acceptance runners
-training/            RuBERT dataset, fine-tuning, ONNX export and evaluation
-tools/               ASR fixture and Silero export/staging utilities
-third_party/          Pinned whisper.cpp Git submodule
-models/               Ignored generated and externally downloaded model bundles
+app.deal
+app.dealui
+metadata
 ```
 
-The approved UI references are documented in [`docs/design/references/`](docs/design/references/). The current product specification is [`docs/superpowers/specs/2026-07-09-android-offline-assistant-poc-design.md`](docs/superpowers/specs/2026-07-09-android-offline-assistant-poc-design.md), and the proposed next-product roadmap is [`docs/superpowers/plans/2026-07-14-local-personal-operator-vnext.md`](docs/superpowers/plans/2026-07-14-local-personal-operator-vnext.md).
+AppInterface, semantic graphs, checked UI IR and runtime instances are derived data and are rebuilt
+when needed.
 
-## Requirements
+## Build
 
-- macOS or Linux host;
+Prerequisites:
+
 - JDK 17;
-- Android SDK 37, Build Tools 37.0.0, NDK 27.0.12077973 and CMake 3.22.1;
-- Python 3 for training and acceptance helpers;
-- `adb` for connected-device flows;
-- Git LFS for bundled ASR/runtime binaries;
-- ARM64 Android device for native runtime acceptance.
+- Android SDK and Build Tools 37;
+- an ARM64 Android device for connected compiler/runtime tests;
+- pinned local DEAL, Deal UI and Streaming Compiler checkouts when rebuilding the embedded toolchain.
 
-The tested reference device is Pixel 10. The application has `minSdk 26`, `compileSdk 37`, `targetSdk 37` and packages only `arm64-v8a` native libraries. The build uses AGP 9.2.1, Gradle 9.4.1 and JDK 17.
-
-## Clone and Build
+Build the debug application:
 
 ```bash
-git clone --recurse-submodules https://github.com/egavrin/android-offline-assistant-poc.git
-cd android-offline-assistant-poc
-git lfs pull
-./gradlew test assembleDebug
+./gradlew :app:assembleDebug
 ```
 
-Android Studio may create `local.properties` automatically. Otherwise configure `sdk.dir` there; the file is intentionally ignored.
-
-Install and launch the debug application:
+Install and open it:
 
 ```bash
-./gradlew installDebug
-adb shell am start -n com.offlineassistant.poc.debug/com.offlineassistant.app.MainActivity
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.dealstudio.app.debug/com.offlineassistant.app.DealStudioActivity
 ```
 
-## Model Assets
+The release application id is `com.dealstudio.app`; debug builds use
+`com.dealstudio.app.debug`. The Kotlin package namespace is still
+`com.offlineassistant` for migration compatibility.
 
-Large files are split into two groups.
+## Provider Keys
 
-Tracked with Git LFS because they are required by the application package:
+Studio uses bring-your-own-key storage backed by Android encrypted preferences. Debug builds may
+provision disposable development keys from `local.properties` or Gradle properties:
 
-- `app/src/main/assets/models/tone_ru/`;
-- `app/src/main/assets/models/whisper/`;
-- `app/src/main/assets/models/zipformer_ru/`;
-- `app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar`.
+```properties
+DEEPSEEK_API_KEY=replace-with-development-key
+CEREBRAS_API_KEY=replace-with-development-key
+```
 
-Generated or externally acquired bundles remain outside Git:
+Release builds do not embed provider credentials. Never commit real API keys, request traces
+containing credentials or populated `local.properties` files.
 
-| Runtime | Expected local path | Preparation |
-| --- | --- | --- |
-| RuBERT-tiny2 | `models/generated/rubert/` | `python3 training/scripts/train_rubert_tiny2.py --dataset training/data/synthetic_intents.jsonl --output-dir models/generated/rubert` |
-| Qwen2.5 0.5B Q4_K_M | `models/external/qwen2.5-0.5b-instruct-gguf/qwen2.5-0.5b-instruct-q4_k_m.gguf` | Acquire the exact GGUF under its upstream license |
-| Silero v5.5 RU/Xenia | `models/external/silero-v5_5-ru-xenia/android-bundle/` | Run `python3 tools/tts/silero_xenia_export_probe.py --probe-onnx --require-export --publish-dir models/external/silero-v5_5-ru-xenia/android-bundle` |
+## Pinned Compiler Toolchain
 
-Connected tests stage these bundles through `/data/local/tmp`; Qwen, RuBERT and Silero weights are not packaged into the APK.
-
-Silero's selected public weight is non-commercial. Do not use it in a commercial distribution without a separate license or an approved replacement.
-
-## Verification
-
-Fast host checks:
+The Android compiler bridge is rebuilt with:
 
 ```bash
-./gradlew ktlintCheck detekt lintDebug :app:koverVerifyCi :app:koverXmlReportCi :app:compileReleaseKotlin
-python3 -m unittest discover -s scripts -p 'test_*.py'
-python3 -m unittest discover -s training -p 'test_*.py'
-python3 scripts/test_qwen_generation_policy.py
+scripts/build_deal_android_toolchain.sh
 ```
 
-The Kover gate merges JVM unit coverage from `:app` and `:core`, enforces at least 45% line coverage and writes `app/build/reports/kover/reportCi.xml`. Native APK compilation is a separate check:
+Its lock records DEAL, Deal UI and Streaming Compiler revisions, component-pack identity, Java/build
+inputs and the resulting DEX digest. The embedded artifact is loaded read-only and verified before
+use.
+
+The current Android runtime is a bounded interpreter for the synchronous generated DEAL subset. It
+is a host implementation detail, not a second language definition. Syntax, type checking, semantic
+editing and diagnostics remain owned by the upstream compilers.
+
+## Validation
+
+Run host checks:
 
 ```bash
-./gradlew assembleDebug
+./gradlew :app:testDebugUnitTest :deepseek-connector:testDebugUnitTest
+./gradlew :app:ktlintCheck :app:detekt :app:lintDebug
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 ```
 
-Gradle dependency verification is strict and backed by committed SHA-256 checksums in `gradle/verification-metadata.xml`. CI runs fast quality and native APK jobs in parallel, then exposes their aggregate as the required `PR Quality / quality` check.
-
-The API 37 host, 16 KB alignment and Android 17 runtime evidence is recorded in [`docs/testing/2026-07-14-android-17-migration.md`](docs/testing/2026-07-14-android-17-migration.md).
-
-Host readiness, including the generated RuBERT bundle:
+Run focused connected checks after installing both APKs:
 
 ```bash
-scripts/run_full_acceptance.sh --host-only
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -r \
+  -e class 'com.offlineassistant.app.generatedapp.CanonicalDealToolchainDeviceTest,com.offlineassistant.app.generatedapp.CanonicalDealUiTouchDeviceTest' \
+  com.dealstudio.app.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-Complete connected-device acceptance:
+The deterministic acceptance matrix includes medication, exam, health, todo, weather,
+tic-tac-toe, Arkanoid and chess, plus rotating held-out requests. Compiler acceptance alone is not a
+product pass: the result must launch, respond to touch, survive save/restore and refinement, adapt to
+supported widths, and remain usable in light and dark modes.
 
-```bash
-scripts/run_full_acceptance.sh
-```
+## Safety Boundary
 
-The connected path stages external models, runs native and UI tests, denies networking to the app during the local-model gate, records device evidence and verifies the final Definition of Done matrix. A host-only run is not a substitute for phone acceptance.
+Generated source is untrusted data. Studio does not evaluate arbitrary Kotlin, JavaScript or native
+code and does not emit arbitrary APKs. Candidates pass pinned parsers, type and capability checks
+before execution. The runtime imposes step, call-depth and collection bounds. A failed or cancelled
+generation keeps the previous runnable application.
 
-## Current Boundaries
+Saved applications remain inside DEAL Studio. A launcher icon opens `GeneratedAppActivity`; a home
+screen widget is a constrained Android projection whose actions resolve to the same nominal DEAL
+handlers as the full application.
 
-- Linux CLI is not a deliverable.
-- Weather is mock/cache data unless an explicitly labelled online provider is added.
-- ASR, NLU, LLM and TTS are local; optional future calendar/email connectors must preserve that offline core.
-- Model readiness and runtime success are separate states and are visible in Debug/Settings.
-- The repository is a private prototype and has no project-level redistribution license. Third-party source, binaries and model assets retain their own licenses.
-
-See [`AGENTS.md`](AGENTS.md) before changing routing, native model lifecycle, speech streaming or acceptance behavior.
+Normative engineering constraints are documented in [AGENTS.md](AGENTS.md). The external generation
+engine is maintained in
+[`egavrin/deal-streaming-compiler`](https://github.com/egavrin/deal-streaming-compiler).
