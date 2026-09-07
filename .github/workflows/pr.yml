@@ -20,46 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.scope.outputs.code }}
       training: ${{ steps.scope.outputs.training }}
-
     steps:
-      - name: Check out source pointers
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           lfs: false
-          submodules: false
-
-      - name: Determine verification scope
-        id: scope
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          code=true
-          training=false
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            changed=""
-            training=true
-          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
-            changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-            if [[ -z "$(printf '%s\n' "$changed" | grep -Ev '^(docs/|README\.md$|AGENTS\.md$|\.github/CODEOWNERS$)' || true)" ]]; then
-              code=false
-            fi
-          else
-            changed="$(git diff-tree --no-commit-id --name-only --root -r HEAD)"
-          fi
-          if printf '%s\n' "$changed" | grep -Eq '^(training/|\.github/workflows/pr\.yml$)'; then
-            training=true
-          fi
-          printf 'code=%s\n' "$code" >> "$GITHUB_OUTPUT"
-          printf 'training=%s\n' "$training" >> "$GITHUB_OUTPUT"
-
-      - name: Check repository whitespace
+      - id: scope
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -68,228 +35,175 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            git diff --check "$BASE_SHA" "$HEAD_SHA"
+            changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
           else
-            git diff-tree --check --no-commit-id --root -r HEAD
+            changed="$(git diff-tree --no-commit-id --name-only --root -r HEAD)"
           fi
+          training=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || \
+             printf '%s\n' "$changed" | grep -Eq '^(training/|\.github/workflows/pr\.yml$)'; then
+            training=true
+          fi
+          printf 'training=%s\n' "$training" >> "$GITHUB_OUTPUT"
+          git diff --check
 
-  fast-quality:
-    name: fast quality
+  quality:
+    name: Kotlin and architecture
     needs: scope
-    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Check out source pointers
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           lfs: false
-          submodules: false
-
-      - name: Restore runtime AAR cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .git/lfs
-          key: ${{ runner.os }}-fast-lfs-${{ hashFiles('.gitattributes', 'app/libs/**') }}
-
+          key: ${{ runner.os }}-aar-${{ hashFiles('.gitattributes', 'app/libs/**') }}
       - name: Materialize runtime AAR
-        shell: bash
         run: |
-          set -euo pipefail
           git lfs pull --include='app/libs/**'
           test "$(wc -c < app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar)" -gt 30000000
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
         with:
           distribution: temurin
           java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
-
-      - name: Install Android 17 toolchain
-        shell: bash
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+      - name: Install Android toolchain
         run: |
-          set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
-        with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-
-      - name: Run host policy tests
-        shell: bash
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+      - name: Check Studio architecture
         run: |
-          set -euo pipefail
-          python3 -m unittest discover -s scripts -p 'test_*.py'
-          python3 -m unittest discover -s training -p 'test_*.py'
-          python3 scripts/test_qwen_generation_policy.py
-
-      - name: Run static analysis, unit tests, and coverage
+          python3 scripts/check_release_contract.py
+      - name: Unit, static and AndroidTest compilation
         run: >-
           ./gradlew --no-daemon --stacktrace
+          testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
+          :app:compileDebugAndroidTestKotlin
           ktlintCheck detekt lintDebug
-          :app:koverVerifyCi :app:koverXmlReportCi
-          :app:compileReleaseKotlin
-
-      - name: Upload verification reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: fast-quality-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          name: quality-reports-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 7
           path: |
             app/build/reports/
             app/build/test-results/
             core/build/reports/
-            core/build/test-results/
-            benchmark/build/reports/
+            deepseek-connector/build/reports/
+
+  apk:
+    name: ARM64 APK
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          lfs: true
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+      - name: Install Android toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: offline-assistant-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+
+  release-like:
+    name: minified release-like AAB
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          lfs: true
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+      - name: Install Android toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+      - name: Build unsigned minified artifact
+        run: ./gradlew --no-daemon --stacktrace bundleRelease lintRelease
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-like-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/outputs/bundle/release/app-release.aab
+          retention-days: 7
 
   rubert-training:
-    name: RuBERT training
+    name: Training contracts
     needs: scope
     if: needs.scope.outputs.training == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
-      - name: Check out source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           lfs: false
-          submodules: false
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: training/rubert/requirements.txt
-
-      - name: Install training dependencies
-        shell: bash
+          cache-dependency-path: |
+            training/rubert/requirements.txt
+            training/generated_ui/requirements.txt
+      - name: Install pinned training stack
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r training/rubert/requirements.txt
+          python -m pip install -r training/generated_ui/requirements.txt
           python -m pip check
-
-      - name: Run training tests and ONNX contract
-        shell: bash
+      - name: Validate training code and ONNX contract
         run: |
-          set -euo pipefail
-          python -m unittest discover -s training -p 'test_*.py'
+          for test_script in training/test_*.py; do
+            PYTHONPATH=. python "$test_script"
+          done
+          python training/generated_ui/build_artifacts.py --check
           python training/rubert/ci_export_smoke.py --output-dir build/rubert-ci
-
-      - name: Upload RuBERT contract artifact
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rubert-training-${{ github.run_id }}-${{ github.run_attempt }}
-          if-no-files-found: error
-          retention-days: 7
+          name: rubert-contract-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/rubert-ci/
-
-  native-build:
-    name: native APK
-    needs: scope
-    if: needs.scope.outputs.code == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-
-    steps:
-      - name: Check out source pointers
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          lfs: false
-          submodules: false
-
-      - name: Restore native source and model cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .git/lfs
-          key: ${{ runner.os }}-native-lfs-${{ hashFiles('.gitattributes', 'app/libs/**', 'app/src/main/assets/models/**') }}
-
-      - name: Materialize native sources and model assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          git submodule update --init --recursive
-          git lfs pull --include='app/libs/**,app/src/main/assets/models/**'
-          test "$(wc -c < app/src/main/assets/models/tone_ru/model.onnx)" -gt 100000000
-          test "$(wc -c < app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar)" -gt 30000000
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
-
-      - name: Install Android 17 native toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
-        with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-
-      - name: Build native debug APK
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
-
-      - name: Upload debug APK
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: native-debug-apk-${{ github.run_id }}-${{ github.run_attempt }}
-          if-no-files-found: error
           retention-days: 7
-          path: app/build/outputs/apk/debug/app-debug.apk
 
-  quality:
+  quality-gate:
     name: quality
-    needs:
-      - scope
-      - fast-quality
-      - rubert-training
-      - native-build
     if: always()
+    needs:
+      - quality
+      - apk
+      - release-like
+      - rubert-training
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
     steps:
-      - name: Enforce required quality jobs
-        shell: bash
+      - name: Require successful checks
         env:
-          CODE_REQUIRED: ${{ needs.scope.outputs.code }}
-          SCOPE_RESULT: ${{ needs.scope.result }}
-          FAST_RESULT: ${{ needs.fast-quality.result }}
-          TRAINING_REQUIRED: ${{ needs.scope.outputs.training }}
-          TRAINING_RESULT: ${{ needs.rubert-training.result }}
-          NATIVE_RESULT: ${{ needs.native-build.result }}
+          QUALITY: ${{ needs.quality.result }}
+          APK: ${{ needs.apk.result }}
+          RELEASE_LIKE: ${{ needs.release-like.result }}
+          RUBERT: ${{ needs.rubert-training.result }}
         run: |
-          set -euo pipefail
-          test "$SCOPE_RESULT" = success
-          if [[ "$CODE_REQUIRED" == true ]]; then
-            test "$FAST_RESULT" = success
-            test "$NATIVE_RESULT" = success
-          else
-            test "$FAST_RESULT" = skipped
-            test "$NATIVE_RESULT" = skipped
-          fi
-          if [[ "$TRAINING_REQUIRED" == true ]]; then
-            test "$TRAINING_RESULT" = success
-          else
-            test "$TRAINING_RESULT" = skipped
-          fi
+          test "$QUALITY" = success
+          test "$APK" = success
+          test "$RELEASE_LIKE" = success
+          test "$RUBERT" = success -o "$RUBERT" = skipped

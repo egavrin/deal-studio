@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parent
 class TrainingLayoutTest(unittest.TestCase):
     def test_spec_training_deliverables_exist(self):
         expected = [
-            ROOT / "data" / "synthetic_intents.jsonl",
+            ROOT / "rubert" / "synthetic_intents.jsonl",
+            ROOT / "rubert" / "generate_core_dataset.py",
             ROOT / "data" / "eval_set.jsonl",
             ROOT / "scripts" / "generate_synthetic_dataset.py",
             ROOT / "scripts" / "train_rubert_tiny2.py",
@@ -36,6 +37,63 @@ class TrainingLayoutTest(unittest.TestCase):
         self.assertTrue(any(record["intent"] == "set_timer" for record in records))
         self.assertTrue(any(record["intent"] == "get_weather" for record in records))
         self.assertTrue(any(record["slots"] for record in records))
+
+    def test_eval_manifest_pins_complete_production_baseline(self):
+        manifest = json.loads(
+            (ROOT / "data" / "evaluation_manifest.json").read_text(encoding="utf-8")
+        )
+        records = [
+            json.loads(line)
+            for line in (ROOT / "data" / "eval_set.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        counts = {
+            intent: sum(record["intent"] == intent for record in records)
+            for intent in manifest["expected_intents"]
+        }
+
+        self.assertEqual(set(manifest["expected_intents"]), {record["intent"] for record in records})
+        self.assertGreaterEqual(min(counts.values()), manifest["minimum_examples_per_intent"])
+
+    def test_training_set_matches_core_allowlist(self):
+        records = [
+            json.loads(line)
+            for line in (ROOT / "rubert" / "synthetic_intents.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        expected = {
+            "get_current_time",
+            "get_weather",
+            "set_timer",
+            "set_alarm",
+            "create_reminder",
+            "create_note",
+            "calculate",
+            "open_app",
+            "dial_phone",
+            "compose_message",
+            "compose_email",
+            "start_navigation",
+            "create_calendar_event",
+            "control_media",
+            "set_volume",
+            "open_setting",
+            "open_url",
+            "help",
+            "web_search",
+            "web_research",
+            "unknown",
+        }
+        counts = {intent: 0 for intent in expected}
+        for record in records:
+            self.assertIn(record["intent"], expected)
+            counts[record["intent"]] += 1
+            for slot in record.get("slots", []):
+                self.assertEqual(
+                    slot["value"],
+                    record["text"][slot["start"]:slot["end"]],
+                )
+        self.assertGreaterEqual(min(counts.values()), 80)
 
     def test_readme_documents_required_metrics(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()

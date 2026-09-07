@@ -18,3 +18,4 @@ rootProject.name = "AndroidOfflineAssistantPoc"
 include(":core")
 include(":app")
 include(":benchmark")
+include(":deepseek-connector")

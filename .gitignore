@@ -2,15 +2,16 @@
 .kotlin/
 .idea/
 .superpowers/
-.cxx/
-**/.cxx/
-**/.externalNativeBuild/
-
 build/
 **/build/
+**/.cxx/
 captures/
+artifacts/
 
 local.properties
+.env
+.env.*
+!.env.example
 *.iml
 *.apk
 *.aab
@@ -23,3 +24,4 @@ local.properties
 docs/testing/*.png
 models/external/
 models/generated/
+training/generated_ui/.cache/

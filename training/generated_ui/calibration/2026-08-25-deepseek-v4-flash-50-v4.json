@@ -1,0 +1,68 @@
+{
+  "evidence_version": 1,
+  "date": "2026-08-25",
+  "purpose": "host UI teacher calibration; not production training data",
+  "model": "deepseek-v4-flash",
+  "seed": 20260825,
+  "candidate_count": 50,
+  "concurrency": 6,
+  "attempt_profile": [
+    "none",
+    "minimal",
+    "none"
+  ],
+  "contract": {
+    "catalog_manifest_sha256": "d2712f8c7d448cfa414dabc3c0b3402acc23da3ea7eef7a887ff93c8b45a3578",
+    "teacher_prompt_sha256": "d78f32b1d3e7e470756437353bcdba670cdac5b33d1ca8456fbfe592c900dfa9"
+  },
+  "result": {
+    "accepted": 45,
+    "rejected": 5,
+    "first_pass_acceptance_rate": 0.46,
+    "final_acceptance_rate": 0.9,
+    "accepted_by_attempt": {
+      "first": 23,
+      "retry": 21,
+      "final_retry": 1
+    },
+    "unique_blueprints": 45,
+    "unique_templates": 45,
+    "all_31_components_observed": true,
+    "data_bound_share": 1.0,
+    "interactive_share": 0.9555555555555556
+  },
+  "latency_ms": {
+    "accepted_count": 45,
+    "min": 6641,
+    "p50": 9316,
+    "p95": 40631,
+    "max": 44167
+  },
+  "usage": {
+    "input_tokens": 905850,
+    "output_tokens": 192019,
+    "total_tokens": 1097869
+  },
+  "final_rejection_taxonomy": {
+    "depth_budget": 2,
+    "missing_binding": 1,
+    "multiple_parents": 3,
+    "unreachable_component": 6
+  },
+  "artifact_sha256": {
+    "generation_report_json": "82b389fe43b10f474d5972a41bc500697508cf2d2963ae88a2eb0fbb71c1d116",
+    "current_catalog_accepted_jsonl": "e15554dc5ee8990196a5bf3dd47106f0a3cdf2f10481ecbf19f85b3140890b93",
+    "current_catalog_rejected_jsonl": "28ef0da9deb86c8c74bab5c4ec5575ecc4a6f588be32c8c8fb005848a63f38fc"
+  },
+  "gate": {
+    "required_first_pass_rate": 0.8,
+    "required_final_rate": 0.95,
+    "passed": false
+  },
+  "notes": [
+    "Raw provider responses and generated records remain ignored build artifacts.",
+    "Artifact hashes were computed after an offline cache replay through the current project-owned catalog IDs.",
+    "No rejected candidate was included in a dataset split.",
+    "A 1000-record pilot is blocked on teacher quality and render, interaction, screenshot, and accessibility gates."
+  ]
+}

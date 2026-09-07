@@ -1,198 +1,362 @@
-# Android Offline Assistant PoC
+# DEAL Studio Repository Guidance
 
-This file provides guidance to AI agents working in this repository.
+## Product Boundary
 
-## Repository Identity
+This repository builds **DEAL Studio**, an Android application for generating, running, editing and
+saving small interactive applications. The application id is `com.dealstudio.app`; debug builds use
+`com.dealstudio.app.debug`.
 
-- **Name:** Android Offline Assistant PoC
-- **Purpose:** Android-only technology demo for fully local voice input, deterministic command execution, general-question answers and speech output.
-- **Primary stack:** Kotlin, Jetpack Compose, C++/JNI, ONNX Runtime, llama.cpp, whisper.cpp and Python training/evaluation tools.
-- **Platform:** `minSdk 26`, `compileSdk 37`, `targetSdk 37`, ARM64 Android; Pixel 10 is the measured reference device.
+The former offline voice assistant is not part of the product, manifest or APK. Its last complete
+workspace snapshot is preserved on `egavrin/assistant-backup-2026-09-03`. Do not restore assistant
+routing, speech recognition, speech synthesis, RuBERT, fixed assistant widgets, AppFunctions or
+voice-service permissions on the DEAL Studio branch.
 
-The current PoC Definition of Done is complete. Treat planned vNext work as proposed until it is implemented and accepted. Sources of truth:
+Keep Studio in the existing Android application module. Do **not** extract its shared code into a
+new library module. Product separation is an application and source boundary, not a library-module
+migration.
 
-- current product architecture: `docs/superpowers/specs/2026-07-09-android-offline-assistant-poc-design.md`;
-- current measured UX baseline: `docs/testing/2026-07-13-ux-optimization-results.md`;
-- approved UI direction: `docs/superpowers/specs/2026-07-09-ui-polish-blue-reference-design.md`;
-- proposed vNext roadmap: `docs/superpowers/plans/2026-07-14-local-personal-operator-vnext.md`.
+DEAL and Deal UI are independent platform-neutral transpilers and semantic checkers. The separate
+streaming-compiler owns all LLM API calls, prompts, streaming tool transport, semantic generation,
+repair/refinement rounds and their metrics. Studio is a product client of streaming-compiler and of
+the transpilers' versioned stateless protocol. Production Android code
+must not parse compiler ASTs, scan source with regexes, derive AppInterface, assign semantic ids,
+interpret diagnostic text, construct model tools or repair context, implement repair policy, render
+unchecked output or commit partial source pairs. It may transport canonical sources, compiler
+operations, model requests and model responses between their owning boundaries. Transpiler behavior
+belongs upstream; model orchestration belongs in streaming-compiler. The
+embedded DEX bridge is only a transitional delivery adapter for deterministic transpiler APIs.
 
-## Scope
+The user-facing application and generated examples use English. Generated applications must adapt
+to compact phones, ordinary phones and unfolded displays without device-specific branches.
 
-This repository is an Android-only proof of concept for an offline assistant. Keep reusable assistant logic in `:core`; keep Android UI, platform adapters, JNI bindings, and model materialization in `:app`.
+## Canonical Artifact
 
-Do not implement or revive a Linux CLI deliverable.
-
-## Repository Layout
+A generated application contains exactly:
 
 ```text
-app/                 Android UI, ViewModels, storage, platform adapters and JNI runtimes
-benchmark/           Macrobenchmark and baseline-profile generation
-core/                Reusable Kotlin contracts, NLU, normalization, skills and speech planning
-docs/                Specifications, plans, design references and acceptance evidence
-scripts/             Host/device acceptance orchestration
-training/            RuBERT data, training, export and evaluation
-tools/               ASR fixture and TTS export/staging utilities
-third_party/          Pinned upstream whisper.cpp submodule
-models/               Ignored generated/external model bundles
+app.deal       authoritative state, data, rules, update functions and declared host effects
+app.dealui     pure typed presentation and action bindings; labelled DUI in product UI
+metadata       compiler, component-pack, model, token and timing provenance; not executable
 ```
 
-Do not treat `core/src/**/skills` as Codex skill directories. They contain product `Skill` implementations and tests.
+There is no generated `AppPlan`, layout plan, profile, JSON AST, bytecode file or app-family record.
+`AppInterfaceV1` is extracted from accepted DEAL and passed read-only to Deal UI generation. It is
+ephemeral compiler state and is never independently generated or persisted.
 
-## Build, Test, and Run
+State and data belong in DEAL/AppInterface. The DEAL root state is also the complete presentation
+view model for the sequential Deal UI step: chart series, labels, formatted mixed text, status text
+and selected/summarized values must be explicit fields and stay consistent through every update.
+Deal UI cannot call helpers, index or transform arrays, compute lengths or coerce numbers to strings.
+Deal UI does not own mutable business state, calculate domain transitions or duplicate rules.
+Compose only renders checked portable Deal UI IR and sends typed events back to DEAL.
 
-Prerequisites are JDK 17, Android SDK 37, Build Tools 37.0.0, NDK 27.0.12077973, CMake 3.22.1, Python 3, Git LFS and `adb` for device work.
+## Generation Protocol
 
-Canonical commands:
+The Android model-facing path uses `compiler-construction-v1` for both generation and refinement.
+All source-writing tools are `construct_*` operations: a flat batch of compiler constructors with
+operand handles plus the authorized edit arguments. Source/body/declaration arguments refer to
+constructor results, never model-written source strings. The upstream transpilers project these
+operations into canonical sources and validate them before runtime admission. Plain assistant code
+and the source-edit compatibility tools are not accepted as a fallback. Read-only and finish tools
+remain ordinary compiler API operations. Batch-local constructor handles are not persistent node IDs.
+
+Normal greenfield generation uses `construct_apply_deal_batch` with `final=true` for the complete
+DEAL artifact, then one checked UI transaction. Do not restore mandatory foundation/behavior/finish
+network rounds. A partial batch may continue with `final=false`; rejected groups stay in compiler
+repair slots. Reasoning profiles come from the engine request and must be benchmarked including
+failures before changing production defaults. Compact pack contracts must retain every component,
+property type, optionality, typed-child constraint and event contract.
+
+Source-edit and older generation protocols described below are compatibility/internal interfaces,
+not permission to expose raw-source writes to the production model. Constructor coverage is still
+partial; unsupported syntax needs an upstream API extension and tests, not a raw-code escape hatch.
+
+Cloud generation is sequential and compiler-guided:
+
+The rich `compiler-protocol-v2` API is an internal capability surface. Models never receive its full
+schema, graph, source or identifier set. The Java generation engine asks the transpilers for a
+step-specific `agent-surface-v3` containing short revision-scoped aliases, compiler-owned dependency
+cones, the currently legal operations and stable structured diagnostics. A write is legal only after
+`inspect_change` selects its semantic anchors in the current source revision and carries compiler-issued source and target
+fingerprints. Accepted writes expire all aliases. Stale aliases, digests and fingerprints are
+rejected before candidate mutation.
+
+Failed ChangeSets are retained only as ephemeral compiler-owned repair workspaces. The model receives
+one rejected slot through `patch_repair_slot`; operation kinds, targets and accepted sibling payloads
+remain immutable and are never reconstructed from Kotlin source inspection.
+
+Refinement uses this v2 protocol in production. During cutover, the engine also applies each
+authorized ChangeSet through the unguarded v1 API in shadow and records parity; a precondition
+failure is never shadow-applied. The old greenfield graph protocol described below is a temporary
+migration adapter only. It may remain runnable while upstream typed-hole generation is completed,
+but it must not gain new semantics, source scanners, repair heuristics or product features. The
+migration is not complete until initial DEAL and Deal UI generation use the same compiler-owned v2
+workspace and the Kotlin graph compilers are deleted.
+
+1. The selected cloud model calls `submit_deal_program` once with nominal types, external actions, reusable helper
+   signatures, capabilities and every compact function body. The model does not select a separate
+   root-state name; the compiler infers the unique root from nominal type references.
+2. The compiler creates stable typed holes for `initialState`, helpers and `@ui-update` functions
+   from that same call and checks every supplied body independently.
+3. Every body is projected to canonical DEAL and accepted only after the pinned production parser,
+   type checker and AppInterface identity check pass.
+4. If holes remain, `repair_deal_batch` contains only their signatures and diagnostics; accepted
+   declarations and bodies are immutable and omitted from repair context.
+5. The exact accepted DEAL and extracted `AppInterfaceV1` are supplied to Deal UI generation.
+6. The selected cloud model calls `submit_deal_ui_sections` once with two to six cohesive sections. The compiler
+   accepts one compact, app-owned theme in that initial call, checks each section independently,
+   commits valid sections and defers later siblings behind a rejected dependency without asking
+   the model to regenerate them. The compiler emits the sole `ui.AppTheme` and `ui.Root` wrappers;
+   generated section bodies may emit neither boundary.
+7. A rejected UI section becomes the only schema-allowed repair target. A run gets one Flash repair
+   before Pro escalation. If a model marks a valid section final before all declared actions or host
+   capabilities are represented, the compiler preserves that section as partial progress and emits
+   the exact missing bindings as obligations for the next round. A byte-identical rejected candidate
+   ends the loop immediately.
+8. The complete pair passes cross-artifact, capability, resource and runtime smoke validation before
+   it becomes interactive.
+
+Malformed, empty or truncated tool arguments are transport failures, not program repairs. The
+cloud connector parses function-call JSON and treats the final SSE item as authoritative over streamed
+deltas. For engine-owned compiler requests, parsed local schema failures are retained upstream as
+unapplied arguments. The engine issues `patch_tool_argument` for a fixed location; Android must not
+repair these values or request the entire batch again. Empty constructor envelopes and unknown tools
+remain transport errors. Argument-repair rounds are bounded and counted separately from semantic
+repairs. The original batch must pass its complete issued schema and compiler checks before applying.
+A failed transport attempt must not mutate compiler state or consume a semantic repair round.
+TTFC for tools means the first structurally valid compiler call.
+
+Repair budgets are progress-aware. The fixed Flash and Pro budgets remain latency ceilings; one
+additional round may be granted only when the compiler accepted new immutable graph content at the
+budget boundary, and all generation is hard-capped. Rejections alone never buy another model call.
+
+DeepSeek and Cerebras are production cloud providers behind the same canonical compiler API. A run
+always finishes and checks DEAL before starting Deal UI, and the two stages may select providers
+independently. Provider differences stop at authenticated transport, model identifiers, streaming
+event parsing and usage metadata; they do not create different prompts, compiler semantics, repair
+rules, artifacts or runtimes. Future local generators may return only behind the same canonical
+compiler API and artifact contract. Do not reintroduce concurrent generation coordinated by an
+inferred planner, AppPlan or a second runtime path.
+
+Compiler tools are a compact semantic API, not token-level constrained decoding and not one tool
+call per AST constructor.
+
+### Repair Granularity Invariant
+
+The independently checked and replaceable unit is one typed function body or one named Deal UI
+surface. Compactness is measured by body size, repair input/output tokens and changed graph units,
+not by minimizing the number of nominal action types.
+
+- Never combine navigation, collection mutation, confirmation, selection and host events in a
+  catch-all command action merely to reduce declaration count. Structurally identical operations may
+  share a parameterized action only when every field has one stable meaning and the handler performs
+  one cohesive state transition.
+- Initial declarations must expose enough small actions and pure helper holes for a rejected body to
+  be corrected without replacing unrelated accepted behavior. Accepted sibling bodies remain
+  immutable during compiler repair.
+- A compiler repair request contains only unresolved or rejected graph units, their exact signatures,
+  stable diagnostics and the minimum declaration context required to type-check them. Repeating an
+  unchanged rejected body is no progress and terminates that repair path.
+- Natural-language product refinement is distinct from compiler repair. A compatible refinement may
+  replace existing function bodies or named UI surfaces. A structural refinement may add or change
+  declarations only through a new canonical graph revision, followed by AppInterface extraction and
+  dependent Deal UI regeneration. Both paths compile completely and swap atomically; failure retains
+  the previous runnable revision.
+- Do not expose artifact or scope selection to the user. One ordinary text request determines the
+  smallest valid revision internally.
+
+## Generalization Invariant
+
+DEAL Studio implements one domain-independent application language, typed UI language, compiler and
+runtime. It does not implement a finite catalog of recognized applications.
+
+- The mandatory scenarios are a frozen external black-box regression set, not the implementation
+  taxonomy and not generation profiles. Scenario prompts and assertions may exist only in test,
+  evaluation, preset and dataset sources.
+- Static production prompts, compiler tools, Kotlin/Compose runtime code and validators must not
+  name or branch on a concrete app family, scenario, entity or action such as medication, chess,
+  weather, dose or move. Do not add keyword routing, blueprints, canned reducers, template fallback,
+  task-scoped profiles or hidden reference implementations.
+- Compiler acceptance operates only on grammar, types, declared effects/capabilities, resource
+  bounds, stable identities and cross-artifact bindings. Never infer domain semantics from field or
+  action names and never make a scenario pass with a name-based validation or repair heuristic.
+- Fix a scenario failure only at a reusable boundary: language construct, type/interface contract,
+  generic component, model/compiler protocol, diagnostic, renderer, persistence or host capability.
+  A new ABI primitive must use domain-neutral types and semantics and demonstrate utility in at least
+  three unrelated application classes before it is accepted.
+- A failure observed in an acceptance scenario is evidence, not a specification. Before editing
+  production code, restate it as a domain-neutral invariant and give at least two unrelated examples
+  that require the same rule. If that cannot be done, keep the change in the test/evaluation layer and
+  do not add it to the language, component pack, prompt, compiler, repair loop or runtime.
+- Production validation must never inspect section ids, visible copy, field names, action names or
+  prompt keywords to infer application meaning. Structural rules may distinguish only declared
+  language/framework concepts such as route, widget, overlay, collection, capability and host effect.
+- Do not repair a generated artifact in production by injecting scenario-authored source. The same
+  candidate must pass or fail through the generic compiler API used by unknown held-out requests.
+- Never add a production component, compiler rule, prompt branch, repair strategy, renderer path,
+  persistence shape or host integration specifically for an acceptance scenario or a currently
+  observed PRD. Generation and repair must not select implementation paths by scenario identity,
+  domain vocabulary or recognizable prompt shape, even when that would improve the fixed matrix.
+- Do not tune static production instructions after inspecting one scenario's output. Prompt changes
+  must describe a general language rule and pass the prompt generalization guard.
+- The fixed matrix proves regressions only. Every release candidate must also pass held-out
+  compositional requests that were not used to design the current ABI. Success on any finite list
+  must never be reported as arbitrary-application generalization.
+
+No release gate is considered closed by implementation, a single successful generation or a
+hand-picked screenshot. A gate closes only after its recorded matrix or soak measurement passes on
+the pinned compiler, pack, model and device/network profile. Until then the build remains internal.
+
+A normal cloud run is budgeted for one complete DEAL call and one complete Deal UI batch call.
+Diagnostic retries are a failure ceiling, not expected progress. Record TTFT, graph rounds,
+accepted/rejected holes, input/cache/output tokens, local compiler time and wall time.
+
+## Runtime And UI
+
+Deal UI is pure and declarative. Repetition uses typed `ForEach`; filtering, sorting, derived strings
+and domain transformations stay in DEAL. Pointer phase is `0=down`, `1=move`, `2=up`; an ordinary
+tap produces down and up without requiring move. Integer event payloads must enter DEAL as `Int`,
+not JVM `Long`.
+
+Core DEAL remains a mutable TypeScript-shaped language and may use indexed reads where its type
+system permits them. Deal UI remains a separate restricted declaration language: no indexing, array
+literals, assignments or arbitrary calls. The Deal UI compiler treats state/action values borrowed by
+UI handlers as immutable, tracks aliases and helper mutation summaries, and rejects writes or escape.
+This is a framework static guarantee, not a change to core DEAL mutation semantics or an unavailable
+readonly runtime feature. `ForEach` is the only dynamic collection-rendering construct in Deal UI.
+
+Presentation-owned selection and navigation are compositional: use `NavigationBar`, `Tabs`, `Choice`
+and `Menu` with nominal `NavigationItem`, `TabItem`, `ChoiceItem` and `MenuItem` children. Each item
+binds its own checked action. Dynamic children are produced with `ForEach`. Array-prop navigation is
+v11 restore syntax only and must never be generated for v12.
+
+The component pack is generic and versioned. It must cover:
+
+- adaptive Root, Column, Row, Stack, Grid, Scroll, Section, Card and Spacer layout;
+- Text, IntText, Icon, Badge, Stat, ListItem, progress and empty/error states;
+- Button, IconButton, TextField, Toggle, Choice and Slider controls;
+- HTTPS Image and a closed semantic icon catalog;
+- Route, Dialog/Modal, BottomSheet, Menu and Snackbar presentation;
+- FrameClock, MinuteClock, PointerSurface and Canvas host ingress;
+- declared, permission-aware reusable host effects rather than application-specific callbacks.
+
+Every generated application owns one compact checked theme, independent of the Studio shell. The
+theme carries two seed colours plus style, shape, density and surface treatment. Compose derives
+accessible Material roles and fixed semantic success, warning and error roles from that declaration;
+the model must not repeat raw colours across component props. Themes are selected through the generic
+compiler tool schema, never through named app-family palettes or scenario routing. Cards remain at
+most 8 dp even when controls use pill geometry. Raw colours remain available only for explicit Canvas
+graphics where semantic Material roles cannot represent the scene.
+
+Utility applications use native semantic components. Canvas is reserved for games and genuinely
+spatial visualizations. Do not put cards inside cards. Cards use at most an 8 dp radius. Use stable
+responsive constraints, 48 dp touch targets, accessible labels, dynamic type, Material colour roles
+and concise hierarchy. Never hard-code a fixed device size outside the logical coordinate system of
+a Canvas. Remote media is HTTPS-only and must come from an authoritative URL supplied in input or
+state; the model may not invent image URLs.
+
+`Grid.columns` is the maximum column count. Supplying `minimumCellWidth` makes it an adaptive grid:
+the renderer reduces the count when a compact viewport cannot fit that minimum. Container width is
+owned by the parent; nested Row/Column nodes must not force `fillMaxWidth` and destroy composition.
+Library thumbnails render through the real runtime at a stable 360 dp logical width and are scaled
+noninteractively. Fullscreen utility apps receive host scrolling when they do not declare their own
+Scroll, PointerSurface or Canvas; inline Studio previews never create nested host scroll containers.
+
+Fullscreen is the real runtime, not a screenshot or second instance. Expanding and collapsing keeps
+the same DEAL session and state. Saved applications remain inside the sandboxed Studio runtime; the
+product does not emit arbitrary APKs.
+
+Saved canonical apps may be projected onto the Android home screen in two forms. A pinned app icon
+opens `GeneratedAppActivity`, a dedicated host for the saved app; it is not a generated APK. An
+interactive app widget renders either the app's optional `ui.Widget` subtree or a generic compact
+projection of the checked app UI. Both surfaces load the same saved sources, revalidate them with the
+pinned toolchain, execute the same nominal DEAL update handlers and share one source-bound durable
+state. Widget acceptance may depend only on Android `RemoteViews` capabilities and resource bounds,
+never on app names, domains or regression scenarios. Widget layout is selected from the actual host
+dimensions (compact, medium or expanded); do not hard-code launcher cell counts or OEM branches.
+
+## Save And Refine
+
+Saving persists canonical `app.deal`, `app.dealui` and provenance. Never persist checked IR as the
+source of truth. The app-owned `ui.AppTheme` is part of `app.dealui`, so saved previews and fullscreen
+restores reproduce the same visual identity. Restore selects the recorded pack, verifies recorded
+compiler/toolchain provenance, then reparses and recompiles both files before creating a new runtime.
+Unavailable provenance quarantines the record rather than executing stale code. Library cards render
+noninteractive live previews; opening a card creates an interactive fullscreen session.
+
+The user edits an application with one natural-language request. Do not expose manual UI/logic
+scope controls. Two narrow edit agents may inspect the same request: the DEAL agent replaces only
+responsible function bodies or returns unchanged; the Deal UI agent replaces only responsible view
+units or returns unchanged. The host validates both candidates and swaps them atomically. A failed
+edit preserves the previous runnable application. Changing the public AppInterface requires a
+controlled full revision, not an unvalidated in-place mutation.
+
+Repair handles compiler or functional diagnostics for the responsible artifact. Transport-level
+compiler checks and semantic request fidelity are separate stages. Do not hide incorrect behaviour
+with scenario-specific host heuristics.
+
+## Acceptance
+
+The mandatory scenario matrix is a regression and product-quality floor, not an exhaustive list of
+applications the architecture recognizes:
+
+1. medication;
+2. exam preparation;
+3. health/workout tracking;
+4. todo;
+5. weather;
+6. tic-tac-toe;
+7. Arkanoid;
+8. chess.
+
+Passing means more than compiling. Each scenario must:
+
+- generate canonical DEAL and Deal UI without a template fallback;
+- launch, accept touch/input and preserve state through Studio/fullscreen transitions;
+- save, recompile, restore and show a live library preview;
+- accept one natural-language refinement without full regeneration when the interface is unchanged;
+- render without clipping on compact, phone and unfolded widths;
+- look like a polished native application, not a student demo;
+- pass screenshot review, dark/light theme, dynamic type, TalkBack labels and minimum touch targets.
+
+Raw blue button grids, inaccessible canvas hit zones, monochrome screens, nested cards, placeholder
+icons, technical diagnostics in the app surface and fixed-size phone layouts are acceptance failures.
+
+Iterative-development acceptance uses at least one held-out complex application that was not used to
+shape production prompts or ABI. Starting from a runnable base, apply multiple ordinary text requests
+that independently add behavior, add or change a screen, refine visual hierarchy and exercise
+save/restore. At every step record selected revision mode, changed DEAL holes and Deal UI surfaces,
+input/output tokens, compiler diagnostics, time to runnable and whether state was preserved. Include
+one intentionally invalid change and verify atomic rollback. The test passes only when local edits do
+not regenerate unrelated accepted units and structural edits create a new checked AppInterface.
+
+## Validation
+
+Before a change is complete, run the narrowest relevant checks and then the product gates:
 
 ```bash
-./gradlew test
-./gradlew assembleDebug
-./gradlew ktlintCheck detekt lintDebug
-./gradlew :app:koverVerifyCi :app:koverXmlReportCi
-./gradlew installDebug
-./gradlew :app:connectedDebugAndroidTest
-scripts/run_full_acceptance.sh --host-only
-scripts/run_full_acceptance.sh
+./gradlew :app:testDebugUnitTest :deepseek-connector:testDebugUnitTest
+./gradlew :app:ktlintCheck :app:detekt :app:lintDebug
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 ```
 
-After cloning, run `git lfs pull` and `git submodule update --init --recursive`. External Qwen, generated RuBERT and exported Silero bundles are required for the corresponding connected tests; see `README.md` for exact paths.
+Connected acceptance uses an ARM64 Android device because the embedded production DEAL toolchain is
+a device artifact. At minimum run `CanonicalDealToolchainDeviceTest`,
+`CanonicalDealUiTouchDeviceTest` and the cloud scenario tests selected for the change.
 
-Before opening a pull request, run `./gradlew ktlintCheck detekt lintDebug :app:koverVerifyCi :app:koverXmlReportCi :app:compileReleaseKotlin`, `./gradlew assembleDebug`, and the relevant Python/native policy tests. The Kover variant combines `:app` and `:core` JVM unit coverage and enforces a 45% line floor. Gradle dependency verification is strict; when intentionally changing dependencies, regenerate and review `gradle/verification-metadata.xml` rather than bypassing verification. Do not push directly to `main`; repository rules require the aggregate `PR Quality / quality` check after parallel `fast quality` and `native APK` jobs pass.
+Do not claim visual or device acceptance when the phone was unavailable. Preserve the exact command
+and mark that gate pending.
 
-## Required Architecture
+## Repository Map
 
-- Local ASR backends are for speech recognition only: microphone/audio file -> transcript. The current catalog contains whisper.cpp and sherpa-onnx models.
-- RuBERT-tiny2 is the classifier for user commands: intent + slots for Android actions.
-- Qwen is for local answers to complex/general questions only.
-- Qwen must not be used as a backup command parser for RuBERT.
-- Qwen must not be prompted to generate structured command JSON.
-- Qwen output must render as plain assistant text, optionally with `GenericAnswerCard`.
-- On-device TTS speaks only the final user-visible assistant text. Never pass widget payload JSON, debug data, transcripts, model thinking tags or prompt content to speech synthesis.
-- The selected TTS profile is Silero `v5_5_ru`, speaker `xenia`, 48 kHz. Preserve its generic Russian stress, homograph and sentence-intonation pipeline; do not add phrase-specific pronunciation rewrites.
-- Streamed Qwen deltas must go through `SpeechChunker`, which acts as the adaptive speech planner and returns `PlannedSpeechChunk` values with exact source offsets and boundary type. Emit strong sentence boundaries immediately. Emit safe clause boundaries (`,`, `;`, `:`, en/em dash) after 28 characters only when the estimated queued/active speech buffer is below the 1,400 ms target. Before the first spoken phrase only, use a word-boundary fallback near 64 characters when punctuation is absent; after speech starts, prefer punctuation and reserve the 180-character continuation limit for malformed/unpunctuated output. Flush only the unspoken tail at finalization; never synthesize the full final answer again after streaming chunks.
-- Keep synthesis and playback as an ordered two-stage pipeline: while one PCM chunk plays, at most the next chunk may be synthesized/prefetched. Preserve the rendezvous backpressure, generation ids and Stop behavior so early speech cannot reorder, duplicate or retain unbounded PCM.
-- `AssistantSpeech` calls from `ChatViewModel` must be non-blocking. Synthesis and `AudioTrack` playback belong to the Android speech controller, and TTS playback must not keep `ChatUiState.isProcessing` true or disable the composer.
-- `AssistantSpeechGateway` must share the Activity `ViewModelStore` lifetime with `ChatViewModel`. Do not own or close it from a Compose `remember`/`DisposableEffect`; configuration recreation must not leave the retained chat ViewModel connected to `NoOpAssistantSpeech`.
-- `AudioTrackPcmPlayer` must use one persistent `MODE_STREAM` track and one transient audio-focus lease for the complete assistant response. A blocking `write` only transfers PCM into the track buffer; release the session only after the response-end marker has drained. Track phrase start/end against the playback head and expose the current source range to Compose.
-- Do not trim, crossfade or otherwise rewrite Silero PCM to hide segmentation problems. Fix phrase planning and playback continuity first; audio post-processing requires measured model-padding evidence and dedicated signal-quality tests.
-- Preserve first-token-to-audio telemetry semantics: start at the first visible Qwen token callback before UI batching and stop at the first real `AudioTrack` playback-head callback. The Pixel 10 warm baseline is `998/1029/1129 ms` (median `1029 ms`); report Qwen TTFT separately.
-- Phrase highlighting must use the exact `PlannedSpeechChunk` source range. Do not fake word-level timing until normalized Silero tokens are explicitly aligned back to visible source text.
-- A user Stop action suppresses the remainder of the current streaming message only. It must not stop Qwen text generation, disable automatic speech globally or allow later deltas from the same message to restart playback.
-- Starting a new request or microphone recording must stop TTS, flush queued audio and release audio focus before `AudioRecord` starts.
-- Do not add legacy PyTorch Mobile. The selected Silero Android runtime is split ONNX Runtime graphs plus the external JTransforms ISTFT; keep every native dependency 16 KB compatible.
-- Qwen adapters should implement `LocalAnswerProvider` / `StreamingLocalAnswerProvider`; the legacy `FallbackParser` bridge may wrap that answer-only contract, but it must leave `intent` null and `slots` empty.
-- Android actions and action widgets must come from RuBERT/rule NLU plus slot normalization and skill execution, not from LLM-generated intents.
-- Keep concrete reusable action logic behind `SkillRegistry` in `:core`. `AssistantEngine` may orchestrate normalization, routing and `SkillResult` mapping, but do not move per-intent handlers back into Android UI or into Qwen prompts.
-- Widget buttons that claim to perform Android actions must route through `PlatformActions` / Android adapters. Do not leave them as local-only chat feedback unless the product copy explicitly says the action is unavailable or passive.
-- Android runtime-permission failures are user-visible product states. Use `PermissionCard` for missing `RECORD_AUDIO` and `POST_NOTIFICATIONS`; do not silently skip voice recording or reminder notification behavior.
-- Weather data must flow through the pure Kotlin `WeatherProvider` contract in `:core`. Keep mock/cache/online source labels in the returned widget payload; do not hard-code weather payloads in Android UI or directly inside `AssistantEngine`.
+```text
+app/src/main/java/com/offlineassistant/app/generatedapp/  Studio, compilers, runtime and renderer
+deepseek-connector/                                      streaming/tool-call cloud client
+app/src/debug/assets/deal-android-toolchain.dex           pinned production DEAL toolchain
+tooling/deal-ui-pack/                                     tracked versioned Deal UI component pack
+tooling/deal-android-bridge/                              portable compiler bridge and toolchain lock
+docs/superpowers/plans/                                   implementation decisions and status
+```
 
-Low-confidence action commands must produce clarification/error UI and must not be repaired by Qwen. Route only requests classified as complex/general questions to Qwen, and never execute an action from Qwen output.
-
-Persist the latest real runtime operation for Whisper, RuBERT and Qwen through `ModelRuntimeTelemetryStore`. Settings/Debug must distinguish file readiness from actual warm-up/inference/transcription/generation success, latency and error.
-
-Do not add phrase-specific ASR correction hacks such as mapping one observed bad transcript to a command slot. Keep the raw transcript visible, let the generic NLU/slot normalizers process it, and improve the general ASR/NLU path through model choice, training/evaluation data, or language-level normalization rules that are valid beyond one captured mistake.
-
-Persist ASR selection through `AssistantSettingsRepository` and construct the backend through `AudioTranscriberFactory`; do not branch on a model inside Compose. Streaming ASR partials are display-only. Only the finalized transcript may enter RuBERT, slot normalization, Qwen routing or skill execution.
-
-Use `RussianInverseTextNormalizer` for language-level cardinal-number and spoken-clock normalization. Extend it by linguistic class with broad tests; do not put observed transcript strings or command-specific replacements into ASR adapters, RuBERT glue or skills. Full dates/ordinals are still an explicit follow-up, not a reason to add phrase patches.
-
-Keep T-one endpoint detection independent of recognized command text. The energy-based trailing-silence detector may use audio timing and RMS plus sherpa's endpoint signal, but it must not inspect transcript words to decide when to stop.
-
-Keep Qwen UI updates batched near 40 ms and propagate Stop into the native generation epoch. Never restore synchronous per-token main-thread dispatch or block the composer while generation runs. Auto-scroll may follow only while the user is near the bottom.
-
-Model residency is staged: make ASR/RuBERT available first, then warm Qwen/Silero after the first frame on capable non-low-RAM devices. Android memory-pressure callbacks must release the persistent Qwen context and TTS runtime and rewarm only during a later foreground idle period.
-
-The product timer is an in-app timer whose persisted payload contains `ends_at_epoch_ms`; pause/resume/cancel must update the same card. Chat history remains bounded to 100 persisted messages. Reminder scheduling must survive reboot/package replacement/timezone changes, and weather must preserve explicit `mock`/`cache` source semantics.
-
-## UI Direction
-
-Use the approved Blue Reference chat direction for the main Android UI. The reference mocks are stored in `docs/design/references/`, with the implementation spec in `docs/superpowers/specs/2026-07-09-ui-polish-blue-reference-design.md` and the execution checklist in `docs/superpowers/plans/2026-07-09-ui-polish-blue-reference.md`.
-
-Keep the chat screen close to that direction: white surface, cutout-safe `Assistant` top bar without decorative no-op buttons, compact bottom navigation, pale-blue right-aligned user bubbles, assistant avatar next to assistant bubbles, compact input bar, blue action, and white bordered widget cards. The composer has one trailing circular action: microphone for an empty input, send for entered text, and stop while recording. Do not restore separate text buttons labelled `Mic` or `Send`.
-
-Use product-facing labels in the chat and cards. Do not expose raw ISO timestamps, payload states such as `scheduled`, source ids such as `local_llm`, filesystem paths, or the English `Transcript preview:` prefix. Raw `debug:` diagnostics must stay out of the main chat and remain available through the debug/history surface. Settings should summarize model readiness and runtime state; detailed paths and adapter diagnostics belong to Debug.
-
-## Verification
-
-Before claiming behavior is fixed, run the smallest relevant targeted test first, then a broader check:
-
-- Unit/core changes: `./gradlew test`
-- App build: `./gradlew assembleDebug`
-- Device behavior: `./gradlew :app:connectedDebugAndroidTest`
-
-For Qwen routing changes, include tests that prove:
-
-- action-like unknown text uses a plain answer prompt;
-- prompts do not contain JSON-parser instructions;
-- `FallbackKind.COMMAND` is not executed as an Android action;
-- the demo complex-question flow renders `generic_answer_card`;
-- repeated complex questions through the UI render separate `generic_answer_card` answers and do not crash or duplicate final output.
-
-Keep Qwen's model capacity controls separate from UI answer policy: context is `32768`, generation ceiling is `8192`, and normal answers are requested as 2-4 sentences. Native semantic stopping, the emergency character cap and timeout live in `answer_stop_policy.h`; run `python3 scripts/test_qwen_generation_policy.py` after changing them. Do not reduce the token ceiling as a substitute for correct stopping.
-
-Keep the native Qwen model and its `32768` context persistent behind the existing generation mutex. Background warm-up must initialize both; each request must clear llama memory metadata before prefill instead of reallocating the context. The measured CPU prompt batch is `512`. Keep the common answer prompt compact, keep model-runtime guidance generic, and put recency/safety guidance in conditional topic policies. After changing context lifecycle, batching or prompt text, rerun `QwenFirstTokenBenchmarkTest`, the full 12-case `QwenAnswerEvaluationTest`, and the repeated `QwenUiSmokeTest`.
-
-RuBERT uses one cached optimized ONNX session and closes every input/output tensor. Pixel 10 provider evaluation selected CPU with two intra-op threads; do not switch to XNNPACK/NNAPI or increase threads without rerunning `RubertRuntimeBenchmarkTest` and preserving the action evaluation gates.
-
-llama.cpp token pieces may split a UTF-8 code point. Never pass a raw piece to JNI `NewStringUTF`: keep `Utf8StreamDecoder` buffering across callbacks and create Java strings through UTF-16 `NewString`. The native host policy test must retain split Cyrillic, supplementary-code-point and incomplete-tail coverage.
-
-For async chat/voice pipeline changes, include tests that prove:
-
-- the UI appends the recognized transcript before assistant processing continues;
-- streaming tokens finalize into the same assistant message instead of duplicating the full answer;
-- ASR/LLM exceptions render an `ErrorCard` and clear `isProcessing`.
-
-For ASR/NLU changes, include tests or evaluation rows that prove the behavior generalizes across paraphrases. Do not accept a fix that only makes one manually observed Whisper transcript pass.
-
-The production ASR native build is CPU-only. `-PasrVulkan=true` is a benchmark-only path requiring explicit SPIR-V/Vulkan header properties; the Pixel 10 trial failed transcript correctness and was much slower, so never enable it by default without a new correctness-first device evaluation.
-
-For ASR evaluation changes, keep the audio manifest-driven. Regenerate synthetic Russian fixtures with `tools/generate_asr_eval_audio.sh`; the canonical manifest is `docs/testing/audio/asr-eval-manifest.jsonl`, and connected tests consume the copied assets under `app/src/androidTest/assets/asr_eval/`. Do not replace this with phrase-specific transcript corrections.
-
-Treat `keyword_hit` in the Whisper manifest artifact as transcript diagnostics, not the product acceptance boundary. Equivalent transcripts such as `18*3` instead of `18 умножить на 3` are valid when the generic NLU path produces the expected intent and widget. Acceptance requires non-empty ASR output plus the expected downstream intent/widget for every case; never add phrase-specific product fallbacks to satisfy the eval.
-
-For live human microphone acceptance, use `scripts/live_voice_acceptance.sh` when a phone is connected. The run must save the recorded Mic flow plus a chat UI dump proving `Таймер` and either `Поставил таймер` or the valid passive result `Таймер создан в системном приложении.`, then a separate scrolled `История` debug UI dump proving `transcript:`, `intent: set_timer`, `source: RUBERT_TINY2`, `fallback: false`, and `latency asr`. Do not count a voice demo as accepted if it only shows a widget without the debug/latency evidence.
-
-For final project acceptance, prefer `scripts/run_full_acceptance.sh`. It runs host preflight, then `scripts/device_smoke_test.sh`, then `scripts/live_voice_acceptance.sh`, and verifies both normal and live-voice artifact bundles. If no phone is connected, `scripts/run_full_acceptance.sh --host-only` is allowed only as a local readiness check; it does not complete the product acceptance goal. Use `scripts/run_full_acceptance.sh --wait-for-device` when you want host preflight to run now and the connected phone stages to start automatically once adb sees a device.
-
-Use `scripts/acceptance_status.py build/device-smoke` to inspect which acceptance evidence is currently present. Treat a non-zero status as expected while phone artifacts are missing; do not mark the goal complete until it reports `"complete": true` after a real connected run.
-
-Use `scripts/final_dod_status.py --artifact-dir build/device-smoke` for the Definition-of-Done gate matrix. It maps the spec DoD items to required evidence groups and must report `"complete": true` before the active goal can be marked complete.
-
-For offline model acceptance, do not require `active_network_count=0`: real phones can keep a VPN or system network active. The required proof is that `scripts/device_smoke_test.sh` enables Android's OEM deny network chain and records `package_networking_com.offlineassistant.poc.debug=com.offlineassistant.poc.debug:deny` while the Whisper/RuBERT/Qwen local-model gate runs, then restores package networking.
-
-For RuBERT export/training changes, do not stage an intent-only ONNX. The exported model must expose both `intent_logits` and `slot_logits`; run the training script export checks and `python3 training/rubert/evaluate_export.py --model-dir models/generated/rubert --output build/rubert-host-eval.jsonl`. When a phone is connected, rerun `RubertSlotEvaluationTest` plus `RubertCommandEvaluationTest` against the staged bundle.
-
-The RuBERT evaluator must write both the per-case JSONL and adjacent `*-metrics.json`. Keep intent accuracy, macro F1, slot precision/recall/F1, per-intent results, confusion matrix, validation pass rate and the strict regression subset; do not replace aggregate reporting with a handful of exact examples.
-
-Connected evaluation rows are exported through tagged logcat (`QwenAnswerEval`, `RubertSlotEval`, `WhisperAsrEval`). Run each producer class separately and collect its rows immediately before starting the next instrumentation run; a single combined suite can overflow logcat even before APK teardown. Do not depend on app-private files surviving instrumentation.
-
-System alarm intents and the legacy passive timer adapter require `com.android.alarm.permission.SET_ALARM` (not `android.permission.SET_ALARM`). Use `AlarmClock.EXTRA_SKIP_UI=true` when the chat must remain foregrounded and return a passive system-action card. Do not route the normal product timer back through the system adapter.
-
-For permission-flow changes, include tests that prove the widget payload names the requested permission and the UI requests that permission instead of hard-coding a different Android permission.
-
-## Model Assets
-
-Current staged model roles:
-
-- Whisper Base Q5_1 (stable selectable fallback): `app/src/main/assets/models/whisper/whisper-base-multilingual-q5_1.bin`
-- Zipformer RU INT8 (fast final Russian ASR candidate): `app/src/main/assets/models/zipformer_ru/`
-- T-one RU (default streaming Russian ASR): `app/src/main/assets/models/tone_ru/`
-- sherpa-onnx Android runtime: `app/libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar`
-- RuBERT bundle: staged from `models/generated/rubert/` to `/data/local/tmp/offline-assistant-rubert`
-- Qwen2.5 0.5B GGUF: staged from `models/external/qwen2.5-0.5b-instruct-gguf/` to `/data/local/tmp/offline-assistant-qwen.gguf`
-- Silero v5.5 RU/Xenia TTS: complete split-ONNX bundle and Kotlin linguistic frontend under `models/external/silero-v5_5-ru-xenia/`; enabled through the background-created `AssistantSpeechGateway` after Pixel 10 native/chat/Qwen repeatability acceptance, while weights stay outside the APK
-
-Do not add older/unused GGUF variants back into the repo unless explicitly requested.
-
-## Generated And Vendored Files
-
-- Treat `build/`, `.gradle/`, `app/.cxx/`, `app/build/`, and `core/build/` as disposable generated output.
-- Keep `models/external/` and `models/generated/` outside Git. Never commit model caches, device-staged copies, APKs, local SDK paths, keystores or acceptance recordings.
-- ASR assets under `app/src/main/assets/models/` and the sherpa AAR under `app/libs/` are intentional Git LFS objects. Do not replace an LFS pointer with a normal Git blob.
-- Release changes must keep R8/resource shrinking enabled and preserve the filtered app-only profiles under `app/src/release/generated/baselineProfiles/`. Regenerate them with `./gradlew :app:generateBaselineProfile`; verify release startup/chat changes with `:benchmark:connectedBenchmarkReleaseAndroidTest` and inspect the Perfetto traces before claiming a latency win.
-- Treat `third_party/whisper.cpp/` as a pinned Git submodule; avoid broad edits there unless the task is specifically about the native dependency. Record intentional upstream commit changes in the parent repository.
-
-## Local Skills
-
-There are no repo-local Codex skills. Product directories named `skills` are Kotlin source packages, not agent workflows. Use the root commands and documents above rather than introducing a repo-local skill unless a repeated, fragile repository-specific workflow clearly justifies one.
+The package namespace remains `com.offlineassistant.app` temporarily to avoid a low-value mechanical
+rewrite. It is not evidence that assistant functionality remains in the product.

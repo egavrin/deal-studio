@@ -1,0 +1,87 @@
+{
+  "accepted_unique_records": 8,
+  "domains": {
+    "test": {},
+    "train": {
+      "data_display": 1,
+      "education": 1,
+      "forms": 1,
+      "generated_app": 1,
+      "media": 1,
+      "productivity": 2,
+      "research": 1
+    },
+    "validation": {}
+  },
+  "exact_duplicates_removed": 0,
+  "input_records": 8,
+  "quality": {
+    "component_frequency": {
+      "AudioPlayer": 1,
+      "Badge": 4,
+      "Button": 4,
+      "Card": 3,
+      "Chart": 1,
+      "CheckBox": 2,
+      "ChoicePicker": 1,
+      "CodeBlock": 1,
+      "Column": 8,
+      "DataTable": 1,
+      "DateTimeInput": 1,
+      "Divider": 2,
+      "Grid": 1,
+      "Icon": 1,
+      "Image": 1,
+      "ImageGallery": 1,
+      "InteractiveSurface": 1,
+      "KeyValue": 2,
+      "List": 1,
+      "MapPreview": 1,
+      "Metric": 3,
+      "Modal": 1,
+      "Progress": 2,
+      "Row": 2,
+      "Slider": 1,
+      "SourceList": 1,
+      "Tabs": 1,
+      "Text": 15,
+      "TextField": 2,
+      "Timeline": 1,
+      "Video": 1
+    },
+    "data_bound_share": 0.875,
+    "function_frequency": {
+      "email": 1,
+      "required": 2
+    },
+    "interactive_share": 0.75,
+    "locale_frequency": {
+      "en-US": 8
+    },
+    "node_bands": {
+      "4-8": 4,
+      "9-20": 4
+    },
+    "record_count": 8,
+    "state_frequency": {
+      "populated": 8
+    },
+    "unique_blueprints": 8,
+    "unique_templates": 8
+  },
+  "split_counts": {
+    "test": 0,
+    "train": 8,
+    "validation": 0
+  },
+  "template_leakage": {
+    "train_test": [],
+    "train_validation": [],
+    "validation_test": []
+  },
+  "unique_templates": {
+    "test": 0,
+    "train": 8,
+    "validation": 0
+  }
+}

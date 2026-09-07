@@ -11,7 +11,8 @@ data class NormalizedCommand(
     val intent: String,
     val slots: JsonObject,
     val originalText: String,
-    val source: NluSource
+    val source: NluSource,
+    val confidence: Double = 1.0
 )
 
 @Serializable
@@ -19,7 +20,8 @@ data class ClarificationRequest(
     val question: String,
     val suggestions: List<String>,
     val pendingIntent: String,
-    val partialSlots: JsonObject
+    val partialSlots: JsonObject,
+    val expectedSlot: String? = null
 )
 
 @Serializable

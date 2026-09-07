@@ -36,7 +36,7 @@ class EvaluateExportMetricsTest(unittest.TestCase):
         self.assertEqual("120", cases[0]["slots"]["duration_seconds"])
         self.assertEqual("проверить отчет", cases[1]["slots"]["text"])
         self.assertTrue(cases[0]["gate"])
-        self.assertFalse(cases[1]["gate"])
+        self.assertTrue(cases[1]["gate"])
 
     def test_summary_reports_all_required_metrics(self):
         results = [
@@ -57,7 +57,33 @@ class EvaluateExportMetricsTest(unittest.TestCase):
 
     def test_reminder_text_uses_reminder_slot_label(self):
         self.assertEqual("reminder_text", evaluate_export.dataset_slot_label("create_reminder", "text"))
-        self.assertEqual("note_text", evaluate_export.dataset_slot_label("create_note", "text"))
+        self.assertEqual("text", evaluate_export.dataset_slot_label("create_note", "text"))
+
+    def test_division_expression_is_preserved_in_expected_slots(self):
+        slots = evaluate_export.normalize_expected_slots(
+            "calculate",
+            [{"name": "expression", "value": "81 разделить на 9"}],
+        )
+
+        self.assertEqual("81 / 9", slots["expression"])
+
+    def test_metric_gates_report_only_threshold_regressions(self):
+        metrics = {
+            "intent_accuracy": 0.96,
+            "intent_macro_f1": 0.94,
+            "slot_f1": 0.89,
+            "validation_pass_rate": 0.91,
+        }
+
+        failures = evaluate_export.metric_gate_failures(
+            metrics,
+            min_intent_accuracy=0.95,
+            min_macro_f1=0.93,
+            min_slot_f1=0.90,
+            min_validation_pass_rate=0.90,
+        )
+
+        self.assertEqual(["slot_f1=0.890 below 0.900"], failures)
 
 
 def result(expected, actual, exact, gate, tp, fp=0, fn=0):

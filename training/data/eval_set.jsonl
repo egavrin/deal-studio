@@ -1,12 +1,48 @@
+{"text":"Сколько сейчас времени?","intent":"get_current_time","slots":[]}
+{"text":"Покажи текущее время","intent":"get_current_time","slots":[]}
 {"text":"Покажи погоду в Санкт-Петербурге","intent":"get_weather","slots":[{"name":"location","value":"Санкт-Петербурге","start":16,"end":32}]}
-{"text":"Какая погода в Москве сегодня?","intent":"get_weather","slots":[{"name":"location","value":"Москве","start":16,"end":22}]}
+{"text":"Какая погода в Москве сегодня?","intent":"get_weather","slots":[{"name":"location","value":"Москве","start":15,"end":21}]}
 {"text":"Поставь таймер на 5 минут","intent":"set_timer","slots":[{"name":"duration","value":"5 минут","start":18,"end":25}]}
 {"text":"Поставь таймер на две минуты","intent":"set_timer","slots":[{"name":"duration","value":"две минуты","start":18,"end":28}]}
-{"text":"Поставь таймер на час","intent":"set_timer","slots":[{"name":"duration","value":"час","start":18,"end":21}]}
 {"text":"Будильник на 08.15","intent":"set_alarm","slots":[{"name":"time","value":"08.15","start":13,"end":18}]}
 {"text":"Разбуди меня завтра в 7:30","intent":"set_alarm","slots":[{"name":"time","value":"7:30","start":22,"end":26}]}
+{"text":"Создай напоминание позвонить маме","intent":"create_reminder","slots":[{"name":"text","value":"позвонить маме","start":19,"end":33}]}
+{"text":"Напомни через час проверить духовку","intent":"create_reminder","slots":[{"name":"text","value":"проверить духовку","start":18,"end":35}]}
+{"text":"Создай заметку проверить отчет","intent":"create_note","slots":[{"name":"text","value":"проверить отчет","start":15,"end":30}]}
+{"text":"Запиши заметку купить молоко","intent":"create_note","slots":[{"name":"text","value":"купить молоко","start":15,"end":28}]}
 {"text":"Посчитай 125 умножить на 37","intent":"calculate","slots":[{"name":"expression","value":"125 умножить на 37","start":9,"end":27}]}
 {"text":"Сколько будет 18 плюс 24","intent":"calculate","slots":[{"name":"expression","value":"18 плюс 24","start":14,"end":24}]}
-{"text":"Создай заметку проверить отчет","intent":"create_note","slots":[{"name":"text","value":"проверить отчет","start":15,"end":29}]}
-{"text":"Создай напоминание через час позвонить маме","intent":"create_reminder","slots":[{"name":"datetime","value":"через час","start":20,"end":29},{"name":"text","value":"позвонить маме","start":30,"end":44}]}
 {"text":"Запусти YouTube","intent":"open_app","slots":[{"name":"app_name","value":"YouTube","start":8,"end":15}]}
+{"text":"Открой Telegram","intent":"open_app","slots":[{"name":"app_name","value":"Telegram","start":7,"end":15}]}
+{"text":"Позвони по номеру +7 999 123-45-67","intent":"dial_phone","slots":[{"name":"phone_number","value":"+7 999 123-45-67","start":18,"end":34}]}
+{"text":"Подготовь сообщение: буду через десять минут","intent":"compose_message","slots":[{"name":"message_text","value":"буду через десять минут","start":21,"end":44}]}
+{"text":"Подготовь письмо: отправляю документы","intent":"compose_email","slots":[{"name":"email_body","value":"отправляю документы","start":18,"end":37}]}
+{"text":"Построй маршрут до Красной площади","intent":"start_navigation","slots":[{"name":"destination","value":"Красной площади","start":19,"end":34}]}
+{"text":"Добавь в календарь встреча с командой","intent":"create_calendar_event","slots":[{"name":"event_title","value":"встреча с командой","start":19,"end":37}]}
+{"text":"Музыка: следующий трек","intent":"control_media","slots":[{"name":"media_action","value":"следующий трек","start":8,"end":22}]}
+{"text":"Сделай громче","intent":"set_volume","slots":[{"name":"volume_action","value":"громче","start":7,"end":13}]}
+{"text":"Открой настройки Wi-Fi","intent":"open_setting","slots":[{"name":"setting","value":"Wi-Fi","start":17,"end":22}]}
+{"text":"Открой сайт https://developer.android.com","intent":"open_url","slots":[{"name":"url","value":"https://developer.android.com","start":12,"end":41}]}
+{"text":"Позвони по номеру 8 916 555-12-12","intent":"dial_phone","slots":[{"name":"phone_number","value":"8 916 555-12-12","start":18,"end":33}]}
+{"text":"Составь сообщение: встреча переносится на завтра","intent":"compose_message","slots":[{"name":"message_text","value":"встреча переносится на завтра","start":19,"end":48}]}
+{"text":"Хочу отправить письмо жду обратную связь","intent":"compose_email","slots":[{"name":"email_body","value":"жду обратную связь","start":22,"end":40}]}
+{"text":"Как проехать до Большого театра","intent":"start_navigation","slots":[{"name":"destination","value":"Большого театра","start":16,"end":31}]}
+{"text":"Создай запись в календаре родительское собрание","intent":"create_calendar_event","slots":[{"name":"event_title","value":"родительское собрание","start":26,"end":47}]}
+{"text":"Сделай с музыкой продолжить","intent":"control_media","slots":[{"name":"media_action","value":"продолжить","start":17,"end":27}]}
+{"text":"Мне нужно volume down","intent":"set_volume","slots":[{"name":"volume_action","value":"volume down","start":10,"end":21}]}
+{"text":"Перейди к параметрам экрана","intent":"open_setting","slots":[{"name":"setting","value":"экрана","start":21,"end":27}]}
+{"text":"Открой в интернете https://exa.ai","intent":"open_url","slots":[{"name":"url","value":"https://exa.ai","start":19,"end":33}]}
+{"text":"Покажи доступные команды","intent":"help","slots":[]}
+{"text":"Что ты умеешь?","intent":"help","slots":[]}
+{"text":"Найди последние новости об Android 17","intent":"web_search","slots":[],"gate":true}
+{"text":"Кто сейчас возглавляет OpenAI?","intent":"web_search","slots":[],"gate":true}
+{"text":"Проверь актуальный курс евро","intent":"web_search","slots":[],"gate":true}
+{"text":"Поищи официальную документацию по Kotlin coroutines","intent":"web_search","slots":[],"gate":true}
+{"text":"Проведи исследование рынка локальных голосовых ассистентов","intent":"web_research","slots":[],"gate":true}
+{"text":"Сравни по нескольким источникам современные ASR модели","intent":"web_research","slots":[],"gate":true}
+{"text":"Изучи рынок складных смартфонов и подготовь выводы","intent":"web_research","slots":[],"gate":true}
+{"text":"Собери подробный обзор конкурентов Perplexity","intent":"web_research","slots":[],"gate":true}
+{"text":"Почему небо синее?","intent":"unknown","slots":[]}
+{"text":"Объясни квантовую запутанность простыми словами","intent":"unknown","slots":[]}
+{"text":"Покажи фотографии Кривого Рога","intent":"unknown","slots":[]}
+{"text":"Покажи мне фотографии Москвы","intent":"unknown","slots":[]}

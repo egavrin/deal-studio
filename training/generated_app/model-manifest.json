@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-25",
+  "contract": {
+    "ui_dsl": "compositional-v1",
+    "deal_profile": "generated-app-abi-v2-legacy",
+    "runtime_profile": "generated-app-language-v3",
+    "runtime_compatible": false,
+    "legacy_grid_compatible": true,
+    "ui_max_output_tokens": 512,
+    "deal_max_output_tokens": 1536,
+    "deal_repair_max_output_tokens": 1536,
+    "max_ui_components": 16,
+    "max_ui_depth": 6,
+    "max_deal_source_chars": 6000,
+    "max_canvas_shapes": 48,
+    "runtime_max_scene_nodes": 96
+  },
+  "runtime": {
+    "engine": "llama.cpp",
+    "backend": "CPU",
+    "threads": 4,
+    "android_arch": "armv8.6-a+dotprod+fp16+i8mm",
+    "sampling": "greedy; host GBNF constrained decoding for compact UI"
+  },
+  "models": [
+    {
+      "role": "ui_dsl",
+      "base_model": "mlx-community/gemma-3-270m-it-4bit",
+      "adapter": "gemma-ui-app-v7",
+      "adapter_sha256": "c9a1d57caffc992188b87d4c0b0f0223f8eff94441ee5a3a60dee5356cd22d63",
+      "artifact": "gemma-ui-q4-k-m.gguf",
+      "quantization": "Q4_K_M",
+      "bytes": 253114976,
+      "sha256": "0a3a7a5b4aa3cb8358034fdb0b1a768b61a94d0b5ed48f8edc024868998b1d0c"
+    },
+    {
+      "role": "deal_behavior",
+      "base_model": "mlx-community/Qwen2.5-Coder-0.5B-Instruct-4bit",
+      "adapter": "qwen-deal-app-v4",
+      "adapter_sha256": "f40dc4bf62b885d834579a080f08c5d741a141a680f7c81197b1e5e3ce23bfc0",
+      "artifact": "qwen-deal-app-0.5b-q4-k-m.gguf",
+      "quantization": "Q4_K_M",
+      "bytes": 397807968,
+      "sha256": "ccb3853c243cf32008612ab8bde7b8c8d4b14517ad91577d75edeb84017fc813"
+    }
+  ],
+  "datasets": {
+    "deal": {
+      "train_rows": 126,
+      "validation_rows": 18,
+      "test_rows": 18,
+      "held_out_test_family": "runner"
+    },
+    "ui": {
+      "train_rows": 180,
+      "validation_rows": 18,
+      "test_rows": 18,
+      "presentation_families": 3
+    }
+  },
+  "pixel_10_acceptance": {
+    "request": "Build a responsive two-player Pong game",
+    "ui": {
+      "prompt_tokens": 301,
+      "generated_tokens": 97,
+      "first_token_ms": 1514,
+      "complete_ms": 6988,
+      "decode_tokens_per_second": 17.5,
+      "valid": true
+    },
+    "deal": {
+      "prompt_tokens": 443,
+      "generated_tokens": 560,
+      "first_token_ms": 4381,
+      "complete_ms": 70537,
+      "decode_tokens_per_second": 8.4,
+      "valid": true,
+      "repair_used": false
+    },
+    "pipeline_wall_ms": 70558,
+    "interaction": "frame motion, pointer drag and generated status mutation verified"
+  },
+  "rejected_candidates": [
+    {
+      "artifact": "qwen-deal-app-0.5b-q4-0.gguf",
+      "reason": "The live 513-token Pong failed the production DEAL compiler and entered repair."
+    }
+  ],
+  "known_limits": [
+    "The recorded Qwen artifact is an ABI v2 legacy model. It may run only with the explicit GRID-only compatibility policy and must never be represented as Scene ABI v3.",
+    "The compact UI artifact requires the host GBNF grammar; its three-family presentation corpus is smoke coverage, not arbitrary UI generalization.",
+    "The ABI supports bounded grid and 2D canvas mini-apps, not arbitrary native applications.",
+    "The held-out runner evaluation does not yet demonstrate reliable behavior generalization.",
+    "Qwen Q4_K_M generation latency is not product-ready on the tested CPU backend.",
+    "Arkanoid, tank duel, cancellation and thermal acceptance are still pending on device."
+  ]
+}

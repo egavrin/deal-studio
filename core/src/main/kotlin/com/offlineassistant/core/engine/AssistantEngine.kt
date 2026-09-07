@@ -2,272 +2,314 @@ package com.offlineassistant.core.engine
 
 import com.offlineassistant.core.contracts.AssistantResponse
 import com.offlineassistant.core.contracts.DebugInfo
+import com.offlineassistant.core.contracts.LatencyBreakdown
 import com.offlineassistant.core.contracts.ResponseStatus
 import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
-import com.offlineassistant.core.llm.FallbackKind
-import com.offlineassistant.core.llm.FallbackParse
-import com.offlineassistant.core.llm.FallbackParser
-import com.offlineassistant.core.llm.NoOpFallbackParser
-import com.offlineassistant.core.llm.StreamingFallbackParser
+import com.offlineassistant.core.llm.AnswerEvent
+import com.offlineassistant.core.llm.AnswerRequest
+import com.offlineassistant.core.llm.AnswerRoute
+import com.offlineassistant.core.llm.ConversationTurn
+import com.offlineassistant.core.llm.StreamingAnswerProvider
+import com.offlineassistant.core.llm.UnavailableAnswerProvider
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
-import com.offlineassistant.core.nlu.RuleBasedNlu
-import com.offlineassistant.core.skills.DeterministicSlotNormalizer
 import com.offlineassistant.core.skills.NormalizationResult
-import com.offlineassistant.core.skills.NormalizedCommand
 import com.offlineassistant.core.skills.SkillRegistry
 import com.offlineassistant.core.skills.SkillStatus
 import com.offlineassistant.core.skills.SlotNormalizer
-import com.offlineassistant.core.skills.createBuiltInSkillRegistry
-import com.offlineassistant.core.storage.InMemoryNoteStore
-import com.offlineassistant.core.storage.InMemoryReminderStore
-import com.offlineassistant.core.storage.NoteStore
-import com.offlineassistant.core.storage.ReminderStore
-import com.offlineassistant.core.weather.MockWeatherProvider
-import com.offlineassistant.core.weather.WeatherProvider
-import java.time.OffsetDateTime
-import java.time.ZoneId
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-class AssistantEngine private constructor(
+class AssistantEngine(
     private val nlu: NluParser,
-    private val fallbackParser: FallbackParser,
-    private val fallbackThreshold: Double,
+    private val answerProvider: StreamingAnswerProvider = UnavailableAnswerProvider,
+    private val confidenceThreshold: Double = 0.75,
     private val slotNormalizer: SlotNormalizer,
     private val skillRegistry: SkillRegistry
 ) {
-    fun handleText(input: String, onFallbackToken: ((String) -> Unit)? = null): AssistantResponse {
+    fun handleText(
+        input: String,
+        conversationHistory: List<ConversationTurn> = emptyList(),
+        screenContext: String? = null,
+        onAnswerToken: ((String) -> Unit)? = null,
+        onAnswerEvent: ((AnswerEvent) -> Unit)? = null,
+        isCancelled: () -> Boolean = { false }
+    ): AssistantResponse {
         val started = System.currentTimeMillis()
         val nluStarted = System.currentTimeMillis()
         val nluResult = nlu.parse(input)
         val nluLatency = System.currentTimeMillis() - nluStarted
-        val execution = executeWithFallback(input, nluResult, onFallbackToken)
-        val normalizationStarted = System.currentTimeMillis()
-        val normalizedCommand = execution.normalizedCommand ?: buildJsonObject {
-            put("intent", execution.debugNlu.intent)
-            put("slots", execution.debugNlu.slots)
+        checkCancellation(isCancelled)
+
+        val execution = when {
+            nluResult.source == NluSource.UNAVAILABLE -> EngineExecution(
+                error(
+                    "Command classifier unavailable",
+                    "Check the on-device RuBERT model in Settings and try again."
+                ),
+                actionResult = "rubert_unavailable"
+            )
+
+            nluResult.intent == Intents.UNKNOWN ||
+                nluResult.intent !in Intents.localActions -> answer(
+                input,
+                nluResult,
+                conversationHistory,
+                screenContext,
+                onAnswerToken,
+                onAnswerEvent,
+                isCancelled
+            )
+
+            nluResult.confidence < confidenceThreshold -> EngineExecution(
+                clarification(nluResult.intent),
+                actionResult = "low_confidence"
+            )
+
+            else -> executeLocal(input, nluResult, isCancelled)
         }
-        val normalizationLatency = System.currentTimeMillis() - normalizationStarted
-        val latency = System.currentTimeMillis() - started
+
+        val totalLatency = System.currentTimeMillis() - started
         return execution.response.copy(
-            debug = (execution.response.debug ?: DebugInfo()).copy(
+            debug = DebugInfo(
                 transcript = input,
-                intent = execution.debugNlu.intent,
-                confidence = execution.debugNlu.confidence,
-                nluSource = execution.debugNlu.source,
-                slots = execution.debugNlu.slots,
-                normalizedCommand = normalizedCommand,
-                fallbackUsed = execution.fallbackUsed,
-                fallbackReason = execution.fallbackReason,
-                actionResult = execution.response.status.name.lowercase(),
-                latencyMs = com.offlineassistant.core.contracts.LatencyBreakdown(
+                intent = nluResult.intent,
+                confidence = nluResult.confidence,
+                nluSource = nluResult.source,
+                slots = nluResult.slots,
+                normalizedCommand = execution.normalizedCommand,
+                cloudAnswerUsed = execution.answerUsed,
+                answerSource = execution.answerSource,
+                answerRoute = execution.answerRoute,
+                sourceCount = execution.response.sources.size,
+                researchRunId = execution.researchRunId,
+                searchCacheHit = execution.searchCacheHit,
+                groundingStatus = execution.groundingStatus,
+                actionResult = execution.actionResult,
+                latencyMs = LatencyBreakdown(
                     nlu = nluLatency,
-                    fallbackLlm = execution.fallbackLatencyMs,
-                    normalization = normalizationLatency,
-                    skillExecution = execution.skillExecutionLatencyMs,
-                    total = latency
+                    cloudAnswer = execution.answerLatencyMs,
+                    webSearch = execution.searchLatencyMs,
+                    normalization = execution.normalizationLatencyMs,
+                    skillExecution = execution.skillLatencyMs,
+                    total = totalLatency
                 )
             )
         )
     }
 
-    private fun executeWithFallback(input: String, nlu: NluResult, onFallbackToken: ((String) -> Unit)?): EngineExecution {
-        if (nlu.intent != Intents.UNKNOWN && nlu.confidence >= fallbackThreshold) {
-            val skillStarted = System.currentTimeMillis()
-            val normalizedExecution = executeWithNormalization(input, nlu)
-            return EngineExecution(
-                response = normalizedExecution.response,
-                debugNlu = nlu,
-                normalizedCommand = normalizedExecution.normalizedCommand,
-                skillExecutionLatencyMs = System.currentTimeMillis() - skillStarted
+    fun continueResearch(
+        input: String,
+        previousRunId: String,
+        onAnswerEvent: ((AnswerEvent) -> Unit)? = null,
+        isCancelled: () -> Boolean = { false }
+    ): AssistantResponse {
+        val started = System.currentTimeMillis()
+        val nluResult = NluResult(
+            intent = Intents.WEB_RESEARCH,
+            confidence = 1.0,
+            slots = JsonObject(emptyMap()),
+            source = NluSource.STUB
+        )
+        val execution = answer(
+            input = input,
+            nluResult = nluResult,
+            conversationHistory = emptyList(),
+            screenContext = null,
+            onAnswerToken = {},
+            onAnswerEvent = onAnswerEvent,
+            isCancelled = isCancelled,
+            previousResearchRunId = previousRunId
+        )
+        return execution.response.copy(
+            debug = DebugInfo(
+                transcript = input,
+                intent = Intents.WEB_RESEARCH,
+                confidence = 1.0,
+                nluSource = NluSource.STUB,
+                cloudAnswerUsed = true,
+                answerSource = execution.answerSource,
+                answerRoute = AnswerRoute.WEB_RESEARCH.name.lowercase(),
+                sourceCount = execution.response.sources.size,
+                researchRunId = execution.researchRunId,
+                actionResult = execution.actionResult,
+                latencyMs = LatencyBreakdown(
+                    cloudAnswer = execution.answerLatencyMs,
+                    total = System.currentTimeMillis() - started
+                )
             )
-        }
-
-        val fallback = if (onFallbackToken != null && fallbackParser is StreamingFallbackParser) {
-            fallbackParser.parse(input, nlu, onFallbackToken)
-        } else {
-            fallbackParser.parse(input, nlu)
-        }
-        val resolved = resolveFallback(input, fallback)
-        return resolved.copy(fallbackLatencyMs = fallback.latencyMs)
+        )
     }
 
-    private fun resolveFallback(input: String, fallback: FallbackParse): EngineExecution {
-        if (fallback.confidence < 0.45 && fallback.kind != FallbackKind.ERROR) {
-            return fallbackGeneric(input, "Fallback confidence is too low.", fallback)
-        }
-
-        return when (fallback.kind) {
-            FallbackKind.COMMAND -> fallbackGeneric(
-                input = input,
-                reason = "Local LLM command output is ignored; Android actions must come from RuBERT NLU.",
-                fallback = fallback
-            )
-
-            FallbackKind.ANSWER -> {
-                val answer = fallback.answer?.takeIf { it.isNotBlank() }
-                if (answer == null) {
-                    fallbackGeneric(input, "Fallback answer was empty.", fallback)
-                } else {
-                    val response = AssistantResponse(
-                        status = ResponseStatus.SUCCESS,
-                        text = answer,
-                        intent = Intents.UNKNOWN,
-                        widget = WidgetPayload(
-                            WidgetTypes.GENERIC_ANSWER_CARD,
-                            buildJsonObject {
-                                put("answer", answer)
-                                put("source", "local_llm")
-                            }
-                        )
-                    )
-                    EngineExecution(
-                        response = response,
-                        debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
-                        fallbackUsed = true,
-                        fallbackReason = "Local LLM fallback returned a text answer."
-                    )
-                }
-            }
-
-            FallbackKind.CLARIFICATION -> clarification(
-                intent = fallback.intent ?: Intents.UNKNOWN,
-                question = fallback.clarificationQuestion ?: "Уточните команду.",
-                suggestions = listOf("Отмена")
-            ).let {
+    private fun executeLocal(
+        input: String,
+        nluResult: NluResult,
+        isCancelled: () -> Boolean
+    ): EngineExecution {
+        val normalizationStarted = System.currentTimeMillis()
+        val normalized = slotNormalizer.normalize(input, nluResult)
+        val normalizationLatency = System.currentTimeMillis() - normalizationStarted
+        return when (normalized) {
+            is NormalizationResult.Normalized -> {
+                checkCancellation(isCancelled)
+                val skillStarted = System.currentTimeMillis()
+                val result = runBlocking { skillRegistry.execute(normalized.command) }
                 EngineExecution(
-                    response = it,
-                    debugNlu = fallback.toDebugNlu(fallback.intent ?: Intents.UNKNOWN),
-                    fallbackUsed = true,
-                    fallbackReason = "Local LLM fallback requested clarification."
+                    response = AssistantResponse(
+                        status = result.status.toResponseStatus(),
+                        text = result.text,
+                        intent = normalized.command.intent,
+                        widget = result.widget
+                    ),
+                    normalizedCommand = buildJsonObject {
+                        put("intent", normalized.command.intent)
+                        put("slots", normalized.command.slots)
+                    },
+                    normalizationLatencyMs = normalizationLatency,
+                    skillLatencyMs = System.currentTimeMillis() - skillStarted,
+                    actionResult = result.actionResult ?: result.status.name.lowercase()
                 )
             }
 
-            FallbackKind.UNSUPPORTED -> fallbackGeneric(input, "Fallback marked command as unsupported.", fallback)
-
-            FallbackKind.ERROR -> fallbackError(fallback.error ?: "Fallback parser failed.", fallback)
-        }
-    }
-
-    private fun executeWithNormalization(input: String, nlu: NluResult): NormalizedExecution = when (val normalized = slotNormalizer.normalize(input, nlu)) {
-        is NormalizationResult.Normalized -> NormalizedExecution(
-            response = execute(normalized.command),
-            normalizedCommand = buildJsonObject {
-                put("intent", normalized.command.intent)
-                put("slots", normalized.command.slots)
-            }
-        )
-
-        is NormalizationResult.Clarification -> NormalizedExecution(
-            response = clarification(
-                intent = normalized.request.pendingIntent,
-                question = normalized.request.question,
-                suggestions = normalized.request.suggestions
-            ),
-            normalizedCommand = buildJsonObject {
-                put("intent", normalized.request.pendingIntent)
-                put("slots", normalized.request.partialSlots)
-            }
-        )
-
-        is NormalizationResult.Error -> NormalizedExecution(
-            response = error(
-                title = "Не получилось выполнить команду",
-                message = normalized.error.message
-            ),
-            normalizedCommand = buildJsonObject {
-                normalized.error.intent?.let { put("intent", it) }
-                normalized.error.slots?.let { put("slots", it) }
-            }
-        )
-    }
-
-    private fun fallbackError(message: String, fallback: FallbackParse): EngineExecution = EngineExecution(
-        response = AssistantResponse(
-            status = ResponseStatus.ERROR,
-            text = "Локальная языковая модель недоступна.",
-            intent = Intents.UNKNOWN,
-            widget = WidgetPayload(
-                WidgetTypes.ERROR_CARD,
-                buildJsonObject {
-                    put("title", "Не получилось получить ответ")
-                    put("message", message)
-                    put("recoverable", true)
-                    put(
-                        "suggestions",
-                        buildJsonArray {
-                            add(JsonPrimitive("Открыть настройки"))
+            is NormalizationResult.Clarification -> EngineExecution(
+                response = AssistantResponse(
+                    status = ResponseStatus.CLARIFICATION_REQUIRED,
+                    text = normalized.request.question,
+                    intent = normalized.request.pendingIntent,
+                    widget = WidgetPayload(
+                        WidgetTypes.CLARIFICATION_CARD,
+                        buildJsonObject {
+                            put("question", normalized.request.question)
+                            put(
+                                "suggestions",
+                                buildJsonArray {
+                                    normalized.request.suggestions.forEach { add(JsonPrimitive(it)) }
+                                }
+                            )
+                            put("pending_intent", normalized.request.pendingIntent)
                         }
                     )
-                }
+                ),
+                normalizationLatencyMs = normalizationLatency,
+                actionResult = "clarification_required"
             )
-        ),
-        debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
-        fallbackUsed = true,
-        fallbackReason = message
-    )
 
-    private fun fallbackGeneric(input: String, reason: String, fallback: FallbackParse): EngineExecution = EngineExecution(
-        response = generic(input).copy(
-            widget = WidgetPayload(
-                WidgetTypes.GENERIC_ANSWER_CARD,
-                buildJsonObject {
-                    put("answer", fallback.answer ?: "Не удалось надежно разобрать команду локальной моделью.")
-                    put("source", "local_llm_fallback")
-                }
+            is NormalizationResult.Error -> EngineExecution(
+                error("Could not complete the command", normalized.error.message),
+                normalizationLatencyMs = normalizationLatency,
+                actionResult = "normalization_error"
             )
-        ),
-        debugNlu = fallback.toDebugNlu(Intents.UNKNOWN),
-        fallbackUsed = true,
-        fallbackReason = reason
-    )
-
-    private fun execute(command: NormalizedCommand): AssistantResponse {
-        val result = runBlocking { skillRegistry.execute(command) }
-        return AssistantResponse(
-            status = result.status.toResponseStatus(),
-            text = result.text,
-            intent = command.intent,
-            widget = result.widget
-        )
+        }
     }
 
-    private fun generic(input: String): AssistantResponse = AssistantResponse(
-        status = ResponseStatus.SUCCESS,
-        text = "Пока я лучше всего умею выполнять короткие локальные команды.",
-        intent = Intents.UNKNOWN,
-        widget = WidgetPayload(
-            WidgetTypes.GENERIC_ANSWER_CARD,
-            buildJsonObject {
-                put("answer", "Локальная модель fallback пока не подключена. Команда сохранена как обычный вопрос: $input")
-                put("source", "local_rule_fallback")
-            }
+    private fun answer(
+        input: String,
+        nluResult: NluResult,
+        conversationHistory: List<ConversationTurn>,
+        screenContext: String?,
+        onAnswerToken: ((String) -> Unit)?,
+        onAnswerEvent: ((AnswerEvent) -> Unit)?,
+        isCancelled: () -> Boolean,
+        previousResearchRunId: String? = null
+    ): EngineExecution {
+        checkCancellation(isCancelled)
+        val consumer: (String) -> Unit = { token ->
+            if (!isCancelled()) onAnswerToken?.invoke(token)
+        }
+        val request = AnswerRequest(
+            input = input,
+            history = conversationHistory,
+            screenContext = screenContext,
+            mediaSearchQuery = nluResult.slots["query"]?.jsonPrimitive?.contentOrNull,
+            route = when (nluResult.intent) {
+                Intents.WEB_SEARCH -> AnswerRoute.WEB_SEARCH
+                Intents.WEB_RESEARCH -> AnswerRoute.WEB_RESEARCH
+                else -> AnswerRoute.DIRECT
+            },
+            previousResearchRunId = previousResearchRunId
         )
-    )
+        val result = if (onAnswerToken == null) {
+            answerProvider.answer(request)
+        } else if (onAnswerEvent != null) {
+            answerProvider.answer(request, consumer) { event ->
+                if (!isCancelled()) onAnswerEvent(event)
+            }
+        } else {
+            answerProvider.answer(request, consumer)
+        }
+        checkCancellation(isCancelled)
+        return if (result.successful) {
+            val text = requireNotNull(result.text).trim()
+            EngineExecution(
+                response = AssistantResponse(
+                    status = ResponseStatus.SUCCESS,
+                    text = text,
+                    intent = nluResult.intent,
+                    widget = result.widget,
+                    media = result.media,
+                    sources = result.sources,
+                    followUpQuestions = result.followUpQuestions
+                ),
+                answerUsed = true,
+                answerSource = result.source ?: "deepseek_cloud",
+                answerRoute = request.route.name.lowercase(),
+                answerLatencyMs = result.latencyMs,
+                searchLatencyMs = result.searchLatencyMs,
+                researchRunId = result.researchRunId,
+                searchCacheHit = result.searchCacheHit,
+                groundingStatus = result.groundingStatus,
+                actionResult = when (request.route) {
+                    AnswerRoute.DIRECT -> "deepseek_answer"
+                    AnswerRoute.WEB_SEARCH -> "grounded_web_answer"
+                    AnswerRoute.WEB_RESEARCH -> "exa_research_answer"
+                }
+            )
+        } else {
+            EngineExecution(
+                response = error(
+                    "Could not get an answer",
+                    result.error ?: "DeepSeek returned an empty answer."
+                ),
+                answerUsed = true,
+                answerSource = result.source ?: "deepseek_cloud",
+                answerRoute = request.route.name.lowercase(),
+                answerLatencyMs = result.latencyMs,
+                searchLatencyMs = result.searchLatencyMs,
+                researchRunId = result.researchRunId,
+                actionResult = when (request.route) {
+                    AnswerRoute.DIRECT -> "deepseek_error"
+                    AnswerRoute.WEB_SEARCH -> "web_search_error"
+                    AnswerRoute.WEB_RESEARCH -> "web_research_error"
+                }
+            )
+        }
+    }
 
-    private fun clarification(intent: String, question: String, suggestions: List<String>): AssistantResponse = AssistantResponse(
+    private fun clarification(intent: String) = AssistantResponse(
         status = ResponseStatus.CLARIFICATION_REQUIRED,
-        text = question,
+        text = "I am not sure I understood the action. Rephrase the command.",
         intent = intent,
         widget = WidgetPayload(
             WidgetTypes.CLARIFICATION_CARD,
             buildJsonObject {
-                put("question", question)
-                put("suggestions", buildJsonArray { suggestions.forEach { add(JsonPrimitive(it)) } })
+                put("question", "I am not sure I understood the action. Rephrase the command.")
+                put("suggestions", buildJsonArray { add(JsonPrimitive("Cancel")) })
                 put("pending_intent", intent)
             }
         )
     )
 
-    private fun error(title: String, message: String): AssistantResponse = AssistantResponse(
+    private fun error(title: String, message: String) = AssistantResponse(
         status = ResponseStatus.ERROR,
         text = message,
         intent = Intents.UNKNOWN,
@@ -277,60 +319,30 @@ class AssistantEngine private constructor(
                 put("title", title)
                 put("message", message)
                 put("recoverable", true)
-                put("suggestions", buildJsonArray { add(JsonPrimitive("Попробовать снова")) })
+                put("suggestions", buildJsonArray { add(JsonPrimitive("Open settings")) })
             }
         )
     )
 
-    companion object {
-        fun createDemo(
-            nlu: NluParser = RuleBasedNlu(),
-            noteStore: NoteStore = InMemoryNoteStore(),
-            reminderStore: ReminderStore = InMemoryReminderStore(),
-            fallbackParser: FallbackParser = NoOpFallbackParser,
-            fallbackThreshold: Double = 0.75,
-            clock: () -> OffsetDateTime = { OffsetDateTime.now(ZoneId.systemDefault()) },
-            weatherProvider: WeatherProvider = MockWeatherProvider(clock),
-            slotNormalizer: SlotNormalizer = DeterministicSlotNormalizer(),
-            skillRegistry: SkillRegistry? = null
-        ): AssistantEngine {
-            val resolvedSkillRegistry = skillRegistry ?: createBuiltInSkillRegistry(
-                clock = clock,
-                noteStore = noteStore,
-                reminderStore = reminderStore,
-                weatherProvider = weatherProvider
-            )
-            return AssistantEngine(
-                nlu = nlu,
-                fallbackParser = fallbackParser,
-                fallbackThreshold = fallbackThreshold,
-                slotNormalizer = slotNormalizer,
-                skillRegistry = resolvedSkillRegistry
-            )
-        }
+    private fun checkCancellation(isCancelled: () -> Boolean) {
+        if (isCancelled()) throw CancellationException("Assistant request was cancelled")
     }
 }
 
 private data class EngineExecution(
     val response: AssistantResponse,
-    val debugNlu: NluResult,
     val normalizedCommand: JsonObject? = null,
-    val fallbackUsed: Boolean = false,
-    val fallbackReason: String? = null,
-    val fallbackLatencyMs: Long? = null,
-    val skillExecutionLatencyMs: Long = 0
-)
-
-private data class NormalizedExecution(
-    val response: AssistantResponse,
-    val normalizedCommand: JsonObject
-)
-
-private fun FallbackParse.toDebugNlu(intent: String): NluResult = NluResult(
-    intent = intent,
-    confidence = confidence,
-    slots = slots,
-    source = NluSource.FALLBACK_LLM
+    val answerUsed: Boolean = false,
+    val answerSource: String? = null,
+    val answerRoute: String? = null,
+    val answerLatencyMs: Long? = null,
+    val searchLatencyMs: Long? = null,
+    val researchRunId: String? = null,
+    val searchCacheHit: Boolean = false,
+    val groundingStatus: String? = null,
+    val normalizationLatencyMs: Long? = null,
+    val skillLatencyMs: Long = 0,
+    val actionResult: String
 )
 
 private fun SkillStatus.toResponseStatus(): ResponseStatus = when (this) {
