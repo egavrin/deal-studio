@@ -6,6 +6,7 @@ build/
 **/build/
 **/.cxx/
 captures/
+artifacts/
 
 local.properties
 .env

@@ -29,12 +29,15 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -95,11 +98,11 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Umbrella
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.Work
-import androidx.compose.material.icons.filled.Umbrella
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -158,7 +161,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -291,7 +296,6 @@ internal object CanonicalDealUiParser {
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
-            .also(CanonicalDealUiProgram::validateCanonicalSurfaces)
     }
 
     private fun metadata(value: JsonObject) = CanonicalDealUiCheckedMetadata(
@@ -378,108 +382,14 @@ internal object CanonicalDealUiParser {
     private val JSON = Json { ignoreUnknownKeys = false }
 }
 
-/** A v12 root contains complete runtime surfaces, not unrelated visual fragments. */
-internal fun CanonicalDealUiProgram.validateCanonicalSurfaces() {
-    if (metadata.packVersions.values.none { it == CanonicalDealUiPack.VERSION }) return
-    val roots = nodes.flatMap(CanonicalUiNode::rootCalls)
-    require(roots.size == 1) { "UIR001: Deal UI v12 requires exactly one compiler-owned Root" }
-    val surfaces = roots.single().children
-    require(
-        surfaces.all { node ->
-            node is CanonicalUiNode.Call && node.name.substringAfterLast('.') in TOP_LEVEL_SURFACES
-        }
-    ) {
-        "UIR002: top-level visual content must be wrapped in ui.Route; only ui.Widget and host clocks may be siblings"
-    }
-
-    val routes = surfaces.filterIsInstance<CanonicalUiNode.Call>()
-        .filter { it.name.substringAfterLast('.') == "Route" }
-    require(routes.isNotEmpty()) { "UIR003: Deal UI v12 requires at least one ui.Route application surface" }
-    val routeNames = routes.map { route ->
-        require(route.children.isNotEmpty()) { "UIR004: ui.Route must contain a complete screen" }
-        route.staticString("route")
-            .takeIf { !it.isNullOrBlank() }
-            ?: error("UIR005: ui.Route route must be a non-empty static string")
-    }
-    require(routeNames.distinct().size == routeNames.size) {
-        "UIR006: every ui.Route must have a unique route value"
-    }
-
-    val activeRoutes = routes.map { route -> route.arguments["activeRoute"] }
-    require(activeRoutes.none { it == null }) { "UIR007: every ui.Route requires activeRoute" }
-    if (routes.size > 1) {
-        val paths = activeRoutes.map { expression ->
-            expression as? CanonicalUiExpr.Path
-                ?: error("UIR008: multiple screens must share one state-backed activeRoute path")
-        }
-        require(paths.all { it.parts.firstOrNull() == "state" }) {
-            "UIR009: activeRoute must read the root state"
-        }
-        require(paths.map(CanonicalUiExpr.Path::parts).distinct().size == 1) {
-            "UIR010: every screen must use the same activeRoute state path"
-        }
-    }
-}
-
-/** Validates the checked UI against the state that DEAL actually exposes at launch. */
-internal fun CanonicalDealUiProgram.validateInitialSurface(state: JsonObject) {
-    val routes = nodes.flatMap(CanonicalUiNode::routeCalls)
-    val evaluatedRoutes = routes.map { route ->
-        val routeName = runCatching { route.value("route", state, emptyMap(), this).asString() }
-            .getOrElse { failure ->
-                error("UIR011: initial ui.Route route cannot be evaluated: ${failure.message}")
-            }
-        val activeRoute = runCatching { route.value("activeRoute", state, emptyMap(), this).asString() }
-            .getOrElse { failure ->
-                error("UIR011: initial ui.Route activeRoute cannot be evaluated: ${failure.message}")
-            }
-        routeName to activeRoute
-    }
-    require(evaluatedRoutes.any { (routeName, activeRoute) -> routeName == activeRoute }) {
-        val routeNames = evaluatedRoutes.map { it.first }.distinct().joinToString().ifBlank { "none" }
-        val activeRoutes = evaluatedRoutes.map { it.second }.distinct().joinToString().ifBlank { "empty" }
-        "UIR011: initial DEAL state must activate at least one ui.Route; " +
-            "declared routes=[$routeNames], activeRoute=[$activeRoutes]"
-    }
-}
-
-private fun CanonicalUiNode.rootCalls(): List<CanonicalUiNode.Call> = when (this) {
-    is CanonicalUiNode.Call -> buildList {
-        if (name.substringAfterLast('.') == "Root") add(this@rootCalls)
-        children.flatMapTo(this, CanonicalUiNode::rootCalls)
-    }
-
-    is CanonicalUiNode.When -> (thenNodes + elseNodes).flatMap(CanonicalUiNode::rootCalls)
-    is CanonicalUiNode.ForEach -> children.flatMap(CanonicalUiNode::rootCalls)
-    is CanonicalUiNode.Scope -> children.flatMap(CanonicalUiNode::rootCalls)
-}
-
-private fun CanonicalUiNode.routeCalls(): List<CanonicalUiNode.Call> = when (this) {
-    is CanonicalUiNode.Call -> buildList {
-        if (name.substringAfterLast('.') == "Route") add(this@routeCalls)
-        children.flatMapTo(this, CanonicalUiNode::routeCalls)
-    }
-
-    is CanonicalUiNode.When -> (thenNodes + elseNodes).flatMap(CanonicalUiNode::routeCalls)
-    is CanonicalUiNode.ForEach -> children.flatMap(CanonicalUiNode::routeCalls)
-    is CanonicalUiNode.Scope -> children.flatMap(CanonicalUiNode::routeCalls)
-}
-
-private fun CanonicalUiNode.Call.staticString(name: String): String? =
-    ((arguments[name] as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)?.contentOrNull
-
-private val TOP_LEVEL_SURFACES = setOf("Route", "Widget", "FrameClock", "MinuteClock")
-
 private fun CanonicalDealUiProgram.validateAppTheme() {
     val themes = nodes.flatMap(CanonicalUiNode::themeCalls)
     require(themes.size <= 1) { "Deal UI may contain only one app-owned theme" }
     themes.singleOrNull()?.let { theme ->
-        require(theme.arguments.keys == GeneratedAppThemeSpec.THEME_KEYS) {
-            "AppTheme must declare exactly ${GeneratedAppThemeSpec.THEME_KEYS.joinToString()}"
+        require(GeneratedAppThemeSpec.THEME_KEYS.containsAll(theme.arguments.keys)) {
+            "AppTheme contains unknown properties"
         }
-        fun literal(name: String): String = ((theme.arguments.getValue(name) as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)
-            ?.contentOrNull
-            ?: error("AppTheme $name must be a static string literal")
+        fun literal(name: String): String = theme.themeLiteralOrDefault(name)
         GeneratedAppThemeSpec.DEFAULT.withRuntimeValues(
             primary = literal("primary"),
             secondary = literal("secondary"),
@@ -506,8 +416,7 @@ private fun CanonicalUiNode.themeCalls(): List<CanonicalUiNode.Call> = when (thi
 
 internal fun CanonicalDealUiProgram.themeSpec(): GeneratedAppThemeSpec {
     val theme = nodes.flatMap(CanonicalUiNode::themeCalls).singleOrNull() ?: return GeneratedAppThemeSpec.DEFAULT
-    fun literal(name: String): String = ((theme.arguments[name] as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive)
-        ?.contentOrNull.orEmpty()
+    fun literal(name: String): String = theme.themeLiteralOrDefault(name)
     return GeneratedAppThemeSpec.DEFAULT.withRuntimeValues(
         primary = literal("primary"),
         secondary = literal("secondary"),
@@ -516,6 +425,22 @@ internal fun CanonicalDealUiProgram.themeSpec(): GeneratedAppThemeSpec {
         density = literal("density"),
         surface = literal("surface")
     )
+}
+
+private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String): String {
+    val defaults = GeneratedAppThemeSpec.DEFAULT
+    val expression = arguments[name] ?: return when (name) {
+        "primary" -> defaults.primary
+        "secondary" -> defaults.secondary
+        "style" -> defaults.style
+        "shape" -> defaults.shape
+        "density" -> defaults.density
+        "surface" -> defaults.surface
+        else -> error("Unknown AppTheme property $name")
+    }
+    val value = (expression as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive
+    require(value?.isString == true) { "AppTheme $name must be a static string literal" }
+    return value.content
 }
 
 private fun CanonicalDealUiProgram.validateWidgetSurface() {
@@ -556,19 +481,19 @@ private fun CanonicalUiNode.validateWidgetNode() {
 }
 
 private val WIDGET_COMPONENTS = setOf(
-    "Column", "Row", "Stack", "Grid", "Card", "Section", "Text", "IntText", "Icon",
-    "IconButton", "Button", "ProgressBar", "ProgressRing", "Spacer", "Badge", "Stat",
-    "IntStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
+    "Column", "Row", "Stack", "Grid", "Card", "Section", "Text", "IntText", "NumberText", "Icon",
+    "IconButton", "Button", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Badge", "Stat",
+    "IntStat", "NumberStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
 )
 
 internal val canonicalRendererComponents = setOf(
     "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button",
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
-    "Column", "Dialog", "Divider", "EmptyState", "FrameClock", "Grid", "Icon", "IconButton", "Image", "IntStat",
-    "IntText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "PointerSurface", "ProgressBar", "ProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Icon", "IconButton", "Image", "IntField", "IntStat",
+    "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
+    "PointerSurface", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
-    "Tabs", "Text", "TextField", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
+    "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
 
 internal data class CanonicalUiAction(
@@ -690,24 +615,26 @@ private fun RenderCall(
             }
         }
 
-        "Root" -> Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        "Root" -> BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             val maximumContentWidth = if (program.hasSpatialSurface()) 560.dp else 840.dp
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = maximumContentWidth)
-                    .then(
-                        if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
-                            Modifier.verticalScroll(rememberScrollState())
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .padding(padding.coerceAtLeast(visuals.minimumRootPadding)),
-                verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(12.dp)),
-                horizontalAlignment = horizontalAlignment(value("horizontal").asString()),
-                content = { children(Modifier.fillMaxWidth()) }
-            )
+            CompositionLocalProvider(LocalCanonicalViewportHeight provides maxHeight) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = maximumContentWidth)
+                        .then(
+                            if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
+                                Modifier.verticalScroll(rememberScrollState())
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .padding(padding.coerceAtLeast(visuals.minimumRootPadding)),
+                    verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(12.dp)),
+                    horizontalAlignment = horizontalAlignment(value("horizontal").asString()),
+                    content = { children(Modifier.fillMaxWidth()) }
+                )
+            }
         }
 
         "Column" -> Column(
@@ -724,7 +651,7 @@ private fun RenderCall(
             FlowRow(
                 modifier = modifier.fillMaxWidth().padding(padding),
                 horizontalArrangement = horizontalArrangement(value("horizontal").asString(), spacing),
-                verticalArrangement = Arrangement.spacedBy(spacing),
+                verticalArrangement = Arrangement.spacedBy(spacing)
             ) {
                 call.children.forEach { child ->
                     val childModifier = if (child.expandsInRow()) {
@@ -742,7 +669,7 @@ private fun RenderCall(
             Column(
                 modifier = modifier.fillMaxWidth().padding(padding),
                 verticalArrangement = Arrangement.spacedBy(spacing),
-                horizontalAlignment = horizontalAlignment(value("horizontal").asString()),
+                horizontalAlignment = horizontalAlignment(value("horizontal").asString())
             ) {
                 call.children.forEach { child ->
                     CanonicalNode(program, state, scope, child, onAction, Modifier.fillMaxWidth())
@@ -752,7 +679,7 @@ private fun RenderCall(
             Row(
                 modifier = modifier.fillMaxWidth().padding(padding),
                 horizontalArrangement = horizontalArrangement(value("horizontal").asString(), spacing),
-                verticalAlignment = verticalAlignment(value("vertical").asString()),
+                verticalAlignment = verticalAlignment(value("vertical").asString())
             ) {
                 call.children.forEach { child ->
                     CanonicalNode(
@@ -769,6 +696,38 @@ private fun RenderCall(
 
         "Stack" -> Box(modifier.fillMaxWidth().padding(padding)) {
             children(Modifier.fillMaxWidth())
+        }
+
+        "Frame" -> BoxWithConstraints(
+            modifier = modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            val ratioWidth = value("ratioWidth").asInt()
+            val ratioHeight = value("ratioHeight").asInt()
+            val ratio = if (ratioWidth > 0 && ratioHeight > 0) {
+                ratioWidth.toFloat() / ratioHeight.toFloat()
+            } else {
+                0f
+            }
+            val explicitMaxWidth = value("maxWidth").asInt().takeIf { it > 0 }?.dp
+            val explicitMaxHeight = value("maxHeight").asInt().takeIf { it > 0 }?.dp
+            val viewportFraction = value("viewportHeightFraction").asFloat().coerceIn(0f, 1f)
+            val viewportMaxHeight = LocalCanonicalViewportHeight.current
+                .takeIf { viewportFraction > 0f && it != Dp.Infinity }
+                ?.times(viewportFraction)
+            val heightLimit = listOfNotNull(explicitMaxHeight, viewportMaxHeight).minOrNull()
+            val widthLimit = listOfNotNull(
+                explicitMaxWidth,
+                heightLimit?.takeIf { ratio > 0f }?.times(ratio)
+            ).minOrNull()?.coerceAtMost(maxWidth) ?: maxWidth
+            val frameModifier = if (ratio > 0f) {
+                Modifier.width(widthLimit).aspectRatio(ratio)
+            } else {
+                Modifier.widthIn(max = widthLimit)
+            }
+            Box(frameModifier, contentAlignment = Alignment.Center) {
+                children(if (ratio > 0f) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+            }
         }
 
         "Grid" -> BoxWithConstraints(modifier.fillMaxWidth().padding(padding)) {
@@ -795,11 +754,20 @@ private fun RenderCall(
             )
         }
 
-        "Scroll" -> Column(
-            modifier = modifier.fillMaxWidth().padding(padding).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(spacing),
-            content = { children(Modifier.fillMaxWidth()) }
-        )
+        "Scroll" -> {
+            val viewport = LocalCanonicalViewportHeight.current
+                .takeIf { it.value.isFinite() && it.value > 0f }
+                ?: LocalConfiguration.current.screenHeightDp.coerceAtLeast(1).dp
+            // Studio previews and nested scroll content can supply an unbounded height.
+            BoxWithConstraints(modifier.fillMaxWidth().padding(padding)) {
+                val limit = if (constraints.hasBoundedHeight) maxHeight else viewport
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = limit).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                    content = { children(Modifier.fillMaxWidth()) }
+                )
+            }
+        }
 
         "Card" -> Card(
             modifier = modifier
@@ -848,6 +816,14 @@ private fun RenderCall(
         "IntText" -> Text(
             text = value("prefix").asString() +
                 value("value").asInt().toString().padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
+                value("suffix").asString(),
+            color = textTone(value("tone").asString()),
+            style = textStyle(value("style").tokenString())
+        )
+
+        "NumberText" -> Text(
+            text = value("prefix").asString() +
+                formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
                 value("suffix").asString(),
             color = textTone(value("tone").asString()),
             style = textStyle(value("style").tokenString())
@@ -983,13 +959,15 @@ private fun RenderCall(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (!compact) value("supporting").asString().takeIf(String::isNotBlank)?.let {
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                            if (!compact) {
+                                value("supporting").asString().takeIf(String::isNotBlank)?.let {
+                                    Text(
+                                        it,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -997,14 +975,22 @@ private fun RenderCall(
             }
         }
 
-        "ProgressBar" -> Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val progress = progress(value("value").asInt(), value("maximum").asInt())
+        "ProgressBar", "NumberProgressBar" -> Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val progress = if (name == "NumberProgressBar") {
+                progress(value("value").asNumber(), value("maximum").asNumber())
+            } else {
+                progress(value("value").asInt(), value("maximum").asInt())
+            }
             value("label").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
         }
 
-        "ProgressRing" -> Box(modifier.size(112.dp), contentAlignment = Alignment.Center) {
-            val progress = progress(value("value").asInt(), value("maximum").asInt())
+        "ProgressRing", "NumberProgressRing" -> Box(modifier.size(112.dp), contentAlignment = Alignment.Center) {
+            val progress = if (name == "NumberProgressRing") {
+                progress(value("value").asNumber(), value("maximum").asNumber())
+            } else {
+                progress(value("value").asInt(), value("maximum").asInt())
+            }
             CircularProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxSize(), strokeWidth = 9.dp)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -1029,6 +1015,44 @@ private fun RenderCall(
                 placeholder = { Text(value("placeholder").asString()) },
                 modifier = modifier.fillMaxWidth(),
                 singleLine = false
+            )
+        }
+
+        "IntField" -> {
+            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            OutlinedTextField(
+                value = value("value").asInt().toString(),
+                onValueChange = { text ->
+                    text.toIntOrNull()?.let { number ->
+                        action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
+                    }
+                },
+                label = { Text(value("label").asString()) },
+                placeholder = { Text(value("placeholder").asString()) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                singleLine = true
+            )
+        }
+
+        "NumberField" -> {
+            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            OutlinedTextField(
+                value = formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()),
+                onValueChange = { text ->
+                    text.replace(',', '.').toDoubleOrNull()?.let { number ->
+                        action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
+                    }
+                },
+                label = { Text(value("label").asString()) },
+                placeholder = { Text(value("placeholder").asString()) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                singleLine = true
             )
         }
 
@@ -1139,7 +1163,7 @@ private fun RenderCall(
             }
         }
 
-        "Stat", "IntStat" -> Surface(
+        "Stat", "IntStat", "NumberStat" -> Surface(
             modifier = modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
             color = toneColor(value("tone").asString()),
@@ -1159,13 +1183,17 @@ private fun RenderCall(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                val statValue = if (name == "IntStat") {
-                    value("prefix").asString() +
+                val statValue = when (name) {
+                    "IntStat" -> value("prefix").asString() +
                         value("value").asInt().toString()
                             .padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
                         value("suffix").asString()
-                } else {
-                    value("value").asString()
+
+                    "NumberStat" -> value("prefix").asString() +
+                        formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
+                        value("suffix").asString()
+
+                    else -> value("value").asString()
                 }
                 Text(statValue, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 value("supporting").asString().takeIf(String::isNotBlank)?.let {
@@ -1596,11 +1624,9 @@ private fun RuntimeClock(
     val latestOnAction by rememberUpdatedState(onAction)
     LaunchedEffect(call.identity, action, interval) {
         if (name == "FrameClock") {
-            var previous = withFrameNanos { it }
+            val clock = CanonicalFrameClock(interval)
             while (true) {
-                val current = withFrameNanos { it }
-                val deltaMillis = ((current - previous) / 1_000_000L).coerceIn(1L, 64L)
-                previous = current
+                val deltaMillis = clock.frame(withFrameNanos { it }) ?: continue
                 latestOnAction(
                     action.resolve(latestState, latestScope, tokens, JsonPrimitive(deltaMillis))
                 )
@@ -1977,6 +2003,11 @@ internal fun JsonElement?.displayString(): String = when (this) {
 internal fun JsonElement?.asInt(): Int = (this as? JsonPrimitive)?.intOrNull
     ?: (this as? JsonPrimitive)?.doubleOrNull?.toInt()
     ?: 0
+internal fun JsonElement?.asNumber(): Double = (this as? JsonPrimitive)?.doubleOrNull ?: 0.0
+internal fun formatCanonicalNumber(value: Double, fractionDigits: Int): String = java.math.BigDecimal.valueOf(value)
+    .setScale(fractionDigits.coerceIn(0, 6), java.math.RoundingMode.HALF_UP)
+    .stripTrailingZeros()
+    .toPlainString()
 private fun JsonElement?.asFloat(): Float = (this as? JsonPrimitive)?.doubleOrNull?.toFloat() ?: 0f
 internal fun JsonElement?.asBoolean(default: Boolean = false): Boolean = (this as? JsonPrimitive)?.booleanOrNull ?: default
 private fun JsonElement?.asIntList(): List<Int> = (this as? JsonArray).orEmpty().map(JsonElement::asInt)
@@ -2001,6 +2032,8 @@ private fun JsonElement.toPlatformValue(): Any? = when (this) {
 }
 
 private fun progress(value: Int, maximum: Int): Float = if (maximum <= 0) 0f else value.toFloat().div(maximum).coerceIn(0f, 1f)
+
+private fun progress(value: Double, maximum: Double): Float = if (maximum <= 0.0) 0f else value.div(maximum).coerceIn(0.0, 1.0).toFloat()
 
 private fun horizontalAlignment(value: String): Alignment.Horizontal = when (value) {
     "center" -> Alignment.CenterHorizontally
@@ -2069,7 +2102,7 @@ private fun parseColor(value: String, fallback: Color): Color = runCatching {
     Color(value.toColorInt())
 }.getOrDefault(fallback)
 
-private fun icon(name: String): ImageVector = when (name.lowercase()) {
+private fun icon(name: String): ImageVector = when (name.lowercase().replace('-', '_')) {
     "add", "plus" -> Icons.Default.Add
     "add_circle" -> Icons.Default.AddCircle
     "check", "done", "taken" -> Icons.Default.Check
@@ -2079,8 +2112,8 @@ private fun icon(name: String): ImageVector = when (name.lowercase()) {
     "play_circle" -> Icons.Default.PlayCircle
     "pause" -> Icons.Default.Pause
     "refresh", "reset" -> Icons.Default.Refresh
-    "back", "previous" -> Icons.AutoMirrored.Filled.ArrowBack
-    "forward", "next" -> Icons.AutoMirrored.Filled.ArrowForward
+    "back", "previous", "arrow_left" -> Icons.AutoMirrored.Filled.ArrowBack
+    "forward", "next", "arrow_right" -> Icons.AutoMirrored.Filled.ArrowForward
     "alarm", "clock" -> Icons.Default.AccessAlarm
     "timer", "countdown" -> Icons.Default.Timer
     "notification", "reminder" -> Icons.Default.Notifications
@@ -2135,6 +2168,7 @@ private fun icon(name: String): ImageVector = when (name.lowercase()) {
 }
 
 private val LocalCanonicalHostScrolling = staticCompositionLocalOf { false }
+private val LocalCanonicalViewportHeight = staticCompositionLocalOf { Dp.Infinity }
 
 private fun CanonicalDealUiProgram.needsHostScrolling(): Boolean = !nodes.any { it.containsCall("Scroll") }
 
@@ -2151,11 +2185,15 @@ private fun CanonicalUiNode.requiresBoundedLayout(): Boolean = containsCall("Gri
 
 private fun CanonicalUiNode.containsOnlyTileContent(): Boolean = when (this) {
     is CanonicalUiNode.Call ->
-        name.substringAfterLast('.') == "Tile" || children.isNotEmpty() && children.all { it.containsOnlyTileContent() }
+        name.substringAfterLast('.') == "Tile" ||
+            (children.isNotEmpty() && children.all { it.containsOnlyTileContent() })
+
     is CanonicalUiNode.ForEach -> children.isNotEmpty() && children.all { it.containsOnlyTileContent() }
+
     is CanonicalUiNode.When ->
         (thenNodes.isNotEmpty() && thenNodes.all { it.containsOnlyTileContent() }) &&
             (elseNodes.isEmpty() || elseNodes.all { it.containsOnlyTileContent() })
+
     is CanonicalUiNode.Scope -> children.isNotEmpty() && children.all { it.containsOnlyTileContent() }
 }
 
@@ -2165,12 +2203,17 @@ private val ROW_EXPANDING_COMPONENTS = setOf(
     "Card",
     "Stat",
     "IntStat",
+    "NumberStat",
     "ListItem",
     "TextField",
+    "IntField",
+    "NumberField",
     "Toggle",
     "Slider",
     "ProgressBar",
-    "ProgressRing"
+    "ProgressRing",
+    "NumberProgressBar",
+    "NumberProgressRing"
 )
 
 private fun CanonicalUiNode.containsCall(name: String): Boolean = when (this) {

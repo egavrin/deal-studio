@@ -144,7 +144,6 @@ internal fun restoreCanonicalGeneratedApp(
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
-    program.validateInitialSurface(initialState)
     return CanonicalGeneratedAppLibraryEntry(record, bundle, program, initialState)
 }
 

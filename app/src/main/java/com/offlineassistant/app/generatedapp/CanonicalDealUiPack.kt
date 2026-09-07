@@ -1,9 +1,11 @@
 package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
-    const val VERSION = "deal-studio-dealui-pack-v12"
+    const val VERSION = "deal-studio-dealui-pack-v13"
+    const val PREVIOUS_VERSION = "deal-studio-dealui-pack-v12"
     const val LEGACY_VERSION = "deal-studio-dealui-pack-v11"
-    const val SHA256 = GeneratedCanonicalDealUiPackV12.SHA256
+    const val SHA256 = GeneratedCanonicalDealUiPackV13.SHA256
+    const val PREVIOUS_SHA256 = GeneratedCanonicalDealUiPackV12.SHA256
     const val LEGACY_SHA256 = "78ab770900cb8ec99c854e31d92d7e4621c5ddaa7c205ff712c6a547a313ae49"
 
     private val legacySource: String = """
@@ -103,7 +105,7 @@ internal object CanonicalDealUiPack {
         export component Divider(props: EmptyProps): View { capability "renderer.android.divider"; }
         export component FrameClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.frame"; }
         export component MinuteClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.minute"; }
-        export component PointerSurface(props: PointerProps): View { children optional; event onPointer(payload: PointerPayload); accessibility accessibilityLabel; capability "host.pointer.surface"; }
+        export component PointerSurface(props: PointerProps): View { children optional; event onPointer(payload: PointerPayload); accessibility accessibilityLabel; capability "host.pointer"; }
         export component Canvas(props: CanvasProps): View { children optional; accessibility accessibilityLabel; capability "renderer.android.canvas"; }
         export component Rectangle(props: ShapeProps): View { capability "renderer.android.shape.rectangle"; }
         export component RoundRectangle(props: ShapeProps): View { capability "renderer.android.shape.round-rectangle"; }
@@ -127,16 +129,18 @@ internal object CanonicalDealUiPack {
         export token textDisplay: TextStyle = { value: "display" };
     """.trimIndent()
 
-    val source: String = GeneratedCanonicalDealUiPackV12.SOURCE
+    val source: String = GeneratedCanonicalDealUiPackV13.SOURCE
 
     fun sourceFor(version: String): String? = when (version) {
         VERSION -> source
+        PREVIOUS_VERSION -> GeneratedCanonicalDealUiPackV12.SOURCE
         LEGACY_VERSION -> legacySource
         else -> null
     }
 
     fun digestFor(version: String): String? = when (version) {
         VERSION -> SHA256
+        PREVIOUS_VERSION -> PREVIOUS_SHA256
         LEGACY_VERSION -> LEGACY_SHA256
         else -> null
     }

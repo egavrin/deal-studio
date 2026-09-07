@@ -8,12 +8,13 @@ import java.lang.reflect.InvocationTargetException
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
@@ -25,21 +26,25 @@ internal class CanonicalDealToolchain(
         dealSource: String,
         dealUiSource: String,
         packSource: String
-    ): JsonObject = (invokeBridge(
-        "inspectCanonicalApp",
-        arrayOf(String::class.java, String::class.java, String::class.java),
-        arrayOf(dealSource, dealUiSource, packSource)
-    ) as String).jsonObject()
+    ): JsonObject = (
+        invokeBridge(
+            "inspectCanonicalApp",
+            arrayOf(String::class.java, String::class.java, String::class.java),
+            arrayOf(dealSource, dealUiSource, packSource)
+        ) as String
+        ).jsonObject()
 
     fun applyDealChange(
         source: String,
         baseDigest: String,
         operationsJson: String
-    ): JsonObject = (invokeBridge(
-        "applyDealChange",
-        arrayOf(String::class.java, String::class.java, String::class.java),
-        arrayOf(source, baseDigest, operationsJson)
-    ) as String).jsonObject()
+    ): JsonObject = (
+        invokeBridge(
+            "applyDealChange",
+            arrayOf(String::class.java, String::class.java, String::class.java),
+            arrayOf(source, baseDigest, operationsJson)
+        ) as String
+        ).jsonObject()
 
     fun applyDealUiChange(
         dealSource: String,
@@ -47,17 +52,19 @@ internal class CanonicalDealToolchain(
         packSource: String,
         baseDigest: String,
         operationsJson: String
-    ): JsonObject = (invokeBridge(
-        "applyDealUiChange",
-        arrayOf(
-            String::class.java,
-            String::class.java,
-            String::class.java,
-            String::class.java,
-            String::class.java
-        ),
-        arrayOf(dealSource, source, packSource, baseDigest, operationsJson)
-    ) as String).jsonObject()
+    ): JsonObject = (
+        invokeBridge(
+            "applyDealUiChange",
+            arrayOf(
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                String::class.java
+            ),
+            arrayOf(dealSource, source, packSource, baseDigest, operationsJson)
+        ) as String
+        ).jsonObject()
 
     fun createRefinementSession(
         dealSource: String,
@@ -79,6 +86,30 @@ internal class CanonicalDealToolchain(
                 Int::class.javaPrimitiveType!!
             ),
             arrayOf(dealSource, dealUiSource, packSource, instruction, maxRounds, maxSemanticRepairs)
+        )
+        return CanonicalStreamingRefinementSession(bridge, session)
+    }
+
+    fun createGenerationSession(
+        packSource: String,
+        instruction: String,
+        maxRounds: Int = 8,
+        maxSemanticRepairs: Int = 2,
+        dealReasoningEffort: String = "low",
+        uiReasoningEffort: String = "none"
+    ): CanonicalStreamingRefinementSession {
+        val bridge = bridgeClass()
+        val session = invokeBridge(
+            "createGenerationSessionWithReasoning",
+            arrayOf(
+                String::class.java,
+                String::class.java,
+                Int::class.javaPrimitiveType!!,
+                Int::class.javaPrimitiveType!!,
+                String::class.java,
+                String::class.java
+            ),
+            arrayOf(packSource, instruction, maxRounds, maxSemanticRepairs, dealReasoningEffort, uiReasoningEffort)
         )
         return CanonicalStreamingRefinementSession(bridge, session)
     }
@@ -230,10 +261,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "bdc2bd3cad6bb57e3278d2df74371482bbb28178abe430c4412cf880fb2dbc9f"
-        const val DEAL_REVISION = "b436bdadb1372dd890331b5922c33d0715195eaf"
-        const val DEAL_UI_REVISION = "4ca8671256015dde247328c6db13c48ed2264074"
-        const val STREAMING_COMPILER_REVISION = "2cd6d5b6f3a084c5d1c8d8d9d1caef1c8de0cf03"
+        const val ARTIFACT_SHA256 = "698c05283ca53803d683d93bb65d845d2df722194f3e025b4a5e32c4a2124f56"
+        const val DEAL_REVISION = "e616e5439c1c904c2af080ca1d379a01d7122637"
+        const val DEAL_UI_REVISION = "0dcfbb643c1c73737bcff95a1263464be542c8a5"
+        const val STREAMING_COMPILER_REVISION = "32daf3cac4c1916d4a3b752eb235e6323e1a2195"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -258,21 +289,31 @@ internal class CanonicalStreamingRefinementSession(
         arrayOf(name, arguments)
     ).jsonObject()
 
-    fun acceptToolCalls(calls: List<Pair<String, String>>): JsonObject {
-        val encoded = buildJsonArray {
-            calls.forEach { (name, arguments) ->
-                add(buildJsonObject {
+    fun acceptToolCalls(calls: List<Pair<String, String>>): JsonObject = invoke(
+        "refinementAcceptToolCalls",
+        arrayOf(String::class.java),
+        arrayOf(encodeCalls(calls))
+    ).jsonObject()
+
+    fun toolCallError(calls: List<Pair<String, String>>): String? {
+        val validation = invoke(
+            "refinementValidateToolCalls",
+            arrayOf(String::class.java),
+            arrayOf(encodeCalls(calls))
+        ).jsonObject()
+        return validation["error"]?.jsonPrimitive?.content
+    }
+
+    private fun encodeCalls(calls: List<Pair<String, String>>): String = buildJsonArray {
+        calls.forEach { (name, arguments) ->
+            add(
+                buildJsonObject {
                     put("name", name)
                     put("arguments", Json.parseToJsonElement(arguments))
-                })
-            }
-        }.toString()
-        return invoke(
-            "refinementAcceptToolCalls",
-            arrayOf(String::class.java),
-            arrayOf(encoded)
-        ).jsonObject()
-    }
+                }
+            )
+        }
+    }.toString()
 
     fun result(): JsonObject = invoke("refinementResult").jsonObject()
 
@@ -338,7 +379,6 @@ internal class CanonicalDealRuntimeSession(
             failure
         )
     }
-
 }
 
 private fun JsonObject.toPlatformMap(): Map<String, Any?> = mapValues { it.value.toPlatformValue() }

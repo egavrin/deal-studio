@@ -3,6 +3,8 @@
 
 package com.offlineassistant.app.generatedapp
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -26,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Fullscreen
@@ -65,11 +69,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -94,6 +102,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
+import kotlin.math.roundToInt
 
 @Composable
 internal fun GeneratedAppStudioRoute(
@@ -492,11 +501,14 @@ private fun AppPreviewSurface(
 
 @Composable
 private fun RefinementBox(state: GeneratedAppStudioState, actions: GeneratedAppStudioActions) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         OutlinedTextField(
             value = state.refinementPrompt,
             onValueChange = actions.onRefinementChanged,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Describe a change") },
             maxLines = 4,
             enabled = !state.isBusy
@@ -504,7 +516,7 @@ private fun RefinementBox(state: GeneratedAppStudioState, actions: GeneratedAppS
         Button(
             onClick = actions.onRefine,
             enabled = state.canRefine,
-            modifier = Modifier.height(56.dp)
+            modifier = Modifier.fillMaxWidth().height(56.dp)
         ) { Text("Update") }
     }
 }
@@ -860,15 +872,17 @@ private fun CanonicalThumbnail(
         val width = constraints.maxWidth
         val height = constraints.maxHeight
         val logicalWidth = maxOf(width, 420.dp.roundToPx())
+        val scale = width.toFloat() / logicalWidth.coerceAtLeast(1)
+        val logicalHeight = maxOf(height, (height / scale.coerceAtLeast(0.01f)).roundToInt())
         val placeable = subcompose("thumbnail") {
             CanonicalDealUiRenderer(program, state, Modifier.fillMaxWidth(), onAction = {})
-        }.single().measure(Constraints(logicalWidth, logicalWidth, 0, Constraints.Infinity))
-        val scale = width.toFloat() / logicalWidth.coerceAtLeast(1)
+        }.single().measure(Constraints(logicalWidth, logicalWidth, 0, logicalHeight))
         layout(width, height) {
             placeable.placeWithLayer(0, 0) {
                 scaleX = scale
                 scaleY = scale
                 transformOrigin = TransformOrigin(0f, 0f)
+                clip = true
             }
         }
     }
@@ -927,7 +941,8 @@ private fun IdeaGallery(onSelected: (String) -> Unit) {
 }
 
 @Composable
-private fun SourcePanel(title: String, source: String) {
+internal fun SourcePanel(title: String, source: String) {
+    val context = LocalContext.current
     Surface(
         Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -938,15 +953,30 @@ private fun SourcePanel(title: String, source: String) {
             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Code, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text("Copy $title") } },
+                    state = rememberTooltipState()
+                ) {
+                    IconButton(onClick = {
+                        context.getSystemService(ClipboardManager::class.java)
+                            .setPrimaryClip(ClipData.newPlainText(title, source))
+                        Toast.makeText(context, "$title copied", Toast.LENGTH_SHORT).show()
+                    }, enabled = source.isNotEmpty()) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy $title")
+                    }
+                }
             }
             HorizontalDivider()
-            Text(
-                source,
-                Modifier.fillMaxWidth().padding(14.dp),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace
-            )
+            SelectionContainer {
+                Text(
+                    source,
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
         }
     }
 }
@@ -1047,9 +1077,11 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
                         Icon(Icons.Default.Cloud, contentDescription = null)
                         Column {
                             Text("Cloud access", style = MaterialTheme.typography.titleMedium)
-                            Text("Provider keys are encrypted with Android Keystore.",
+                            Text(
+                                "Provider keys are encrypted with Android Keystore.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                     ProviderKeyEditor(
@@ -1067,7 +1099,6 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
                         onClear = actions.onClearCerebrasApiKey
                     )
                 }
-
             }
         }
     }

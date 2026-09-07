@@ -20,6 +20,20 @@ import org.junit.Test
 
 class DeepSeekGenerationClientTest {
     @Test
+    fun `deepseek wire schema preserves compiler discriminators and local bounds`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val original = Json.parseToJsonElement("""{"type":"object","properties":{"minItems":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"object","properties":{"op":{"type":"string","const":"block"}},"required":["op"],"additionalProperties":false}}},"required":["minItems"],"additionalProperties":false}""").jsonObject
+        val wire = client.deepSeekSchema(original).jsonObject
+        val array = wire["properties"]!!.jsonObject["minItems"]!!.jsonObject
+        assertFalse("minItems" in array)
+        assertFalse("maxItems" in array)
+        val op = array["items"]!!.jsonObject["properties"]!!.jsonObject["op"]!!.jsonObject
+        assertEquals("block", op["enum"]!!.jsonArray.single().jsonPrimitive.content)
+        assertFalse("const" in op)
+        assertTrue("minItems" in original["properties"]!!.jsonObject["minItems"]!!.jsonObject)
+    }
+
+    @Test
     fun `cerebras compiler tool request uses OpenAI chat envelope`() {
         val client = DeepSeekGenerationClient(
             apiKeyProvider = { null },
@@ -261,6 +275,16 @@ class DeepSeekGenerationClientTest {
         assertEquals(120, completed.usage?.inputTokens)
         assertEquals(96, completed.usage?.cachedInputTokens)
         assertEquals(24, completed.usage?.outputTokens)
+        assertEquals(null, completed.usage?.reasoningTokens)
+    }
+
+    @Test
+    fun `responses usage preserves reported reasoning tokens separately`() {
+        val event = DeepSeekGenerationClient(apiKeyProvider = { "test" }).parseResponsesEvent(
+            """{"type":"response.completed","response":{"usage":{"output_tokens":100,"output_tokens_details":{"reasoning_tokens":75}}}}"""
+        )
+        assertEquals(100, event.usage?.outputTokens)
+        assertEquals(75, event.usage?.reasoningTokens)
     }
 
     @Test
@@ -301,11 +325,37 @@ class DeepSeekGenerationClientTest {
 
         assertEquals("required", body["tool_choice"]!!.jsonPrimitive.content)
         assertTrue(body["text"] == null)
-        val tool = body["tools"]!!.jsonArray.single().jsonObject
-        assertEquals("function", tool["type"]!!.jsonPrimitive.content)
+        assertEquals("function", body["tools"]!!.jsonArray.single().jsonObject["type"]!!.jsonPrimitive.content)
+        val tool = body["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject
         assertEquals("int_zero", tool["name"]!!.jsonPrimitive.content)
         assertTrue(tool["strict"]!!.jsonPrimitive.content.toBoolean())
         assertEquals(parameters, tool["parameters"])
+    }
+
+    @Test
+    fun `incomplete tool response reports exhaustion instead of missing tools`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val event = client.parseResponsesEvent("""{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}""")
+        assertEquals("Incomplete response: max_output_tokens", event.error)
+    }
+
+    @Test
+    fun `reasoning tool requests use supported auto selection without source output format`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val body = client.toolRequestBody(
+            DeepSeekToolRequest(
+                model = DeepSeekGenerationModel.PRO,
+                instructions = "Use the API.",
+                input = "Build.",
+                tools = emptyList(),
+                maxOutputTokens = 8192,
+                reasoningEffort = "low"
+            )
+        )
+        assertEquals("low", body["reasoning_effort"]!!.jsonPrimitive.content)
+        assertEquals("enabled", body["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals("auto", body["tool_choice"]!!.jsonPrimitive.content)
+        assertTrue(body["text"] == null)
     }
 
     @Test
@@ -332,7 +382,7 @@ class DeepSeekGenerationClientTest {
             )
         )
 
-        assertFalse(body["tools"]!!.jsonArray.single().jsonObject["strict"]!!.jsonPrimitive.content.toBoolean())
+        assertFalse(body["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject["strict"]!!.jsonPrimitive.content.toBoolean())
     }
 
     @Test
@@ -430,30 +480,44 @@ class DeepSeekGenerationClientTest {
         fun operation(target: String, property: String) = buildJsonObject {
             put("type", "object")
             putJsonObject("properties") {
-                putJsonObject("operation") { put("type", "string"); put("const", "setProperty") }
-                putJsonObject("targetId") { put("type", "string"); put("const", target) }
-                putJsonObject("property") { put("type", "string"); put("const", property) }
+                putJsonObject("operation") {
+                    put("type", "string")
+                    put("const", "setProperty")
+                }
+                putJsonObject("targetId") {
+                    put("type", "string")
+                    put("const", target)
+                }
+                putJsonObject("property") {
+                    put("type", "string")
+                    put("const", property)
+                }
                 putJsonObject("expression") { put("type", "string") }
             }
-            put("required", buildJsonArray {
-                listOf("operation", "targetId", "property", "expression").forEach { add(JsonPrimitive(it)) }
-            })
+            put(
+                "required",
+                buildJsonArray {
+                    listOf("operation", "targetId", "property", "expression").forEach { add(JsonPrimitive(it)) }
+                }
+            )
             put("additionalProperties", false)
         }
         val request = DeepSeekToolRequest(
             model = DeepSeekGenerationModel.FLASH,
             instructions = "Edit UI.",
             input = "Add tone.",
-            tools = listOf(DeepSeekFunctionTool(
-                "apply_deal_ui_changes",
-                "Apply UI change.",
-                buildJsonObject {
-                    putJsonArray("anyOf") {
-                        add(operation("node-a", "text"))
-                        add(operation("node-b", "tone"))
+            tools = listOf(
+                DeepSeekFunctionTool(
+                    "apply_deal_ui_changes",
+                    "Apply UI change.",
+                    buildJsonObject {
+                        putJsonArray("anyOf") {
+                            add(operation("node-a", "text"))
+                            add(operation("node-b", "tone"))
+                        }
                     }
-                }
-            )),
+                )
+            ),
             maxOutputTokens = 256
         )
         val invalid = DeepSeekFunctionCall(
@@ -468,27 +532,156 @@ class DeepSeekGenerationClientTest {
     }
 
     @Test
+    fun `construction op diagnostics select the actual constructor`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val schema = Json.parseToJsonElement(
+            """{"anyOf":[
+          {"type":"object","properties":{"op":{"const":"integer"},"value":{"type":"integer"}},"required":["value"]},
+          {"type":"object","properties":{"op":{"const":"declareFunction"},"body":{"type":"string"}},"required":["body"]}
+        ]}"""
+        ).jsonObject
+        val request = DeepSeekToolRequest(
+            model = DeepSeekGenerationModel.FLASH,
+            instructions = "Build.",
+            input = "Build.",
+            tools = listOf(DeepSeekFunctionTool("construct", "Construct.", schema)),
+            maxOutputTokens = 256
+        )
+        val error = client.invalidToolArguments(
+            request,
+            listOf(
+                DeepSeekFunctionCall("1", "construct", """{"op":"declareFunction"}""")
+            )
+        ).orEmpty()
+        assertTrue(error, error.contains("body is required"))
+        assertTrue(error, !error.contains("value is required"))
+    }
+
+    @Test
+    fun `deepseek flattens pure nested unions without dropping alternatives`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val source = Json.parseToJsonElement("""{"anyOf":[{"anyOf":[{"type":"string"},{"type":"integer"}]},{"type":"boolean"}]}""")
+        val result = client.deepSeekSchema(source).jsonObject["anyOf"]!!.jsonArray
+        assertEquals(listOf("string", "integer", "boolean"), result.map { it.jsonObject["type"]!!.jsonPrimitive.content })
+        assertEquals(2, source.jsonObject["anyOf"]!!.jsonArray.size)
+    }
+
+    @Test
+    fun `chat stream accepts null usage between token chunks`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        assertEquals(null, client.chatUsage(Json.parseToJsonElement("""{"usage":null}""").jsonObject))
+        assertEquals(null, client.chatUsage(Json.parseToJsonElement("""{}""").jsonObject))
+        assertEquals(
+            12,
+            client.chatUsage(Json.parseToJsonElement("""{"usage":{"completion_tokens":12}}""").jsonObject)
+                ?.get("completion_tokens")?.jsonPrimitive?.content?.toInt()
+        )
+    }
+
+    @Test
+    fun `object operand errors show object alternatives instead of scalar noise`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val schema = Json.parseToJsonElement(
+            """{"type":"object","properties":{"value":{"anyOf":[
+          {"type":"string"},{"type":"integer"},{"type":"boolean"},
+          {"type":"object","properties":{"text":{"type":"string"}},"required":["text"]},
+          {"type":"object","properties":{"path":{"type":"array","items":{"type":"string"}}},"required":["path"]}
+        ]}},"required":["value"]}"""
+        ).jsonObject
+        val request = DeepSeekToolRequest(
+            DeepSeekGenerationModel.FLASH,
+            "Build.",
+            "Build.",
+            listOf(DeepSeekFunctionTool("construct", "Construct.", schema)),
+            256
+        )
+        val error = client.invalidToolArguments(
+            request,
+            listOf(
+                DeepSeekFunctionCall("1", "construct", """{"value":{"action":{}}}""")
+            )
+        ).orEmpty()
+        assertTrue(error, error.contains("text is required") && error.contains("path is required"))
+        assertTrue(error, error.contains("Object keys are [action]"))
+        assertTrue(error, error.contains("allowed object property sets are [[text], [path]]"))
+        assertTrue(error, error.contains("string or integer or boolean"))
+    }
+
+    @Test
+    fun `nested discriminated unions keep the actionable leaf diagnostic`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val leaf = Json.parseToJsonElement(
+            """{"anyOf":[
+            {"type":"string"},{"type":"integer"},{"type":"boolean"},
+            {"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false},
+            {"type":"object","properties":{"path":{"type":"array","items":{"type":"string"}}},"required":["path"],"additionalProperties":false}
+        ]}"""
+        ).jsonObject
+        var schema = leaf
+        repeat(6) {
+            schema = buildJsonObject {
+                putJsonArray("anyOf") {
+                    add(
+                        buildJsonObject {
+                            put("type", "object")
+                            putJsonObject("properties") {
+                                putJsonObject("op") { put("const", "wrapper") }
+                                put("value", schema)
+                            }
+                            putJsonArray("required") {
+                                add(JsonPrimitive("op"))
+                                add(JsonPrimitive("value"))
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        var value: kotlinx.serialization.json.JsonElement = Json.parseToJsonElement("""{"id":"emptyBoard"}""")
+        repeat(6) {
+            value = buildJsonObject {
+                put("op", "wrapper")
+                put("value", value)
+            }
+        }
+        val request = DeepSeekToolRequest(
+            DeepSeekGenerationModel.FLASH,
+            "Build.",
+            "Build.",
+            listOf(DeepSeekFunctionTool("construct", "Construct.", schema)),
+            256
+        )
+        val error = client.invalidToolArguments(request, listOf(DeepSeekFunctionCall("1", "construct", value.toString()))).orEmpty()
+        assertTrue(error, error.startsWith("construct: $.value.value.value.value.value.value"))
+        assertTrue(error, error.contains("Object keys are [id]"))
+        assertTrue(error, error.contains("string or integer or boolean"))
+        assertTrue(error, error.length < 600)
+    }
+
+    @Test
     fun `empty compiler transaction is rejected by transport schema`() {
         val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
         val request = DeepSeekToolRequest(
             model = DeepSeekGenerationModel.FLASH,
             instructions = "Apply one transaction.",
             input = "Update behavior.",
-            tools = listOf(DeepSeekFunctionTool(
-                "apply_deal_changes",
-                "Apply DEAL changes.",
-                buildJsonObject {
-                    put("type", "object")
-                    putJsonObject("properties") {
-                        putJsonObject("operations") {
-                            put("type", "array")
-                            put("minItems", 1)
-                            put("items", buildJsonObject { put("type", "object") })
+            tools = listOf(
+                DeepSeekFunctionTool(
+                    "apply_deal_changes",
+                    "Apply DEAL changes.",
+                    buildJsonObject {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("operations") {
+                                put("type", "array")
+                                put("minItems", 1)
+                                put("items", buildJsonObject { put("type", "object") })
+                            }
                         }
+                        put("required", buildJsonArray { add(JsonPrimitive("operations")) })
                     }
-                    put("required", buildJsonArray { add(JsonPrimitive("operations")) })
-                }
-            )),
+                )
+            ),
             maxOutputTokens = 256
         )
         val invalid = DeepSeekFunctionCall("call-1", "apply_deal_changes", """{"operations":[]}""")

@@ -11,7 +11,9 @@ internal object CanonicalGenerationRepairPolicy {
 
     fun maxRounds(primaryModel: DeepSeekGenerationModel): Int = when (primaryModel) {
         DeepSeekGenerationModel.FLASH -> FLASH_MAX_ROUNDS
+
         DeepSeekGenerationModel.PRO -> PRO_MAX_ROUNDS
+
         DeepSeekGenerationModel.CEREBRAS_QWEN_27B,
         DeepSeekGenerationModel.CEREBRAS_GPT_OSS_120B -> PRO_MAX_ROUNDS
     }

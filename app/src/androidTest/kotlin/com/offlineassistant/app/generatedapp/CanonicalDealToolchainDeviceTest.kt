@@ -2,18 +2,18 @@ package com.offlineassistant.app.generatedapp
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import org.junit.runner.RunWith
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class CanonicalDealToolchainDeviceTest {
@@ -79,23 +79,27 @@ class CanonicalDealToolchainDeviceTest {
             "query_deal_ui_document",
             buildJsonObject { put("target", "D1") }.toString()
         )
-        assertTrue(queried.getValue("tools").jsonArray.any {
-            it.jsonObject.getValue("name").jsonPrimitive.content == "apply_deal_ui_changes"
-        })
+        assertTrue(
+            queried.getValue("tools").jsonArray.any {
+                it.jsonObject.getValue("name").jsonPrimitive.content == "apply_deal_ui_changes"
+            }
+        )
 
         val result = session.acceptToolCall(
             "apply_deal_ui_changes",
             buildJsonObject {
                 putJsonArray("operations") {
-                    add(buildJsonObject {
-                        put("operation", "addView")
-                        put("target", "D1")
-                        put(
-                            "source",
-                            "export view Detail(state: app.PointerState): View { " +
-                                "ui.Text(value: \"Pointer details\") }"
-                        )
-                    })
+                    add(
+                        buildJsonObject {
+                            put("operation", "addView")
+                            put("target", "D1")
+                            put(
+                                "source",
+                                "export view Detail(state: app.PointerState): View { " +
+                                    "ui.Text(value: \"Pointer details\") }"
+                            )
+                        }
+                    )
                 }
                 put("final", true)
             }.toString()
@@ -130,11 +134,13 @@ class CanonicalDealToolchainDeviceTest {
             }
             .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
         val dealOperation = buildJsonArray {
-            add(buildJsonObject {
-                put("operation", "replaceFunctionBody")
-                put("targetId", bodyId)
-                put("body", "return { x: action.x + 1, y: action.y, phase: action.phase };")
-            })
+            add(
+                buildJsonObject {
+                    put("operation", "replaceFunctionBody")
+                    put("targetId", bodyId)
+                    put("body", "return { x: action.x + 1, y: action.y, phase: action.phase };")
+                }
+            )
         }
 
         val dealChange = toolchain.applyDealChange(
@@ -152,12 +158,14 @@ class CanonicalDealToolchainDeviceTest {
             .single { it.getValue("component").jsonPrimitive.content == "ui.PointerSurface" }
             .getValue("id").jsonObject.getValue("value").jsonPrimitive.content
         val uiOperation = buildJsonArray {
-            add(buildJsonObject {
-                put("operation", "setProperty")
-                put("targetId", pointerNodeId)
-                put("property", "accessibilityLabel")
-                put("expression", "\"Interactive pointer board\"")
-            })
+            add(
+                buildJsonObject {
+                    put("operation", "setProperty")
+                    put("targetId", pointerNodeId)
+                    put("property", "accessibilityLabel")
+                    put("expression", "\"Interactive pointer board\"")
+                }
+            )
         }
 
         val uiChange = toolchain.applyDealUiChange(
@@ -386,11 +394,13 @@ class CanonicalDealToolchainDeviceTest {
     private companion object {
         fun changeArguments(target: String, body: String): String = buildJsonObject {
             putJsonArray("operations") {
-                add(buildJsonObject {
-                    put("operation", "replaceFunctionBody")
-                    put("target", target)
-                    put("body", body)
-                })
+                add(
+                    buildJsonObject {
+                        put("operation", "replaceFunctionBody")
+                        put("target", target)
+                        put("body", body)
+                    }
+                )
             }
             put("final", true)
         }.toString()

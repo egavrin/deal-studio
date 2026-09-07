@@ -16,7 +16,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-internal val CANONICAL_GENERATED_APP_PLATFORM_ABI = """
+internal val canonicalGeneratedAppPlatformAbi = """
     function platformIntText(value: int): string { return ""; }
     function platformNumberText(value: number): string { return ""; }
     function platformPad2(value: int): string { return ""; }
@@ -26,9 +26,11 @@ internal val CANONICAL_GENERATED_APP_PLATFORM_ABI = """
     function platformClampInt(value: int, low: int, high: int): int { return value; }
 """.trimIndent() + "\n"
 
-internal fun canonicalDealWithPlatformAbi(source: String): String =
-    if ("function platformIntText(value: int): string" in source) source
-    else source.trimEnd() + "\n\n" + CANONICAL_GENERATED_APP_PLATFORM_ABI
+internal fun canonicalDealWithPlatformAbi(source: String): String = if ("function platformIntText(value: int): string" in source) {
+    source
+} else {
+    source.trimEnd() + "\n\n" + canonicalGeneratedAppPlatformAbi
+}
 
 /**
  * Compiler-owned program graph for cloud generation. The model declares the public graph once and
@@ -520,7 +522,7 @@ internal class CanonicalDealProgramGraphCompiler(
             appendLine("}")
             appendLine()
         }
-        append(CANONICAL_GENERATED_APP_PLATFORM_ABI)
+        append(canonicalGeneratedAppPlatformAbi)
     }
 
     private fun submitProgramTool(): DeepSeekFunctionTool = DeepSeekFunctionTool(

@@ -25,7 +25,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     private val compiler = CanonicalGeneratedAppCloudCompiler(
         application,
         settings::deepSeekApiKeyOrNull,
-        settings::cerebrasApiKeyOrNull
+        settings::cerebrasApiKeyOrNull,
+        dealReasoningEffort = "none"
     )
     private val refiner = CanonicalGeneratedAppRefiner(
         application,
@@ -209,14 +210,15 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         }
                     }
                 )
-            }.onSuccess { bundle ->
+            }.mapCatching { bundle ->
                 val runtime = toolchain.createRuntime(bundle.dealSource)
-                val runnable = CanonicalRunnableApp(
+                CanonicalRunnableApp(
                     bundle = bundle,
                     program = CanonicalDealUiParser.parse(bundle.checkedUiIr),
                     runtime = runtime,
                     state = runtime.snapshot()
                 )
+            }.onSuccess { runnable ->
                 mutableState.update {
                     it.copy(
                         session = CanonicalStudioSession.Runnable(runnable),
@@ -269,15 +271,16 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         current.copy(session = refining.copy(message = message))
                     }
                 }
-            }.onSuccess { result ->
+            }.mapCatching { result ->
                 val runtime = toolchain.createRuntime(result.bundle.dealSource)
                 val nextState = runCatching { runtime.restore(previous.state) }.getOrElse { runtime.snapshot() }
+                val program = CanonicalDealUiParser.parse(result.bundle.checkedUiIr)
                 val savedRecord = previous.savedRecord?.let { old ->
                     library.update(old.id, result.bundle, old.title)
                 }
                 val runnable = CanonicalRunnableApp(
                     bundle = result.bundle,
-                    program = CanonicalDealUiParser.parse(result.bundle.checkedUiIr),
+                    program = program,
                     runtime = runtime,
                     state = nextState,
                     savedRecord = savedRecord

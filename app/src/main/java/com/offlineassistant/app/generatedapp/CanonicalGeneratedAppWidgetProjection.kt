@@ -1,5 +1,6 @@
 package com.offlineassistant.app.generatedapp
 
+import kotlin.math.roundToInt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -117,6 +118,13 @@ internal object CanonicalGeneratedAppWidgetProjection {
                 emphasized = true
             )
 
+            "NumberText" -> GeneratedWidgetItem.Text(
+                value("prefix").asString() +
+                    formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
+                    value("suffix").asString(),
+                emphasized = true
+            )
+
             "Stat" -> GeneratedWidgetItem.Stat(
                 value("label").asString(),
                 value("value").asString(),
@@ -129,11 +137,29 @@ internal object CanonicalGeneratedAppWidgetProjection {
                 value("supporting").asString()
             )
 
+            "NumberStat" -> GeneratedWidgetItem.Stat(
+                value("label").asString(),
+                value("prefix").asString() +
+                    formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
+                    value("suffix").asString(),
+                value("supporting").asString()
+            )
+
             "ProgressBar", "ProgressRing" -> GeneratedWidgetItem.Progress(
                 value("label").asString(),
                 value("value").asInt(),
                 value("maximum").asInt().coerceAtLeast(1)
             )
+
+            "NumberProgressBar", "NumberProgressRing" -> {
+                val maximum = value("maximum").asNumber()
+                val ratio = if (maximum <= 0.0) 0.0 else value("value").asNumber().div(maximum).coerceIn(0.0, 1.0)
+                GeneratedWidgetItem.Progress(
+                    value("label").asString(),
+                    (ratio * 100.0).roundToInt(),
+                    100
+                )
+            }
 
             "Section" -> value("title").asString().takeIf(String::isNotBlank)?.let {
                 GeneratedWidgetItem.Text(it, emphasized = true)

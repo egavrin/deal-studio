@@ -1,7 +1,11 @@
 package com.offlineassistant.app.generatedapp
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -20,6 +24,101 @@ import org.junit.runner.RunWith
 class CanonicalDealUiTouchDeviceTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun frameClockHonorsItsDeclaredInterval() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = """
+            // generated-capability: clock.frame
+            export class AppState { elapsed: int = 0; }
+            export class Tick { elapsed: int = 0; }
+            export function initialState(): AppState { return {elapsed: 0}; }
+            // @ui-update
+            export function tick(state: AppState, action: Tick): AppState {
+                return {elapsed: state.elapsed + action.elapsed};
+            }
+        """.trimIndent()
+        val ui = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+                ui.Root() {
+                    ui.FrameClock(intervalMillis: 1000, onTick: action app.Tick { elapsed: payload })
+                }
+            }
+        """.trimIndent()
+        val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source))
+        val runtime = toolchain.createRuntime(deal)
+        val ticks = mutableListOf<Int>()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            MaterialTheme {
+                CanonicalDealUiRenderer(program, runtime.snapshot(), onAction = {
+                    ticks += (it.fields.getValue("elapsed") as Number).toInt()
+                })
+            }
+        }
+        composeRule.mainClock.advanceTimeBy(500)
+        composeRule.runOnIdle { assertTrue("A 1000ms timer must not fire during its first 500ms", ticks.isEmpty()) }
+        composeRule.mainClock.advanceTimeBy(650)
+        composeRule.runOnIdle {
+            assertEquals(1, ticks.size)
+            assertTrue("Payload is elapsed milliseconds, not frame count", ticks.single() in 1000..1032)
+        }
+    }
+
+    @Test
+    fun sourcePanelsCopyExactCanonicalText() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val deal = "export class AppState { title: string = \"Лекарства\"; }\n"
+        val dui = "// UI source\nexport view App(): View { }\n"
+        composeRule.setContent {
+            MaterialTheme {
+                Column {
+                    SourcePanel("app.deal", deal)
+                    SourcePanel("app.dealui", dui)
+                }
+            }
+        }
+        listOf("app.deal" to deal, "app.dealui" to dui).forEach { (name, expected) ->
+            composeRule.onNodeWithContentDescription("Copy $name").performClick()
+            composeRule.runOnIdle {
+                val clip = context.getSystemService(android.content.ClipboardManager::class.java).primaryClip
+                assertEquals(name, clip?.description?.label?.toString())
+                assertEquals(expected, clip?.getItemAt(0)?.text?.toString())
+            }
+        }
+    }
+
+    @Test
+    fun generatedScrollWorksInsideUnboundedPreview() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val source = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+              ui.Root() { ui.Scroll() { ui.Scroll() {
+                ui.Button(text: "Open history", onClick: action app.SelectRouteAction { route: "history" })
+              } } }
+            }
+        """.trimIndent()
+        val program = CanonicalDealUiParser.parse(toolchain.compilePortable(NAVIGATION_DEAL, source, CanonicalDealUiPack.source))
+        val runtime = toolchain.createRuntime(NAVIGATION_DEAL)
+        var dispatched = false
+        composeRule.setContent {
+            MaterialTheme {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    CanonicalDealUiRenderer(program = program, state = runtime.snapshot(), onAction = { dispatched = true })
+                }
+            }
+        }
+        composeRule.onNodeWithText("Open history").performClick()
+        composeRule.runOnIdle { assertTrue(dispatched) }
+    }
 
     @Test
     fun pointerSurfaceDispatchesDownAndUpForAnOrdinaryTap() {

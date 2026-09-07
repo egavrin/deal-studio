@@ -50,6 +50,9 @@ internal object SurpriseAppPromptFactory {
 
             Use only the capabilities, DEAL language features and Deal UI components exposed by the compiler. Build a
             real end-to-end interaction loop with meaningful state changes, not a static mock or a list of placeholders.
+            Deliver one finished screen and its core interaction loop first. Omit optional history, extra modes,
+            onboarding and speculative integrations. Keep the data model and action count minimal for that loop;
+            do not add unused state, helper types or capabilities. The result must still be genuinely usable.
             Keep the scope small enough to complete and validate in one generation. Use honest sample data when live
             platform data is unavailable. Consider a compact home-screen widget when the state is genuinely glanceable.
             Do not repeat or closely imitate these existing app names or concepts: $avoided.

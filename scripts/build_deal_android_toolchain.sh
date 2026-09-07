@@ -19,7 +19,7 @@ fi
 # shellcheck source=/dev/null
 source "$LOCK"
 
-PACK="$ROOT/tooling/deal-ui-pack/deal-studio-v12.dealui-pack"
+PACK="$ROOT/tooling/deal-ui-pack/deal-studio-v13.dealui-pack"
 [[ -f "$PACK" ]] || { printf 'Pinned component pack is unavailable: %s\n' "$PACK" >&2; exit 1; }
 ACTUAL_PACK_VERSION=$(sed -n 's/^pack version "\([^"]*\)";.*/\1/p' "$PACK")
 ACTUAL_PACK_DIGEST=$(shasum -a 256 "$PACK" | awk '{print $1}')
@@ -72,6 +72,7 @@ OUT="$ROOT/build/deal-android-toolchain"
 CLASSES="$OUT/classes"
 JAR="$OUT/deal-android-toolchain.jar"
 ASSET="$ROOT/app/src/debug/assets/deal-android-toolchain.dex"
+KOTLIN_TOOLCHAIN="$ROOT/app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealToolchain.kt"
 rm -rf "$OUT"
 mkdir -p "$CLASSES" "$(dirname "$ASSET")"
 
@@ -81,6 +82,8 @@ javac --release "$JAVAC_RELEASE" \
   -d "$CLASSES" \
   "$DEAL_REPO/deal/compiler/CompilerProtocol.java" \
   "$DEAL_REPO/deal/compiler/CompilerProtocolJson.java" \
+  "$DEAL_REPO/deal/compiler/DealConstruction.java" \
+  "$DEAL_REPO/deal/compiler/ConstructionRepairWorkspace.java" \
   "$DEAL_REPO/deal/compiler/DealCompilerWorkspace.java"
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
@@ -93,8 +96,11 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiChecker.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiCompilerWorkspace.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalCompiler.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalConstruction.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiIrDumper.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/CanonicalRefinementSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/ArgumentRepairWorkspace.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/ConstructionSurface.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealUiJson.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealRuntime.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealToolchainBridge.java"
@@ -112,6 +118,26 @@ if $UPDATE_LOCK; then
     { print }
   ' "$LOCK" > "$temporary"
   mv "$temporary" "$LOCK"
+  temporary="$KOTLIN_TOOLCHAIN.tmp"
+  awk -v digest="$DIGEST" \
+      -v deal_revision="$DEAL_REVISION" \
+      -v deal_ui_revision="$DEAL_UI_REVISION" \
+      -v streaming_revision="$STREAMING_COMPILER_REVISION" '
+    /const val ARTIFACT_SHA256 =/ {
+      sub(/"[0-9a-f]+"/, "\"" digest "\"")
+    }
+    /const val DEAL_REVISION =/ {
+      sub(/"[0-9a-f]+"/, "\"" deal_revision "\"")
+    }
+    /const val DEAL_UI_REVISION =/ {
+      sub(/"[0-9a-f]+"/, "\"" deal_ui_revision "\"")
+    }
+    /const val STREAMING_COMPILER_REVISION =/ {
+      sub(/"[0-9a-f]+"/, "\"" streaming_revision "\"")
+    }
+    { print }
+  ' "$KOTLIN_TOOLCHAIN" > "$temporary"
+  mv "$temporary" "$KOTLIN_TOOLCHAIN"
 elif [[ "$DIGEST" != "$DEX_SHA256" ]]; then
   printf 'DEX digest mismatch: expected %s, built %s\n' "$DEX_SHA256" "$DIGEST" >&2
   printf 'Run with --update-lock only when intentionally updating pinned compiler inputs.\n' >&2

@@ -8,9 +8,11 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -78,7 +80,11 @@ data class DeepSeekToolRequest(
     val input: String,
     val tools: List<DeepSeekFunctionTool>,
     val maxOutputTokens: Int,
-    val temperature: Double = 0.0
+    val temperature: Double = 0.0,
+    val reasoningEffort: String = "none",
+    val transportAttempts: Int = 2,
+    val rejectedCalls: List<DeepSeekFunctionCall> = emptyList(),
+    val engineOwnsArgumentValidation: Boolean = false
 )
 
 data class DeepSeekFunctionCall(
@@ -86,6 +92,11 @@ data class DeepSeekFunctionCall(
     val name: String,
     val arguments: String
 )
+
+class InvalidCompilerToolResponseException(
+    message: String,
+    val rejectedCalls: List<DeepSeekFunctionCall>
+) : IOException(message)
 
 data class DeepSeekToolGenerationResult(
     val calls: List<DeepSeekFunctionCall>,
@@ -95,7 +106,8 @@ data class DeepSeekToolGenerationResult(
     val inputTokens: Int? = null,
     val cachedInputTokens: Int? = null,
     val outputTokens: Int? = null,
-    val transportAttempts: Int = 1
+    val transportAttempts: Int = 1,
+    val reasoningTokens: Int? = null
 )
 
 class DeepSeekGenerationClient(
@@ -169,13 +181,14 @@ class DeepSeekGenerationClient(
     fun generateTools(
         request: DeepSeekToolRequest,
         onArgumentsDelta: (String) -> Unit = {},
-        onCall: (DeepSeekFunctionCall) -> Unit = {}
+        onCall: (DeepSeekFunctionCall) -> Unit = {},
+        onAttempt: (List<DeepSeekFunctionCall>, String?) -> Unit = { _, _ -> }
     ): DeepSeekToolGenerationResult {
         require(request.instructions.isNotBlank()) { "Generation instructions cannot be empty" }
         require(request.input.isNotBlank()) { "Generation input cannot be empty" }
         require(request.tools.isNotEmpty()) { "At least one compiler tool is required" }
         require(request.tools.size <= MAX_FUNCTION_TOOLS) { "Too many compiler tools" }
-        require(request.maxOutputTokens in 1..MAX_OUTPUT_TOKENS) { "Invalid generation token limit" }
+        require(request.maxOutputTokens in 1..MAX_TOOL_OUTPUT_TOKENS) { "Invalid generation token limit" }
         require(request.temperature in 0.0..2.0) { "Invalid generation temperature" }
         require(request.tools.map(DeepSeekFunctionTool::name).distinct().size == request.tools.size) {
             "Compiler tool names must be unique"
@@ -184,7 +197,7 @@ class DeepSeekGenerationClient(
         val apiKey = apiKey(request.model)
 
         val started = System.nanoTime()
-        val execution = executeValidToolResponses(request, apiKey, started, onArgumentsDelta)
+        val execution = executeValidToolResponses(request, apiKey, started, onArgumentsDelta, onAttempt)
         require(execution.calls.isNotEmpty()) { "DeepSeek did not call a compiler tool." }
         execution.calls.forEach(onCall)
         return DeepSeekToolGenerationResult(
@@ -195,7 +208,8 @@ class DeepSeekGenerationClient(
             inputTokens = execution.inputTokens,
             cachedInputTokens = execution.cachedInputTokens,
             outputTokens = execution.outputTokens,
-            transportAttempts = execution.transportAttempts
+            transportAttempts = execution.transportAttempts,
+            reasoningTokens = execution.reasoningTokens
         )
     }
 
@@ -253,34 +267,60 @@ class DeepSeekGenerationClient(
 
     private fun deepSeekToolRequestBody(request: DeepSeekToolRequest): JsonObject = buildJsonObject {
         put("model", request.model.apiId)
-        put("instructions", request.instructions)
-        put("input", request.input)
-        putJsonObject("reasoning") { put("effort", "none") }
+        putJsonArray("messages") {
+            add(
+                buildJsonObject {
+                    put("role", "system")
+                    put("content", request.instructions)
+                }
+            )
+            add(
+                buildJsonObject {
+                    put("role", "user")
+                    put("content", request.input)
+                }
+            )
+        }
+        require(request.reasoningEffort in setOf("none", "low", "high", "max"))
+        putJsonObject("thinking") { put("type", if (request.reasoningEffort == "none") "disabled" else "enabled") }
+        if (request.reasoningEffort != "none") put("reasoning_effort", request.reasoningEffort)
         put("temperature", request.temperature)
-        put("max_output_tokens", request.maxOutputTokens)
+        put("max_tokens", request.maxOutputTokens)
         put("stream", true)
-        put("store", false)
+        putJsonObject("stream_options") { put("include_usage", true) }
         putJsonArray("tools") {
             request.tools.forEach { tool ->
                 add(
                     buildJsonObject {
                         put("type", "function")
-                        put("name", tool.name)
-                        put("description", tool.description)
-                        put("parameters", tool.parameters)
-                        put("strict", tool.strict)
+                        putJsonObject("function") {
+                            put("name", tool.name)
+                            put("description", tool.description)
+                            put("parameters", deepSeekSchema(tool.parameters))
+                            put("strict", tool.strict)
+                        }
                     }
                 )
             }
         }
-        put("tool_choice", "required")
+        put("tool_choice", if (request.reasoningEffort == "none") "required" else "auto")
     }
 
     private fun cerebrasToolRequestBody(request: DeepSeekToolRequest): JsonObject = buildJsonObject {
         put("model", request.model.apiId)
         putJsonArray("messages") {
-            add(buildJsonObject { put("role", "system"); put("content", request.instructions) })
-            add(buildJsonObject { put("role", "user"); put("content", request.input) })
+            add(
+                buildJsonObject {
+                    put("role", "system")
+                    put("content", request.instructions)
+                }
+            )
+            add(
+                buildJsonObject {
+                    put("role", "user")
+                    put("content", request.input)
+                }
+            )
         }
         put("reasoning_effort", "low")
         put("temperature", request.temperature)
@@ -289,23 +329,57 @@ class DeepSeekGenerationClient(
         put("stream_options", buildJsonObject { put("include_usage", true) })
         putJsonArray("tools") {
             request.tools.forEach { tool ->
-                add(buildJsonObject {
-                    put("type", "function")
-                    putJsonObject("function") {
-                        put("name", tool.name)
-                        put("description", tool.description)
-                        put("parameters", cerebrasCompatibleSchema(tool.parameters))
-                        put("strict", tool.strict)
+                add(
+                    buildJsonObject {
+                        put("type", "function")
+                        putJsonObject("function") {
+                            put("name", tool.name)
+                            put("description", tool.description)
+                            put("parameters", cerebrasCompatibleSchema(tool.parameters))
+                            put("strict", tool.strict)
+                        }
                     }
-                })
+                )
             }
         }
         put("tool_choice", "required")
         put("parallel_tool_calls", false)
     }
 
-    private fun cerebrasCompatibleSchema(schema: JsonObject): JsonObject =
-        sanitizeCerebrasSchema(schema).jsonObject
+    internal fun deepSeekSchema(value: JsonElement): JsonElement = when (value) {
+        is JsonArray -> JsonArray(value.map(::deepSeekSchema))
+
+        is JsonObject -> buildJsonObject {
+            value.forEach { (key, child) ->
+                when {
+                    key == "anyOf" && child is JsonArray -> {
+                        val alternatives = child.map(::deepSeekSchema).flatMap { alternative ->
+                            if (alternative is JsonObject && alternative.size == 1 && alternative["anyOf"] is JsonArray) {
+                                alternative["anyOf"]!!.jsonArray.toList()
+                            } else {
+                                listOf(alternative)
+                            }
+                        }
+                        put(key, JsonArray(alternatives))
+                    }
+
+                    key in setOf("properties", "\$defs", "\$def") && child is JsonObject ->
+                        put(key, JsonObject(child.mapValues { deepSeekSchema(it.value) }))
+
+                    key in setOf("minItems", "maxItems", "minLength", "maxLength") -> Unit
+
+                    key == "const" && child is JsonPrimitive && child.isString ->
+                        put("enum", JsonArray(listOf(child)))
+
+                    else -> put(key, deepSeekSchema(child))
+                }
+            }
+        }
+
+        else -> value
+    }
+
+    private fun cerebrasCompatibleSchema(schema: JsonObject): JsonObject = sanitizeCerebrasSchema(schema).jsonObject
 
     private fun sanitizeCerebrasSchema(element: JsonElement): JsonElement = when (element) {
         is JsonObject -> JsonObject(
@@ -313,7 +387,9 @@ class DeepSeekGenerationClient(
                 .filterNot { (key, _) -> key in CEREBRAS_UNSUPPORTED_SCHEMA_KEYWORDS }
                 .associate { (key, value) -> key to sanitizeCerebrasSchema(value) }
         )
+
         is JsonArray -> JsonArray(element.map(::sanitizeCerebrasSchema))
+
         else -> element
     }
 
@@ -438,89 +514,29 @@ class DeepSeekGenerationClient(
         started: Long,
         onArgumentsDelta: (String) -> Unit
     ): ToolResponsesExecution {
-        if (request.model.provider == GenerationProvider.CEREBRAS) {
-            return executeChatToolResponses(request, apiKey, started, onArgumentsDelta)
-        }
-        val connection = openConnection(
-            if (request.tools.all(DeepSeekFunctionTool::strict)) strictResponsesEndpointUrl else responsesEndpointUrl,
-            apiKey
-        )
-        check(activeConnection.compareAndSet(null, connection)) { "A DeepSeek generation is already running" }
-        try {
-            val body = toolRequestBody(request).toString().encodeToByteArray()
-            require(body.size <= MAX_REQUEST_BYTES) { "DeepSeek generation request is too large" }
-            connection.setFixedLengthStreamingMode(body.size)
-            connection.outputStream.use { it.write(body) }
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException(httpErrorMessage(connection))
-            }
-            val calls = linkedMapOf<Int, PendingFunctionCall>()
-            val completed = mutableSetOf<Int>()
-            var firstCallMs: Long? = null
-            var inputTokens: Int? = null
-            var cachedInputTokens: Int? = null
-            var outputTokens: Int? = null
-            connection.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    if (!line.startsWith(SSE_DATA_PREFIX)) return@forEach
-                    val event = parseResponsesEvent(line.removePrefix(SSE_DATA_PREFIX).trim())
-                    event.functionCallStart?.let { start ->
-                        calls.getOrPut(start.outputIndex) { PendingFunctionCall() }.apply {
-                            callId = start.callId
-                            name = start.name
-                        }
-                    }
-                    event.functionArgumentsDelta?.let { delta ->
-                        if (firstCallMs == null) firstCallMs = elapsedMillis(started)
-                        calls.getOrPut(delta.outputIndex) { PendingFunctionCall() }.arguments.append(delta.delta)
-                        onArgumentsDelta(delta.delta)
-                    }
-                    event.functionCallDone?.let { done ->
-                        val pending = calls.getOrPut(done.outputIndex) { PendingFunctionCall() }.apply {
-                            if (done.callId.isNotEmpty()) callId = done.callId
-                            if (done.name.isNotEmpty()) name = done.name
-                            if (done.arguments.isNotEmpty()) finalArguments = done.arguments
-                        }
-                        if (completed.add(done.outputIndex) && firstCallMs == null) {
-                            firstCallMs = elapsedMillis(started)
-                        }
-                    }
-                    event.usage?.let { usage ->
-                        inputTokens = usage.inputTokens
-                        cachedInputTokens = usage.cachedInputTokens
-                        outputTokens = usage.outputTokens
-                    }
-                    event.error?.let { message -> throw IOException("DeepSeek response failed: $message") }
-                }
-            }
-            val result = calls.entries.sortedBy(Map.Entry<Int, PendingFunctionCall>::key).map { (index, call) ->
-                call.complete(index)
-            }
-            return ToolResponsesExecution(
-                calls = result,
-                timeToFirstCallMs = firstCallMs,
-                inputTokens = inputTokens,
-                cachedInputTokens = cachedInputTokens,
-                outputTokens = outputTokens,
-                transportAttempts = 1
-            )
-        } finally {
-            activeConnection.compareAndSet(connection, null)
-            connection.disconnect()
-        }
+        require(request.transportAttempts in 1..MAX_TOOL_PROTOCOL_ATTEMPTS)
+        return executeChatToolResponses(request, apiKey, started, onArgumentsDelta)
     }
 
+    @Suppress("ThrowsCount")
     private fun executeChatToolResponses(
         request: DeepSeekToolRequest,
         apiKey: String,
         started: Long,
         onArgumentsDelta: (String) -> Unit
     ): ToolResponsesExecution {
-        val connection = openConnection(cerebrasEndpointUrl, apiKey)
+        val connection = openConnection(
+            if (request.model.provider == GenerationProvider.DEEPSEEK) {
+                if (request.tools.all(DeepSeekFunctionTool::strict)) strictChatEndpointUrl else endpointUrl
+            } else {
+                cerebrasEndpointUrl
+            },
+            apiKey
+        )
         check(activeConnection.compareAndSet(null, connection)) { "A cloud generation is already running" }
         try {
             val body = toolRequestBody(request).toString().encodeToByteArray()
-            require(body.size <= MAX_REQUEST_BYTES) { "Cerebras generation request is too large" }
+            require(body.size <= MAX_REQUEST_BYTES) { "Cloud generation request is too large" }
             connection.setFixedLengthStreamingMode(body.size)
             connection.outputStream.use { it.write(body) }
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
@@ -531,12 +547,17 @@ class DeepSeekGenerationClient(
             var inputTokens: Int? = null
             var cachedInputTokens: Int? = null
             var outputTokens: Int? = null
+            var reasoningTokens: Int? = null
             connection.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     if (!line.startsWith(SSE_DATA_PREFIX)) return@forEach
                     val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
                     if (payload == SSE_DONE) return@forEach
                     val root = json.parseToJsonElement(payload).jsonObject
+                    root["error"]?.takeUnless { it is JsonNull }?.let { throw IOException("Cloud tool response failed: $it") }
+                    val finishReason = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                        ?.get("finish_reason")?.jsonPrimitive?.contentOrNull
+                    if (finishReason == "length") throw IOException("Incomplete response: max_output_tokens")
                     root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
                         ?.get("delta")?.jsonObject?.get("tool_calls")?.jsonArray
                         ?.forEach { element ->
@@ -556,11 +577,14 @@ class DeepSeekGenerationClient(
                                 onArgumentsDelta(it)
                             }
                         }
-                    root["usage"]?.jsonObject?.let { usage ->
+                    chatUsage(root)?.let { usage ->
                         inputTokens = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull
                         cachedInputTokens = usage["prompt_tokens_details"]?.jsonObject
                             ?.get("cached_tokens")?.jsonPrimitive?.intOrNull
+                            ?: usage["prompt_cache_hit_tokens"]?.jsonPrimitive?.intOrNull
                         outputTokens = usage["completion_tokens"]?.jsonPrimitive?.intOrNull
+                        reasoningTokens = usage["completion_tokens_details"]?.jsonObject
+                            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull
                     }
                 }
             }
@@ -572,7 +596,8 @@ class DeepSeekGenerationClient(
                 inputTokens = inputTokens,
                 cachedInputTokens = cachedInputTokens,
                 outputTokens = outputTokens,
-                transportAttempts = 1
+                transportAttempts = 1,
+                reasoningTokens = reasoningTokens
             )
         } finally {
             activeConnection.compareAndSet(connection, null)
@@ -584,12 +609,14 @@ class DeepSeekGenerationClient(
         request: DeepSeekToolRequest,
         apiKey: String,
         started: Long,
-        onArgumentsDelta: (String) -> Unit
+        onArgumentsDelta: (String) -> Unit,
+        onAttempt: (List<DeepSeekFunctionCall>, String?) -> Unit
     ): ToolResponsesExecution {
         var combined: ToolResponsesExecution? = null
         var lastProtocolError = ""
-        repeat(MAX_TOOL_PROTOCOL_ATTEMPTS) { attemptIndex ->
-            val attemptRequest = if (lastProtocolError.isBlank()) {
+        var lastCalls: List<DeepSeekFunctionCall> = request.rejectedCalls
+        repeat(request.transportAttempts) { attemptIndex ->
+            val baseRequest = if (lastProtocolError.isBlank()) {
                 request
             } else {
                 request.copy(
@@ -599,16 +626,40 @@ class DeepSeekGenerationClient(
                         "\nRetry the same task using only exact tool and operation values from the schema."
                 )
             }
+            val attemptRequest = if (lastCalls.isEmpty()) {
+                baseRequest
+            } else {
+                baseRequest.copy(
+                    input = baseRequest.input + "\nPrevious rejected tool calls (not applied; correct the reported schema error while preserving valid arguments):\n" +
+                        buildJsonArray {
+                            lastCalls.forEach { call ->
+                                add(
+                                    buildJsonObject {
+                                        put("name", call.name)
+                                        put("arguments", call.arguments)
+                                    }
+                                )
+                            }
+                        }.toString().take(131_072)
+                )
+            }
             val attempt = try {
                 executeToolResponses(attemptRequest, apiKey, started, onArgumentsDelta)
             } catch (failure: IOException) {
                 lastProtocolError = failure.message ?: failure.javaClass.simpleName
-                if (attemptIndex == MAX_TOOL_PROTOCOL_ATTEMPTS - 1) throw failure
+                onAttempt(emptyList(), lastProtocolError)
+                if (attemptIndex == request.transportAttempts - 1) throw failure
                 return@repeat
             }
             combined = combined?.plus(attempt) ?: attempt
             val normalizedCalls = normalizeToolArguments(attemptRequest, attempt.calls)
-            val protocolError = invalidToolArguments(attemptRequest, normalizedCalls)
+            lastCalls = normalizedCalls
+            val protocolError = if (attemptRequest.engineOwnsArgumentValidation) {
+                invalidToolArguments(normalizedCalls)
+            } else {
+                invalidToolArguments(attemptRequest, normalizedCalls)
+            }
+            onAttempt(attempt.calls, protocolError)
             if (protocolError == null) {
                 return requireNotNull(combined).copy(
                     calls = normalizedCalls,
@@ -618,10 +669,11 @@ class DeepSeekGenerationClient(
             }
             lastProtocolError = protocolError
         }
-        throw IOException(
+        throw InvalidCompilerToolResponseException(
             "${request.model.provider.displayName()} returned malformed compiler tool arguments after " +
-                "$MAX_TOOL_PROTOCOL_ATTEMPTS " +
-                "transport attempts. $lastProtocolError"
+                "${request.transportAttempts} " +
+                "transport attempts. $lastProtocolError",
+            lastCalls
         )
     }
 
@@ -648,15 +700,19 @@ class DeepSeekGenerationClient(
         return when {
             expectedType == "object" && expanded is JsonObject -> {
                 val properties = schema["properties"] as? JsonObject ?: return expanded
-                JsonObject(expanded.mapValues { (key, child) ->
-                    val childSchema = properties[key] as? JsonObject
-                    if (childSchema == null) child else normalizeSchemaContainers(child, childSchema)
-                })
+                JsonObject(
+                    expanded.mapValues { (key, child) ->
+                        val childSchema = properties[key] as? JsonObject
+                        if (childSchema == null) child else normalizeSchemaContainers(child, childSchema)
+                    }
+                )
             }
+
             expectedType == "array" && expanded is JsonArray -> {
                 val itemSchema = schema["items"] as? JsonObject ?: return expanded
                 JsonArray(expanded.map { normalizeSchemaContainers(it, itemSchema) })
             }
+
             else -> expanded
         }
     }
@@ -671,6 +727,8 @@ class DeepSeekGenerationClient(
                 }
         }
     }
+
+    internal fun chatUsage(root: JsonObject): JsonObject? = root["usage"] as? JsonObject
 
     internal fun invalidToolArguments(
         request: DeepSeekToolRequest,
@@ -687,22 +745,65 @@ class DeepSeekGenerationClient(
         }
     }
 
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
     private fun schemaViolation(value: JsonElement, schema: JsonObject, path: String): String? {
         (schema["anyOf"] as? JsonArray)?.let { alternatives ->
             var candidates = alternatives.mapNotNull { it as? JsonObject }
             val objectValue = value as? JsonObject
-            for (discriminator in listOf("operation", "targetId")) {
+            val discriminators = candidates.flatMap { alternative ->
+                (alternative["properties"] as? JsonObject).orEmpty().entries
+                    .filter { (_, property) -> (property as? JsonObject)?.containsKey("const") == true }
+                    .map { it.key }
+            }.distinct()
+            for (discriminator in discriminators) {
                 val actual = objectValue?.get(discriminator) ?: continue
                 val matching = candidates.filter { alternative ->
                     alternative["properties"]?.jsonObject
                         ?.get(discriminator)?.jsonObject
                         ?.get("const") == actual
                 }
+                if (matching.isEmpty() && candidates.size > 1 && candidates.all { alternative ->
+                        (alternative["properties"] as? JsonObject)?.get(discriminator)
+                            ?.let { (it as? JsonObject)?.containsKey("const") } == true
+                    }
+                ) {
+                    val allowed = candidates.map { it["properties"]!!.jsonObject[discriminator]!!.jsonObject["const"] }.distinct()
+                    return "$path.$discriminator must be one of $allowed, found $actual"
+                }
                 if (matching.isNotEmpty()) candidates = matching
+            }
+            // A discriminator already selected one schema. Preserve the leaf location instead of
+            // wrapping it once for every enclosing union and hiding the actionable failure.
+            if (candidates.size == 1) schemaViolation(value, candidates.single(), path)?.let { return it }
+            // Report structurally relevant alternatives first; scalar errors obscure object operands.
+            candidates = candidates.sortedBy { alternative ->
+                val type = alternative["type"]?.jsonPrimitive?.contentOrNull
+                when {
+                    value is JsonObject && type == "object" -> 0
+                    value is JsonArray && type == "array" -> 0
+                    value is JsonPrimitive && value.isString && type == "string" -> 0
+                    else -> 1
+                }
             }
             val violations = candidates.mapNotNull { alternative -> schemaViolation(value, alternative, path) }
             if (violations.size == candidates.size) {
+                val shapes = candidates.mapNotNull { alternative ->
+                    (alternative["properties"] as? JsonObject)?.keys?.sorted()
+                }.distinct()
+                val actualShape = if (objectValue != null && shapes.isNotEmpty()) {
+                    "Object keys are ${objectValue.keys.sorted()}; allowed object property sets are $shapes. "
+                } else {
+                    ""
+                }
+                val scalarTypes = candidates.mapNotNull { it["type"]?.jsonPrimitive?.contentOrNull }
+                    .filter { it != "object" && it != "array" }.distinct()
+                val scalarHelp = if (objectValue != null && scalarTypes.isNotEmpty()) {
+                    "Alternatively use a value of type ${scalarTypes.joinToString(" or ")}. "
+                } else {
+                    ""
+                }
                 return "$path does not match any allowed compiler operation: " +
+                    actualShape + scalarHelp +
                     violations.distinct().take(3).joinToString("; ")
             }
         }
@@ -731,6 +832,7 @@ class DeepSeekGenerationClient(
                     }
                 }
             }
+
             "array" -> {
                 val arrayValue = value as? JsonArray ?: return "$path must be an array"
                 schema["minItems"]?.jsonPrimitive?.intOrNull?.let { minimum ->
@@ -740,15 +842,25 @@ class DeepSeekGenerationClient(
                     if (arrayValue.size > maximum) return "$path must contain at most $maximum item(s)"
                 }
                 val itemSchema = schema["items"] as? JsonObject
-                if (itemSchema == null) null else arrayValue.withIndex().firstNotNullOfOrNull { (index, child) ->
-                    schemaViolation(child, itemSchema, "$path[$index]")
+                if (itemSchema == null) {
+                    null
+                } else {
+                    arrayValue.withIndex().firstNotNullOfOrNull { (index, child) ->
+                        schemaViolation(child, itemSchema, "$path[$index]")
+                    }
                 }
             }
+
             "string" -> if (value is JsonPrimitive && value.isString) null else "$path must be a string"
+
             "integer" -> if (value is JsonPrimitive && value.intOrNull != null) null else "$path must be an integer"
+
             "number" -> if (value is JsonPrimitive && value.doubleOrNull != null) null else "$path must be a number"
+
             "boolean" -> if (value is JsonPrimitive && value.booleanOrNull != null) null else "$path must be a boolean"
+
             null -> null
+
             else -> "$path uses an unsupported schema type"
         }
     }
@@ -799,11 +911,21 @@ class DeepSeekGenerationClient(
                                 ?.get("cached_tokens")
                                 ?.jsonPrimitive
                                 ?.intOrNull,
-                            outputTokens = it["output_tokens"]?.jsonPrimitive?.intOrNull
+                            outputTokens = it["output_tokens"]?.jsonPrimitive?.intOrNull,
+                            reasoningTokens = it["output_tokens_details"]?.jsonObject
+                                ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull
                         )
                     }
                 )
             }
+
+            "response.incomplete" -> ResponsesStreamEvent(
+                error = "Incomplete response: " + (
+                    event["response"]?.jsonObject
+                        ?.get("incomplete_details")?.jsonObject?.get("reason")?.jsonPrimitive?.contentOrNull
+                        ?: "unspecified reason"
+                    )
+            )
 
             "response.failed" -> ResponsesStreamEvent(
                 error = event["response"]
@@ -870,8 +992,7 @@ class DeepSeekGenerationClient(
         else -> "DeepSeek request failed (HTTP $statusCode)."
     }
 
-    private fun httpErrorMessage(connection: HttpURLConnection): String =
-        httpErrorMessage(connection, GenerationProvider.DEEPSEEK)
+    private fun httpErrorMessage(connection: HttpURLConnection): String = httpErrorMessage(connection, GenerationProvider.DEEPSEEK)
 
     private fun httpErrorMessage(connection: HttpURLConnection, provider: GenerationProvider): String {
         val generic = httpErrorMessage(connection.responseCode, provider)
@@ -896,8 +1017,11 @@ class DeepSeekGenerationClient(
         return when (statusCode) {
             HttpURLConnection.HTTP_UNAUTHORIZED,
             HttpURLConnection.HTTP_FORBIDDEN -> "$name rejected the API key. Update it in Settings."
+
             429 -> "$name is rate-limited. Try again shortly."
+
             in 500..599 -> "$name is temporarily unavailable."
+
             else -> "$name request failed (HTTP $statusCode)."
         }
     }
@@ -934,13 +1058,13 @@ class DeepSeekGenerationClient(
         const val MAX_RESPONSE_CHARS = 64 * 1024
         const val MAX_ERROR_DETAIL_CHARS = 1_024
         const val MAX_OUTPUT_TOKENS = 8_192
+        const val MAX_TOOL_OUTPUT_TOKENS = 32_768
         const val MAX_FUNCTION_TOOLS = 128
         const val MAX_TOOL_PROTOCOL_ATTEMPTS = 2
         const val NANOS_PER_MILLISECOND = 1_000_000
         const val DEEPSEEK_HOST = "api.deepseek.com"
         const val DEEPSEEK_PATH = "/chat/completions"
         const val DEEPSEEK_RESPONSES_PATH = "/responses"
-        const val DEEPSEEK_STRICT_RESPONSES_PATH = "/beta/responses"
         const val CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions"
         const val SSE_DATA_PREFIX = "data:"
         const val SSE_DONE = "[DONE]"
@@ -976,17 +1100,16 @@ class DeepSeekGenerationClient(
         null
     ).toURL()
 
-    private val strictResponsesEndpointUrl: URL = URI(
+    private val cerebrasEndpointUrl: URL = URI(CEREBRAS_ENDPOINT).toURL()
+    private val strictChatEndpointUrl: URL = URI(
         endpointUrl.protocol,
         endpointUrl.userInfo,
         endpointUrl.host,
         endpointUrl.port,
-        DEEPSEEK_STRICT_RESPONSES_PATH,
+        "/beta/chat/completions",
         null,
         null
     ).toURL()
-
-    private val cerebrasEndpointUrl: URL = URI(CEREBRAS_ENDPOINT).toURL()
 }
 
 internal data class ResponsesStreamEvent(
@@ -1035,7 +1158,8 @@ private data class ResponsesFunctionCallItem(
 internal data class ResponsesUsage(
     val inputTokens: Int?,
     val cachedInputTokens: Int?,
-    val outputTokens: Int?
+    val outputTokens: Int?,
+    val reasoningTokens: Int? = null
 )
 
 private data class ResponsesExecution(
@@ -1052,7 +1176,8 @@ private data class ToolResponsesExecution(
     val inputTokens: Int?,
     val cachedInputTokens: Int?,
     val outputTokens: Int?,
-    val transportAttempts: Int
+    val transportAttempts: Int,
+    val reasoningTokens: Int? = null
 ) {
     fun plus(other: ToolResponsesExecution) = ToolResponsesExecution(
         calls = other.calls,
@@ -1060,7 +1185,12 @@ private data class ToolResponsesExecution(
         inputTokens = sumNullable(inputTokens, other.inputTokens),
         cachedInputTokens = sumNullable(cachedInputTokens, other.cachedInputTokens),
         outputTokens = sumNullable(outputTokens, other.outputTokens),
-        transportAttempts = transportAttempts + other.transportAttempts
+        transportAttempts = transportAttempts + other.transportAttempts,
+        reasoningTokens = if (reasoningTokens != null && other.reasoningTokens != null) {
+            reasoningTokens + other.reasoningTokens
+        } else {
+            null
+        }
     )
 }
 

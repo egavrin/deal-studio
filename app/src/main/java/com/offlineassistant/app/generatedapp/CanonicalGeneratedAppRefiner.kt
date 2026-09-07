@@ -9,13 +9,17 @@ import java.security.MessageDigest
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 internal data class CanonicalRefinementResult(
     val bundle: CanonicalGeneratedAppBundle,
@@ -27,7 +31,9 @@ internal data class CanonicalRefinementResult(
 internal class CanonicalGeneratedAppRefiner(
     context: Context,
     apiKeyProvider: () -> String?,
-    cerebrasApiKeyProvider: () -> String? = { null }
+    cerebrasApiKeyProvider: () -> String? = { null },
+    private val compilerToolTrace: (String) -> Unit = {},
+    private val replayTrace: (String, String) -> Unit = { _, _ -> }
 ) {
     private val toolchain = CanonicalDealToolchain(context.applicationContext)
     private val modelClient = DeepSeekGenerationClient(
@@ -52,15 +58,28 @@ internal class CanonicalGeneratedAppRefiner(
             instruction = request
         )
         var protocol = session.nextRequest()
+        replayTrace(
+            "base",
+            buildJsonObject {
+                put("deal", canonicalInputDeal)
+                put("dealUi", bundle.dealUiSource)
+                put("pack", CanonicalDealUiPack.source)
+                put("instruction", request)
+            }.toString()
+        )
         val metrics = RefinementMetrics()
 
         while (protocol.status() == "request") {
             metrics.recordSurface(protocol)
             val tools = protocol.functionTools()
-            val usesDealModel = tools.any { tool ->
+            val usesDealModel = protocol.requiredArtifact() == Artifact.DEAL || tools.any { tool ->
                 tool.name == "query_deal_symbol" ||
                     tool.name == "query_deal_module" ||
                     tool.name == "query_deal_node" ||
+                    tool.name == "inspect_deal_change" ||
+                    tool.name == "apply_deal_foundation" ||
+                    tool.name == "append_deal_behavior" ||
+                    tool.name == "add_deal_action_handler" ||
                     tool.name == "apply_deal_changes"
             }
             val model = if (usesDealModel) dealModel else dealUiModel
@@ -72,38 +91,81 @@ internal class CanonicalGeneratedAppRefiner(
                     "Updating the checked interface..."
                 }
             )
-            lateinit var result: com.offlineassistant.deepseek.DeepSeekToolGenerationResult
+            var completedResult: com.offlineassistant.deepseek.DeepSeekToolGenerationResult? = null
             var transportAttempt = 0
+            var transportFeedback = ""
+            val availableToolNames = tools.joinToString { it.name }
             do {
                 transportAttempt++
                 val retryInstruction = if (transportAttempt == 1) {
                     ""
                 } else {
-                    "\nTransport retry: return one atomic write call or a batch containing only query tools. " +
-                        "Do not emit prose or multiple write calls."
+                    "\nTransport correction: the previous response was not applied: " +
+                        transportFeedback.take(4096) +
+                        ". Call one of these tools directly: $availableToolNames. " +
+                        "A query tool name is never an operation inside a write tool. " +
+                        "Use only values in the current tool schema; do not repeat a consumed query."
                 }
-                result = modelClient.generateTools(
-                    DeepSeekToolRequest(
-                        model = model,
-                        instructions = protocol.getValue("instructions").jsonPrimitive.content + retryInstruction,
-                        input = protocol.getValue("input").jsonPrimitive.content,
-                        tools = tools,
-                        maxOutputTokens = MAX_REFINEMENT_OUTPUT_TOKENS,
-                        temperature = 0.0
+                try {
+                    replayTrace("request", protocol.toString())
+                    val candidate = modelClient.generateTools(
+                        DeepSeekToolRequest(
+                            reasoningEffort = "low",
+                            transportAttempts = 1,
+                            engineOwnsArgumentValidation = true,
+                            model = model,
+                            instructions = protocol.getValue("instructions").jsonPrimitive.content + retryInstruction,
+                            input = protocol.getValue("input").jsonPrimitive.content,
+                            tools = tools,
+                            maxOutputTokens = protocol["maxOutputTokens"]?.jsonPrimitive?.intOrNull ?: MAX_REFINEMENT_OUTPUT_TOKENS,
+                            temperature = 0.0
+                        )
                     )
-                )
-                val validTransport = result.calls.isValidCompilerBatch()
-                metrics.recordModelRound(artifact, result, compilerRound = validTransport)
-                if (!validTransport) {
+                    replayTrace(
+                        "response",
+                        buildJsonArray {
+                            candidate.calls.forEach { call ->
+                                add(
+                                    buildJsonObject {
+                                        put("name", call.name)
+                                        put("arguments", call.arguments)
+                                    }
+                                )
+                            }
+                        }.toString()
+                    )
+                    val batchError = candidate.calls.compilerBatchError()
+                        ?: session.toolCallError(candidate.calls.map { it.name to it.arguments })
+                    val validTransport = batchError == null
+                    metrics.recordModelRound(artifact, candidate, compilerRound = validTransport)
+                    compilerToolTrace(
+                        metrics.roundTrace(artifact, candidate, validTransport, transportAttempt)
+                    )
+                    compilerToolTrace("TOOLS\t${candidate.calls.joinToString { it.name }}")
+                    if (validTransport) {
+                        completedResult = candidate
+                    } else {
+                        transportFeedback = requireNotNull(batchError)
+                        onProgress("Retrying an incomplete compiler response...")
+                    }
+                } catch (failure: java.io.IOException) {
+                    transportFeedback = failure.message.orEmpty()
+                    if (transportAttempt >= MAX_TRANSPORT_ATTEMPTS) throw failure
                     onProgress("Retrying an incomplete compiler response...")
+                    continue
                 }
-            } while (!result.calls.isValidCompilerBatch() && transportAttempt < MAX_TRANSPORT_ATTEMPTS)
+            } while (completedResult == null && transportAttempt < MAX_TRANSPORT_ATTEMPTS)
+            val result = requireNotNull(completedResult) {
+                "Model did not return a valid atomic compiler batch after $transportAttempt transport attempts: " +
+                    transportFeedback
+            }
             require(result.calls.isValidCompilerBatch()) {
                 "Model returned a non-atomic compiler batch ${result.calls.map { it.name }} " +
                     "after $transportAttempt transport attempts"
             }
             val semanticRepairsBefore = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull ?: 0
             protocol = session.acceptToolCalls(result.calls.map { it.name to it.arguments })
+            replayTrace("compiler", protocol.toString())
             val semanticRepairsAfter = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull
                 ?: session.result()["semanticRepairs"]?.jsonPrimitive?.intOrNull
                 ?: semanticRepairsBefore
@@ -114,13 +176,21 @@ internal class CanonicalGeneratedAppRefiner(
             result.calls.forEach { call ->
                 metrics.recordTool(call.name, semanticRepairsAfter == semanticRepairsBefore)
             }
+            compilerToolTrace(
+                "COMPILER\tstatus=${protocol.status()}\tsemantic_repairs=$semanticRepairsAfter"
+            )
         }
 
         val canonical = if (protocol.status() == "complete") protocol else session.result()
         require(canonical["accepted"]?.jsonPrimitive?.booleanOrNull == true) {
             canonical.failureMessage()
         }
-        val dealSource = canonical.getValue("deal").jsonPrimitive.content
+        val sessionDealSource = canonical.getValue("deal").jsonPrimitive.content
+        val dealSource = if (sessionDealSource == canonicalInputDeal) {
+            bundle.dealSource
+        } else {
+            sessionDealSource
+        }
         val dealUiSource = canonical.getValue("dealUi").jsonPrimitive.content
         val changedDeal = dealSource != bundle.dealSource
         val changedDealUi = dealUiSource != bundle.dealUiSource
@@ -129,8 +199,7 @@ internal class CanonicalGeneratedAppRefiner(
         }
 
         val checkedUiIr = toolchain.compilePortable(dealSource, dealUiSource, CanonicalDealUiPack.source)
-        val initialState = toolchain.createRuntime(dealSource).snapshot()
-        CanonicalDealUiParser.parse(checkedUiIr).validateInitialSurface(initialState)
+        CanonicalDealUiParser.parse(checkedUiIr)
         val extractedInterface = toolchain.extractAppInterface(dealSource)
         val wallLatencyMs = wall.elapsedNow().inWholeMilliseconds
 
@@ -167,7 +236,8 @@ internal class CanonicalGeneratedAppRefiner(
                     ?.get("deal")?.jsonObject
                     ?.get("protocolVersion")?.jsonPrimitive?.contentOrNull
                     ?: "compiler-protocol-v2",
-                agentSurfaceVersion = "agent-surface-v2",
+                agentSurfaceVersion = canonical["surfaceVersion"]?.jsonPrimitive?.contentOrNull
+                    ?: "agent-surface-v4",
                 agentSurfaceBytes = metrics.agentSurfaceBytes,
                 agentSurfaceEstimatedTokens = metrics.agentSurfaceEstimatedTokens
             ),
@@ -186,9 +256,11 @@ internal class CanonicalGeneratedAppRefiner(
     }
 }
 
-private enum class Artifact { DEAL, DEAL_UI }
+internal enum class Artifact { DEAL, DEAL_UI }
 
 private val QUERY_TOOLS = setOf(
+    "inspect_deal_change",
+    "inspect_deal_ui_change",
     "query_deal_module",
     "query_deal_symbol",
     "query_deal_node",
@@ -197,10 +269,22 @@ private val QUERY_TOOLS = setOf(
     "query_deal_ui_node"
 )
 
-private fun List<com.offlineassistant.deepseek.DeepSeekFunctionCall>.isValidCompilerBatch(): Boolean =
-    size == 1 || (isNotEmpty() && all { it.name in QUERY_TOOLS })
+internal fun List<com.offlineassistant.deepseek.DeepSeekFunctionCall>.compilerBatchError(): String? = when {
+    isEmpty() -> "the model returned no compiler tool calls"
 
-private class RefinementMetrics {
+    size == 1 -> null
+
+    any { it.name == "inspect_deal_change" || it.name == "inspect_deal_ui_change" } ->
+        "an artifact-selecting inspect call must be the only call in its provider turn: ${joinToString { it.name }}"
+
+    all { it.name in QUERY_TOOLS } -> null
+
+    else -> "a provider turn mixed writes or read/write calls: ${joinToString { it.name }}"
+}
+
+internal fun List<com.offlineassistant.deepseek.DeepSeekFunctionCall>.isValidCompilerBatch(): Boolean = compilerBatchError() == null
+
+internal class RefinementMetrics {
     var dealLatencyMs = 0L
     var dealUiLatencyMs = 0L
     var repairLatencyMs = 0L
@@ -225,7 +309,8 @@ private class RefinementMetrics {
     fun recordSurface(protocol: JsonObject) {
         val surface = protocol["surfaceMetrics"]?.jsonObject ?: return
         agentSurfaceBytes += (surface["inputBytes"]?.jsonPrimitive?.intOrNull ?: 0) +
-            (surface["toolSchemaBytes"]?.jsonPrimitive?.intOrNull ?: 0)
+            (surface["toolSchemaBytes"]?.jsonPrimitive?.intOrNull ?: 0) +
+            (surface["instructionBytes"]?.jsonPrimitive?.intOrNull ?: 0)
         agentSurfaceEstimatedTokens += surface["approxInputTokens"]?.jsonPrimitive?.intOrNull ?: 0
     }
 
@@ -259,16 +344,51 @@ private class RefinementMetrics {
 
     fun recordTool(name: String, accepted: Boolean) {
         if (!accepted) return
-        when (name) {
-            "apply_deal_changes" -> dealAcceptedTransactions++
-            "apply_deal_ui_changes" -> dealUiAcceptedTransactions++
+        when (name.removePrefix("construct_")) {
+            "apply_deal_batch", "apply_deal_foundation", "append_deal_behavior", "apply_deal_changes" -> dealAcceptedTransactions++
+
+            "apply_deal_ui_changes", "replace_deal_ui_view", "replace_deal_ui_subtree" ->
+                dealUiAcceptedTransactions++
         }
     }
+
+    fun roundTrace(
+        artifact: Artifact,
+        result: com.offlineassistant.deepseek.DeepSeekToolGenerationResult,
+        validTransport: Boolean,
+        transportAttempt: Int
+    ): String = buildString {
+        append("MODEL_ROUND\t")
+        append(artifact.name.lowercase())
+        append("\ttransport_attempt=").append(transportAttempt)
+        append("\tvalid_transport=").append(validTransport)
+        append("\tlatency_ms=").append(result.latencyMs)
+        append("\tttfc_ms=").append(result.timeToFirstCallMs ?: -1)
+        append("\tinput=").append(result.inputTokens ?: 0)
+        append("\tcached=").append(result.cachedInputTokens ?: 0)
+        append("\toutput=").append(result.outputTokens ?: 0)
+        append("\treasoning=").append(result.reasoningTokens?.toString() ?: "unknown")
+    }
+
+    fun failureSummary(wallLatencyMs: Long): String = "GENERATION_METRICS " +
+        "wall=${wallLatencyMs}ms deal=${dealLatencyMs}ms ui=${dealUiLatencyMs}ms " +
+        "dealRounds=$dealRounds uiRounds=$dealUiRounds repairs=$semanticRepairs " +
+        "dealInput=$dealInputTokens dealCached=$dealCachedInputTokens dealOutput=$dealOutputTokens " +
+        "uiInput=$dealUiInputTokens uiCached=$dealUiCachedInputTokens uiOutput=$dealUiOutputTokens " +
+        "surfaceBytes=$agentSurfaceBytes surfaceEstimatedTokens=$agentSurfaceEstimatedTokens"
 }
 
-private fun JsonObject.status(): String = getValue("status").jsonPrimitive.content
+internal fun JsonObject.status(): String = getValue("status").jsonPrimitive.content
 
-private fun JsonObject.functionTools(): List<DeepSeekFunctionTool> = getValue("tools").jsonArray.map { element ->
+internal fun JsonObject.requiredArtifact(): Artifact? = getValue("input")
+    .jsonPrimitive.content
+    .let(Json::parseToJsonElement)
+    .jsonObject["requiredArtifact"]
+    ?.jsonPrimitive
+    ?.contentOrNull
+    ?.let { value -> Artifact.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } }
+
+internal fun JsonObject.functionTools(): List<DeepSeekFunctionTool> = getValue("tools").jsonArray.map { element ->
     val tool = element.jsonObject
     DeepSeekFunctionTool(
         name = tool.getValue("name").jsonPrimitive.content,
@@ -278,7 +398,7 @@ private fun JsonObject.functionTools(): List<DeepSeekFunctionTool> = getValue("t
     )
 }
 
-private fun JsonObject.failureMessage(): String {
+internal fun JsonObject.failureMessage(): String {
     val transcript = this["transcript"]?.jsonArray?.joinToString(separator = "\n") { item ->
         val entry = item.jsonObject
         val tool = entry["tool"]?.jsonPrimitive?.contentOrNull.orEmpty()

@@ -1,5 +1,6 @@
 package com.offlineassistant.app.generatedapp
 
+import com.offlineassistant.deepseek.DeepSeekFunctionCall
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -7,6 +8,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CanonicalGenerationRepairPolicyTest {
+    @Test
+    fun `artifact specific inspect call must select one compiler path`() {
+        val calls = listOf(
+            DeepSeekFunctionCall("one", "inspect_deal_change", "{}"),
+            DeepSeekFunctionCall("two", "inspect_deal_ui_change", "{}")
+        )
+
+        assertFalse(calls.isValidCompilerBatch())
+        assertTrue(calls.compilerBatchError().orEmpty().contains("only call"))
+        assertTrue(listOf(calls.first()).isValidCompilerBatch())
+        val mixed = calls + DeepSeekFunctionCall("three", "apply_deal_changes", "{}")
+        assertFalse(mixed.isValidCompilerBatch())
+        assertTrue(mixed.compilerBatchError().orEmpty().contains("inspect_deal_change"))
+        assertTrue(emptyList<DeepSeekFunctionCall>().compilerBatchError().orEmpty().contains("no compiler tool calls"))
+    }
+
     @Test
     fun `compiler transport batches do not mix helpers with updates`() {
         assertEquals(

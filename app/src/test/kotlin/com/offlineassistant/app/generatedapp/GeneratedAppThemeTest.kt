@@ -26,9 +26,10 @@ class GeneratedAppThemeTest {
         val dynamicPrimary = """{"kind":"path","parts":["state","colour"]}"""
         val node = themeNode().replace(literal("#7C3AED"), dynamicPrimary)
 
-        assertThrows(IllegalStateException::class.java) {
+        val failure = assertThrows(IllegalArgumentException::class.java) {
             CanonicalDealUiParser.parse(ir(node))
         }
+        assertEquals("AppTheme primary must be a static string literal", failure.message)
     }
 
     @Test

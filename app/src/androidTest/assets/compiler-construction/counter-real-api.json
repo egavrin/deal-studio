@@ -1,0 +1,258 @@
+[
+  {
+    "name": "construct_apply_deal_foundation",
+    "arguments": {
+      "calls": [
+        {
+          "id": "zero",
+          "op": "integer",
+          "value": 0
+        },
+        {
+          "id": "appState",
+          "op": "declareRecord",
+          "name": "AppState",
+          "fields": [
+            {
+              "name": "count",
+              "type": "int",
+              "value": "zero"
+            }
+          ]
+        },
+        {
+          "id": "initRecord",
+          "op": "record",
+          "fields": [
+            {
+              "name": "count",
+              "value": "zero"
+            }
+          ]
+        },
+        {
+          "id": "initReturn",
+          "op": "return",
+          "value": "initRecord"
+        },
+        {
+          "id": "initBody",
+          "op": "block",
+          "statements": [
+            "initReturn"
+          ]
+        }
+      ],
+      "arguments": {
+        "appStateDeclaration": "appState",
+        "capabilities": [],
+        "initialStateBody": "initBody",
+        "supportingDeclarations": []
+      }
+    }
+  },
+  {
+    "name": "construct_append_deal_behavior",
+    "arguments": {
+      "calls": [
+        {
+          "id": "one",
+          "op": "integer",
+          "value": 1
+        },
+        {
+          "id": "stateRef",
+          "op": "reference",
+          "name": "state"
+        },
+        {
+          "id": "countField",
+          "op": "field",
+          "object": "stateRef",
+          "name": "count"
+        },
+        {
+          "id": "incremented",
+          "op": "binary",
+          "left": "countField",
+          "operator": "+",
+          "right": "one"
+        },
+        {
+          "id": "newState",
+          "op": "record",
+          "fields": [
+            {
+              "name": "count",
+              "value": "incremented"
+            }
+          ]
+        },
+        {
+          "id": "ret",
+          "op": "return",
+          "value": "newState"
+        },
+        {
+          "id": "body",
+          "op": "block",
+          "statements": [
+            "ret"
+          ]
+        },
+        {
+          "id": "incrementAction",
+          "op": "declareRecord",
+          "name": "Increment",
+          "fields": []
+        },
+        {
+          "id": "incrementHandler",
+          "op": "declareUpdate",
+          "name": "handleIncrement",
+          "parameters": [
+            {
+              "name": "state",
+              "type": "AppState"
+            },
+            {
+              "name": "action",
+              "type": "Increment"
+            }
+          ],
+          "returns": "AppState",
+          "body": "body"
+        }
+      ],
+      "arguments": {
+        "actionHandlers": [
+          {
+            "actionDeclaration": "incrementAction",
+            "handlerDeclaration": "incrementHandler"
+          }
+        ],
+        "supportingDeclarations": [],
+        "final": false
+      }
+    }
+  },
+  {
+    "name": "finish_deal",
+    "arguments": {
+      "coveredActions": [
+        "Increment"
+      ],
+      "reason": "The requested behavior is fully satisfied: AppState has an int count field (initial zero via committed initialState), the Increment action (no fields) is declared, and its handler handleIncrement(state, action) returns AppState by adding one to count. The interface actions already list Increment, and all symbols (AppState, Increment, handleIncrement, initialState) exist. No additional actions or handlers are required."
+    }
+  },
+  {
+    "name": "construct_apply_deal_ui_changes",
+    "arguments": {
+      "arguments": {
+        "operations": [
+          {
+            "operation": "replaceViewBody",
+            "body": "root"
+          }
+        ],
+        "final": true
+      },
+      "calls": [
+        {
+          "id": "countState",
+          "op": "reference",
+          "name": "state"
+        },
+        {
+          "id": "countField",
+          "op": "field",
+          "name": "count",
+          "object": "countState"
+        },
+        {
+          "id": "incAction",
+          "op": "action",
+          "name": "Increment",
+          "fields": []
+        },
+        {
+          "id": "countStat",
+          "op": "component",
+          "name": "IntStat",
+          "fields": [
+            {
+              "name": "label",
+              "value": "countLabel"
+            },
+            {
+              "name": "value",
+              "value": "countField"
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "countLabel",
+          "op": "text",
+          "value": "Count"
+        },
+        {
+          "id": "addBtn",
+          "op": "component",
+          "name": "Button",
+          "fields": [
+            {
+              "name": "text",
+              "value": "addText"
+            },
+            {
+              "name": "onClick",
+              "value": "incAction"
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "addText",
+          "op": "text",
+          "value": "Add"
+        },
+        {
+          "id": "column",
+          "op": "component",
+          "name": "Column",
+          "fields": [],
+          "children": [
+            "countStat",
+            "addBtn"
+          ]
+        },
+        {
+          "id": "rootComp",
+          "op": "component",
+          "name": "Root",
+          "fields": [],
+          "children": [
+            "column"
+          ]
+        },
+        {
+          "id": "theme",
+          "op": "component",
+          "name": "AppTheme",
+          "fields": [],
+          "children": [
+            "rootComp"
+          ]
+        },
+        {
+          "id": "root",
+          "op": "uiBody",
+          "children": [
+            "theme"
+          ]
+        }
+      ]
+    }
+  }
+]

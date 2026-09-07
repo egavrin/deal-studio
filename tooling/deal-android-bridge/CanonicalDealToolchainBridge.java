@@ -103,11 +103,32 @@ public final class CanonicalDealToolchainBridge {
                 PACK_SPECIFIER,
                 instruction,
                 maxRounds,
-                maxSemanticRepairs);
+                maxSemanticRepairs).useConstructionApi();
+    }
+
+    public static Object createGenerationSession(
+            String packSource,
+            String instruction,
+            int maxRounds,
+            int maxSemanticRepairs) {
+        return CanonicalRefinementSession.greenfield(
+                packSource,
+                PACK_SPECIFIER,
+                instruction,
+                maxRounds,
+                maxSemanticRepairs).useConstructionApi();
     }
 
     public static String refinementNextRequest(Object session) {
         return ((CanonicalRefinementSession) session).nextRequestJson();
+    }
+
+    public static Object createGenerationSessionWithReasoning(
+            String packSource, String instruction, int maxRounds, int maxSemanticRepairs,
+            String dealEffort, String uiEffort) {
+        return ((CanonicalRefinementSession) createGenerationSession(
+                packSource, instruction, maxRounds, maxSemanticRepairs))
+                .withReasoningEffort(dealEffort, uiEffort);
     }
 
     public static String refinementAcceptToolCall(
@@ -119,6 +140,10 @@ public final class CanonicalDealToolchainBridge {
 
     public static String refinementAcceptToolCalls(Object session, String callsJson) {
         return ((CanonicalRefinementSession) session).acceptToolCallsJson(callsJson);
+    }
+
+    public static String refinementValidateToolCalls(Object session, String callsJson) {
+        return ((CanonicalRefinementSession) session).validateToolCallsJson(callsJson);
     }
 
     public static String refinementResult(Object session) {
@@ -374,6 +399,8 @@ public final class CanonicalDealToolchainBridge {
                 case DealCompilerWorkspace.ADD_DECLARATION -> new DealCompilerWorkspace.AddDeclaration(
                         target, CompilerProtocolJson.stringField(operation, "declaration"));
                 case DealCompilerWorkspace.REMOVE_DECLARATION -> new DealCompilerWorkspace.RemoveDeclaration(target);
+                case DealCompilerWorkspace.REPLACE_DECLARATION -> new DealCompilerWorkspace.ReplaceDeclaration(
+                        target, CompilerProtocolJson.stringField(operation, "declaration"));
                 case DealCompilerWorkspace.REPLACE_FUNCTION_BODY -> new DealCompilerWorkspace.ReplaceFunctionBody(
                         target, CompilerProtocolJson.stringField(operation, "body"));
                 case DealCompilerWorkspace.REPLACE_BLOCK_BODY -> new DealCompilerWorkspace.ReplaceBlockBody(

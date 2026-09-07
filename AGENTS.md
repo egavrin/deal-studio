@@ -52,15 +52,38 @@ Compose only renders checked portable Deal UI IR and sends typed events back to 
 
 ## Generation Protocol
 
+The Android model-facing path uses `compiler-construction-v1` for both generation and refinement.
+All source-writing tools are `construct_*` operations: a flat batch of compiler constructors with
+operand handles plus the authorized edit arguments. Source/body/declaration arguments refer to
+constructor results, never model-written source strings. The upstream transpilers project these
+operations into canonical sources and validate them before runtime admission. Plain assistant code
+and the source-edit compatibility tools are not accepted as a fallback. Read-only and finish tools
+remain ordinary compiler API operations. Batch-local constructor handles are not persistent node IDs.
+
+Normal greenfield generation uses `construct_apply_deal_batch` with `final=true` for the complete
+DEAL artifact, then one checked UI transaction. Do not restore mandatory foundation/behavior/finish
+network rounds. A partial batch may continue with `final=false`; rejected groups stay in compiler
+repair slots. Reasoning profiles come from the engine request and must be benchmarked including
+failures before changing production defaults. Compact pack contracts must retain every component,
+property type, optionality, typed-child constraint and event contract.
+
+Source-edit and older generation protocols described below are compatibility/internal interfaces,
+not permission to expose raw-source writes to the production model. Constructor coverage is still
+partial; unsupported syntax needs an upstream API extension and tests, not a raw-code escape hatch.
+
 Cloud generation is sequential and compiler-guided:
 
 The rich `compiler-protocol-v2` API is an internal capability surface. Models never receive its full
 schema, graph, source or identifier set. The Java generation engine asks the transpilers for a
-step-specific `agent-surface-v2` containing short revision-scoped aliases, minimal semantic slices,
-the currently legal operations and stable structured diagnostics. A write is legal only after the
-target was queried in the current source revision and carries compiler-issued source and target
+step-specific `agent-surface-v3` containing short revision-scoped aliases, compiler-owned dependency
+cones, the currently legal operations and stable structured diagnostics. A write is legal only after
+`inspect_change` selects its semantic anchors in the current source revision and carries compiler-issued source and target
 fingerprints. Accepted writes expire all aliases. Stale aliases, digests and fingerprints are
 rejected before candidate mutation.
+
+Failed ChangeSets are retained only as ephemeral compiler-owned repair workspaces. The model receives
+one rejected slot through `patch_repair_slot`; operation kinds, targets and accepted sibling payloads
+remain immutable and are never reconstructed from Kotlin source inspection.
 
 Refinement uses this v2 protocol in production. During cutover, the engine also applies each
 authorized ChangeSet through the unguarded v1 API in shadow and records parity; a precondition
@@ -94,10 +117,14 @@ workspace and the Kotlin graph compilers are deleted.
    it becomes interactive.
 
 Malformed, empty or truncated tool arguments are transport failures, not program repairs. The
-The cloud connector validates the complete function-call argument object before invoking a compiler,
-treats the final SSE item as authoritative over streamed deltas and may repeat the same transport
-request once. A failed transport attempt must not mutate compiler state or consume a semantic repair
-round. TTFC for tools means the first structurally valid compiler call.
+cloud connector parses function-call JSON and treats the final SSE item as authoritative over streamed
+deltas. For engine-owned compiler requests, parsed local schema failures are retained upstream as
+unapplied arguments. The engine issues `patch_tool_argument` for a fixed location; Android must not
+repair these values or request the entire batch again. Empty constructor envelopes and unknown tools
+remain transport errors. Argument-repair rounds are bounded and counted separately from semantic
+repairs. The original batch must pass its complete issued schema and compiler checks before applying.
+A failed transport attempt must not mutate compiler state or consume a semantic repair round.
+TTFC for tools means the first structurally valid compiler call.
 
 Repair budgets are progress-aware. The fixed Flash and Pro budgets remain latency ceilings; one
 additional round may be granted only when the compiler accepted new immutable graph content at the

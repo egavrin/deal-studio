@@ -7,11 +7,15 @@ import com.offlineassistant.deepseek.DeepSeekToolGenerationResult
 import com.offlineassistant.deepseek.DeepSeekToolRequest
 import java.io.IOException
 import java.security.MessageDigest
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -84,6 +88,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
     context: Context,
     apiKeyProvider: () -> String?,
     cerebrasApiKeyProvider: () -> String? = { null },
+    private val acceptedApiReplay: List<Pair<String, String>> = emptyList(),
+    private val dealReasoningEffort: String = "low",
+    private val replayTrace: (String, String) -> Unit = { _, _ -> },
     private val compilerToolTrace: (String) -> Unit = {}
 ) {
     private val dealClient = DeepSeekGenerationClient(apiKeyProvider = apiKeyProvider, cerebrasApiKeyProvider = cerebrasApiKeyProvider)
@@ -91,6 +98,268 @@ internal class CanonicalGeneratedAppCloudCompiler(
     private val toolchain = CanonicalDealToolchain(context.applicationContext)
 
     suspend fun generate(
+        request: String,
+        dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
+        dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
+        onProgress: (CanonicalGenerationPhase, String) -> Unit = { _, _ -> },
+        onUiPreview: (CanonicalDealUiPreview) -> Unit = {}
+    ): CanonicalGeneratedAppBundle = withContext(Dispatchers.IO) {
+        require(request.isNotBlank()) { "Generated application request is empty" }
+        val wall = TimeSource.Monotonic.markNow()
+        val session = toolchain.createGenerationSession(
+            packSource = CanonicalDealUiPack.source,
+            instruction = request,
+            maxRounds = AGENT_SURFACE_MAX_ROUNDS,
+            maxSemanticRepairs = AGENT_SURFACE_MAX_REPAIRS,
+            dealReasoningEffort = dealReasoningEffort
+        )
+        val metrics = RefinementMetrics()
+        var firstDealAcceptanceMs: Long? = null
+        var protocol = session.nextRequest()
+        acceptedApiReplay.forEach { call ->
+            require(call.first.startsWith("construct_") || call.first == "finish_deal") {
+                "Replay accepts source-free construction calls only"
+            }
+            protocol = session.acceptToolCalls(listOf(call))
+            compilerToolTrace("API_REPLAY\t${call.first}\t${call.second}")
+            replayTrace("replayed-compiler", protocol.toString())
+        }
+
+        while (protocol.status() == "request") {
+            replayTrace("request", protocol.toString())
+            metrics.recordSurface(protocol)
+            val tools = protocol.functionTools()
+            val usesDealModel = protocol.requiredArtifact() == Artifact.DEAL || tools.any { tool ->
+                tool.name == "query_deal_symbol" ||
+                    tool.name == "query_deal_module" ||
+                    tool.name == "query_deal_node" ||
+                    tool.name == "apply_deal_foundation" ||
+                    tool.name == "append_deal_behavior" ||
+                    tool.name == "apply_deal_changes" ||
+                    tool.name == "finish_deal"
+            }
+            val artifact = if (usesDealModel) Artifact.DEAL else Artifact.DEAL_UI
+            val model = if (usesDealModel) dealModel else dealUiModel
+            onProgress(
+                if (artifact == Artifact.DEAL) CanonicalGenerationPhase.DEAL else CanonicalGenerationPhase.DEAL_UI,
+                if (artifact == Artifact.DEAL) {
+                    "Building checked app behavior"
+                } else {
+                    "Building the interface from the checked app contract"
+                }
+            )
+
+            var completedResult: DeepSeekToolGenerationResult? = null
+            var transportAttempt = 0
+            var transportFeedback = ""
+            var rejectedTransportCalls = emptyList<com.offlineassistant.deepseek.DeepSeekFunctionCall>()
+            do {
+                transportAttempt++
+                try {
+                    val retryInstruction = if (transportFeedback.isBlank()) {
+                        ""
+                    } else {
+                        "\nTransport correction: the previous response was not applied: " +
+                            transportFeedback.take(4096) +
+                            ". Use only targets and values present in the current tool schema; do not repeat a consumed query."
+                    }
+                    val candidate = (if (artifact == Artifact.DEAL) dealClient else dealUiClient).generateTools(
+                        request = DeepSeekToolRequest(
+                            model = model,
+                            reasoningEffort = protocol.getValue("reasoningEffort").jsonPrimitive.content,
+                            transportAttempts = 1,
+                            engineOwnsArgumentValidation = true,
+                            rejectedCalls = rejectedTransportCalls,
+                            instructions = protocol.getValue("instructions").jsonPrimitive.content + retryInstruction,
+                            input = protocol.getValue("input").jsonPrimitive.content,
+                            tools = tools,
+                            maxOutputTokens = protocol["maxOutputTokens"]?.jsonPrimitive?.intOrNull ?: if (artifact == Artifact.DEAL) {
+                                AGENT_SURFACE_DEAL_MAX_TOKENS
+                            } else {
+                                AGENT_SURFACE_UI_MAX_TOKENS
+                            },
+                            temperature = 0.0
+                        ),
+                        onAttempt = { calls, diagnostic ->
+                            replayTrace(
+                                "provider-attempt",
+                                kotlinx.serialization.json.buildJsonObject {
+                                    put("model", kotlinx.serialization.json.JsonPrimitive(model.apiId))
+                                    put("reasoning", protocol.getValue("reasoningEffort"))
+                                    put("diagnostic", diagnostic?.let { kotlinx.serialization.json.JsonPrimitive(it) } ?: kotlinx.serialization.json.JsonNull)
+                                    put(
+                                        "calls",
+                                        kotlinx.serialization.json.buildJsonArray {
+                                            calls.forEach { call ->
+                                                add(
+                                                    kotlinx.serialization.json.buildJsonObject {
+                                                        put("name", kotlinx.serialization.json.JsonPrimitive(call.name))
+                                                        put("arguments", kotlinx.serialization.json.JsonPrimitive(call.arguments))
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    )
+                                }.toString()
+                            )
+                        }
+                    )
+                    replayTrace(
+                        "response-attempt",
+                        kotlinx.serialization.json.buildJsonArray {
+                            candidate.calls.forEach { call ->
+                                add(
+                                    kotlinx.serialization.json.buildJsonObject {
+                                        put("name", kotlinx.serialization.json.JsonPrimitive(call.name))
+                                        put("arguments", kotlinx.serialization.json.JsonPrimitive(call.arguments))
+                                    }
+                                )
+                            }
+                        }.toString()
+                    )
+                    val batchError = candidate.calls.compilerBatchError()
+                        ?: session.toolCallError(candidate.calls.map { it.name to it.arguments })
+                    val validTransport = batchError == null
+                    replayTrace("validation", batchError ?: "accepted")
+                    metrics.recordModelRound(artifact, candidate, compilerRound = validTransport)
+                    compilerToolTrace(metrics.roundTrace(artifact, candidate, validTransport, transportAttempt))
+                    if (validTransport) {
+                        completedResult = candidate
+                    } else {
+                        transportFeedback = requireNotNull(batchError)
+                        compilerToolTrace(
+                            "TRANSPORT_INVALID\t${artifact.name.lowercase()}\t$transportAttempt\t" +
+                                "$transportFeedback"
+                        )
+                    }
+                } catch (failure: IOException) {
+                    transportFeedback = failure.message.orEmpty()
+                    if (failure is com.offlineassistant.deepseek.InvalidCompilerToolResponseException) {
+                        rejectedTransportCalls = failure.rejectedCalls
+                    }
+                    compilerToolTrace(
+                        "TRANSPORT_FAILURE\t${artifact.name.lowercase()}\t$transportAttempt\t${failure.message}"
+                    )
+                }
+                if (completedResult == null) {
+                    compilerToolTrace("TRANSPORT_RETRY\t${artifact.name.lowercase()}\t$transportAttempt")
+                    onProgress(CanonicalGenerationPhase.REPAIRING, "Retrying an incomplete compiler response")
+                }
+            } while (completedResult == null && transportAttempt < AGENT_SURFACE_TRANSPORT_ATTEMPTS)
+
+            val result = requireNotNull(completedResult) {
+                "Model did not return a valid atomic compiler batch after $transportAttempt transport attempts: " +
+                    transportFeedback
+            }
+            require(result.calls.isValidCompilerBatch()) {
+                "Model returned a non-atomic compiler batch ${result.calls.map { it.name }} " +
+                    "after $transportAttempt transport attempts"
+            }
+            result.calls.forEach { call ->
+                compilerToolTrace("AGENT_SURFACE\t${artifact.name.lowercase()}\t${call.name}\t${call.arguments}")
+            }
+            replayTrace(
+                "response",
+                kotlinx.serialization.json.buildJsonArray {
+                    result.calls.forEach { call ->
+                        add(
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("name", kotlinx.serialization.json.JsonPrimitive(call.name))
+                                put("arguments", kotlinx.serialization.json.JsonPrimitive(call.arguments))
+                            }
+                        )
+                    }
+                }.toString()
+            )
+            val repairsBefore = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull ?: 0
+            val previousDealRevision = protocol["revision"]?.jsonObject?.get("deal")
+            protocol = session.acceptToolCalls(result.calls.map { it.name to it.arguments })
+            val acceptedDealRevision = protocol["revision"]?.jsonObject?.get("deal")
+            val acceptedFirstDealRevision =
+                artifact == Artifact.DEAL &&
+                    firstDealAcceptanceMs == null &&
+                    previousDealRevision != null &&
+                    acceptedDealRevision != null &&
+                    previousDealRevision != acceptedDealRevision
+            if (acceptedFirstDealRevision) firstDealAcceptanceMs = wall.elapsedNow().inWholeMilliseconds
+            replayTrace("compiler", protocol.toString())
+            val repairsAfter = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull
+                ?: session.result()["semanticRepairs"]?.jsonPrimitive?.intOrNull
+                ?: repairsBefore
+            if (repairsAfter > repairsBefore) {
+                metrics.recordSemanticRepair(artifact, result.latencyMs)
+                onProgress(CanonicalGenerationPhase.REPAIRING, "Repairing only the rejected compiler unit")
+            }
+            result.calls.forEach { call -> metrics.recordTool(call.name, repairsAfter == repairsBefore) }
+        }
+
+        val canonical = if (protocol.status() == "complete") protocol else session.result()
+        require(canonical["accepted"]?.jsonPrimitive?.booleanOrNull == true) {
+            canonical.failureMessage() + "\n" + metrics.failureSummary(wall.elapsedNow().inWholeMilliseconds)
+        }
+        val dealSource = canonical.getValue("deal").jsonPrimitive.content
+        val dealUiSource = canonical.getValue("dealUi").jsonPrimitive.content
+        onProgress(CanonicalGenerationPhase.VALIDATING, "Checking the canonical application")
+        val validationStarted = System.nanoTime()
+        val checkedUiIr = toolchain.compilePortable(dealSource, dealUiSource, CanonicalDealUiPack.source)
+        CanonicalDealUiParser.parse(checkedUiIr)
+        val extractedInterface = toolchain.extractAppInterface(dealSource)
+        val validationLatencyMs = (System.nanoTime() - validationStarted) / 1_000_000
+        val wallLatencyMs = wall.elapsedNow().inWholeMilliseconds
+        onUiPreview(
+            CanonicalDealUiPreview(
+                dealSource = dealSource,
+                dealUiSource = dealUiSource,
+                checkedUiIr = checkedUiIr,
+                committedSections = metrics.dealUiAcceptedTransactions
+            )
+        )
+
+        CanonicalGeneratedAppBundle(
+            request = request,
+            appInterface = extractedInterface,
+            dealGraphLog = canonical["transcript"]?.toString().orEmpty(),
+            dealUiGraphLog = canonical["transcript"]?.toString().orEmpty(),
+            dealSource = dealSource,
+            dealUiSource = dealUiSource,
+            checkedUiIr = checkedUiIr,
+            dealLatencyMs = metrics.dealLatencyMs,
+            dealUiLatencyMs = metrics.dealUiLatencyMs,
+            wallLatencyMs = wallLatencyMs,
+            dealTimeToFirstPatchMs = firstDealAcceptanceMs,
+            dealUiTimeToFirstTokenMs = metrics.dealUiTimeToFirstCallMs,
+            validationLatencyMs = validationLatencyMs,
+            repairLatencyMs = metrics.repairLatencyMs,
+            repairPasses = metrics.semanticRepairs,
+            dealGraphRounds = metrics.dealRounds,
+            dealUiGraphRounds = metrics.dealUiRounds,
+            dealAcceptedPatches = metrics.dealAcceptedTransactions,
+            dealRejectedPatches = metrics.dealRejectedTransactions,
+            dealTypedHoles = 0,
+            dealInputTokens = metrics.dealInputTokens,
+            dealCachedInputTokens = metrics.dealCachedInputTokens,
+            dealOutputTokens = metrics.dealOutputTokens,
+            dealUiRejectedPatches = metrics.dealUiRejectedTransactions,
+            dealUiInputTokens = metrics.dealUiInputTokens,
+            dealUiCachedInputTokens = metrics.dealUiCachedInputTokens,
+            dealUiOutputTokens = metrics.dealUiOutputTokens,
+            dealUiAcceptedPatches = metrics.dealUiAcceptedTransactions,
+            firstInteractivePreviewMs = wallLatencyMs,
+            dealModelId = dealModel.name,
+            dealUiModelId = dealUiModel.name,
+            promptDigest = sha256(
+                protocol["surfaceDigest"]?.jsonPrimitive?.contentOrNull.orEmpty() + "\u0000" + request
+            ),
+            compilerProtocolVersion = canonical["protocolVersion"]?.jsonPrimitive?.contentOrNull
+                ?: "compiler-protocol-v2",
+            agentSurfaceVersion = canonical["surfaceVersion"]?.jsonPrimitive?.contentOrNull
+                ?: "agent-surface-v3",
+            agentSurfaceBytes = metrics.agentSurfaceBytes,
+            agentSurfaceEstimatedTokens = metrics.agentSurfaceEstimatedTokens
+        )
+    }
+
+    internal suspend fun generateLegacy(
         request: String,
         dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
         dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
@@ -118,8 +387,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
         val extractedInterface = toolchain.extractAppInterface(dealSource)
         val appInterface = AppInterfaceCompiler.parse(extractedInterface)
         val contract = appInterface.compilerContract()
-        val initialState = toolchain.createRuntime(dealSource).snapshot()
-
         var firstInteractivePreviewMs: Long? = null
         val dealUiGeneration = generateUiGraph(
             model = dealUiModel,
@@ -127,7 +394,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
             contract = contract,
             appInterface = appInterface,
             dealSource = dealSource,
-            initialState = initialState,
             onProgress = onProgress,
             onUiPreview = { preview ->
                 if (firstInteractivePreviewMs == null) {
@@ -140,7 +406,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
 
         onProgress(CanonicalGenerationPhase.VALIDATING, "Checking the initial application surface")
         val initialSurfaceValidationStarted = System.nanoTime()
-        CanonicalDealUiParser.parse(dealUiGeneration.checkedIr).validateInitialSurface(initialState)
+        CanonicalDealUiParser.parse(dealUiGeneration.checkedIr)
         validationLatencyMs += (System.nanoTime() - initialSurfaceValidationStarted) / 1_000_000
 
         CanonicalGeneratedAppBundle(
@@ -360,7 +626,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
         contract: String,
         appInterface: AppInterface,
         dealSource: String,
-        initialState: JsonObject,
         onProgress: (CanonicalGenerationPhase, String) -> Unit,
         onUiPreview: (CanonicalDealUiPreview) -> Unit
     ): UiGraphGeneration {
@@ -374,10 +639,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             } else {
                 toolchain.compilePortablePreview(dealSource, source, CanonicalDealUiPack.source)
             }
-            checkedIr.also { ir ->
-                val program = CanonicalDealUiParser.parse(ir)
-                if (finalProjection) program.validateInitialSurface(initialState)
-            }
+            checkedIr.also(CanonicalDealUiParser::parse)
         }
         var latencyMs = 0L
         var firstPatchMs: Long? = null
@@ -499,6 +761,11 @@ internal class CanonicalGeneratedAppCloudCompiler(
     }
 
     private companion object {
+        const val AGENT_SURFACE_MAX_ROUNDS = 14
+        const val AGENT_SURFACE_MAX_REPAIRS = 4
+        const val AGENT_SURFACE_TRANSPORT_ATTEMPTS = 3
+        const val AGENT_SURFACE_DEAL_MAX_TOKENS = 8_192
+        const val AGENT_SURFACE_UI_MAX_TOKENS = 16_384
         const val GRAPH_BATCH_MAX_TOKENS = 8_192
         const val DEAL_UI_GRAPH_MAX_TOKENS = 4_096
         const val DEAL_GRAPH_BATCH_HOLES = 6
@@ -615,12 +882,10 @@ internal object AppInterfaceCompiler {
         }
         val types = root.typeArray("types")
         val actions = root.typeArray("actions")
-        require(types.size in 1..16) { "AppInterfaceV1 must contain 1..16 state/value types" }
-        require(actions.size in 1..16) { "AppInterfaceV1 must contain 1..16 action types" }
+        require(types.isNotEmpty()) { "AppInterfaceV1 must contain a state type" }
         val names = (types + actions).map(AppInterfaceType::name)
         require(names.distinct().size == names.size) { "AppInterfaceV1 type names must be unique" }
         require(names.all(TYPE_IDENTIFIER::matches)) { "AppInterfaceV1 contains an invalid type name" }
-        require(actions.all { it.name.endsWith("Action") }) { "Every generated UI action type must end in Action" }
         val rootState = root.getValue("root_state").jsonPrimitive.content
         require(types.any { it.name == rootState }) { "AppInterfaceV1 root state type is missing" }
         val availableTypes = PRIMITIVE_TYPES + names
@@ -950,14 +1215,17 @@ internal object CanonicalGenerationPrompts {
         target labelled and large enough to touch. Use tone only to communicate hierarchy or state, not to make the
         whole application one colour. Use Image only for an authoritative HTTPS URL already present in the request or
         state; never invent a remote URL. Utility apps should use native components rather than Canvas. Games and
-        genuinely spatial visualizations may use one responsive Canvas inside PointerSurface.
+        genuinely spatial visualizations may use one responsive Canvas inside PointerSurface. When a tall or wide
+        spatial surface must leave controls visible in the first viewport, wrap it in Frame with its logical aspect
+        ratio and viewportHeightFraction instead of changing Canvas coordinates or relying on screen-specific pixels.
 
         When the application has useful glanceable state or a safe primary action, add one compact ui.Widget surface.
         It is a second projection of the same read-only state and the same nominal DEAL
         actions, not a second application and not duplicated business logic. Keep it concise: one title/metric or
         progress indicator, at most three supporting rows and at most two actions. Use only Column, Row, Stack, Grid,
-        Card, Section, Text, IntText, Icon, IconButton, Button, ProgressBar, ProgressRing, Spacer, Badge, Stat,
-        IntStat, ListItem, Checkbox, Toggle and Divider inside Widget. The Android host adapts this projection to the
+        Card, Section, Text, IntText, NumberText, Icon, IconButton, Button, ProgressBar, ProgressRing,
+        NumberProgressBar, NumberProgressRing, Spacer, Badge,
+        Stat, IntStat, NumberStat, ListItem, Checkbox, Toggle and Divider inside Widget. The Android host adapts this projection to the
         actual widget size. Components with no props still require empty parentheses: write `ui.Widget() { ... }`,
         never `ui.Widget { ... }`. If omitted, the host derives a backwards-compatible compact projection from the app.
 
@@ -969,11 +1237,16 @@ internal object CanonicalGenerationPrompts {
         and treat each ForEach item as a complete read-only row model. Never use an id as an array position or join two
         state collections; render the item's denormalized title/name/label and supporting fields directly. Use
         structural `When(condition) { ... } Else { ... }` blocks for alternatives, never `When(...)` as a prop
-        expression. Use IntText for integers and precomputed non-null state strings for mixed text. IntText supports
+        expression. Use IntText for integers, NumberText for number values and precomputed non-null state strings for mixed text. IntText supports
         prefix, suffix and minimumDigits, for example ui.IntText(value: state.day, prefix: "Day ") and
         ui.IntText(value: state.minute, minimumDigits: 2). Never concatenate string with int or number, including in
-        accessibilityLabel. Use IntStat, not Stat, for an integer metric; IntStat also supports prefix, suffix and
-        minimumDigits. Use IntListItem when a compact row needs an integer trailing value; it supports
+        accessibilityLabel. Use IntStat, not Stat, for an integer metric. Use IntField for editable int state and
+        NumberField for editable number state. Use NumberStat for number metrics; NumberField and NumberStat support
+        fractionDigits, and numeric text/stat components support
+        prefix and suffix without string coercion. IntStat also supports prefix, suffix and minimumDigits. Use
+        ProgressBar or ProgressRing only with int value/maximum fields. Use NumberProgressBar or NumberProgressRing
+        when either field is number; do not replace a numeric state path with a literal merely to satisfy the type checker.
+        IntListItem when a compact row needs an integer trailing value; it supports
         trailingPrefix, trailingSuffix and minimumDigits without string coercion. Use structural When branches when
         choosing between two typed numeric fields. On a repair round, never invent a field ending in Text or another replacement field that is not
         present in the authoritative app.deal. Replace the incompatible component or expression using existing fields.
@@ -1083,9 +1356,11 @@ internal object CanonicalGenerationPrompts {
 
         Bind only to classes, fields and exported @ui-update actions that actually exist in the authoritative
         app.deal above. Do not copy its business logic into the view and do not invent replacement actions or fields.
-        When repairing a numeric value passed to a string component, use IntText, IntStat or IntListItem with the
-        existing int field; never invent a similarly named string field. In particular, replace a ListItem with
+        When repairing a numeric value passed to a string component, use IntText, IntStat, IntField or IntListItem for an int
+        field, and NumberText, NumberStat or NumberField for a number field; never invent a similarly named string field. In particular, replace a ListItem with
         IntListItem when its trailing value is numeric instead of concatenating a suffix.
+        When repairing ProgressBar or ProgressRing with number values, replace only that component with
+        NumberProgressBar or NumberProgressRing and preserve its existing state bindings and surrounding view.
         When repairing an array-length diagnostic and no explicit count/empty field exists in app.deal, remove the
         conditional EmptyState branch and retain the ForEach alone. Never repeat `.length` in a repaired section.
         When repairing an array-indexing diagnostic, remove every indexed expression from the complete rejected

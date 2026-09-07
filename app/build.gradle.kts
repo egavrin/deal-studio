@@ -23,7 +23,7 @@ fun String.asBuildConfigString(): String = "\"${replace("\\", "\\\\").replace("\
 val embeddedDeepSeekApiKey =
     providers.gradleProperty("DEEPSEEK_API_KEY").orNull
         ?: localProperties.getProperty("DEEPSEEK_API_KEY")
-        ?: "sk-7923c848a3be46c2af5a7bc10d260e3c"
+        ?: ""
 val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
     .takeIf(String::isNotBlank)
     ?.let { value ->
@@ -36,7 +36,7 @@ val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
 val embeddedCerebrasApiKey =
     providers.gradleProperty("CEREBRAS_API_KEY").orNull
         ?: localProperties.getProperty("CEREBRAS_API_KEY")
-        ?: "csk-hn5mctrwvp8c6t6rfxccmkwf45xrc4x2nee4rr58kpw9wt4v"
+        ?: ""
 val embeddedCerebrasApiKeyRevision = embeddedCerebrasApiKey
     .takeIf(String::isNotBlank)
     ?.let { value ->
@@ -48,47 +48,54 @@ val embeddedCerebrasApiKeyRevision = embeddedCerebrasApiKey
     .orEmpty()
 
 abstract class GenerateDealUiPackSource : DefaultTask() {
-    @get:org.gradle.api.tasks.InputFile
-    abstract val packFile: org.gradle.api.file.RegularFileProperty
+    @get:org.gradle.api.tasks.InputFiles
+    abstract val packFiles: org.gradle.api.file.ConfigurableFileCollection
 
     @get:org.gradle.api.tasks.OutputDirectory
     abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
 
     @org.gradle.api.tasks.TaskAction
     fun generate() {
-        val sourceFile = packFile.get().asFile
-        val packSource = sourceFile.readText()
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(sourceFile.readBytes())
-            .joinToString("") { byte -> "%02x".format(byte) }
-        val destination = outputDirectory.get().file(
-            "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV12.kt"
-        ).asFile
-        destination.parentFile.mkdirs()
-        val encodedLines = packSource.lines().joinToString(",\n") { line ->
-            val escaped = line
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("$", "\\$")
-            "        \"$escaped\""
-        }
-        destination.writeText(
-            """
-                package com.offlineassistant.app.generatedapp
+        packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
+            val packSource = sourceFile.readText()
+            val version = requireNotNull(Regex("pack version \\\"[^\\\"]*v(\\d+)\\\";").find(packSource)) {
+                "Pack version is missing from ${sourceFile.name}"
+            }.groupValues[1]
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(sourceFile.readBytes())
+                .joinToString("") { byte -> "%02x".format(byte) }
+            val destination = outputDirectory.get().file(
+                "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV$version.kt"
+            ).asFile
+            destination.parentFile.mkdirs()
+            val encodedLines = packSource.lines().joinToString(",\n") { line ->
+                val escaped = line
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("$", "\\$")
+                "        \"$escaped\""
+            }
+            destination.writeText(
+                """
+                    package com.offlineassistant.app.generatedapp
 
-                internal object GeneratedCanonicalDealUiPackV12 {
-                    const val SHA256: String = "$digest"
-                    val SOURCE: String = listOf(
-                $encodedLines
-                    ).joinToString("\n")
-                }
-            """.trimIndent() + "\n"
-        )
+                    internal object GeneratedCanonicalDealUiPackV$version {
+                        const val SHA256: String = "$digest"
+                        val SOURCE: String = listOf(
+                    $encodedLines
+                        ).joinToString("\n")
+                    }
+                """.trimIndent() + "\n"
+            )
+        }
     }
 }
 
 val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
-    packFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v12.dealui-pack"))
+    packFiles.from(
+        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v12.dealui-pack"),
+        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v13.dealui-pack")
+    )
     outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
 }
 

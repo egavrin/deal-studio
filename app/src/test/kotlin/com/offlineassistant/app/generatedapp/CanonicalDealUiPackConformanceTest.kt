@@ -11,7 +11,7 @@ class CanonicalDealUiPackConformanceTest {
     @Test
     fun `tracked v12 pack is the exact runtime and prompt source`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v12.dealui-pack")
+        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v13.dealui-pack")
         val bytes = sourceFile.readBytes()
 
         assertEquals(sourceFile.readText(), CanonicalDealUiPack.source)
@@ -47,5 +47,13 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(CanonicalDealUiPack.source.contains("class TileProps { glyph: string;"))
         assertTrue(CanonicalDealUiPack.source.contains("tone: string;"))
         assertTrue(CanonicalDealUiPack.source.contains("capability \"renderer.android.tile\""))
+    }
+
+    @Test
+    fun `pack exposes a generic viewport constrained frame`() {
+        assertTrue(CanonicalDealUiPack.source.contains("export component Frame"))
+        assertTrue(CanonicalDealUiPack.source.contains("viewportHeightFraction: number = 0.0"))
+        assertTrue(CanonicalDealUiPack.source.contains("ratioWidth: int = 0"))
+        assertTrue(CanonicalDealUiPack.source.contains("ratioHeight: int = 0"))
     }
 }
