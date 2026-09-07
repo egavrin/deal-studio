@@ -1,443 +1,212 @@
 package com.offlineassistant.core.engine
 
 import com.offlineassistant.core.contracts.ResponseStatus
+import com.offlineassistant.core.contracts.WidgetPayload
 import com.offlineassistant.core.contracts.WidgetTypes
-import com.offlineassistant.core.llm.FallbackKind
-import com.offlineassistant.core.llm.FallbackParse
-import com.offlineassistant.core.llm.FallbackParser
+import com.offlineassistant.core.llm.AnswerRequest
+import com.offlineassistant.core.llm.AnswerResult
+import com.offlineassistant.core.llm.AnswerRoute
+import com.offlineassistant.core.llm.StreamingAnswerProvider
 import com.offlineassistant.core.nlu.Intents
 import com.offlineassistant.core.nlu.NluParser
 import com.offlineassistant.core.nlu.NluResult
 import com.offlineassistant.core.nlu.NluSource
-import com.offlineassistant.core.skills.ClarificationRequest
 import com.offlineassistant.core.skills.NormalizationResult
 import com.offlineassistant.core.skills.NormalizedCommand
+import com.offlineassistant.core.skills.Skill
+import com.offlineassistant.core.skills.SkillRegistry
+import com.offlineassistant.core.skills.SkillResult
+import com.offlineassistant.core.skills.SkillStatus
 import com.offlineassistant.core.skills.SlotNormalizer
-import com.offlineassistant.core.storage.InMemoryNoteStore
-import com.offlineassistant.core.storage.InMemoryReminderStore
-import com.offlineassistant.core.weather.WeatherForecastPoint
-import com.offlineassistant.core.weather.WeatherProvider
-import com.offlineassistant.core.weather.WeatherResult
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AssistantEngineTest {
-    private val engine = AssistantEngine.createDemo()
-
     @Test
-    fun timerCommandReturnsTimerWidget() {
-        val response = engine.handleText("Поставь таймер на 5 минут для чая")
+    fun `high-confidence action executes locally without DeepSeek`() {
+        val answer = RecordingAnswerProvider()
+        val response = engine(
+            nluResult = nlu(Intents.SET_TIMER, confidence = 0.96),
+            answerProvider = answer
+        ).handleText("Поставь таймер на пять минут")
 
         assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("set_timer", response.intent)
         assertEquals(WidgetTypes.TIMER_CARD, response.widget?.type)
-        assertEquals("чай", response.widget?.payload?.get("label")?.toString()?.trim('"'))
-        assertTrue(response.text.contains("5 минут"))
+        assertEquals("local_success", response.debug?.actionResult)
+        assertEquals(0, answer.calls)
+        assertFalse(response.debug?.cloudAnswerUsed ?: true)
     }
 
     @Test
-    fun weatherCommandReturnsMockWeatherWidget() {
-        val response = engine.handleText("Какая погода в Москве?")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("get_weather", response.intent)
-        assertEquals(WidgetTypes.WEATHER_CARD, response.widget?.type)
-        assertEquals("mock", response.widget?.payload?.get("source")?.toString()?.trim('"'))
-    }
-
-    @Test
-    fun weatherCommandUsesInjectedWeatherProvider() {
-        val engine = AssistantEngine.createDemo(
-            nlu = NluParser {
-                NluResult(
-                    intent = Intents.GET_WEATHER,
-                    confidence = 0.96,
-                    slots = buildJsonObject { put("location", "Казань") },
-                    source = NluSource.RUBERT_TINY2
-                )
-            },
-            weatherProvider = WeatherProvider { location ->
-                WeatherResult(
-                    location = location,
-                    temperatureC = -5,
-                    condition = "Снег",
-                    feelsLikeC = -9,
-                    humidityPercent = 81,
-                    windMps = 6,
-                    forecast = listOf(
-                        WeatherForecastPoint(time = "09:00", temperatureC = -5, condition = "snow")
-                    ),
-                    source = "cache",
-                    updatedAt = "2026-07-09T12:00:00+03:00"
-                )
-            }
-        )
-
-        val response = engine.handleText("Какая погода?")
-        val payload = response.widget?.payload
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(WidgetTypes.WEATHER_CARD, response.widget?.type)
-        assertEquals("Казань", payload?.get("location")?.jsonPrimitive?.contentOrNull)
-        assertEquals("-5", payload?.get("temperature_c")?.jsonPrimitive?.contentOrNull)
-        assertEquals("cache", payload?.get("source")?.jsonPrimitive?.contentOrNull)
-        assertEquals(
-            "09:00",
-            payload?.get("forecast")?.jsonArray?.get(0)?.jsonObject?.get("time")?.jsonPrimitive?.contentOrNull
-        )
-    }
-
-    @Test
-    fun calculatorCommandReturnsCalculatorWidget() {
-        val response = engine.handleText("Посчитай 125 умножить на 37")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("calculate", response.intent)
-        assertEquals(WidgetTypes.CALCULATOR_CARD, response.widget?.type)
-        assertEquals("4625", response.widget?.payload?.get("result")?.toString()?.trim('"'))
-    }
-
-    @Test
-    fun alarmWithoutTimeReturnsClarificationWidget() {
-        val response = engine.handleText("Разбуди меня завтра")
+    fun `low-confidence action clarifies and never calls DeepSeek`() {
+        val answer = RecordingAnswerProvider()
+        val response = engine(
+            nluResult = nlu(Intents.SET_TIMER, confidence = 0.54),
+            answerProvider = answer
+        ).handleText("Какой-то таймер")
 
         assertEquals(ResponseStatus.CLARIFICATION_REQUIRED, response.status)
-        assertEquals("set_alarm", response.intent)
         assertEquals(WidgetTypes.CLARIFICATION_CARD, response.widget?.type)
+        assertEquals("low_confidence", response.debug?.actionResult)
+        assertEquals(0, answer.calls)
     }
 
     @Test
-    fun engineUsesInjectedSlotNormalizerForValidationClarification() {
-        val engine = AssistantEngine.createDemo(
-            nlu = NluParser {
-                NluResult(
-                    intent = Intents.SET_TIMER,
-                    confidence = 0.94,
-                    slots = buildJsonObject {},
-                    source = NluSource.RUBERT_TINY2
-                )
-            },
-            slotNormalizer = SlotNormalizer { _, nlu ->
-                NormalizationResult.Clarification(
-                    ClarificationRequest(
-                        question = "Сколько длится таймер?",
-                        suggestions = listOf("3 минуты", "5 минут"),
-                        pendingIntent = nlu.intent,
-                        partialSlots = nlu.slots
-                    )
-                )
-            }
-        )
+    fun `unknown intent streams one DeepSeek answer`() {
+        val answer = RecordingAnswerProvider(resultText = "Короткий ответ.")
+        val tokens = mutableListOf<String>()
+        val response = engine(
+            nluResult = nlu(Intents.UNKNOWN, confidence = 0.91),
+            answerProvider = answer
+        ).handleText("Почему небо синее?", onAnswerToken = tokens::add)
 
-        val response = engine.handleText("таймер")
-
-        assertEquals(ResponseStatus.CLARIFICATION_REQUIRED, response.status)
-        assertEquals(Intents.SET_TIMER, response.intent)
-        assertEquals("Сколько длится таймер?", response.text)
-        assertEquals(WidgetTypes.CLARIFICATION_CARD, response.widget?.type)
-        assertEquals("3 минуты", response.widget?.payload?.get("suggestions")?.jsonArray?.get(0)?.jsonPrimitive?.contentOrNull)
+        assertEquals(listOf("Короткий ", "ответ."), tokens)
+        assertEquals("Короткий ответ.", response.text)
+        assertNull(response.widget)
+        assertEquals("deepseek_answer", response.debug?.actionResult)
+        assertEquals(1, answer.calls)
+        assertTrue(response.debug?.cloudAnswerUsed == true)
     }
 
     @Test
-    fun debugNormalizedCommandUsesNormalizerOutput() {
-        val engine = AssistantEngine.createDemo(
-            nlu = NluParser {
-                NluResult(
-                    intent = Intents.SET_TIMER,
-                    confidence = 0.94,
-                    slots = buildJsonObject {},
-                    source = NluSource.RUBERT_TINY2
-                )
-            },
-            slotNormalizer = SlotNormalizer { input, nlu ->
+    fun `non-core legacy label is treated as a complex cloud question`() {
+        val answer = RecordingAnswerProvider(resultText = "Облачный ответ.")
+        val response = engine(
+            nluResult = nlu(
+                "compose_widget",
+                confidence = 0.99,
+                slots = buildJsonObject { put("query", "Красной площади") }
+            ),
+            answerProvider = answer
+        ).handleText("Покажи фотографии Красной площади")
+
+        assertEquals(ResponseStatus.SUCCESS, response.status)
+        assertEquals("compose_widget", response.debug?.intent)
+        assertEquals("deepseek_answer", response.debug?.actionResult)
+        assertEquals(1, answer.calls)
+        assertEquals("Красной площади", answer.lastRequest?.mediaSearchQuery)
+    }
+
+    @Test
+    fun `unavailable RuBERT fails closed instead of calling cloud`() {
+        val answer = RecordingAnswerProvider()
+        val response = engine(
+            nluResult = nlu(Intents.UNKNOWN, source = NluSource.UNAVAILABLE),
+            answerProvider = answer
+        ).handleText("Любой запрос")
+
+        assertEquals(ResponseStatus.ERROR, response.status)
+        assertEquals("rubert_unavailable", response.debug?.actionResult)
+        assertEquals(0, answer.calls)
+    }
+
+    @Test
+    fun `RuBERT web search label selects grounded search route`() {
+        val answer = RecordingAnswerProvider()
+
+        engine(
+            nluResult = nlu(Intents.WEB_SEARCH, confidence = 0.92),
+            answerProvider = answer
+        ).handleText("Что нового в Android 17?")
+
+        assertEquals(AnswerRoute.WEB_SEARCH, answer.lastRequest?.route)
+    }
+
+    @Test
+    fun `RuBERT research label selects Exa Agent route`() {
+        val answer = RecordingAnswerProvider()
+
+        engine(
+            nluResult = nlu(Intents.WEB_RESEARCH, confidence = 0.92),
+            answerProvider = answer
+        ).handleText("Исследуй рынок локальных ассистентов")
+
+        assertEquals(AnswerRoute.WEB_RESEARCH, answer.lastRequest?.route)
+    }
+
+    private fun engine(
+        nluResult: NluResult,
+        answerProvider: StreamingAnswerProvider
+    ): AssistantEngine {
+        val skill = object : Skill {
+            override val id = "timer"
+            override val supportedIntents = setOf(Intents.SET_TIMER)
+
+            override suspend fun execute(command: NormalizedCommand) = SkillResult(
+                status = SkillStatus.SUCCESS,
+                text = "Таймер поставлен.",
+                widget = WidgetPayload(
+                    WidgetTypes.TIMER_CARD,
+                    buildJsonObject { put("duration_seconds", 300) }
+                ),
+                actionResult = "local_success"
+            )
+        }
+        return AssistantEngine(
+            nlu = NluParser { nluResult },
+            answerProvider = answerProvider,
+            confidenceThreshold = 0.75,
+            slotNormalizer = SlotNormalizer { input, result ->
                 NormalizationResult.Normalized(
                     NormalizedCommand(
-                        intent = nlu.intent,
-                        slots = buildJsonObject { put("duration_seconds", 300) },
+                        intent = result.intent,
+                        slots = result.slots,
                         originalText = input,
-                        source = nlu.source
+                        source = result.source,
+                        confidence = result.confidence
                     )
                 )
-            }
-        )
-
-        val response = engine.handleText("таймер на пять минут")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(300, response.widget?.payload?.get("duration_seconds")?.jsonPrimitive?.contentOrNull?.toInt())
-        assertEquals(
-            300,
-            response.debug
-                ?.normalizedCommand
-                ?.get("slots")
-                ?.jsonObject
-                ?.get("duration_seconds")
-                ?.jsonPrimitive
-                ?.contentOrNull
-                ?.toInt()
-        )
-    }
-
-    @Test
-    fun reminderCommandReturnsReminderWidget() {
-        val response = engine.handleText("Напомни через час проверить духовку")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("create_reminder", response.intent)
-        assertEquals(WidgetTypes.REMINDER_CARD, response.widget?.type)
-        assertTrue(response.widget?.payload?.get("text").toString().contains("проверить духовку"))
-    }
-
-    @Test
-    fun noteCommandReturnsNoteWidget() {
-        val response = engine.handleText("Запиши заметку купить молоко")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("create_note", response.intent)
-        assertEquals(WidgetTypes.NOTE_CARD, response.widget?.type)
-        assertTrue(response.widget?.payload?.get("text").toString().contains("купить молоко"))
-    }
-
-    @Test
-    fun openAppCommandReturnsOpenAppWidget() {
-        val response = engine.handleText("Открой Telegram")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("open_app", response.intent)
-        assertEquals(WidgetTypes.OPEN_APP_CARD, response.widget?.type)
-    }
-
-    @Test
-    fun helpCommandReturnsHelpWidget() {
-        val response = engine.handleText("Помощь")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals("help", response.intent)
-        assertEquals(WidgetTypes.HELP_CARD, response.widget?.type)
-    }
-
-    @Test
-    fun unknownCommandWithoutReadyLocalLlmReturnsErrorCard() {
-        val response = engine.handleText("Расскажи коротко что такое локальный ассистент")
-
-        assertEquals(ResponseStatus.ERROR, response.status)
-        assertEquals("unknown", response.intent)
-        assertEquals(WidgetTypes.ERROR_CARD, response.widget?.type)
-        assertNotNull(response.debug)
-    }
-
-    @Test
-    fun noteAndReminderCommandsPersistToInjectedStores() {
-        val noteStore = InMemoryNoteStore()
-        val reminderStore = InMemoryReminderStore()
-        val storageEngine = AssistantEngine.createDemo(
-            noteStore = noteStore,
-            reminderStore = reminderStore
-        )
-
-        storageEngine.handleText("Запиши заметку купить молоко")
-        storageEngine.handleText("Напомни через час проверить духовку")
-
-        assertEquals("купить молоко", noteStore.list().single().text)
-        assertEquals("проверить духовку", reminderStore.list().single().text)
-        assertEquals("scheduled", reminderStore.list().single().state)
-    }
-
-    @Test
-    fun engineUsesInjectedNluParserAndExposesModelDebugInfo() {
-        val engine = AssistantEngine.createDemo(
-            nlu = NluParser {
-                NluResult(
-                    intent = Intents.SET_TIMER,
-                    confidence = 0.87,
-                    slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2
-                )
-            }
-        )
-
-        val response = engine.handleText("любой текст")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(Intents.SET_TIMER, response.intent)
-        assertEquals(NluSource.RUBERT_TINY2, response.debug?.nluSource)
-        assertEquals(0.87, response.debug?.confidence ?: 0.0, 0.001)
-    }
-
-    @Test
-    fun debugInfoIncludesPerStageLatencyForDirectCommand() {
-        val response = engine.handleText("Поставь таймер на две минуты")
-        val latency = response.debug?.latencyMs
-
-        assertNotNull(latency)
-        assertTrue((latency?.nlu ?: -1) >= 0)
-        assertTrue((latency?.normalization ?: -1) >= 0)
-        assertTrue((latency?.skillExecution ?: -1) >= 0)
-        assertEquals(null, latency?.fallbackLlm)
-        assertTrue((latency?.total ?: -1) >= 0)
-    }
-
-    @Test
-    fun unknownCommandDoesNotUseFallbackCommandForExecution() {
-        val engine = AssistantEngine.createDemo(
-            nlu = unknownNlu(),
-            fallbackParser = FallbackParser { _, _ ->
-                FallbackParse(
-                    kind = FallbackKind.COMMAND,
-                    intent = Intents.SET_TIMER,
-                    confidence = 0.91,
-                    slots = buildJsonObject { put("duration_seconds", 300) }
-                )
-            }
-        )
-
-        val response = engine.handleText("запусти обратный отсчет на пять минут")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(Intents.UNKNOWN, response.intent)
-        assertEquals(WidgetTypes.GENERIC_ANSWER_CARD, response.widget?.type)
-        assertEquals(true, response.debug?.fallbackUsed)
-        assertEquals(Intents.UNKNOWN, response.debug?.intent)
-    }
-
-    @Test
-    fun debugInfoIncludesFallbackLatencyWhenLocalLlmIsUsed() {
-        val engine = AssistantEngine.createDemo(
-            nlu = unknownNlu(),
-            fallbackParser = FallbackParser { _, _ ->
-                FallbackParse(
-                    kind = FallbackKind.ANSWER,
-                    intent = Intents.SET_TIMER,
-                    confidence = 0.9,
-                    answer = "Это похоже на команду таймера, но действие должен выбрать RuBERT.",
-                    latencyMs = 12
-                )
-            }
-        )
-
-        val response = engine.handleText("обратный отсчет на пять минут")
-        val latency = response.debug?.latencyMs
-
-        assertNotNull(latency)
-        assertTrue((latency?.nlu ?: -1) >= 0)
-        assertEquals(12L, latency?.fallbackLlm)
-        assertTrue((latency?.normalization ?: -1) >= 0)
-        assertTrue((latency?.skillExecution ?: -1) >= 0)
-        assertTrue((latency?.total ?: -1) >= 0)
-    }
-
-    @Test
-    fun fallbackErrorRendersErrorCardInsteadOfGenericAnswer() {
-        val engine = AssistantEngine.createDemo(
-            nlu = unknownNlu(),
-            fallbackParser = FallbackParser { _, _ ->
-                FallbackParse(
-                    kind = FallbackKind.ERROR,
-                    error = "Qwen GGUF model is not installed."
-                )
-            }
-        )
-
-        val response = engine.handleText("сложный вопрос")
-
-        assertEquals(ResponseStatus.ERROR, response.status)
-        assertEquals(Intents.UNKNOWN, response.intent)
-        assertEquals(WidgetTypes.ERROR_CARD, response.widget?.type)
-        assertEquals("Qwen GGUF model is not installed.", response.widget?.payload?.get("message")?.jsonPrimitive?.contentOrNull)
-        assertEquals("Открыть настройки", response.widget?.payload?.get("suggestions")?.jsonArray?.get(0)?.jsonPrimitive?.contentOrNull)
-        assertEquals(true, response.debug?.fallbackUsed)
-        assertEquals("error", response.debug?.actionResult)
-    }
-
-    @Test
-    fun lowConfidenceKnownIntentUsesLocalLlmAnswerWithoutActionExecution() {
-        var fallbackCalled = false
-        val engine = AssistantEngine.createDemo(
-            nlu = NluParser {
-                NluResult(
-                    intent = Intents.SET_TIMER,
-                    confidence = 0.31,
-                    slots = buildJsonObject { put("duration_seconds", 300) },
-                    source = NluSource.RUBERT_TINY2
-                )
             },
-            fallbackParser = FallbackParser { _, _ ->
-                fallbackCalled = true
-                FallbackParse(
-                    kind = FallbackKind.ANSWER,
-                    confidence = 0.9,
-                    answer = "Qwen should not be called for low-confidence action intents."
-                )
-            }
+            skillRegistry = SkillRegistry(listOf(skill))
         )
-
-        val response = engine.handleText("поставь что-то похожее на таймер")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(Intents.UNKNOWN, response.intent)
-        assertEquals(WidgetTypes.GENERIC_ANSWER_CARD, response.widget?.type)
-        assertEquals(true, response.debug?.fallbackUsed)
-        assertEquals(true, fallbackCalled)
     }
 
-    @Test
-    fun fallbackAnswerRendersGenericAnswerCardWithoutActionExecution() {
-        val engine = AssistantEngine.createDemo(
-            nlu = unknownNlu(),
-            fallbackParser = FallbackParser { _, _ ->
-                FallbackParse(
-                    kind = FallbackKind.ANSWER,
-                    confidence = 0.82,
-                    answer = "Короткий локальный ответ."
-                )
-            }
-        )
+    private fun nlu(
+        intent: String,
+        confidence: Double = 0.9,
+        source: NluSource = NluSource.RUBERT_TINY2,
+        slots: JsonObject = JsonObject(emptyMap())
+    ) = NluResult(intent, confidence, slots, source)
+}
 
-        val response = engine.handleText("объясни что такое офлайн ассистент")
+private class RecordingAnswerProvider(
+    private val resultText: String = "Ответ."
+) : StreamingAnswerProvider {
+    var calls = 0
+        private set
 
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(Intents.UNKNOWN, response.intent)
-        assertEquals(WidgetTypes.GENERIC_ANSWER_CARD, response.widget?.type)
-        assertTrue(response.widget?.payload?.get("answer").toString().contains("Короткий локальный ответ"))
-        assertEquals(true, response.debug?.fallbackUsed)
+    var lastRequest: AnswerRequest? = null
+        private set
+
+    override fun answer(input: String): AnswerResult {
+        calls++
+        return AnswerResult(resultText, latencyMs = 12, source = "deepseek_cloud")
     }
 
-    @Test
-    fun unsupportedFallbackIntentDoesNotExecuteAction() {
-        val engine = AssistantEngine.createDemo(
-            nlu = unknownNlu(),
-            fallbackParser = FallbackParser { _, _ ->
-                FallbackParse(
-                    kind = FallbackKind.COMMAND,
-                    intent = "send_money",
-                    confidence = 0.99,
-                    slots = buildJsonObject { put("amount", 1000) }
-                )
-            }
-        )
-
-        val response = engine.handleText("переведи тысячу рублей")
-
-        assertEquals(ResponseStatus.SUCCESS, response.status)
-        assertEquals(Intents.UNKNOWN, response.intent)
-        assertEquals(WidgetTypes.GENERIC_ANSWER_CARD, response.widget?.type)
-        assertEquals(true, response.debug?.fallbackUsed)
+    override fun answer(input: String, onToken: (String) -> Unit): AnswerResult {
+        calls++
+        if (resultText == "Короткий ответ.") {
+            onToken("Короткий ")
+            onToken("ответ.")
+        } else {
+            onToken(resultText)
+        }
+        return AnswerResult(resultText, latencyMs = 12, source = "deepseek_cloud")
     }
 
-    private fun unknownNlu(): NluParser = NluParser {
-        NluResult(
-            intent = Intents.UNKNOWN,
-            confidence = 0.3,
-            slots = buildJsonObject {},
-            source = NluSource.STUB
-        )
+    override fun answer(request: AnswerRequest): AnswerResult {
+        lastRequest = request
+        return answer(request.input)
+    }
+
+    override fun answer(request: AnswerRequest, onToken: (String) -> Unit): AnswerResult {
+        lastRequest = request
+        return answer(request.input, onToken)
     }
 }

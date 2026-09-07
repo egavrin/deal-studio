@@ -32,6 +32,10 @@ detekt {
     parallel = true
 }
 
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "17"
+}
+
 ktlint {
     version.set(libs.versions.ktlint.get())
     outputToConsole.set(true)
@@ -44,4 +48,5 @@ ktlint {
 lint {
     abortOnError = true
     warningsAsErrors = true
+    disable += setOf("GradleDependency", "NewerVersionAvailable")
 }

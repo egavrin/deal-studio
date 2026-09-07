@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -8,54 +11,167 @@ plugins {
     alias(libs.plugins.kover)
 }
 
-val asrVulkanEnabled = providers.gradleProperty("asrVulkan")
-    .map(String::toBoolean)
-    .getOrElse(false)
-val spirvHeadersDir = providers.gradleProperty("spirvHeadersDir").orNull
-val spirvHeadersIncludeDir = providers.gradleProperty("spirvHeadersIncludeDir").orNull
-val vulkanHeadersDir = providers.gradleProperty("vulkanHeadersDir").orNull
+val localProperties = Properties().apply {
+    rootProject.file("local.properties")
+        .takeIf { it.isFile }
+        ?.inputStream()
+        ?.use(::load)
+}
+
+fun String.asBuildConfigString(): String = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val embeddedDeepSeekApiKey =
+    providers.gradleProperty("DEEPSEEK_API_KEY").orNull
+        ?: localProperties.getProperty("DEEPSEEK_API_KEY")
+        ?: ""
+val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
+    .takeIf(String::isNotBlank)
+    ?.let { value ->
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.encodeToByteArray())
+            .take(8)
+            .joinToString("") { byte -> "%02x".format(byte) }
+    }
+    .orEmpty()
+val embeddedCerebrasApiKey =
+    providers.gradleProperty("CEREBRAS_API_KEY").orNull
+        ?: localProperties.getProperty("CEREBRAS_API_KEY")
+        ?: ""
+val embeddedCerebrasApiKeyRevision = embeddedCerebrasApiKey
+    .takeIf(String::isNotBlank)
+    ?.let { value ->
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.encodeToByteArray())
+            .take(8)
+            .joinToString("") { byte -> "%02x".format(byte) }
+    }
+    .orEmpty()
+
+abstract class GenerateDealUiPackSource : DefaultTask() {
+    @get:org.gradle.api.tasks.InputFiles
+    abstract val packFiles: org.gradle.api.file.ConfigurableFileCollection
+
+    @get:org.gradle.api.tasks.OutputDirectory
+    abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
+
+    @org.gradle.api.tasks.TaskAction
+    fun generate() {
+        packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
+            val packSource = sourceFile.readText()
+            val version = requireNotNull(Regex("pack version \\\"[^\\\"]*v(\\d+)\\\";").find(packSource)) {
+                "Pack version is missing from ${sourceFile.name}"
+            }.groupValues[1]
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(sourceFile.readBytes())
+                .joinToString("") { byte -> "%02x".format(byte) }
+            val destination = outputDirectory.get().file(
+                "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV$version.kt"
+            ).asFile
+            destination.parentFile.mkdirs()
+            val encodedLines = packSource.lines().joinToString(",\n") { line ->
+                val escaped = line
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("$", "\\$")
+                "        \"$escaped\""
+            }
+            destination.writeText(
+                """
+                    package com.offlineassistant.app.generatedapp
+
+                    internal object GeneratedCanonicalDealUiPackV$version {
+                        const val SHA256: String = "$digest"
+                        val SOURCE: String = listOf(
+                    $encodedLines
+                        ).joinToString("\n")
+                    }
+                """.trimIndent() + "\n"
+            )
+        }
+    }
+}
+
+val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
+    packFiles.from(
+        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v12.dealui-pack"),
+        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v13.dealui-pack")
+    )
+    outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
+}
 
 android {
     namespace = "com.offlineassistant.app"
     compileSdk = 37
-    ndkVersion = "27.0.12077973"
+
+    val releaseStoreFile = providers.gradleProperty("OFFLINE_ASSISTANT_RELEASE_STORE_FILE").orNull
+    val releaseStorePassword = providers.gradleProperty("OFFLINE_ASSISTANT_RELEASE_STORE_PASSWORD").orNull
+    val releaseKeyAlias = providers.gradleProperty("OFFLINE_ASSISTANT_RELEASE_KEY_ALIAS").orNull
+    val releaseKeyPassword = providers.gradleProperty("OFFLINE_ASSISTANT_RELEASE_KEY_PASSWORD").orNull
+    val releaseSigningConfigured = listOf(
+        releaseStoreFile,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+    ).all { !it.isNullOrBlank() }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("production") {
+                storeFile = rootProject.file(requireNotNull(releaseStoreFile))
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
 
     defaultConfig {
-        applicationId = "com.offlineassistant.poc"
-        minSdk = if (asrVulkanEnabled) 28 else 26
+        applicationId = "com.dealstudio.app"
+        minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ndk {
-            abiFilters += "arm64-v8a"
-        }
-        externalNativeBuild {
-            cmake {
-                arguments += "-DCMAKE_BUILD_TYPE=Release"
-                arguments += "-DOFFLINE_ASSISTANT_ASR_VULKAN=${if (asrVulkanEnabled) "ON" else "OFF"}"
-                spirvHeadersDir?.let { arguments += "-DSPIRV-Headers_DIR=$it" }
-                spirvHeadersIncludeDir?.let {
-                    arguments += "-DOFFLINE_ASSISTANT_SPIRV_HEADERS_INCLUDE_DIR=$it"
-                }
-                vulkanHeadersDir?.let { arguments += "-DOFFLINE_ASSISTANT_VULKAN_HEADERS_DIR=$it" }
-            }
-        }
     }
 
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField(
+                "String",
+                "EMBEDDED_DEEPSEEK_API_KEY",
+                embeddedDeepSeekApiKey.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "EMBEDDED_DEEPSEEK_API_KEY_REVISION",
+                embeddedDeepSeekApiKeyRevision.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "EMBEDDED_CEREBRAS_API_KEY",
+                embeddedCerebrasApiKey.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "EMBEDDED_CEREBRAS_API_KEY_REVISION",
+                embeddedCerebrasApiKeyRevision.asBuildConfigString()
+            )
         }
         release {
+            buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY", "\"\"")
+            buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY_REVISION", "\"\"")
+            buildConfigField("String", "EMBEDDED_CEREBRAS_API_KEY", "\"\"")
+            buildConfigField("String", "EMBEDDED_CEREBRAS_API_KEY_REVISION", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // The PoC has no production keystore yet; this keeps release profiling installable.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("production")
         }
     }
 
@@ -69,35 +185,26 @@ android {
         buildConfig = true
     }
 
-    packaging {
-        jniLibs {
-            excludes += setOf(
-                "lib/armeabi-v7a/**",
-                "lib/x86/**",
-                "lib/x86_64/**"
-            )
-        }
-    }
-
     lint {
         abortOnError = true
         checkDependencies = true
         checkReleaseBuilds = true
         warningsAsErrors = true
+        disable += setOf("GradleDependency", "NewerVersionAvailable")
     }
+}
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.java?.addGeneratedSourceDirectory(
+            generateDealUiPackSource,
+            GenerateDealUiPackSource::outputDirectory
+        )
     }
 }
 
 dependencies {
-    implementation(project(":core"))
-    kover(project(":core"))
-    implementation(files("libs/sherpa-onnx-static-link-onnxruntime-1.13.4.aar"))
+    implementation(project(":deepseek-connector"))
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -110,9 +217,9 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.onnxruntime.android)
-    implementation(libs.jtransforms)
     implementation(libs.androidx.profileinstaller)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     baselineProfile(project(":benchmark"))
 
@@ -136,8 +243,17 @@ kover {
     }
     reports {
         variant("ci") {
+            filters {
+                excludes {
+                    classes(
+                        "com.offlineassistant.app.DealStudioActivity*",
+                        "com.offlineassistant.app.ui.theme.*",
+                        "com.offlineassistant.app.generatedapp.GeneratedAppStudioScreenKt*"
+                    )
+                }
+            }
             verify {
-                rule("Combined app and core line coverage") {
+                rule("Unit-testable app and core line coverage") {
                     minBound(45)
                 }
             }
@@ -149,6 +265,20 @@ detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.files("config/detekt/detekt.yml"))
     parallel = true
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "17"
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty("offlineAssistant.repoRoot", rootProject.projectDir.absolutePath)
+    providers.systemProperty("offlineAssistant.generatedDealCandidateDir").orNull?.let { candidateDir ->
+        systemProperty("offlineAssistant.generatedDealCandidateDir", candidateDir)
+    }
+    providers.systemProperty("offlineAssistant.generatedUiCandidateDir").orNull?.let { candidateDir ->
+        systemProperty("offlineAssistant.generatedUiCandidateDir", candidateDir)
+    }
 }
 
 ktlint {

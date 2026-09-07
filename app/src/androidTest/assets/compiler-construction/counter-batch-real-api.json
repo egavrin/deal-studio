@@ -1,0 +1,294 @@
+[
+  {
+    "name": "construct_apply_deal_batch",
+    "arguments": {
+      "arguments": {
+        "actionHandlers": [
+          {
+            "actionDeclaration": "increment",
+            "handlerDeclaration": "handler"
+          }
+        ],
+        "appStateDeclaration": "appState",
+        "capabilities": [],
+        "final": true,
+        "initialStateBody": "initialBody",
+        "supportingDeclarations": []
+      },
+      "calls": [
+        {
+          "id": "zero",
+          "op": "integer",
+          "value": 0
+        },
+        {
+          "id": "one",
+          "op": "integer",
+          "value": 1
+        },
+        {
+          "id": "appState",
+          "op": "declareRecord",
+          "name": "AppState",
+          "fields": [
+            {
+              "name": "count",
+              "type": "int",
+              "value": "zero"
+            }
+          ]
+        },
+        {
+          "id": "increment",
+          "op": "declareRecord",
+          "name": "Increment",
+          "fields": []
+        },
+        {
+          "id": "stateRef",
+          "op": "reference",
+          "name": "state"
+        },
+        {
+          "id": "countField",
+          "op": "field",
+          "name": "count",
+          "object": "stateRef"
+        },
+        {
+          "id": "newCount",
+          "op": "binary",
+          "left": "countField",
+          "operator": "+",
+          "right": "one"
+        },
+        {
+          "id": "newState",
+          "op": "record",
+          "fields": [
+            {
+              "name": "count",
+              "value": "newCount"
+            }
+          ]
+        },
+        {
+          "id": "ret",
+          "op": "return",
+          "value": "newState"
+        },
+        {
+          "id": "handlerBody",
+          "op": "block",
+          "statements": [
+            "ret"
+          ]
+        },
+        {
+          "id": "handler",
+          "op": "declareUpdate",
+          "name": "incrementHandler",
+          "parameters": [
+            {
+              "name": "state",
+              "type": "AppState"
+            },
+            {
+              "name": "action",
+              "type": "Increment"
+            }
+          ],
+          "returns": "AppState",
+          "body": "handlerBody"
+        },
+        {
+          "id": "initState",
+          "op": "record",
+          "fields": [
+            {
+              "name": "count",
+              "value": "zero"
+            }
+          ]
+        },
+        {
+          "id": "initRet",
+          "op": "return",
+          "value": "initState"
+        },
+        {
+          "id": "initialBody",
+          "op": "block",
+          "statements": [
+            "initRet"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "construct_apply_deal_ui_changes",
+    "arguments": {
+      "calls": [
+        {
+          "id": "countRef",
+          "op": "reference",
+          "name": "state"
+        },
+        {
+          "id": "countField",
+          "op": "field",
+          "name": "count",
+          "object": "countRef"
+        },
+        {
+          "id": "incAction",
+          "op": "action",
+          "name": "Increment",
+          "fields": []
+        },
+        {
+          "id": "countStat",
+          "op": "component",
+          "name": "IntStat",
+          "fields": [
+            {
+              "name": "label",
+              "value": "countLabel"
+            },
+            {
+              "name": "value",
+              "value": "countField"
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "countLabel",
+          "op": "text",
+          "value": "Count"
+        },
+        {
+          "id": "addBtn",
+          "op": "component",
+          "name": "Button",
+          "fields": [
+            {
+              "name": "text",
+              "value": "addText"
+            },
+            {
+              "name": "onClick",
+              "value": "incAction"
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "addText",
+          "op": "text",
+          "value": "Add"
+        },
+        {
+          "id": "column",
+          "op": "component",
+          "name": "Column",
+          "fields": [],
+          "children": [
+            "countStat",
+            "addBtn"
+          ]
+        },
+        {
+          "id": "root",
+          "op": "component",
+          "name": "Root",
+          "fields": [],
+          "children": [
+            "column"
+          ]
+        },
+        {
+          "id": "theme",
+          "op": "component",
+          "name": "AppTheme",
+          "fields": [
+            {
+              "name": "primary",
+              "value": "primaryVal"
+            },
+            {
+              "name": "secondary",
+              "value": "secondaryVal"
+            },
+            {
+              "name": "style",
+              "value": "styleVal"
+            },
+            {
+              "name": "shape",
+              "value": "shapeVal"
+            },
+            {
+              "name": "density",
+              "value": "densityVal"
+            },
+            {
+              "name": "surface",
+              "value": "surfaceVal"
+            }
+          ],
+          "children": [
+            "root"
+          ]
+        },
+        {
+          "id": "primaryVal",
+          "op": "text",
+          "value": ""
+        },
+        {
+          "id": "secondaryVal",
+          "op": "text",
+          "value": ""
+        },
+        {
+          "id": "styleVal",
+          "op": "text",
+          "value": ""
+        },
+        {
+          "id": "shapeVal",
+          "op": "text",
+          "value": ""
+        },
+        {
+          "id": "densityVal",
+          "op": "text",
+          "value": ""
+        },
+        {
+          "id": "surfaceVal",
+          "op": "text",
+          "value": ""
+        },
+        {
+          "id": "body",
+          "op": "uiBody",
+          "children": [
+            "theme"
+          ]
+        }
+      ],
+      "arguments": {
+        "operations": [
+          {
+            "operation": "replaceViewBody",
+            "body": "body"
+          }
+        ],
+        "final": true
+      }
+    }
+  }
+]

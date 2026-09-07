@@ -3,6 +3,7 @@ package com.offlineassistant.benchmark
 import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
+import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
@@ -37,6 +38,34 @@ class AssistantMacrobenchmark {
             device.sendMessage("помощь")
             device.waitForIdle()
         }
+    }
+
+    @Test
+    fun microphoneStartFrames() {
+        frameJourney {
+            val device = launchAssistant()
+            device.exerciseRecording()
+        }
+    }
+
+    @Test
+    fun streamingCloudAnswerFrames() {
+        frameJourney {
+            val device = launchAssistant()
+            device.sendMessage("Подробно объясни, как устроено северное сияние")
+            device.scrollStreamingAnswer()
+        }
+    }
+
+    private fun frameJourney(block: MacrobenchmarkScope.() -> Unit) {
+        rule.measureRepeated(
+            packageName = TARGET_PACKAGE,
+            metrics = listOf(FrameTimingMetric()),
+            compilationMode = CompilationMode.None(),
+            iterations = 5,
+            setupBlock = { killProcess() },
+            measureBlock = block
+        )
     }
 
     private fun startup(compilationMode: CompilationMode) {

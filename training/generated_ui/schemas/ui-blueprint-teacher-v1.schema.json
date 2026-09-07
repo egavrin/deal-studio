@@ -1,0 +1,2414 @@
+{
+  "$defs": {
+    "actionDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation_required": {
+          "type": "boolean"
+        },
+        "description": {
+          "maxLength": 240,
+          "minLength": 3,
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "parameters": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "type": {
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "datetime",
+                  "url",
+                  "object",
+                  "array"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type",
+              "required"
+            ],
+            "type": "object"
+          },
+          "maxItems": 12,
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "confirmation_required",
+        "parameters"
+      ],
+      "type": "object"
+    },
+    "actionValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/eventAction"
+        },
+        {
+          "$ref": "#/$defs/clientAction"
+        }
+      ]
+    },
+    "binding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding": {
+          "pattern": "^(?:\\.|/(?:[A-Za-z_][A-Za-z0-9_]*(?:/(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+))*)?|[A-Za-z_][A-Za-z0-9_]*(?:/(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+))*)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding"
+      ],
+      "type": "object"
+    },
+    "booleanValue": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/binding"
+        },
+        {
+          "$ref": "#/$defs/functionCall"
+        }
+      ]
+    },
+    "clientAction": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "items": {
+            "$ref": "#/$defs/textValue"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array"
+        },
+        "client_function": {
+          "const": "openUrl",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_function",
+        "args"
+      ],
+      "type": "object"
+    },
+    "component": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "start",
+                        "center",
+                        "end"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "component": {
+              "const": "Text",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "text": {
+              "$ref": "#/$defs/displayValue"
+            },
+            "tone": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "default",
+                        "muted",
+                        "primary",
+                        "positive",
+                        "warning",
+                        "critical",
+                        "inverse"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "variant": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "display",
+                        "h1",
+                        "h2",
+                        "h3",
+                        "title",
+                        "body",
+                        "caption",
+                        "label"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "text",
+            "variant",
+            "tone",
+            "align"
+          ],
+          "title": "Text",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "aspect": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "square",
+                        "portrait",
+                        "landscape",
+                        "wide"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "component": {
+              "const": "Image",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "fit": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "contain",
+                        "cover",
+                        "fill"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "url": {
+              "$ref": "#/$defs/textValue"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "url",
+            "description",
+            "fit",
+            "aspect"
+          ],
+          "title": "Image",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Icon",
+              "type": "string"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "name": {
+              "$ref": "#/$defs/textValue"
+            },
+            "size": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "sm",
+                        "md",
+                        "lg"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tone": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "default",
+                        "muted",
+                        "primary",
+                        "positive",
+                        "warning",
+                        "critical",
+                        "inverse"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "name",
+            "description",
+            "size",
+            "tone"
+          ],
+          "title": "Icon",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Video",
+              "type": "string"
+            },
+            "controls": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/booleanValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "poster_url": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url": {
+              "$ref": "#/$defs/textValue"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "url",
+            "description",
+            "poster_url",
+            "controls"
+          ],
+          "title": "Video",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "AudioPlayer",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "title": {
+              "$ref": "#/$defs/textValue"
+            },
+            "url": {
+              "$ref": "#/$defs/textValue"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "url",
+            "title",
+            "description"
+          ],
+          "title": "AudioPlayer",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "start",
+                        "center",
+                        "end",
+                        "stretch"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "children": {
+              "items": {
+                "$ref": "#/$defs/componentId"
+              },
+              "maxItems": 24,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "component": {
+              "const": "Row",
+              "type": "string"
+            },
+            "gap": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "none",
+                        "xs",
+                        "sm",
+                        "md",
+                        "lg"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "justify": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "start",
+                        "center",
+                        "end",
+                        "spaceBetween",
+                        "spaceAround"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "children",
+            "gap",
+            "align",
+            "justify"
+          ],
+          "title": "Row",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "start",
+                        "center",
+                        "end",
+                        "stretch"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "children": {
+              "items": {
+                "$ref": "#/$defs/componentId"
+              },
+              "maxItems": 24,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "component": {
+              "const": "Column",
+              "type": "string"
+            },
+            "gap": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "none",
+                        "xs",
+                        "sm",
+                        "md",
+                        "lg"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "justify": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "start",
+                        "center",
+                        "end",
+                        "spaceBetween",
+                        "spaceAround"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "children",
+            "gap",
+            "align",
+            "justify"
+          ],
+          "title": "Column",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "List",
+              "type": "string"
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "vertical",
+                        "horizontal"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "empty_state": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/componentId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "items": {
+              "$ref": "#/$defs/binding"
+            },
+            "template": {
+              "$ref": "#/$defs/componentId"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "items",
+            "template",
+            "empty_state",
+            "direction"
+          ],
+          "title": "List",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "child": {
+              "$ref": "#/$defs/componentId"
+            },
+            "component": {
+              "const": "Card",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "padding": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "none",
+                        "sm",
+                        "md",
+                        "lg"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tone": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "plain",
+                        "soft",
+                        "accent",
+                        "dark",
+                        "critical"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "child",
+            "tone",
+            "padding"
+          ],
+          "title": "Card",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Tabs",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "selected": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tabs": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "child": {
+                    "$ref": "#/$defs/componentId"
+                  },
+                  "label": {
+                    "$ref": "#/$defs/textValue"
+                  },
+                  "value": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "child",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "tabs",
+            "selected"
+          ],
+          "title": "Tabs",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Modal",
+              "type": "string"
+            },
+            "content": {
+              "$ref": "#/$defs/componentId"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "trigger": {
+              "$ref": "#/$defs/componentId"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "trigger",
+            "content"
+          ],
+          "title": "Modal",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Divider",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "tone": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "soft",
+                        "strong"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "tone"
+          ],
+          "title": "Divider",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "accessibility_label": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "action": {
+              "$ref": "#/$defs/actionValue"
+            },
+            "child": {
+              "$ref": "#/$defs/componentId"
+            },
+            "component": {
+              "const": "Button",
+              "type": "string"
+            },
+            "enabled": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/booleanValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "icon_only": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "variant": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "filled",
+                        "tonal",
+                        "outline",
+                        "text",
+                        "critical"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "child",
+            "action",
+            "variant",
+            "enabled",
+            "icon_only",
+            "accessibility_label"
+          ],
+          "title": "Button",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "TextField",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "input_type": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "text",
+                        "email",
+                        "number",
+                        "url",
+                        "password",
+                        "search"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            },
+            "placeholder": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "validation": {
+              "items": {
+                "$ref": "#/$defs/functionCall"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/binding"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "value",
+            "placeholder",
+            "input_type",
+            "validation"
+          ],
+          "title": "TextField",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "checked": {
+              "$ref": "#/$defs/binding"
+            },
+            "component": {
+              "const": "CheckBox",
+              "type": "string"
+            },
+            "enabled": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/booleanValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "checked",
+            "enabled"
+          ],
+          "title": "CheckBox",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "ChoicePicker",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            },
+            "multiple": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "options": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "$ref": "#/$defs/textValue"
+                  },
+                  "value": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "maxItems": 24,
+              "minItems": 1,
+              "type": "array"
+            },
+            "value": {
+              "$ref": "#/$defs/binding"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "value",
+            "options",
+            "multiple"
+          ],
+          "title": "ChoicePicker",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Slider",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            },
+            "max": {
+              "type": "number"
+            },
+            "min": {
+              "type": "number"
+            },
+            "step": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/binding"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "value",
+            "min",
+            "max",
+            "step"
+          ],
+          "title": "Slider",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "DateTimeInput",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            },
+            "max": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "min": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "mode": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "date",
+                    "time",
+                    "datetime"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/binding"
+                },
+                {
+                  "$ref": "#/$defs/functionCall"
+                }
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/binding"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "value",
+            "mode",
+            "min",
+            "max"
+          ],
+          "title": "DateTimeInput",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Badge",
+              "type": "string"
+            },
+            "icon": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "text": {
+              "$ref": "#/$defs/textValue"
+            },
+            "tone": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "neutral",
+                        "info",
+                        "positive",
+                        "warning",
+                        "critical"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "text",
+            "tone",
+            "icon"
+          ],
+          "title": "Badge",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Progress",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "max": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/numericValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "state": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "determinate",
+                        "indeterminate",
+                        "paused",
+                        "complete",
+                        "error"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/numericValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "value",
+            "max",
+            "label",
+            "state"
+          ],
+          "title": "Progress",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Metric",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            },
+            "tone": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "neutral",
+                        "positive",
+                        "warning",
+                        "critical"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "trend": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/displayValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/displayValue"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "value",
+            "unit",
+            "trend",
+            "tone"
+          ],
+          "title": "Metric",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "KeyValue",
+              "type": "string"
+            },
+            "icon": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "label": {
+              "$ref": "#/$defs/textValue"
+            },
+            "value": {
+              "$ref": "#/$defs/displayValue"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "label",
+            "value",
+            "icon"
+          ],
+          "title": "KeyValue",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/componentId"
+              },
+              "maxItems": 24,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "columns": {
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "component": {
+              "const": "Grid",
+              "type": "string"
+            },
+            "gap": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "none",
+                        "xs",
+                        "sm",
+                        "md",
+                        "lg"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/binding"
+                    },
+                    {
+                      "$ref": "#/$defs/functionCall"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "children",
+            "columns",
+            "gap"
+          ],
+          "title": "Grid",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "columns": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "align": {
+                    "enum": [
+                      "start",
+                      "center",
+                      "end"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+                    "type": "string"
+                  },
+                  "label": {
+                    "$ref": "#/$defs/textValue"
+                  }
+                },
+                "required": [
+                  "key",
+                  "label",
+                  "align"
+                ],
+                "type": "object"
+              },
+              "maxItems": 12,
+              "minItems": 1,
+              "type": "array"
+            },
+            "component": {
+              "const": "DataTable",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "rows": {
+              "$ref": "#/$defs/binding"
+            },
+            "sort": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/binding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "columns",
+            "rows",
+            "sort",
+            "description"
+          ],
+          "title": "DataTable",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Chart",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "series": {
+              "$ref": "#/$defs/binding"
+            },
+            "title": {
+              "$ref": "#/$defs/textValue"
+            },
+            "variant": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "line",
+                    "bar",
+                    "area"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/binding"
+                },
+                {
+                  "$ref": "#/$defs/functionCall"
+                }
+              ]
+            },
+            "x_label": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "y_label": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "series",
+            "variant",
+            "title",
+            "description",
+            "x_label",
+            "y_label"
+          ],
+          "title": "Chart",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "Timeline",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "empty_state": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/componentId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "items": {
+              "$ref": "#/$defs/binding"
+            },
+            "template": {
+              "$ref": "#/$defs/componentId"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "items",
+            "template",
+            "empty_state",
+            "description"
+          ],
+          "title": "Timeline",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "columns": {
+              "maximum": 64,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "component": {
+              "const": "ImageGallery",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "items": {
+              "$ref": "#/$defs/binding"
+            },
+            "select_action": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/actionValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "items",
+            "columns",
+            "description",
+            "select_action"
+          ],
+          "title": "ImageGallery",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "SourceList",
+              "type": "string"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "open_action": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/actionValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sources": {
+              "$ref": "#/$defs/binding"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/textValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "sources",
+            "title",
+            "open_action"
+          ],
+          "title": "SourceList",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "MapPreview",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "markers": {
+              "$ref": "#/$defs/binding"
+            },
+            "open_action": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/actionValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "mock",
+                    "system",
+                    "online"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/binding"
+                },
+                {
+                  "$ref": "#/$defs/functionCall"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "markers",
+            "provider",
+            "description",
+            "open_action"
+          ],
+          "title": "MapPreview",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "const": "CodeBlock",
+              "type": "string"
+            },
+            "content": {
+              "$ref": "#/$defs/textValue"
+            },
+            "copy_action": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/actionValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "language": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "language",
+            "content",
+            "copy_action",
+            "description"
+          ],
+          "title": "CodeBlock",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "aspect": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "scene",
+                    "square",
+                    "wide"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/binding"
+                },
+                {
+                  "$ref": "#/$defs/functionCall"
+                }
+              ]
+            },
+            "component": {
+              "const": "InteractiveSurface",
+              "type": "string"
+            },
+            "description": {
+              "$ref": "#/$defs/textValue"
+            },
+            "id": {
+              "$ref": "#/$defs/componentId"
+            },
+            "input_mode": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "tap",
+                    "grid",
+                    "pointer",
+                    "realtime"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/binding"
+                },
+                {
+                  "$ref": "#/$defs/functionCall"
+                }
+              ]
+            },
+            "module_id": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "component",
+            "module_id",
+            "aspect",
+            "input_mode",
+            "description"
+          ],
+          "title": "InteractiveSurface",
+          "type": "object"
+        }
+      ]
+    },
+    "componentId": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+      "type": "string"
+    },
+    "displayValue": {
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/binding"
+        },
+        {
+          "$ref": "#/$defs/functionCall"
+        }
+      ]
+    },
+    "eventAction": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/teacherContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "context"
+      ],
+      "type": "object"
+    },
+    "functionCall": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "items": {
+            "$ref": "#/$defs/displayValue"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "function": {
+          "enum": [
+            "and",
+            "email",
+            "formatCurrency",
+            "formatDate",
+            "formatNumber",
+            "formatString",
+            "length",
+            "not",
+            "numeric",
+            "or",
+            "pluralize",
+            "regex",
+            "required"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "function",
+        "args"
+      ],
+      "type": "object"
+    },
+    "numericValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/binding"
+        },
+        {
+          "$ref": "#/$defs/functionCall"
+        }
+      ]
+    },
+    "teacherContext": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/teacherContextEntry"
+          },
+          "maxItems": 12,
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object"
+    },
+    "teacherContextEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/displayValue"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "type": "object"
+    },
+    "teacherDataEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+          "type": "string"
+        },
+        "value_json": {
+          "$ref": "#/$defs/teacherDataValue"
+        }
+      },
+      "required": [
+        "key",
+        "value_json"
+      ],
+      "type": "object"
+    },
+    "teacherDataObject": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/teacherDataEntry"
+          },
+          "maxItems": 128,
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object"
+    },
+    "teacherDataValue": {
+      "maxLength": 32000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "textValue": {
+      "anyOf": [
+        {
+          "maxLength": 8000,
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/binding"
+        },
+        {
+          "$ref": "#/$defs/functionCall"
+        }
+      ]
+    }
+  },
+  "$id": "https://offline-assistant.local/schemas/ui-blueprint-teacher-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance": {
+      "items": {
+        "maxLength": 240,
+        "minLength": 3,
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array"
+    },
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/actionDeclaration"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/component"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array"
+    },
+    "data_model": {
+      "$ref": "#/$defs/teacherDataObject"
+    },
+    "density": {
+      "enum": [
+        "compact",
+        "comfortable",
+        "dense"
+      ],
+      "type": "string"
+    },
+    "domain": {
+      "enum": [
+        "assistant_answer",
+        "search",
+        "research",
+        "productivity",
+        "communication",
+        "device_control",
+        "weather",
+        "finance",
+        "travel",
+        "navigation",
+        "data_display",
+        "forms",
+        "media",
+        "education",
+        "interactive_tool",
+        "generated_app",
+        "product_state",
+        "unsupported"
+      ],
+      "type": "string"
+    },
+    "fallback_reason": {
+      "maxLength": 500,
+      "minLength": 3,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "locale": {
+      "enum": [
+        "en-US",
+        "ru-RU",
+        "mixed"
+      ],
+      "type": "string"
+    },
+    "request": {
+      "maxLength": 1200,
+      "minLength": 3,
+      "type": "string"
+    },
+    "root_id": {
+      "$ref": "#/$defs/componentId"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "state": {
+      "enum": [
+        "populated",
+        "loading",
+        "partial",
+        "empty",
+        "stale",
+        "offline",
+        "denied",
+        "error"
+      ],
+      "type": "string"
+    },
+    "task_kind": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "type": "string"
+    },
+    "theme": {
+      "enum": [
+        "light",
+        "dark",
+        "high_contrast",
+        "dynamic"
+      ],
+      "type": "string"
+    },
+    "viewport": {
+      "enum": [
+        "phone_compact",
+        "foldable",
+        "tablet",
+        "large_font"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request",
+    "locale",
+    "domain",
+    "task_kind",
+    "viewport",
+    "theme",
+    "state",
+    "density",
+    "data_model",
+    "actions",
+    "components",
+    "root_id",
+    "acceptance",
+    "fallback_reason"
+  ],
+  "title": "UiBlueprintTeacherTransportV1",
+  "type": "object"
+}

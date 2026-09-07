@@ -1,0 +1,100 @@
+package com.offlineassistant.deepseek
+
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ExaSearchProviderTest {
+    @Test
+    fun `missing BYOK fails before network access`() {
+        val result = ExaSearchProvider(apiKeyProvider = { null }).search("latest Android release")
+
+        assertFalse(result.successful)
+        assertEquals("Exa API key is not configured.", result.error)
+    }
+
+    @Test
+    fun `custom endpoint cannot exfiltrate the key`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ExaSearchProvider(
+                endpoint = "https://example.com/search",
+                apiKeyProvider = { "secret" }
+            )
+        }
+    }
+
+    @Test
+    fun `http errors produce actionable messages without response bodies`() {
+        assertTrue(httpErrorMessage(401).contains("API key"))
+        assertTrue(httpErrorMessage(403).contains("VPN"))
+        assertEquals("The Exa account has insufficient credit.", httpErrorMessage(402))
+        assertEquals("Exa temporarily rate-limited requests. Try again later.", httpErrorMessage(429))
+        assertEquals("Exa returned HTTP error 500.", httpErrorMessage(500))
+    }
+
+    @Test
+    fun `request asks for primary sources with bounded highlights`() {
+        val body = ExaSearchProvider(apiKeyProvider = { "test" }).requestBody("Android 17")
+
+        assertEquals("auto", body["type"].toString().trim('"'))
+        assertEquals("6", body["numResults"].toString())
+        assertTrue(body["query"].toString().contains("official primary sources"))
+        assertTrue(body["systemPrompt"].toString().contains("Avoid SEO aggregators"))
+        assertTrue(body["contents"].toString().contains("highlights"))
+    }
+
+    @Test
+    fun `parser keeps unique https sources and stable citation indexes`() {
+        val response = Json.parseToJsonElement(
+            """
+            {
+              "results": [
+                {
+                  "title":"Official docs",
+                  "url":"https://developer.android.com/about/versions/17",
+                  "image":"https://developer.android.com/images/android-logo.png",
+                  "favicon":"https://developer.android.com/favicon.ico",
+                  "highlights":["First fact"]
+                },
+                {"title":"Duplicate","url":"https://developer.android.com/about/versions/17","highlights":["Second fact"]},
+                {"title":"Unsafe","url":"http://example.com","highlights":["Ignored"]}
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val sources = ExaSearchProvider(apiKeyProvider = { "test" }).parseSources(response)
+
+        assertEquals(1, sources.size)
+        assertEquals(1, sources.single().index)
+        assertEquals("developer.android.com", sources.single().domain)
+        assertEquals("First fact", sources.single().highlight)
+        assertEquals("https://developer.android.com/images/android-logo.png", sources.single().imageUrl)
+        assertEquals("https://developer.android.com/favicon.ico", sources.single().faviconUrl)
+    }
+
+    @Test
+    fun `related question schema is bounded and parser accepts object or encoded object`() {
+        val provider = ExaSearchProvider(apiKeyProvider = { "test" })
+        val body = provider.relatedQuestionsRequestBody("Android 17")
+        val direct = Json.parseToJsonElement(
+            """
+            {"output":{"content":{"questions":["Какие устройства поддерживаются?","Что изменилось для разработчиков?"]}}}
+            """.trimIndent()
+        ).jsonObject
+        val encoded = Json.parseToJsonElement(
+            """
+            {"output":{"content":"{\"questions\":[\"Когда выйдет обновление?\",\"Какие функции самые важные?\"]}"}}
+            """.trimIndent()
+        ).jsonObject
+
+        assertEquals("instant", body["type"].toString().trim('"'))
+        assertTrue(body["outputSchema"].toString().contains("\"maxItems\":3"))
+        assertEquals(2, provider.parseRelatedQuestions(direct).size)
+        assertEquals("Когда выйдет обновление?", provider.parseRelatedQuestions(encoded).first())
+    }
+}
