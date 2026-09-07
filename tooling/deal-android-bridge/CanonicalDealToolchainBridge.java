@@ -103,7 +103,7 @@ public final class CanonicalDealToolchainBridge {
                 PACK_SPECIFIER,
                 instruction,
                 maxRounds,
-                maxSemanticRepairs).useConstructionApi();
+                maxSemanticRepairs).useConstructionApi().withRepairProtocol("repair-workspace-v2");
     }
 
     public static Object createGenerationSession(
@@ -116,11 +116,16 @@ public final class CanonicalDealToolchainBridge {
                 PACK_SPECIFIER,
                 instruction,
                 maxRounds,
-                maxSemanticRepairs).useConstructionApi();
+                maxSemanticRepairs).useConstructionApi().withRepairProtocol("repair-workspace-v2");
     }
 
     public static String refinementNextRequest(Object session) {
         return ((CanonicalRefinementSession) session).nextRequestJson();
+    }
+
+    /** Explicit capability negotiation; unsupported versions fail rather than silently falling back. */
+    public static Object configureRepairProtocol(Object session, String version) {
+        return ((CanonicalRefinementSession) session).withRepairProtocol(version);
     }
 
     public static Object createGenerationSessionWithReasoning(

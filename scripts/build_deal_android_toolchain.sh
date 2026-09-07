@@ -84,12 +84,16 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_REPO/deal/compiler/CompilerProtocolJson.java" \
   "$DEAL_REPO/deal/compiler/DealConstruction.java" \
   "$DEAL_REPO/deal/compiler/ConstructionRepairWorkspace.java" \
+  "$DEAL_REPO/deal/compiler/RepairWorkspaceProtocol.java" \
+  "$DEAL_REPO/deal/compiler/DeclarationReferences.java" \
+  "$DEAL_REPO/deal/compiler/RepairDiagnosticRegistry.java" \
   "$DEAL_REPO/deal/compiler/DealCompilerWorkspace.java"
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiModel.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDiagnostic.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiRepairDiagnostics.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiParser.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/DealUiDealSource.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiBorrowedValueChecker.java" \

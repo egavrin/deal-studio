@@ -255,7 +255,9 @@ class CanonicalDealUiTouchDeviceTest {
                 onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
                 accessibilityLabel: "Test pointer"
               ) {
-                ui.Canvas(width: 400, height: 400, accessibilityLabel: "Test canvas") {}
+                ui.Canvas(width: 400, height: 400, accessibilityLabel: "Test canvas") {
+                  ui.Rectangle(x: 0, y: 0, width: 400, height: 400, color: "#ffffff")
+                }
               }
             }
         """

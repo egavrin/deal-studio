@@ -28,6 +28,7 @@ class CanonicalDealToolchainDeviceTest {
             "Offset the pointer x coordinate by one"
         )
         val request = session.nextRequest()
+        assertEquals("repair-workspace-v2", request.getValue("repairProtocol").jsonPrimitive.content)
         val input = kotlinx.serialization.json.Json.parseToJsonElement(
             request.getValue("input").jsonPrimitive.content
         ).jsonObject
@@ -44,20 +45,45 @@ class CanonicalDealToolchainDeviceTest {
             }
             .getValue("target").jsonPrimitive.content
 
-        session.acceptToolCall("query_deal_node", buildJsonObject { put("target", body) }.toString())
+        session.acceptToolCall(
+            "inspect_deal_change",
+            buildJsonObject {
+                putJsonArray("anchors") { add(kotlinx.serialization.json.JsonPrimitive(body)) }
+                putJsonArray("requestedOperations") { add(kotlinx.serialization.json.JsonPrimitive("replaceFunctionBody")) }
+            }.toString()
+        )
         val repair = session.acceptToolCall(
-            "apply_deal_changes",
-            changeArguments(body, "return missing;")
+            "construct_apply_deal_changes",
+            """{
+              "calls":[
+                {"id":"missing","op":"path","parts":["missing"]},
+                {"id":"body","op":"return","value":"missing"}
+              ],
+              "arguments":{"operations":[{"operation":"replaceFunctionBody","body":"body"}],"final":true}
+            }
+            """.trimIndent()
         )
 
         val repairToolNames = repair.getValue("tools").jsonArray.map {
             it.jsonObject.getValue("name").jsonPrimitive.content
         }
-        assertEquals(listOf("apply_deal_changes"), repairToolNames)
+        assertTrue(repairToolNames.contains("construct_apply_repair_transaction"))
+        assertTrue(!repairToolNames.contains("construct_apply_deal_changes"))
 
         val result = session.acceptToolCall(
-            "apply_deal_changes",
-            changeArguments(body, "return { x: action.x + 1, y: action.y, phase: action.phase };")
+            "construct_apply_repair_transaction",
+            """{
+              "calls":[
+                {"id":"x","op":"binary","left":{"path":["action","x"]},"operator":"+","right":1},
+                {"id":"body","op":"returnRecord","fields":[
+                  {"name":"x","value":"x"},
+                  {"name":"y","value":{"path":["action","y"]}},
+                  {"name":"phase","value":{"path":["action","phase"]}}
+                ]}
+              ],
+              "arguments":{"patches":[{"slot":"R1","operation":"replaceFunctionBody","payload":{"body":"body"}}],"dependencies":[]}
+            }
+            """.trimIndent()
         )
 
         assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
@@ -66,7 +92,7 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     @Test
-    fun portableStreamingCompilerAddsACompilerOwnedViewOnDevice() {
+    fun portableStreamingCompilerDoesNotExposeWholeViewInsertionOnDevice() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
         val session = toolchain.createRefinementSession(
@@ -75,39 +101,22 @@ class CanonicalDealToolchainDeviceTest {
             CanonicalDealUiPack.source,
             "Add a compact read-only detail view"
         )
+        val initialRevision = session.nextRequest().getValue("revision")
         val queried = session.acceptToolCall(
-            "query_deal_ui_document",
-            buildJsonObject { put("target", "D1") }.toString()
+            "inspect_deal_ui_change",
+            """{"anchors":["D1"],"requestedOperations":["addView"]}"""
         )
         assertTrue(
             queried.getValue("tools").jsonArray.any {
-                it.jsonObject.getValue("name").jsonPrimitive.content == "apply_deal_ui_changes"
+                it.jsonObject.getValue("name").jsonPrimitive.content == "patch_tool_argument"
             }
         )
-
-        val result = session.acceptToolCall(
-            "apply_deal_ui_changes",
-            buildJsonObject {
-                putJsonArray("operations") {
-                    add(
-                        buildJsonObject {
-                            put("operation", "addView")
-                            put("target", "D1")
-                            put(
-                                "source",
-                                "export view Detail(state: app.PointerState): View { " +
-                                    "ui.Text(value: \"Pointer details\") }"
-                            )
-                        }
-                    )
-                }
-                put("final", true)
-            }.toString()
+        assertTrue(
+            queried.getValue("tools").jsonArray.none {
+                it.jsonObject.getValue("name").jsonPrimitive.content == "construct_apply_deal_ui_changes"
+            }
         )
-
-        assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
-        assertTrue(result.getValue("dealUi").jsonPrimitive.content.contains("export view Detail"))
-        assertEquals(POINTER_SOURCE, result.getValue("deal").jsonPrimitive.content)
+        assertEquals(initialRevision, queried.getValue("revision"))
     }
 
     @Test
@@ -392,19 +401,6 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     private companion object {
-        fun changeArguments(target: String, body: String): String = buildJsonObject {
-            putJsonArray("operations") {
-                add(
-                    buildJsonObject {
-                        put("operation", "replaceFunctionBody")
-                        put("target", target)
-                        put("body", body)
-                    }
-                )
-            }
-            put("final", true)
-        }.toString()
-
         const val ARRAY_LITERAL_SOURCE = """
             export class ArrayState {
               labels: string[] = [];
@@ -526,7 +522,9 @@ class CanonicalDealToolchainDeviceTest {
                     onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
                     accessibilityLabel: "Pointer surface"
                   ) {
-                    ui.Canvas(width: 640, height: 800, accessibilityLabel: "Canvas") {}
+                    ui.Canvas(width: 640, height: 800, accessibilityLabel: "Canvas") {
+                      ui.Rectangle(x: 0, y: 0, width: 640, height: 800, color: "#ffffff")
+                    }
                   }
                 }
               }
