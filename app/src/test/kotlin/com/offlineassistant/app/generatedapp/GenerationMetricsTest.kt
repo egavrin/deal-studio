@@ -16,6 +16,8 @@ class GenerationMetricsTest {
         assertEquals(7, metrics.acceptedPatches)
         assertEquals(1, metrics.rejectedPatches)
         assertEquals(3, metrics.rounds)
+        assertEquals(3, metrics.modelCalls)
+        assertEquals(0, metrics.compilerRepairCalls)
         assertEquals(5_100L, metrics.firstInteractivePreviewMs)
         assertEquals(100.0, metrics.outputTokensPerSecond!!, 0.01)
     }

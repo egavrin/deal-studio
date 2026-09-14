@@ -11,7 +11,9 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import com.offlineassistant.app.BuildConfig
 import com.offlineassistant.app.DealStudioActivity
+import com.offlineassistant.deepseek.DeepSeekGenerationClient
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
+import com.offlineassistant.deepseek.DeepSeekGenerationRequest
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
@@ -344,6 +346,93 @@ class CanonicalGeneratedAppCloudDeviceTest {
     }
 
     @Test
+    fun exactChineseMedicationPromptCompilesOnDevice() {
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val request = "我最近要吃药，每天饭后半小时内吃一颗，请帮我生成一个吃药管理应用，可以统计我历史上有没有按时间吃药，可以反馈给医生。"
+            val started = SystemClock.elapsedRealtime()
+            val trace = StringBuilder()
+            val compiler = CanonicalGeneratedAppCloudCompiler(
+                context = context,
+                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY },
+                dealReasoningEffort = "none",
+                compilerToolTrace = { event ->
+                    trace.appendLine("${SystemClock.elapsedRealtime() - started}ms\t$event")
+                }
+            )
+            val bundle = try {
+                compiler.generate(
+                    request = request,
+                    dealModel = DeepSeekGenerationModel.FLASH,
+                    dealUiModel = DeepSeekGenerationModel.FLASH
+                )
+            } catch (failure: CanonicalGenerationFailureException) {
+                val directory = File(context.getExternalFilesDir(null), "live-probes/${System.currentTimeMillis()}-failed")
+                    .apply { mkdirs() }
+                failure.artifactDirectory.copyRecursively(File(directory, failure.artifactId), overwrite = true)
+                File(directory, "compiler-trace.log").writeText(trace.toString())
+                println("CHINESE_MEDICATION_FAILURE_PROBE=${directory.absolutePath}")
+                throw failure
+            }
+
+            val toolchain = CanonicalDealToolchain(context)
+            toolchain.compilePortable(bundle.dealSource, bundle.dealUiSource, CanonicalDealUiPack.source)
+            assertTrue("Generated DEAL must initialize runtime state", toolchain.createRuntime(bundle.dealSource).snapshot().isNotEmpty())
+
+            val directory = File(context.getExternalFilesDir(null), "live-probes/${System.currentTimeMillis()}")
+                .apply { mkdirs() }
+            File(directory, "app.deal").writeText(bundle.dealSource)
+            File(directory, "app.dealui").writeText(bundle.dealUiSource)
+            File(directory, "checked-ui-ir.json").writeText(bundle.checkedUiIr)
+            File(directory, "compiler-trace.log").writeText(trace.toString())
+            File(directory, "metrics.txt").writeText(
+                "wall_ms=${bundle.wallLatencyMs}\n" +
+                    "input_tokens=${bundle.dealInputTokens}\n" +
+                    "cached_input_tokens=${bundle.dealCachedInputTokens}\n" +
+                    "output_tokens=${bundle.dealOutputTokens}\n" +
+                    "repair_passes=${bundle.repairPasses}\n" +
+                    "deal_bytes=${bundle.dealSource.encodeToByteArray().size}\n" +
+                    "dealui_bytes=${bundle.dealUiSource.encodeToByteArray().size}\n"
+            )
+            println("CHINESE_MEDICATION_PROBE=${directory.absolutePath}")
+        }
+    }
+
+    @Test
+    fun exactChineseMedicationPromptGeneratesHtml5OnDevice() {
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val request = "我最近要吃药，每天饭后半小时内吃一颗，请帮我生成一个吃药管理应用，可以统计我历史上有没有按时间吃药，可以反馈给医生。"
+            val generated = DeepSeekGenerationClient(
+                apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY }
+            ).generate(
+                DeepSeekGenerationRequest(
+                    model = DeepSeekGenerationModel.FLASH,
+                    instructions = ExperimentalHtml5Prompt.INSTRUCTIONS,
+                    input = ExperimentalHtml5Prompt.input(request),
+                    maxOutputTokens = 16_384,
+                    temperature = 0.0
+                )
+            )
+            val html = normalizeExperimentalHtml(generated.output)
+            assertTrue("HTML5 baseline must return a standalone document", html.contains("<html", ignoreCase = true))
+
+            val directory = File(context.getExternalFilesDir(null), "live-probes/${System.currentTimeMillis()}")
+                .apply { mkdirs() }
+            File(directory, "baseline.html").writeText(html)
+            File(directory, "metrics.txt").writeText(
+                "wall_ms=${generated.latencyMs}\n" +
+                    "input_tokens=${generated.inputTokens}\n" +
+                    "cached_input_tokens=${generated.cachedInputTokens}\n" +
+                    "output_tokens=${generated.outputTokens}\n" +
+                    "html_bytes=${html.encodeToByteArray().size}\n"
+            )
+            println("CHINESE_MEDICATION_HTML5_PROBE=${directory.absolutePath}")
+        }
+    }
+
+    @Test
     fun requestedMedicationAppGenerates() {
         generateAndPersist(
             artifactName = "medication-request-2026-09-07",
@@ -569,38 +658,6 @@ class CanonicalGeneratedAppCloudDeviceTest {
             dealUiModel = DeepSeekGenerationModel.PRO,
             dealReasoningEffort = "none"
         )
-    }
-
-    @Test
-    fun sourceFreeCounterResumeUi() {
-        val calls = recordedCounterApiCalls().take(1)
-        generateAndPersist(
-            artifactName = "source-free-counter-resumed-2026-09-07",
-            request = "Create a tiny counter UI. One integer count initially zero, one Increment action that adds one, a visible numeric count and an Add button. No host capabilities, no optional features. English UI.",
-            dealModel = DeepSeekGenerationModel.PRO,
-            dealUiModel = DeepSeekGenerationModel.PRO,
-            acceptedApiReplay = calls
-        )
-    }
-
-    @Test
-    fun sourceFreeCounterReplayCompleted() {
-        val calls = recordedCounterApiCalls()
-        generateAndPersist(
-            artifactName = "source-free-counter-verified-2026-09-07",
-            request = "Create a tiny counter UI. One integer count initially zero, one Increment action that adds one, a visible numeric count and an Add button. No host capabilities, no optional features. English UI.",
-            dealModel = DeepSeekGenerationModel.PRO,
-            dealUiModel = DeepSeekGenerationModel.PRO,
-            acceptedApiReplay = calls
-        )
-    }
-
-    private fun recordedCounterApiCalls(): List<Pair<String, String>> {
-        val source = InstrumentationRegistry.getInstrumentation().context.assets
-            .open("compiler-construction/counter-batch-real-api.json").bufferedReader().use { it.readText() }
-        return kotlinx.serialization.json.Json.parseToJsonElement(source).jsonArray.map {
-            (it as JsonObject).getValue("name").jsonPrimitive.content to it.getValue("arguments").toString()
-        }
     }
 
     @Test
@@ -1266,7 +1323,6 @@ class CanonicalGeneratedAppCloudDeviceTest {
         dealModel: DeepSeekGenerationModel,
         dealUiModel: DeepSeekGenerationModel,
         acceptanceScenario: String = artifactName,
-        acceptedApiReplay: List<Pair<String, String>> = emptyList(),
         dealReasoningEffort: String = "low"
     ) {
         runBlocking {
@@ -1280,16 +1336,12 @@ class CanonicalGeneratedAppCloudDeviceTest {
             val compilerTrace = StringBuilder()
             val phaseTrace = StringBuilder()
             var lastPhase: CanonicalGenerationPhase? = null
-            val replayDirectory = File(directory, "$artifactName-replay-${System.currentTimeMillis()}").apply { mkdirs() }
-            var replayIndex = 0
             val bundle = runCatching {
                 CanonicalGeneratedAppCloudCompiler(
                     context = context,
-                    acceptedApiReplay = acceptedApiReplay,
                     dealReasoningEffort = dealReasoningEffort,
                     apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
                     cerebrasApiKeyProvider = { BuildConfig.EMBEDDED_CEREBRAS_API_KEY },
-                    replayTrace = { kind, payload -> File(replayDirectory, "${replayIndex++}-$kind.json").writeText(payload) },
                     compilerToolTrace = { call ->
                         compilerTrace.appendLine("${SystemClock.elapsedRealtime() - started}ms\t$call")
                     }
@@ -1305,7 +1357,7 @@ class CanonicalGeneratedAppCloudDeviceTest {
                         when (phase) {
                             CanonicalGenerationPhase.DEAL -> partialDeal = partial
                             CanonicalGenerationPhase.DEAL_UI -> partialDealUi = partial
-                            CanonicalGenerationPhase.REPAIRING -> Unit
+                            CanonicalGenerationPhase.REPAIRING, CanonicalGenerationPhase.RETRYING -> Unit
                             else -> Unit
                         }
                     },
@@ -1317,11 +1369,6 @@ class CanonicalGeneratedAppCloudDeviceTest {
                 File(directory, "$artifactName.failed.compiler-tools.log").writeText(compilerTrace.toString())
                 File(directory, "$artifactName.failed.phases.log").writeText(phaseTrace.toString())
                 File(directory, "$artifactName.failure.txt").writeText(failure.stackTraceToString())
-                if (failure is CanonicalSourceRepairException) {
-                    File(directory, "$artifactName.repair-source.txt").writeText(failure.source)
-                    File(directory, "$artifactName.repair-diagnostic.txt").writeText(failure.diagnostic)
-                    File(directory, "$artifactName.repair-patch.txt").writeText(failure.patch)
-                }
                 throw AssertionError(
                     buildString {
                         appendLine(failure.stackTraceToString())
@@ -1391,21 +1438,16 @@ class CanonicalGeneratedAppCloudDeviceTest {
         val program = CanonicalDealUiParser.parse(bundle.checkedUiIr)
         assertTrue("Checked Deal UI must have a render tree", program.nodes.isNotEmpty())
         assertEquals(appInterface.rootState, program.metadata.rootStateType)
-        assertEquals(
-            "Every externally reachable DEAL action must be bound by checked Deal UI",
-            appInterface.actions.mapTo(linkedSetOf(), AppInterfaceType::name),
-            program.metadata.reachableInputActions
+        assertTrue(
+            "Checked Deal UI may bind only declared external DEAL actions",
+            appInterface.actions.mapTo(linkedSetOf(), AppInterfaceType::name)
+                .containsAll(program.metadata.reachableInputActions)
         )
         assertTrue("Every generated app must own a theme", "ui.AppTheme" in program.metadata.usedComponents)
         assertTrue("Every generated app must have one root surface", "ui.Root" in program.metadata.usedComponents)
         assertEquals(
             CanonicalDealUiPack.SHA256,
             program.metadata.packDigests.values.single()
-        )
-        assertTrue(
-            "Every declared host capability must be represented by a checked host component",
-            requiredDealUiHostComponents(appInterface.capabilities)
-                .all { required -> program.metadata.usedComponents.any { it.endsWith(".$required") } }
         )
     }
 

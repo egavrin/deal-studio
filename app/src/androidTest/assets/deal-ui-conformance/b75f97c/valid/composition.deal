@@ -1,0 +1,33 @@
+export class Item {
+  id: int = 0;
+  title: string = "";
+  visible: boolean = true;
+}
+
+export class AppState {
+  title: string = "Conformance";
+  query: string = "";
+  showQuery: boolean = false;
+  items: Item[] = [];
+}
+
+export class SetQuery { value: string = ""; }
+export class SelectItem { id: int = 0; }
+
+export function initialState(): AppState {
+  let first: Item = { id: 1, title: "First", visible: true };
+  let items: Item[] = [first];
+  return { title: "Conformance", query: "", showQuery: false, items: items };
+}
+
+// @ui-update
+export function setQuery(state: AppState, action: SetQuery): AppState {
+  return { title: state.title, query: action.value, showQuery: true, items: state.items };
+}
+
+// @ui-update
+export function selectItem(state: AppState, action: SelectItem): AppState {
+  return state;
+}
+
+export function main(): null { return null; }

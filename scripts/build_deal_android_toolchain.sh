@@ -55,6 +55,23 @@ require_clean_revision "$DEAL_REPO" "$DEAL_REVISION" "DEAL"
 require_clean_revision "$DEAL_UI_REPO" "$DEAL_UI_REVISION" "Deal UI"
 require_clean_revision "$STREAMING_COMPILER_REPO" "$STREAMING_COMPILER_REVISION" "streaming-compiler"
 
+report_provenance() {
+  local label=$1 repository=$2 expected=$3 source_origin=$4 source_ref=$5
+  local configured_origin
+  configured_origin=$(git -C "$repository" remote get-url origin 2>/dev/null || true)
+  local availability="local-only"
+  if [[ "$configured_origin" == "$source_origin" ]] && git ls-remote "$source_origin" 2>/dev/null | awk '{print $1}' | grep -qx "$expected"; then
+    availability="remote-reachable"
+  fi
+  printf '%s provenance: origin=%s ref=%s revision=%s availability=%s\n' \
+    "$label" "$source_origin" "$source_ref" "$expected" "$availability"
+}
+
+report_provenance "DEAL" "$DEAL_REPO" "$DEAL_REVISION" "$DEAL_SOURCE_ORIGIN" "$DEAL_SOURCE_REF"
+report_provenance "Deal UI" "$DEAL_UI_REPO" "$DEAL_UI_REVISION" "$DEAL_UI_SOURCE_ORIGIN" "$DEAL_UI_SOURCE_REF"
+report_provenance "streaming compiler" "$STREAMING_COMPILER_REPO" "$STREAMING_COMPILER_REVISION" \
+  "$STREAMING_COMPILER_SOURCE_ORIGIN" "$STREAMING_COMPILER_SOURCE_REF"
+
 ACTUAL_JAVAC=$(javac -version 2>&1 | awk '{print $2}')
 [[ "$ACTUAL_JAVAC" == "$JAVAC_VERSION" ]] || {
   printf 'javac mismatch: expected %s, found %s\n' "$JAVAC_VERSION" "$ACTUAL_JAVAC" >&2

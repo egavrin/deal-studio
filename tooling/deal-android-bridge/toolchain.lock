@@ -1,6 +1,12 @@
 DEAL_REVISION=df8395e145c36cbe0590219a47d3a39f69a5ea6a
 DEAL_UI_REVISION=18150c97dd519b771fc2e1b2f1ee25c344e64f52
 STREAMING_COMPILER_REVISION=f6dc95e0d8890bc333876e70a01af56ccfa96df0
+DEAL_SOURCE_ORIGIN=https://github.com/arkts-dev/deal.git
+DEAL_SOURCE_REF=egavrin/deal-compiler-modernization
+DEAL_UI_SOURCE_ORIGIN=https://github.com/arkts-dev/deal-ui.git
+DEAL_UI_SOURCE_REF=egavrin/deal-ui-compiler-modernization
+STREAMING_COMPILER_SOURCE_ORIGIN=https://github.com/egavrin/deal-streaming-compiler.git
+STREAMING_COMPILER_SOURCE_REF=egavrin/canonical-compiler-integration
 COMPONENT_PACK_VERSION=deal-studio-dealui-pack-v13
 COMPONENT_PACK_SHA256=52e265f70d44e22f6be3be69b86fba74812f78aa302e59cebbfa014fe2d0e67e
 JAVAC_VERSION=25.0.2

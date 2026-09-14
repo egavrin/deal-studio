@@ -1,0 +1,8 @@
+scenario,size,runs,canonical_raw_framing_success_rate,canonical_wall_p50_ms,canonical_ttft_p50_ms,canonical_input_p50_tokens,canonical_cached_input_p50_tokens,canonical_output_p50_tokens,canonical_estimated_cost_p50_usd,html5_normalization_success_rate,html5_wall_p50_ms,html5_ttft_p50_ms,html5_input_p50_tokens,html5_cached_input_p50_tokens,html5_output_p50_tokens,html5_estimated_cost_p50_usd
+arkanoid,interactive,5,1.00,9842,1064,5155,4992,3278,0.00240456,1.00,15558,876,412,256,5513,0.00367469
+habit_tracker,medium,5,1.00,22402,1039,5116,4864,8180,0.00548829,1.00,20645,798,373,128,7754,0.00517244
+household_budget,large,5,1.00,31943,1059,5139,4992,12368,0.00823016,1.00,24059,872,396,256,9235,0.00612769
+medication_tracker,medium,5,1.00,16884,997,5062,4864,6222,0.00418413,1.00,16419,740,319,128,5474,0.00365576
+percent_calculator,small,5,1.00,9070,925,5066,4864,2911,0.00199975,1.00,14619,682,324,128,4934,0.00330046
+travel_planner,very_large,5,0.00,40585,917,5153,4992,16384,0.01088380,1.00,26654,862,410,256,9721,0.00645153
+unit_converter,compact,5,1.00,16165,1035,5100,4864,5970,0.00402617,1.00,18741,787,357,128,6319,0.00422182

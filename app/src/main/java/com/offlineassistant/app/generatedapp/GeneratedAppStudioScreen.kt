@@ -3,8 +3,14 @@
 
 package com.offlineassistant.app.generatedapp
 
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -98,10 +104,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
+import java.io.ByteArrayInputStream
 import kotlin.math.roundToInt
 
 @Composable
@@ -128,6 +136,7 @@ internal fun GeneratedAppStudioRoute(
             onPromptChanged = viewModel::updatePrompt,
             onRefinementChanged = viewModel::updateRefinementPrompt,
             onExampleSelected = viewModel::selectExample,
+            onGenerationModeSelected = viewModel::selectGenerationMode,
             onGenerate = viewModel::generate,
             onGenerateSurprise = viewModel::generateSurprise,
             onRefine = viewModel::refine,
@@ -168,6 +177,7 @@ internal data class GeneratedAppStudioActions(
     val onPromptChanged: (String) -> Unit,
     val onRefinementChanged: (String) -> Unit,
     val onExampleSelected: (String) -> Unit,
+    val onGenerationModeSelected: (StudioGenerationMode) -> Unit,
     val onGenerate: () -> Unit,
     val onGenerateSurprise: () -> Unit,
     val onRefine: () -> Unit,
@@ -208,27 +218,15 @@ internal fun GeneratedAppStudioScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             StudioComposer(state, actions)
-            when (val session = state.session) {
-                is CanonicalStudioSession.Generating -> {
-                    GenerationProgress(session, actions.onCancel)
-                    session.acceptedPreview?.let { preview ->
-                        AcceptedPreview(preview)
-                    } ?: session.previousRunnable?.let { PreviousRunnableNotice(it, actions) }
-                }
-
-                is CanonicalStudioSession.Refining -> {
-                    GenerationProgress(session.message, null, actions.onCancel)
-                    RunnableResult(session.previousRunnable, state, actions)
-                }
-
-                is CanonicalStudioSession.Failed -> {
-                    FailurePanel(session, actions.onGenerate)
-                    session.previousRunnable?.let { RunnableResult(it, state, actions) }
-                }
-
-                is CanonicalStudioSession.Runnable -> RunnableResult(session.app, state, actions)
-
-                CanonicalStudioSession.Empty -> Unit
+            if (state.generationMode == StudioGenerationMode.CANONICAL) {
+                CanonicalStudioResult(state, actions)
+            } else {
+                ExperimentalHtml5StudioResult(state.experimentalHtml5Session, actions)
+            }
+            val canonical = state.runnable
+            val html5 = state.experimentalHtml5Session.result
+            if (canonical != null && html5 != null) {
+                GenerationComparison(canonical.bundle, html5)
             }
             SavedApps(state.savedApps, actions)
             LegacyRequests(state.legacyRequests, actions.onRebuildLegacy)
@@ -240,8 +238,13 @@ internal fun GeneratedAppStudioScreen(
 @Composable
 private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedAppStudioActions) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        GenerationModeSelector(state.generationMode, !state.isBusy, actions.onGenerationModeSelected)
         Text(
-            if (state.runnable == null) "Create an app" else "Create another app",
+            when {
+                state.generationMode == StudioGenerationMode.EXPERIMENTAL_HTML5 -> "Generate a comparison baseline"
+                state.runnable == null -> "Create an app"
+                else -> "Create another app"
+            },
             style = MaterialTheme.typography.titleMedium
         )
         Box {
@@ -302,11 +305,313 @@ private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedApp
 }
 
 @Composable
+private fun GenerationModeSelector(
+    selected: StudioGenerationMode,
+    enabled: Boolean,
+    onSelected: (StudioGenerationMode) -> Unit
+) {
+    val modes = StudioGenerationMode.entries
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        PrimaryTabRow(selectedTabIndex = modes.indexOf(selected)) {
+            modes.forEach { mode ->
+                Tab(
+                    selected = selected == mode,
+                    enabled = enabled,
+                    onClick = { onSelected(mode) },
+                    text = {
+                        Text(
+                            if (mode == StudioGenerationMode.CANONICAL) {
+                                "Canonical DEAL"
+                            } else {
+                                "JS / HTML5 · Experimental"
+                            },
+                            maxLines = 2
+                        )
+                    }
+                )
+            }
+        }
+        Text(
+            if (selected == StudioGenerationMode.CANONICAL) {
+                "Compiler-checked DEAL and Deal UI. This is the authoritative Studio path."
+            } else {
+                "One direct call with the selected DEAL model, rendered as untrusted content in an offline " +
+                    "sandbox. It cannot be saved."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun CanonicalStudioResult(state: GeneratedAppStudioState, actions: GeneratedAppStudioActions) {
+    when (val session = state.session) {
+        is CanonicalStudioSession.Generating -> {
+            GenerationProgress(session, actions.onCancel)
+            session.acceptedPreview?.let { preview ->
+                AcceptedPreview(preview)
+            } ?: session.previousRunnable?.let { PreviousRunnableNotice(it, actions) }
+        }
+
+        is CanonicalStudioSession.Refining -> {
+            GenerationProgress(session.message, null, actions.onCancel)
+            RunnableResult(session.previousRunnable, state, actions)
+        }
+
+        is CanonicalStudioSession.Failed -> {
+            FailurePanel(session, actions.onGenerate)
+            session.previousRunnable?.let { RunnableResult(it, state, actions) }
+        }
+
+        is CanonicalStudioSession.Runnable -> RunnableResult(session.app, state, actions)
+
+        CanonicalStudioSession.Empty -> Unit
+    }
+}
+
+@Composable
+private fun ExperimentalHtml5StudioResult(
+    session: ExperimentalHtml5Session,
+    actions: GeneratedAppStudioActions
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        when (session) {
+            ExperimentalHtml5Session.Empty -> Unit
+
+            is ExperimentalHtml5Session.Generating -> {
+                GenerationProgress(
+                    message = "Generating experimental HTML5 baseline",
+                    supporting = "One direct model call; output is never added to the canonical library.",
+                    onCancel = actions.onCancel
+                )
+                session.previousResult?.let { ExperimentalHtml5ResultPanel(it) }
+            }
+
+            is ExperimentalHtml5Session.Ready -> ExperimentalHtml5ResultPanel(session.result)
+
+            is ExperimentalHtml5Session.Failed -> {
+                ExperimentalHtml5Failure(session, actions.onGenerate)
+                session.previousResult?.let { ExperimentalHtml5ResultPanel(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExperimentalHtml5Failure(failure: ExperimentalHtml5Session.Failed, onRetry: () -> Unit) {
+    var details by rememberSaveable(failure.technicalTrace) { mutableStateOf(false) }
+    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(6.dp)) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("HTML5 baseline failed", style = MaterialTheme.typography.titleMedium)
+            Text(failure.userMessage)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRetry) { Text("Try again") }
+                TextButton(onClick = { details = !details }) {
+                    Text(if (details) "Hide technical details" else "Technical details")
+                }
+            }
+            if (details) Text(failure.technicalTrace, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+private fun ExperimentalHtml5ResultPanel(result: ExperimentalHtml5Result) {
+    var isFullscreen by remember(result.html) { mutableStateOf(false) }
+
+    if (isFullscreen) {
+        FullscreenHtml5Preview(result.html, onCollapse = { isFullscreen = false })
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            shape = RoundedCornerShape(6.dp)
+        ) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Experimental JS / HTML5 baseline", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Untrusted preview · offline sandbox · no file/content access, network loads, or JS bridge",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+        SandboxedHtml5Preview(result.html, onExpand = { isFullscreen = true })
+        ExperimentalHtml5Metrics(result)
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun SandboxedHtml5Preview(html: String, onExpand: () -> Unit) {
+    Surface(
+        Modifier.fillMaxWidth().height(560.dp),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            SandboxedHtml5WebView(html, Modifier.fillMaxSize())
+            Surface(
+                Modifier.align(Alignment.TopEnd).padding(10.dp),
+                shape = RoundedCornerShape(6.dp),
+                shadowElevation = 4.dp
+            ) {
+                IconButton(onClick = onExpand) {
+                    Icon(Icons.Default.Fullscreen, contentDescription = "Open HTML5 preview full screen")
+                }
+            }
+        }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun SandboxedHtml5WebView(html: String, modifier: Modifier) {
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = false
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                settings.blockNetworkLoads = true
+                settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                settings.setGeolocationEnabled(false)
+                settings.mediaPlaybackRequiresUserGesture = true
+                settings.javaScriptCanOpenWindowsAutomatically = false
+                settings.setSupportMultipleWindows(false)
+                settings.setSupportZoom(false)
+                settings.builtInZoomControls = false
+                settings.displayZoomControls = false
+                isVerticalScrollBarEnabled = true
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = WebView.OVER_SCROLL_IF_CONTENT_SCROLLS
+                isNestedScrollingEnabled = true
+                webViewClient = OfflineOnlyWebViewClient()
+            }
+        },
+        update = { webView ->
+            if (webView.tag != html) {
+                webView.tag = html
+                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+            }
+        },
+        onRelease = { webView ->
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            webView.removeAllViews()
+            webView.destroy()
+        }
+    )
+}
+
+private class OfflineOnlyWebViewClient : WebViewClient() {
+    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = request?.url?.scheme !in setOf("about", "data")
+
+    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+        val scheme = request?.url?.scheme
+        return if (scheme in setOf("http", "https", "file", "content")) {
+            WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
+        } else {
+            super.shouldInterceptRequest(view, request)
+        }
+    }
+}
+
+@Composable
+private fun ExperimentalHtml5Metrics(result: ExperimentalHtml5Result) {
+    val provider = result.model.provider.name.lowercase().replaceFirstChar(Char::uppercase)
+    val facts = listOf(
+        "Wall latency" to formatGenerationDuration(result.wallLatencyMs),
+        "First token" to formatGenerationDuration(result.timeToFirstTokenMs),
+        "Input" to formatGenerationTokens(result.inputTokens),
+        "Cached input" to formatGenerationTokens(result.cachedInputTokens),
+        "Output" to formatGenerationTokens(result.outputTokens),
+        "Token-volume proxy" to formatGenerationTokens(result.tokenCountCostProxy)
+    )
+    Surface(
+        Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Baseline generation details", style = MaterialTheme.typography.titleSmall)
+            facts.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.forEach { (label, value) -> GenerationFact(label, value, Modifier.weight(1f)) }
+                }
+            }
+            Text(
+                "$provider · ${result.model.apiId}. Token-volume proxy is input + output tokens, not a price quote.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun GenerationComparison(canonical: CanonicalGeneratedAppBundle, html5: ExperimentalHtml5Result) {
+    val canonicalMetrics = remember(canonical) { canonical.generationMetrics() }
+    Surface(
+        Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Canonical vs experimental baseline", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Comparable wall time and token counts; the HTML5 token volume is not a price quote.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            ComparisonRow("Result", "Total", "Input", "Output", FontWeight.SemiBold)
+            ComparisonRow(
+                "Canonical DEAL",
+                formatGenerationDuration(canonicalMetrics.totalDurationMs),
+                formatGenerationTokens(canonicalMetrics.inputTokens),
+                formatGenerationTokens(canonicalMetrics.outputTokens)
+            )
+            ComparisonRow(
+                "HTML5 experimental",
+                formatGenerationDuration(html5.wallLatencyMs),
+                formatGenerationTokens(html5.inputTokens),
+                formatGenerationTokens(html5.outputTokens)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ComparisonRow(
+    label: String,
+    total: String,
+    input: String,
+    output: String,
+    weight: FontWeight = FontWeight.Normal
+) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, Modifier.weight(1.6f), fontWeight = weight)
+        Text(total, Modifier.weight(1f), fontWeight = weight)
+        Text(input, Modifier.weight(1f), fontWeight = weight)
+        Text(output, Modifier.weight(1f), fontWeight = weight)
+    }
+}
+
+@Composable
 private fun BuildButton(state: GeneratedAppStudioState, actions: GeneratedAppStudioActions, modifier: Modifier) {
     Button(onClick = actions.onGenerate, enabled = state.canGenerate, modifier = modifier.height(48.dp)) {
         Icon(Icons.Default.AutoAwesome, contentDescription = null)
         Spacer(Modifier.width(8.dp))
-        Text("Build app")
+        Text(
+            if (state.generationMode == StudioGenerationMode.CANONICAL) {
+                "Build app"
+            } else {
+                "Generate HTML5 baseline"
+            }
+        )
     }
 }
 
@@ -328,10 +633,11 @@ private fun GenerationProgress(session: CanonicalStudioSession.Generating, onCan
     GenerationProgress(
         message = session.message,
         supporting = when (session.phase) {
-            CanonicalGenerationPhase.DEAL -> "DeepSeek is producing compiler-checked DEAL."
-            CanonicalGenerationPhase.DEAL_UI -> "Accepted Deal UI sections appear as they pass validation."
-            CanonicalGenerationPhase.VALIDATING -> "Both canonical sources are being checked together."
-            CanonicalGenerationPhase.REPAIRING -> "Only the rejected compiler-owned region is being revised."
+            CanonicalGenerationPhase.DEAL -> "DeepSeek is producing one complete DEAL and Deal UI bundle."
+            CanonicalGenerationPhase.DEAL_UI -> "DeepSeek is producing one complete application bundle."
+            CanonicalGenerationPhase.VALIDATING -> "The pinned compilers are checking both canonical sources."
+            CanonicalGenerationPhase.REPAIRING -> "DeepSeek is applying one compiler-directed local source patch."
+            CanonicalGenerationPhase.RETRYING -> "A structural compiler error needs one fresh complete-bundle retry."
         },
         onCancel = onCancel
     )
@@ -404,7 +710,7 @@ private fun AcceptedPreview(preview: CanonicalAcceptedPreview) {
             Column(Modifier.weight(1f)) {
                 Text("Building your interface", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${preview.committedSections} compiler-accepted sections",
+                    "Compiler-accepted application bundle",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -542,7 +848,7 @@ private fun GenerationDetails(bundle: CanonicalGeneratedAppBundle) {
             GenerationTokenGrid(metrics)
             GenerationCompilerSummary(bundle, metrics)
             Text(
-                "${bundle.dealModelId} for DEAL · ${bundle.dealUiModelId} for Deal UI · pack ${CanonicalDealUiPack.VERSION}",
+                "${bundle.dealModelId} for the canonical bundle · pack ${CanonicalDealUiPack.VERSION}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -721,15 +1027,24 @@ private fun GenerationCompilerSummary(
         ) {
             Icon(Icons.Default.TaskAlt, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Compiler reliability", style = MaterialTheme.typography.titleMedium)
+                Text("Compiler result", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${metrics.acceptedPatches} accepted · ${metrics.rejectedPatches} rejected · " +
-                        "${metrics.rounds} model rounds",
+                    "${metrics.modelCalls} model call${if (metrics.modelCalls == 1) "" else "s"} · " +
+                        "${metrics.compilerRepairCalls} compiler repair${if (metrics.compilerRepairCalls == 1) "" else "s"}",
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (metrics.patches.isNotEmpty()) {
+                    Text(
+                        metrics.patches.joinToString(" · ") { patch ->
+                            "${patch.target.fileName} ${if (patch.compilerAccepted) "accepted" else "rejected"}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.74f)
+                    )
+                }
                 Text(
                     "Validation ${formatGenerationDuration(metrics.validationDurationMs)} · " +
-                        "${metrics.repairPasses} repairs · ${metrics.typedHoles} typed holes",
+                        "full DEAL + Deal UI compilation",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.74f)
                 )
@@ -984,7 +1299,6 @@ internal fun SourcePanel(title: String, source: String) {
 @Composable
 private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: GeneratedAppStudioActions) {
     var dealModel by rememberSaveable { mutableStateOf(state.dealModel) }
-    var dealUiModel by rememberSaveable { mutableStateOf(state.dealUiModel) }
     var deepSeekKey by rememberSaveable { mutableStateOf("") }
     var cerebrasKey by rememberSaveable { mutableStateOf("") }
     Dialog(
@@ -1011,7 +1325,7 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
                         )
                     }
                     TextButton(
-                        onClick = { actions.onSaveSettings(dealModel, dealUiModel, deepSeekKey, cerebrasKey) },
+                        onClick = { actions.onSaveSettings(dealModel, dealModel, deepSeekKey, cerebrasKey) },
                         enabled = !state.isBusy
                     ) { Text("Save settings") }
                     IconButton(onClick = actions.onDismissSettings) {
@@ -1025,49 +1339,19 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
                         Column {
                             Text("Generation", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "DEAL is checked before Deal UI is generated.",
+                                "One model call returns the complete DEAL and Deal UI bundle.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        if (maxWidth < 460.dp) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                DeepSeekModelSelector(
-                                    label = "Behavior · DEAL",
-                                    selected = dealModel,
-                                    enabled = !state.isBusy,
-                                    onSelected = { dealModel = it },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                DeepSeekModelSelector(
-                                    label = "Interface · Deal UI",
-                                    selected = dealUiModel,
-                                    enabled = !state.isBusy,
-                                    onSelected = { dealUiModel = it },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                DeepSeekModelSelector(
-                                    label = "Behavior · DEAL",
-                                    selected = dealModel,
-                                    enabled = !state.isBusy,
-                                    onSelected = { dealModel = it },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                DeepSeekModelSelector(
-                                    label = "Interface · Deal UI",
-                                    selected = dealUiModel,
-                                    enabled = !state.isBusy,
-                                    onSelected = { dealUiModel = it },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
+                    DeepSeekModelSelector(
+                        label = "Canonical bundle · DEAL + Deal UI",
+                        selected = dealModel,
+                        enabled = !state.isBusy,
+                        onSelected = { dealModel = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -1205,6 +1489,29 @@ private fun FullscreenCanonicalApp(
                     onAction,
                     hostScrolling = true
                 )
+                Surface(
+                    Modifier.align(Alignment.TopEnd).padding(12.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    shadowElevation = 4.dp
+                ) {
+                    IconButton(onClick = onCollapse) {
+                        Icon(Icons.Default.FullscreenExit, contentDescription = "Return to Studio")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullscreenHtml5Preview(html: String, onCollapse: () -> Unit) {
+    Dialog(
+        onDismissRequest = onCollapse,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.fillMaxSize()) {
+                SandboxedHtml5WebView(html, Modifier.fillMaxSize())
                 Surface(
                     Modifier.align(Alignment.TopEnd).padding(12.dp),
                     shape = RoundedCornerShape(6.dp),

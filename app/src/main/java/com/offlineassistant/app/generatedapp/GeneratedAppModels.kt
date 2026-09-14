@@ -64,6 +64,8 @@ internal data class GeneratedAppStudioState(
     val cerebrasKeyConfigured: Boolean = false,
     val dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
     val dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
+    val generationMode: StudioGenerationMode = StudioGenerationMode.CANONICAL,
+    val experimentalHtml5Session: ExperimentalHtml5Session = ExperimentalHtml5Session.Empty,
     val session: CanonicalStudioSession = CanonicalStudioSession.Empty,
     val selectedArtifact: GeneratedArtifact = GeneratedArtifact.PREVIEW,
     val isPreviewExpanded: Boolean = false,
@@ -74,7 +76,9 @@ internal data class GeneratedAppStudioState(
     val lastRefinement: String? = null
 ) {
     val isBusy: Boolean
-        get() = session is CanonicalStudioSession.Generating || session is CanonicalStudioSession.Refining
+        get() = session is CanonicalStudioSession.Generating ||
+            session is CanonicalStudioSession.Refining ||
+            experimentalHtml5Session is ExperimentalHtml5Session.Generating
 
     val runnable: CanonicalRunnableApp?
         get() = when (val current = session) {
@@ -98,10 +102,11 @@ internal data class GeneratedAppStudioState(
         get() = selectedProviderKeysConfigured && !isBusy
 
     val canRefine: Boolean
-        get() = runnable != null && refinementPrompt.isNotBlank() && selectedProviderKeysConfigured && !isBusy
+        get() = generationMode == StudioGenerationMode.CANONICAL && runnable != null &&
+            refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && modelKeyConfigured(dealUiModel) && !isBusy
 
     val selectedProviderKeysConfigured: Boolean
-        get() = modelKeyConfigured(dealModel) && modelKeyConfigured(dealUiModel)
+        get() = modelKeyConfigured(dealModel)
 
     private fun modelKeyConfigured(model: DeepSeekGenerationModel): Boolean = when (model.provider) {
         GenerationProvider.DEEPSEEK -> deepSeekKeyConfigured

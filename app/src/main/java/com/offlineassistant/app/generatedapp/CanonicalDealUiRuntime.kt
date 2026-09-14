@@ -527,9 +527,34 @@ private fun CanonicalNodes(
     onAction: (CanonicalUiAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val renderedNodes = nodes.filter { it.producesLayout(program, state, scope) }
+    if (renderedNodes.isEmpty()) return
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DealStudioSpacing.Md)) {
-        nodes.forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
+        renderedNodes.forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
     }
+}
+
+private fun CanonicalUiNode.producesLayout(
+    program: CanonicalDealUiProgram,
+    state: JsonObject,
+    scope: Map<String, JsonElement>
+): Boolean = when (this) {
+    is CanonicalUiNode.When -> {
+        val selected = if (evaluate(condition, state, scope, program.tokens, null).asBoolean()) thenNodes else elseNodes
+        selected.any { it.producesLayout(program, state, scope) }
+    }
+
+    is CanonicalUiNode.ForEach -> {
+        val items = evaluate(source, state, scope, program.tokens, null) as? JsonArray ?: JsonArray(emptyList())
+        items.any { item -> children.any { it.producesLayout(program, state, scope + (this.item to item)) } }
+    }
+
+    is CanonicalUiNode.Scope -> {
+        val nested = scope + bindings.mapValues { evaluate(it.value, state, scope, program.tokens, null) }
+        children.any { it.producesLayout(program, state, nested) }
+    }
+
+    is CanonicalUiNode.Call -> true
 }
 
 @Composable

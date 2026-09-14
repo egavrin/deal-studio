@@ -5,6 +5,7 @@ import java.io.File
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -57,6 +58,8 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val agentSurfaceVersion: String = "legacy-greenfield-v1",
     val agentSurfaceBytes: Int = 0,
     val agentSurfaceEstimatedTokens: Int = 0,
+    @EncodeDefault val generationModelCalls: Int = dealGraphRounds + dealUiGraphRounds,
+    @EncodeDefault val compilerRepairCalls: Int = repairPasses,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -140,7 +143,9 @@ internal fun restoreCanonicalGeneratedApp(
         compilerProtocolVersion = record.compilerProtocolVersion,
         agentSurfaceVersion = record.agentSurfaceVersion,
         agentSurfaceBytes = record.agentSurfaceBytes,
-        agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens
+        agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens,
+        generationModelCalls = record.generationModelCalls,
+        compilerRepairCalls = record.compilerRepairCalls
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
@@ -272,6 +277,8 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         agentSurfaceVersion = bundle.agentSurfaceVersion,
         agentSurfaceBytes = bundle.agentSurfaceBytes,
         agentSurfaceEstimatedTokens = bundle.agentSurfaceEstimatedTokens,
+        generationModelCalls = bundle.generationModelCalls,
+        compilerRepairCalls = bundle.compilerRepairCalls,
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = System.currentTimeMillis(),
         revision = revision,

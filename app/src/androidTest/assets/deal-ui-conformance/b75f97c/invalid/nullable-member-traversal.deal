@@ -1,0 +1,13 @@
+export class Detail {
+  label: string = "";
+}
+
+export class NullableState {
+  selected: Detail | null = null;
+}
+
+export function initialState(): NullableState {
+  return { selected: null };
+}
+
+export function main(): null { return null; }

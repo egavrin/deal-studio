@@ -18,6 +18,34 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CanonicalDealToolchainDeviceTest {
     @Test
+    fun syntaxCardsCompileAgainstPinnedAndroidToolchain() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+
+        toolchain.validateDealForUi(CanonicalDealSyntaxCard.FIXTURE_SOURCE)
+        val checkedIr = toolchain.compilePortable(
+            CanonicalDealSyntaxCard.FIXTURE_SOURCE,
+            CanonicalDealUiSyntaxCard.FIXTURE_SOURCE,
+            CanonicalDealUiPack.source
+        )
+
+        assertTrue(checkedIr.isNotBlank())
+        assertEquals("AppState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+    }
+
+    @Test
+    fun realtimeCanvasCapabilityRecipeCompilesAndPassesItsContract() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val appInterface = toolchain.extractAppInterface(REALTIME_SOURCE)
+        val checkedIr = toolchain.compilePortable(REALTIME_SOURCE, REALTIME_UI, CanonicalDealUiPack.source)
+
+        GenerationCapabilityContracts.validate(appInterface, checkedIr)
+        assertTrue(appInterface.contains("clock.frame"))
+        assertTrue(appInterface.contains("pointer"))
+    }
+
+    @Test
     fun portableStreamingCompilerOwnsRepairScopeOnDevice() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
@@ -401,6 +429,42 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     private companion object {
+        const val REALTIME_SOURCE = """
+            // generated-capability: clock.frame
+            // generated-capability: pointer
+            export class GameState { x: int = 160; y: int = 400; ticks: int = 0; }
+            export class FrameAction { deltaMs: int = 0; }
+            export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
+            export function initialState(): GameState { return { x: 160, y: 400, ticks: 0 }; }
+            // @ui-update
+            export function onFrame(state: GameState, action: FrameAction): GameState {
+              return { x: state.x, y: state.y, ticks: state.ticks + 1 };
+            }
+            // @ui-update
+            export function onPointer(state: GameState, action: PointerAction): GameState {
+              return { x: action.x, y: action.y, ticks: state.ticks };
+            }
+        """
+
+        const val REALTIME_UI = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.GameState): View {
+              ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+                ui.Root() {
+                  ui.FrameClock(intervalMillis: 16, onTick: action app.FrameAction { deltaMs: payload })
+                  ui.PointerSurface(coordinateWidth: 320, coordinateHeight: 480,
+                    onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
+                    accessibilityLabel: "Game board") {
+                    ui.Canvas(width: 320, height: 480, accessibilityLabel: "Game canvas") {
+                      ui.Rectangle(x: state.x, y: state.y, width: 64, height: 12, color: "#2563EB")
+                    }
+                  }
+                }
+              }
+            }
+        """
         const val ARRAY_LITERAL_SOURCE = """
             export class ArrayState {
               labels: string[] = [];

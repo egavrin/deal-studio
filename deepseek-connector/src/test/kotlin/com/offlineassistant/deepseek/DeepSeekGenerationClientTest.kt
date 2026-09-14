@@ -214,6 +214,27 @@ class DeepSeekGenerationClientTest {
     }
 
     @Test
+    fun `direct generation accepts 16384 output tokens and rejects 16385`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { null })
+        fun request(limit: Int) = DeepSeekGenerationRequest(
+            model = DeepSeekGenerationModel.FLASH,
+            instructions = "Return source only.",
+            input = "Build a counter.",
+            maxOutputTokens = limit
+        )
+
+        val acceptedBoundary = assertThrows(IllegalArgumentException::class.java) {
+            client.generate(request(16_384))
+        }
+        val rejectedBoundary = assertThrows(IllegalArgumentException::class.java) {
+            client.generate(request(16_385))
+        }
+
+        assertEquals("DeepSeek API key is not configured.", acceptedBoundary.message)
+        assertEquals("Invalid generation token limit", rejectedBoundary.message)
+    }
+
+    @Test
     fun `custom endpoint cannot exfiltrate BYOK`() {
         assertThrows(IllegalArgumentException::class.java) {
             DeepSeekGenerationClient(

@@ -1,0 +1,7 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  let title: string = state.title;
+  ui.Text(value: title)
+}

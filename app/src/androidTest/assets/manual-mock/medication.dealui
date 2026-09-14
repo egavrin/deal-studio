@@ -1,0 +1,109 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+
+// Manual canonical UI probe: intentionally compact and close to the design mock.
+// This is a test fixture, not a product-specific generation template.
+// @ui-root
+export view Medication(state: app.AppState): View {
+  ui.AppTheme(primary: "#1769E0", secondary: "#17834B", style: "clean", shape: "rounded", density: "comfortable", surface: "tonal") {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+      ui.Route(route: "today", activeRoute: state.phase) {
+        // The saved-app host uses the first TopBar title as its window title.
+        // Keep that title without rendering a second in-content app bar.
+        When(false) {
+          ui.TopBar(title: "Medication", subtitle: "Daily adherence", leadingIcon: "medication")
+        }
+        ui.Section(title: "Next dose") {
+          ui.Card(tone: "surface", padding: ui.spaceMd) {
+            ui.Column(spacing: ui.spaceSm) {
+              ui.Row(spacing: ui.spaceMd, vertical: "center") {
+                ui.Icon(name: "pill", description: "Medication", tone: "accent")
+                ui.Column(spacing: ui.spaceXs) {
+                  ui.Text(value: state.today.nextDoseLabel, style: ui.textTitle)
+                  ui.Text(value: "5 mg · 1 tablet · after food", style: ui.textBody)
+                  ui.Text(value: "20:00", style: ui.textDisplay)
+                  ui.Text(value: state.today.timeUntilLabel, style: ui.textBody)
+                }
+              }
+              ui.Button(text: "Taken", icon: "check", onClick: action app.TakenAction { entryId: 2 }, accessibilityLabel: "Mark next dose as taken")
+            }
+          }
+        }
+        ui.Section(title: "Today") {
+          ForEach(state.schedule.entries, entry: app.ScheduleEntry, key: entry.id) {
+            When(entry.dayIndex === state.currentDayIndex) {
+              ui.ListItem(
+                title: entry.drugName,
+                subtitle: entry.timeLabel + " · " + entry.dosage,
+                trailing: entry.status,
+                leadingIcon: "pill",
+                tone: entry.tone,
+                onClick: action app.TakenAction { entryId: entry.id },
+                accessibilityLabel: entry.drugName + " " + entry.status
+              )
+            }
+          }
+        }
+        ui.Section(title: "This week") {
+          ui.Card(tone: "surface", padding: ui.spaceMd) {
+            ui.Column(spacing: ui.spaceSm) {
+              ui.Text(value: state.today.progressLabel, style: ui.textBody)
+              ui.ProgressBar(value: state.today.completedCount, maximum: state.today.totalCount, label: state.today.progressLabel)
+            }
+          }
+        }
+        ui.NavigationBar(accessibilityLabel: "Main navigation") {
+          ui.NavigationItem(label: "Today", icon: "today", selected: state.phase === "today", onClick: action app.SwitchViewAction { mode: "today" }, accessibilityLabel: "Today")
+          ui.NavigationItem(label: "Plan", icon: "list", selected: state.phase === "plan", onClick: action app.SwitchViewAction { mode: "plan" }, accessibilityLabel: "Plan")
+          ui.NavigationItem(label: "History", icon: "history", selected: state.phase === "history", onClick: action app.SwitchViewAction { mode: "history" }, accessibilityLabel: "History")
+        }
+      }
+      ui.Route(route: "plan", activeRoute: state.phase) {
+        ui.TopBar(title: "Medication plan", subtitle: "Add or edit a dose", leadingIcon: "list")
+        ui.Section(title: "Active medications") {
+          ForEach(state.plan.medications, med: app.Medication, key: med.id) {
+            ui.ListItem(title: med.name, subtitle: med.dosage + " · " + med.timeLabel + " · daily", trailing: med.notes, tone: "surface", accessibilityLabel: med.name)
+          }
+        }
+        ui.Section(title: "Add medication") {
+          ui.Card(tone: "surface", padding: ui.spaceMd) {
+            ui.Column(spacing: ui.spaceSm) {
+              ui.TextField(value: state.review.draft.name, label: "Name", placeholder: "e.g. Amlodipine", onChange: action app.EditTextAction { target: "name", value: payload }, accessibilityLabel: "Medication name")
+              ui.TextField(value: state.review.draft.dosage, label: "Dosage", placeholder: "e.g. 5 mg", onChange: action app.EditTextAction { target: "dosage", value: payload }, accessibilityLabel: "Dosage")
+              ui.TimeField(valueMinutes: state.review.draft.timeMinutes, label: "Time", onChange: action app.EditIntAction { target: "timeMinutes", value: payload }, accessibilityLabel: "Dose time")
+              ui.Button(text: "Add medication", icon: "add", onClick: action app.CommandAction { command: "addDrug", id: 0 }, accessibilityLabel: "Add medication")
+              ui.Button(text: "Confirm plan", icon: "check", onClick: action app.ConfirmPlanAction { }, accessibilityLabel: "Confirm medication plan")
+            }
+          }
+        }
+        ui.NavigationBar(accessibilityLabel: "Main navigation") {
+          ui.NavigationItem(label: "Today", icon: "today", selected: state.phase === "today", onClick: action app.SwitchViewAction { mode: "today" }, accessibilityLabel: "Today")
+          ui.NavigationItem(label: "Plan", icon: "list", selected: state.phase === "plan", onClick: action app.SwitchViewAction { mode: "plan" }, accessibilityLabel: "Plan")
+          ui.NavigationItem(label: "History", icon: "history", selected: state.phase === "history", onClick: action app.SwitchViewAction { mode: "history" }, accessibilityLabel: "History")
+        }
+      }
+      ui.Route(route: "history", activeRoute: state.phase) {
+        ui.TopBar(title: "History", subtitle: "Adherence report", leadingIcon: "history")
+        ui.Section(title: "For your doctor") {
+          ui.Card(tone: "surface", padding: ui.spaceMd) {
+            ui.Column(spacing: ui.spaceSm) {
+              ui.Text(value: state.history.viewLabel, style: ui.textTitle)
+              ui.Text(value: "Recorded events only — no estimated doses", style: ui.textBody)
+              ForEach(state.history.records, record: app.HistoryRecord, key: record.id) {
+                ui.ListItem(title: record.drugName, subtitle: record.dateLabel + " · " + record.timeLabel, trailing: record.status, tone: record.tone, accessibilityLabel: record.drugName + " " + record.status)
+                ui.IconButton(icon: "undo", onClick: action app.UndoAction { entryId: record.id }, accessibilityLabel: "Undo " + record.drugName)
+                ui.IconButton(icon: "delete", onClick: action app.DeleteHistoryAction { recordId: record.id }, accessibilityLabel: "Delete " + record.drugName + " history")
+              }
+            }
+          }
+        }
+        ui.Button(text: "Clear history", icon: "delete", style: "tonal", onClick: action app.ClearHistoryAction { }, accessibilityLabel: "Clear history")
+        ui.NavigationBar(accessibilityLabel: "Main navigation") {
+          ui.NavigationItem(label: "Today", icon: "today", selected: state.phase === "today", onClick: action app.SwitchViewAction { mode: "today" }, accessibilityLabel: "Today")
+          ui.NavigationItem(label: "Plan", icon: "list", selected: state.phase === "plan", onClick: action app.SwitchViewAction { mode: "plan" }, accessibilityLabel: "Plan")
+          ui.NavigationItem(label: "History", icon: "history", selected: state.phase === "history", onClick: action app.SwitchViewAction { mode: "history" }, accessibilityLabel: "History")
+        }
+      }
+    }
+  }
+}

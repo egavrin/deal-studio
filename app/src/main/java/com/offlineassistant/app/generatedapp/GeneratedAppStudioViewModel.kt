@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.offlineassistant.app.settings.DealStudioSettingsRepository
+import com.offlineassistant.deepseek.DeepSeekGenerationClient
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
+import com.offlineassistant.deepseek.DeepSeekGenerationRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,7 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Single canonical Studio state machine. No local or legacy generator is reachable from here. */
+/** Canonical Studio state plus a separate, ephemeral experimental HTML5 comparison path. */
 internal class GeneratedAppStudioViewModel(application: Application) : AndroidViewModel(application) {
     private val settings = DealStudioSettingsRepository(application)
     private val toolchain = CanonicalDealToolchain(application)
@@ -33,7 +35,17 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         settings::deepSeekApiKeyOrNull,
         settings::cerebrasApiKeyOrNull
     )
+    private val experimentalHtml5Client = DeepSeekGenerationClient(
+        apiKeyProvider = settings::deepSeekApiKeyOrNull,
+        cerebrasApiKeyProvider = settings::cerebrasApiKeyOrNull
+    )
     private var activeJob: Job? = null
+
+    @Volatile
+    private var saveJob: Job? = null
+
+    @Volatile
+    private var generationRunToken = 0L
 
     private val mutableState = MutableStateFlow(
         GeneratedAppStudioState(
@@ -67,6 +79,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     fun selectArtifact(artifact: GeneratedArtifact) {
         mutableState.update { it.copy(selectedArtifact = artifact) }
+    }
+
+    fun selectGenerationMode(mode: StudioGenerationMode) {
+        mutableState.update { it.withStudioMode(mode) }
     }
 
     fun setPreviewExpanded(expanded: Boolean) {
@@ -112,13 +128,13 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     ) {
         if (state.value.isBusy) return
         settings.saveDealModel(dealModel)
-        settings.saveDealUiModel(dealUiModel)
+        settings.saveDealUiModel(dealModel)
         deepSeekApiKey.trim().takeIf(String::isNotEmpty)?.let(settings::saveDeepSeekApiKey)
         cerebrasApiKey.trim().takeIf(String::isNotEmpty)?.let(settings::saveCerebrasApiKey)
         mutableState.update {
             it.copy(
                 dealModel = dealModel,
-                dealUiModel = dealUiModel,
+                dealUiModel = dealModel,
                 deepSeekKeyConfigured = settings.deepSeekApiKeyConfigured,
                 cerebrasKeyConfigured = settings.cerebrasApiKeyConfigured
             )
@@ -138,7 +154,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     }
 
     fun generate() {
-        generateRequest(state.value.prompt.trim(), pendingLegacyId = state.value.pendingLegacyRebuildId)
+        generateSelectedRequest(state.value.prompt.trim(), pendingLegacyId = state.value.pendingLegacyRebuildId)
     }
 
     fun generateSurprise() {
@@ -150,19 +166,33 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
         val request = SurpriseAppPromptFactory.create(titles)
         mutableState.update { it.copy(prompt = request, pendingLegacyRebuildId = null) }
-        generateRequest(request, pendingLegacyId = null)
+        generateSelectedRequest(request, pendingLegacyId = null)
     }
 
     fun rebuildLegacy(id: String) {
         val legacy = state.value.legacyRequests.firstOrNull { it.id == id } ?: return
-        mutableState.update { it.copy(prompt = legacy.request, pendingLegacyRebuildId = id) }
-        generateRequest(legacy.request, pendingLegacyId = id)
+        mutableState.update {
+            it.copy(
+                prompt = legacy.request,
+                pendingLegacyRebuildId = id,
+                generationMode = StudioGenerationMode.CANONICAL
+            )
+        }
+        generateCanonicalRequest(legacy.request, pendingLegacyId = id)
     }
 
-    private fun generateRequest(request: String, pendingLegacyId: String?) {
+    private fun generateSelectedRequest(request: String, pendingLegacyId: String?) {
+        when (state.value.generationMode) {
+            StudioGenerationMode.CANONICAL -> generateCanonicalRequest(request, pendingLegacyId)
+            StudioGenerationMode.EXPERIMENTAL_HTML5 -> generateExperimentalHtml5(request)
+        }
+    }
+
+    private fun generateCanonicalRequest(request: String, pendingLegacyId: String?) {
         val snapshot = state.value
-        if (request.isBlank() || snapshot.isBusy || !snapshot.selectedProviderKeysConfigured) return
+        if (request.isBlank() || snapshot.isBusy || saveJob?.isActive == true || !snapshot.selectedProviderKeysConfigured) return
         val previous = snapshot.runnable
+        val runToken = ++generationRunToken
         mutableState.update {
             it.copy(
                 session = CanonicalStudioSession.Generating(
@@ -181,9 +211,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 compiler.generate(
                     request = request,
                     dealModel = snapshot.dealModel,
-                    dealUiModel = snapshot.dealUiModel,
+                    dealUiModel = snapshot.dealModel,
                     onProgress = { phase, message ->
                         mutableState.update { current ->
+                            if (runToken != generationRunToken) return@update current
                             val generating = current.session as? CanonicalStudioSession.Generating
                                 ?: return@update current
                             current.copy(
@@ -195,6 +226,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         }
                     },
                     onUiPreview = { preview ->
+                        if (runToken != generationRunToken) return@generate
                         val runtime = toolchain.createRuntime(preview.dealSource)
                         val accepted = CanonicalAcceptedPreview(
                             dealSource = preview.dealSource,
@@ -204,6 +236,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                             committedSections = preview.committedSections
                         )
                         mutableState.update { current ->
+                            if (runToken != generationRunToken) return@update current
                             val generating = current.session as? CanonicalStudioSession.Generating
                                 ?: return@update current
                             current.copy(session = generating.copy(acceptedPreview = accepted))
@@ -219,8 +252,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     state = runtime.snapshot()
                 )
             }.onSuccess { runnable ->
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    if (runToken != generationRunToken) return@update current
+                    current.copy(
                         session = CanonicalStudioSession.Runnable(runnable),
                         selectedArtifact = GeneratedArtifact.PREVIEW,
                         currentSavedAppId = null
@@ -229,20 +263,87 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
                 mutableState.update { current ->
+                    if (runToken != generationRunToken) return@update current
                     val previousRunnable = when (val session = current.session) {
                         is CanonicalStudioSession.Generating -> session.previousRunnable
                         else -> current.runnable
                     }
+                    val userMessage = if (failure is CanonicalGenerationFailureException) {
+                        "We couldn't build this app after compiler patches. Inspection artifact: ${failure.artifactId}. Your previous app is unchanged."
+                    } else {
+                        "We couldn't build this app. Your previous app is unchanged."
+                    }
                     current.copy(
                         session = CanonicalStudioSession.Failed(
                             previousRunnable = previousRunnable,
-                            userMessage = "We couldn't build this app. Your previous app is unchanged.",
+                            userMessage = userMessage,
                             technicalTrace = failure.stackTraceToString()
                         )
                     )
                 }
             }
-            activeJob = null
+            if (runToken == generationRunToken) activeJob = null
+        }
+    }
+
+    private fun generateExperimentalHtml5(request: String) {
+        val snapshot = state.value
+        if (request.isBlank() || snapshot.isBusy || saveJob?.isActive == true ||
+            !snapshot.selectedProviderKeysConfigured
+        ) {
+            return
+        }
+        val runToken = ++generationRunToken
+        val previous = snapshot.experimentalHtml5Session.result
+        mutableState.update {
+            it.copy(
+                experimentalHtml5Session = ExperimentalHtml5Session.Generating(previous),
+                isPreviewExpanded = false
+            )
+        }
+        activeJob = viewModelScope.launch {
+            val started = System.nanoTime()
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    experimentalHtml5Client.generate(
+                        DeepSeekGenerationRequest(
+                            model = snapshot.dealModel,
+                            instructions = ExperimentalHtml5Prompt.INSTRUCTIONS,
+                            input = ExperimentalHtml5Prompt.input(request),
+                            maxOutputTokens = 16_384,
+                            temperature = 0.1
+                        )
+                    )
+                }
+            }.mapCatching { generated ->
+                ExperimentalHtml5Result(
+                    html = normalizeExperimentalHtml(generated.output),
+                    model = generated.model,
+                    wallLatencyMs = (System.nanoTime() - started) / 1_000_000,
+                    timeToFirstTokenMs = generated.timeToFirstTokenMs,
+                    inputTokens = generated.inputTokens,
+                    cachedInputTokens = generated.cachedInputTokens,
+                    outputTokens = generated.outputTokens
+                )
+            }.onSuccess { result ->
+                mutableState.update { current ->
+                    if (runToken != generationRunToken) return@update current
+                    current.copy(experimentalHtml5Session = ExperimentalHtml5Session.Ready(result))
+                }
+            }.onFailure { failure ->
+                if (failure is CancellationException) return@onFailure
+                mutableState.update { current ->
+                    if (runToken != generationRunToken) return@update current
+                    current.copy(
+                        experimentalHtml5Session = ExperimentalHtml5Session.Failed(
+                            previousResult = previous,
+                            userMessage = "The experimental HTML5 baseline could not be generated.",
+                            technicalTrace = failure.stackTraceToString()
+                        )
+                    )
+                }
+            }
+            if (runToken == generationRunToken) activeJob = null
         }
     }
 
@@ -250,7 +351,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         val snapshot = state.value
         val previous = snapshot.runnable ?: return
         val request = snapshot.refinementPrompt.trim()
-        if (!snapshot.canRefine || request.isBlank()) return
+        if (!snapshot.canRefine || request.isBlank() || saveJob?.isActive == true) return
+        val runToken = ++generationRunToken
         mutableState.update {
             it.copy(
                 session = CanonicalStudioSession.Refining(previous, "Applying a checked revision"),
@@ -266,12 +368,14 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     dealUiModel = snapshot.dealUiModel
                 ) { message ->
                     mutableState.update { current ->
+                        if (runToken != generationRunToken) return@update current
                         val refining = current.session as? CanonicalStudioSession.Refining
                             ?: return@update current
                         current.copy(session = refining.copy(message = message))
                     }
                 }
             }.mapCatching { result ->
+                if (runToken != generationRunToken) throw CancellationException("Stale refinement run")
                 val runtime = toolchain.createRuntime(result.bundle.dealSource)
                 val nextState = runCatching { runtime.restore(previous.state) }.getOrElse { runtime.snapshot() }
                 val program = CanonicalDealUiParser.parse(result.bundle.checkedUiIr)
@@ -290,8 +394,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), it.id)
                 }
                 val saved = withContext(Dispatchers.IO) { library.restoreAll(toolchain) }
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    if (runToken != generationRunToken) return@update current
+                    current.copy(
                         session = CanonicalStudioSession.Runnable(runnable),
                         refinementPrompt = "",
                         lastRefinement = request,
@@ -301,8 +406,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 }
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    if (runToken != generationRunToken) return@update current
+                    current.copy(
                         session = CanonicalStudioSession.Failed(
                             previousRunnable = previous,
                             userMessage = "The change wasn't applied. The working revision is still available.",
@@ -311,14 +417,16 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     )
                 }
             }
-            activeJob = null
+            if (runToken == generationRunToken) activeJob = null
         }
     }
 
     fun saveCurrent() {
+        if (saveJob?.isActive == true) return
         val snapshot = state.value
+        if (snapshot.isBusy || snapshot.generationMode != StudioGenerationMode.CANONICAL) return
         val app = snapshot.runnable ?: return
-        viewModelScope.launch(Dispatchers.IO) {
+        val job = viewModelScope.launch(Dispatchers.IO) {
             val title = app.program.displayTitle(app.state, "Generated app")
             val record = app.savedRecord?.let { library.update(it.id, app.bundle, title) }
                 ?: library.save(app.bundle, title)
@@ -339,10 +447,12 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             }
             GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), record.id)
         }
+        saveJob = job
+        job.invokeOnCompletion { if (saveJob === job) saveJob = null }
     }
 
     fun openSaved(id: String) {
-        if (state.value.isBusy) return
+        if (state.value.isBusy || saveJob?.isActive == true) return
         viewModelScope.launch(Dispatchers.IO) {
             val record = library.loadRecords().firstOrNull { it.id == id } ?: return@launch
             val entry = restoreCanonicalGeneratedApp(record, toolchain)
@@ -351,6 +461,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             mutableState.update {
                 it.copy(
                     prompt = record.request,
+                    generationMode = StudioGenerationMode.CANONICAL,
                     session = CanonicalStudioSession.Runnable(
                         CanonicalRunnableApp(entry.bundle, entry.program, runtime, restoredState, record)
                     ),
@@ -407,14 +518,19 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     }
 
     fun cancel() {
+        generationRunToken++
         compiler.cancel()
         refiner.cancel()
+        experimentalHtml5Client.cancel()
         activeJob?.cancel()
         activeJob = null
         mutableState.update { current ->
             val previous = current.runnable
+            val previousHtml = current.experimentalHtml5Session.result
             current.copy(
-                session = previous?.let(CanonicalStudioSession::Runnable) ?: CanonicalStudioSession.Empty
+                session = previous?.let(CanonicalStudioSession::Runnable) ?: CanonicalStudioSession.Empty,
+                experimentalHtml5Session = previousHtml?.let(ExperimentalHtml5Session::Ready)
+                    ?: ExperimentalHtml5Session.Empty
             )
         }
     }
@@ -433,5 +549,6 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         CanonicalGenerationPhase.DEAL_UI -> "Building the interface"
         CanonicalGenerationPhase.VALIDATING -> "Checking the complete app"
         CanonicalGenerationPhase.REPAIRING -> detail.ifBlank { "Repairing a compiler diagnostic" }
+        CanonicalGenerationPhase.RETRYING -> detail.ifBlank { "Regenerating the complete app once" }
     }
 }
