@@ -34,6 +34,57 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     @Test
+    fun autoUiCompilerDerivesCheckedDealUiFromDealOnlySource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = CanonicalDealSyntaxCard.FIXTURE_SOURCE
+        val appInterface = toolchain.extractAppInterface(deal)
+        val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
+        val checkedIr = toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source)
+
+        assertTrue(ui.contains("// @ui-root"))
+        assertTrue(ui.contains("action app.OpenAction"))
+        assertEquals("AppState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+    }
+
+    @Test
+    fun autoUiCompilerDerivesInputEmptyListHistoryAndReportSurfaces() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val appInterface = toolchain.extractAppInterface(AUTO_UI_MANAGER_SOURCE)
+        val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
+        val checkedIr = toolchain.compilePortable(AUTO_UI_MANAGER_SOURCE, ui, CanonicalDealUiPack.source)
+
+        assertTrue(ui.contains("ui.TextField(value: state.draftName"))
+        assertTrue(ui.contains("ui.TimeField(valueMinutes: state.draftTimeMinutes"))
+        assertTrue(ui.contains("ui.Toggle(checked: state.remindersEnabled"))
+        assertTrue(ui.contains("ui.EmptyState("))
+        assertTrue(ui.contains("ui.BarChart(series: state.weeklyCounts"))
+        assertTrue(ui, ui.contains("action app.AddMedicationAction {}"))
+        assertEquals("MedicationState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+    }
+
+    @Test
+    fun autoUiCompilerLowersNominalStudioSceneShapesToCanvas() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val appInterface = toolchain.extractAppInterface(AUTO_UI_SCENE_SOURCE)
+        val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
+        val checkedIr = toolchain.compilePortable(AUTO_UI_SCENE_SOURCE, ui, CanonicalDealUiPack.source)
+
+        assertTrue(ui.contains("ui.FrameClock("))
+        assertTrue(ui.contains("ui.PointerSurface("))
+        assertTrue(ui.contains("ForEach(state.sceneShapes, shape: app.StudioSceneShape"))
+        assertTrue(ui.contains("ui.Rectangle(x: shape.x"))
+        assertTrue(ui.contains("coordinateWidth: state.canvasWidth"))
+        assertTrue(ui.contains("coordinateHeight: state.canvasHeight"))
+        assertTrue(ui.contains("ui.Canvas(width: state.canvasWidth, height: state.canvasHeight"))
+        assertTrue("Canvas must precede its non-visual frame driver", ui.indexOf("ui.PointerSurface(") < ui.indexOf("ui.FrameClock("))
+        assertTrue("Technical tick counters must not become large metric cards", !ui.contains("ui.IntStat("))
+        GenerationCapabilityContracts.validate(appInterface, checkedIr)
+    }
+
+    @Test
     fun realtimeCanvasCapabilityRecipeCompilesAndPassesItsContract() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
@@ -770,6 +821,69 @@ class CanonicalDealToolchainDeviceTest {
                 }
                 }
               }
+            }
+        """
+
+        const val AUTO_UI_MANAGER_SOURCE = """
+            export class Medication { id: int = 0; name: string = ""; dosage: string = ""; }
+            export class HistoryRecord { id: int = 0; name: string = ""; status: string = ""; }
+            export class MedicationState {
+              draftName: string = "";
+              draftTimeMinutes: int = 0;
+              remindersEnabled: boolean = false;
+              hasMedications: boolean = false;
+              medications: Medication[] = [];
+              history: HistoryRecord[] = [];
+              weeklyCounts: int[] = [];
+            }
+            export class SetDraftNameAction { draftName: string = ""; }
+            export class SetDraftTimeMinutesAction { draftTimeMinutes: int = 0; }
+            export class SetRemindersEnabledAction { remindersEnabled: boolean = false; }
+            export class AddMedicationAction {}
+            export class TakenAction {}
+            export function initialState(): MedicationState {
+              let medications: Medication[] = [];
+              let history: HistoryRecord[] = [];
+              let weeklyCounts: int[] = [];
+              return { draftName: "", draftTimeMinutes: 480, remindersEnabled: true, hasMedications: false, medications: medications, history: history, weeklyCounts: weeklyCounts };
+            }
+            // @ui-update
+            export function setDraftName(state: MedicationState, action: SetDraftNameAction): MedicationState {
+              return { draftName: action.draftName, draftTimeMinutes: state.draftTimeMinutes, remindersEnabled: state.remindersEnabled, hasMedications: state.hasMedications, medications: state.medications, history: state.history, weeklyCounts: state.weeklyCounts };
+            }
+            // @ui-update
+            export function setDraftTimeMinutes(state: MedicationState, action: SetDraftTimeMinutesAction): MedicationState {
+              return { draftName: state.draftName, draftTimeMinutes: action.draftTimeMinutes, remindersEnabled: state.remindersEnabled, hasMedications: state.hasMedications, medications: state.medications, history: state.history, weeklyCounts: state.weeklyCounts };
+            }
+            // @ui-update
+            export function setRemindersEnabled(state: MedicationState, action: SetRemindersEnabledAction): MedicationState {
+              return { draftName: state.draftName, draftTimeMinutes: state.draftTimeMinutes, remindersEnabled: action.remindersEnabled, hasMedications: state.hasMedications, medications: state.medications, history: state.history, weeklyCounts: state.weeklyCounts };
+            }
+            // @ui-update
+            export function addMedication(state: MedicationState, action: AddMedicationAction): MedicationState { return state; }
+            // @ui-update
+            export function taken(state: MedicationState, action: TakenAction): MedicationState { return state; }
+        """
+
+        const val AUTO_UI_SCENE_SOURCE = """
+            // generated-capability: clock.frame
+            // generated-capability: pointer
+            export class StudioSceneShape { id: int = 0; x: int = 0; y: int = 0; width: int = 0; height: int = 0; color: string = ""; }
+            export class GameState { sceneShapes: StudioSceneShape[] = []; canvasWidth: int = 360; canvasHeight: int = 640; ticks: int = 0; }
+            export class FrameAction { deltaMs: int = 0; }
+            export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
+            export function initialState(): GameState {
+              let sceneShapes: StudioSceneShape[] = [];
+              sceneShapes[sceneShapes.length] = { id: 1, x: 20, y: 30, width: 90, height: 16, color: "#00FFAA" };
+              return { sceneShapes: sceneShapes, canvasWidth: 360, canvasHeight: 640, ticks: 0 };
+            }
+            // @ui-update
+            export function onFrame(state: GameState, action: FrameAction): GameState {
+              return { sceneShapes: state.sceneShapes, canvasWidth: state.canvasWidth, canvasHeight: state.canvasHeight, ticks: state.ticks + 1 };
+            }
+            // @ui-update
+            export function onPointer(state: GameState, action: PointerAction): GameState {
+              return { sceneShapes: state.sceneShapes, canvasWidth: state.canvasWidth, canvasHeight: state.canvasHeight, ticks: state.ticks + action.x };
             }
         """
     }

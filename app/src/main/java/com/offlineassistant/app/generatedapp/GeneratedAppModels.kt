@@ -73,7 +73,12 @@ internal data class GeneratedAppStudioState(
     val legacyRequests: List<LegacyGeneratedAppRequest> = emptyList(),
     val pendingLegacyRebuildId: String? = null,
     val currentSavedAppId: String? = null,
-    val lastRefinement: String? = null
+    val lastRefinement: String? = null,
+    /** Requests are retained only while the two in-memory results are available for comparison. */
+    val canonicalComparisonRequest: String? = null,
+    val html5ComparisonRequest: String? = null,
+    /** Non-null only while a matched HTML5 follow-up is waiting for canonical acceptance. */
+    val pendingComparisonRequest: String? = null
 ) {
     val isBusy: Boolean
         get() = session is CanonicalStudioSession.Generating ||
@@ -107,6 +112,10 @@ internal data class GeneratedAppStudioState(
 
     val selectedProviderKeysConfigured: Boolean
         get() = modelKeyConfigured(dealModel)
+
+    val hasMatchedComparison: Boolean
+        get() = canonicalComparisonRequest?.takeIf(String::isNotBlank) ==
+            html5ComparisonRequest?.takeIf(String::isNotBlank)
 
     private fun modelKeyConfigured(model: DeepSeekGenerationModel): Boolean = when (model.provider) {
         GenerationProvider.DEEPSEEK -> deepSeekKeyConfigured

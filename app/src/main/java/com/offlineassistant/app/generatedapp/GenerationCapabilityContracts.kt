@@ -22,8 +22,8 @@ internal object GenerationCapabilityContracts {
             export class MinuteTickAction { deltaMs: int = 0; }
             // @ui-update
             export function onMinuteTick(state: AppState, action: MinuteTickAction): AppState { return state; }
-            Bind it exactly with ui.MinuteClock(intervalMillis: 60000,
-            onTick: action app.MinuteTickAction { deltaMs: payload }). The action must be reachable.
+            Studio derives the clock surface and binds the checked action automatically. The action must update
+            authoritative state when a tick matters to the product.
         """.trimIndent()
     )
 
@@ -37,12 +37,8 @@ internal object GenerationCapabilityContracts {
             export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
             // @ui-update
             export function onPointer(state: AppState, action: PointerAction): AppState { return state; }
-            Bind it exactly as a child container:
-            ui.PointerSurface(coordinateWidth: state.canvasWidth, coordinateHeight: state.canvasHeight,
-              onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
-              accessibilityLabel: "Interactive surface") { ui.Canvas(width: state.canvasWidth,
-              height: state.canvasHeight, background: "#101828", accessibilityLabel: "Canvas") {} }
-            Pointer coordinates and the displayed logical surface must use the same dimensions.
+            Studio derives the pointer surface and binds this exact typed action automatically. Keep pointer
+            coordinates in the same logical space as retained game state.
         """.trimIndent()
     )
 
@@ -59,27 +55,20 @@ internal object GenerationCapabilityContracts {
             // generated-capability: pointer
             export class FrameAction { deltaMs: int = 0; }
             export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
+            // Optional compiler-owned scene ABI for retained Canvas shapes. Declare it exactly when visible
+            // objects are needed; keep StudioSceneShape[] in AppState. Studio recognizes this nominal type,
+            // not game-specific names such as ball or brick.
+            export class StudioSceneShape { id: int = 0; x: int = 0; y: int = 0; width: int = 0; height: int = 0; color: string = ""; }
+            // When a scene has a logical coordinate system, retain these root-state dimensions. Studio passes
+            // them to both Canvas and PointerSurface, keeping drawing and touch coordinates aligned.
+            canvasWidth: int = 1000;
+            canvasHeight: int = 600;
             // @ui-update
             export function onFrame(state: AppState, action: FrameAction): AppState { return state; }
             // @ui-update
             export function onPointer(state: AppState, action: PointerAction): AppState { return state; }
-            Use this exact UI tree shape; FrameClock is a leaf and never receives children:
-            ui.FrameClock(intervalMillis: 16, onTick: action app.FrameAction { deltaMs: payload })
-            ui.PointerSurface(coordinateWidth: state.canvasWidth, coordinateHeight: state.canvasHeight,
-              onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
-              accessibilityLabel: "Game surface") {
-              ui.Canvas(width: state.canvasWidth, height: state.canvasHeight, background: "#101828",
-                accessibilityLabel: "Game canvas") {
-                ui.Rectangle(x: 0, y: 0, width: state.canvasWidth, height: state.canvasHeight, color: "#101828", layer: 0)
-                ui.RoundRectangle(x: state.paddleX, y: state.paddleY, width: state.paddleWidth,
-                  height: state.paddleHeight, color: "#A855F7", layer: 1)
-                ui.Circle(x: state.ballX, y: state.ballY, width: state.ballSize, height: state.ballSize,
-                  color: "#22D3EE", layer: 2)
-              }
-            }
-            Shape props are exactly x, y, width, height, color, stroke, label and layer. Never invent fill,
-            radius, cornerRadius, cx, cy, CanvasRect, CanvasCircle, drawRect, drawCircle, a drawing context,
-            a callback API, or a helper/function call in Deal UI.
+            Studio derives FrameClock, PointerSurface, Canvas and StudioSceneShape rectangles automatically from
+            the checked capabilities and typed actions. Never write UI calls or UI components in DEAL.
             FrameAction must produce a typed state change while the realtime product is active; it must never be a
             decorative no-op. If the user did not explicitly request a start/pause gate, initialState starts active
             and a frame tick changes visible state. If the user requested Start or Pause, the Start action must switch
@@ -87,6 +76,9 @@ internal object GenerationCapabilityContracts {
             a runnable state.
             Helpers and loops must be finite and non-recursive. Keep entity collections bounded; never create
             self-calling helpers, generated helper chains, or host-independent infinite work.
+            Keep realtime state compact: a root AppState may contain up to 48 typed fields, but group internal
+            physics into typed classes or collections where practical. The mobile surface prioritizes Canvas, a few
+            summary metrics and control actions; it does not need every coordinate as a form field.
         """.trimIndent()
     )
 
@@ -100,9 +92,8 @@ internal object GenerationCapabilityContracts {
             HOST CAPABILITY. These optional declared capabilities are available: keyboard, storage.private,
             notifications, camera.capture, vision.ocr, health.read, focus.control. Use one only when it is genuinely
             needed by the request. Declare it with // generated-capability: <name>. Model request, pending, success,
-            and unavailable states explicitly in typed DEAL state. Pair the request action with a reachable
-            ui.CapabilityNotice(name: "Health", available: false, explanation: "Not available on this device",
-            onRequest: action app.RequestCapabilityAction {}, accessibilityLabel: "Health capability").
+            and unavailable states explicitly in typed DEAL state. Studio derives the truthful capability notice
+            from the declaration and a reachable request action.
             This runtime does not grant a real platform effect merely because it is declared: never claim data was
             read, captured, notified, stored, or focused unless an explicit completion action updated authoritative state.
         """.trimIndent()
@@ -135,7 +126,6 @@ internal object GenerationCapabilityContracts {
             require("FrameClock" in components) { "clock.frame requires ui.FrameClock" }
             actionsFor("FrameClock", "onTick").forEach { requireAction(it.name, setOf("deltaMs")) }
             require(actionsFor("FrameClock", "onTick").isNotEmpty()) { "FrameClock requires an onTick action" }
-            require("Canvas" in components) { "clock.frame applications require a retained ui.Canvas surface" }
         }
         if ("pointer" in capabilities) {
             require("PointerSurface" in components) { "pointer requires ui.PointerSurface" }
@@ -147,36 +137,16 @@ internal object GenerationCapabilityContracts {
             require("CapabilityNotice" in components) {
                 "Declared host capabilities require a truthful ui.CapabilityNotice surface"
             }
-            actionsFor("CapabilityNotice", "onRequest").forEach { requireAction(it.name, emptySet()) }
+            val requests = actionsFor("CapabilityNotice", "onRequest")
+            require(requests.isNotEmpty()) {
+                "Declared host capabilities require a reachable zero-payload Request or Enable action"
+            }
+            requests.forEach { requireAction(it.name, emptySet()) }
         }
         if ("clock.minute" in capabilities) {
             require("MinuteClock" in components) { "clock.minute requires ui.MinuteClock" }
             actionsFor("MinuteClock", "onTick").forEach { requireAction(it.name, setOf("deltaMs")) }
             require(actionsFor("MinuteClock", "onTick").isNotEmpty()) { "MinuteClock requires an onTick action" }
-        }
-    }
-}
-
-/** Deterministic, ephemeral intent floor. It prevents a static dashboard from satisfying a realtime request. */
-internal object RequestedCapabilityContract {
-    fun requiredBy(request: String): Set<String> {
-        val normalized = request.lowercase()
-        val realtime = listOf(
-            "arkanoid", "game", "arcade", "canvas", "animate", "animation", "continuous", "realtime",
-            "real-time", "moving object", "moving objects", "touch-controlled", "drag control"
-        ).any(normalized::contains)
-        val pointer = realtime || listOf("pointer", "touch", "drag", "draw", "drawing").any(normalized::contains)
-        return buildSet {
-            if (realtime) add("clock.frame")
-            if (pointer) add("pointer")
-        }
-    }
-
-    fun validate(request: String, appInterface: String) {
-        val required = requiredBy(request)
-        val actual = AppInterfaceCompiler.parse(appInterface).capabilities.toSet()
-        require(actual.containsAll(required)) {
-            "Request requires declared capability ${required.minus(actual).joinToString()}, but generated DEAL omitted it"
         }
     }
 }

@@ -24,6 +24,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     private val library = CanonicalGeneratedAppLibrary(application)
     private val legacyLibrary = LegacyGeneratedAppRequestLibrary(application)
     private val stateStore = CanonicalGeneratedAppStateStore(application)
+    private val runCaptureStore = GenerationRunCaptureStore(application)
     private val compiler = CanonicalGeneratedAppCloudCompiler(
         application,
         settings::deepSeekApiKeyOrNull,
@@ -169,6 +170,29 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         generateSelectedRequest(request, pendingLegacyId = null)
     }
 
+    /** Generates the exact current prompt through both paths; unlike two Surprise clicks it is comparable. */
+    fun generateMatchedComparison() {
+        val snapshot = state.value
+        val request = snapshot.prompt.trim()
+        if (request.isBlank() || snapshot.isBusy || !snapshot.selectedProviderKeysConfigured) return
+        mutableState.update { it.copy(pendingComparisonRequest = request, pendingLegacyRebuildId = null) }
+        generateCanonicalRequest(request, pendingLegacyId = null)
+    }
+
+    fun generateSurpriseMatchedComparison() {
+        val snapshot = state.value
+        if (!snapshot.canGenerateSurprise) return
+        val titles = buildList {
+            addAll(snapshot.savedApps.map { it.record.title })
+            snapshot.runnable?.let { add(it.program.displayTitle(it.state, "")) }
+        }
+        val request = SurpriseAppPromptFactory.create(titles)
+        mutableState.update {
+            it.copy(prompt = request, pendingComparisonRequest = request, pendingLegacyRebuildId = null)
+        }
+        generateCanonicalRequest(request, pendingLegacyId = null)
+    }
+
     fun rebuildLegacy(id: String) {
         val legacy = state.value.legacyRequests.firstOrNull { it.id == id } ?: return
         mutableState.update {
@@ -252,14 +276,19 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     state = runtime.snapshot()
                 )
             }.onSuccess { runnable ->
+                runCaptureStore.writeCanonical(request, runnable.bundle)
+                val runHtml5FollowUp = state.value.pendingComparisonRequest == request
                 mutableState.update { current ->
                     if (runToken != generationRunToken) return@update current
                     current.copy(
                         session = CanonicalStudioSession.Runnable(runnable),
                         selectedArtifact = GeneratedArtifact.PREVIEW,
-                        currentSavedAppId = null
+                        currentSavedAppId = null,
+                        canonicalComparisonRequest = request,
+                        pendingComparisonRequest = null
                     )
                 }
+                if (runHtml5FollowUp) generateExperimentalHtml5(request)
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
                 mutableState.update { current ->
@@ -268,7 +297,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         is CanonicalStudioSession.Generating -> session.previousRunnable
                         else -> current.runnable
                     }
-                    val userMessage = if (failure is CanonicalGenerationFailureException) {
+                    val userMessage = if (failure.isCanonicalTransportFailure()) {
+                        "The connection to the generation service was interrupted before source arrived. We retried once; please try again. Your previous app is unchanged."
+                    } else if (failure is CanonicalGenerationFailureException) {
                         "We couldn't build this app after compiler patches. Inspection artifact: ${failure.artifactId}. Your previous app is unchanged."
                     } else {
                         "We couldn't build this app. Your previous app is unchanged."
@@ -278,7 +309,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                             previousRunnable = previousRunnable,
                             userMessage = userMessage,
                             technicalTrace = failure.stackTraceToString()
-                        )
+                        ),
+                        pendingComparisonRequest = null
                     )
                 }
             }
@@ -326,9 +358,11 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     outputTokens = generated.outputTokens
                 )
             }.onSuccess { result ->
+                runCaptureStore.writeHtml5(request, result)
                 mutableState.update { current ->
                     if (runToken != generationRunToken) return@update current
                     current.copy(experimentalHtml5Session = ExperimentalHtml5Session.Ready(result))
+                        .copy(html5ComparisonRequest = request)
                 }
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
@@ -545,10 +579,13 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     )
 
     private fun progressMessage(phase: CanonicalGenerationPhase, detail: String): String = when (phase) {
-        CanonicalGenerationPhase.DEAL -> "Building app behavior"
+        CanonicalGenerationPhase.DEAL -> detail.ifBlank { "Building app behavior" }
         CanonicalGenerationPhase.DEAL_UI -> "Building the interface"
         CanonicalGenerationPhase.VALIDATING -> "Checking the complete app"
         CanonicalGenerationPhase.REPAIRING -> detail.ifBlank { "Repairing a compiler diagnostic" }
         CanonicalGenerationPhase.RETRYING -> detail.ifBlank { "Regenerating the complete app once" }
     }
 }
+
+private fun Throwable.isCanonicalTransportFailure(): Boolean = generateSequence(this) { it.cause }
+    .any(CanonicalTransportRetryPolicy::shouldRetry)

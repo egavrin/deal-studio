@@ -5,6 +5,7 @@ import com.offlineassistant.deepseek.DeepSeekGenerationClient
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 import com.offlineassistant.deepseek.DeepSeekGenerationRequest
 import com.offlineassistant.deepseek.DeepSeekGenerationResult
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +21,9 @@ import kotlinx.serialization.json.put
 internal data class ValidatedCanonicalBundle(
     val bundle: CanonicalSourceBundle,
     val checkedUiIr: String,
-    val appInterface: String
+    val appInterface: String,
+    val autoUiSynthesisLatencyMs: Long = 0,
+    val autoUiSourceBytes: Int = bundle.dealUi.encodeToByteArray().size
 )
 
 internal data class CanonicalGeneratedAppBundle(
@@ -65,7 +68,11 @@ internal data class CanonicalGeneratedAppBundle(
     /** Ephemeral diagnostics for this accepted run; deliberately not part of persisted canonical source. */
     val patchTelemetry: List<CanonicalPatchTelemetry> = emptyList(),
     val attemptTelemetry: List<CanonicalGenerationAttemptTelemetry> = emptyList(),
-    val usedCapabilities: Set<String> = emptySet()
+    val usedCapabilities: Set<String> = emptySet(),
+    /** Studio-owned deterministic UI synthesis; no model output is counted here. */
+    val autoUiSynthesisLatencyMs: Long = 0,
+    val autoUiSourceBytes: Int = 0,
+    val autoUiCompilerVersion: String = ""
 )
 
 internal data class CanonicalPatchTelemetry(
@@ -83,11 +90,38 @@ internal data class CanonicalPatchTelemetry(
 
 internal enum class CanonicalGenerationAttempt { INITIAL, FULL_RETRY }
 
+/**
+ * A network retry is not a compiler recovery: no candidate source has been received yet.
+ * Keep this deliberately small so a user-visible generation still has a bounded cost.
+ */
+internal object CanonicalTransportRetryPolicy {
+    const val MAX_ATTEMPTS = 2
+
+    fun shouldRetry(failure: Throwable): Boolean {
+        val transport = generateSequence(failure) { it.cause }
+            .filterIsInstance<IOException>()
+            .firstOrNull()
+            ?: return false
+        val detail = transport.message.orEmpty().lowercase()
+        return detail.isNotBlank() && listOf(
+            "connection abort", "connection reset", "broken pipe", "unexpected end",
+            "timed out", "temporarily unavailable", "http 5"
+        ).any(detail::contains) && listOf(
+            "api key", "unauthorized", "forbidden", "rate-limited", "http 4"
+        ).none(detail::contains)
+    }
+}
+
 /** A patch is safe only for a single compiler-reported spelling/prop correction. */
 internal enum class CanonicalRecoveryKind { LOCAL_PATCH, FULL_RETRY }
 
 internal object CanonicalCompilerRecoveryPolicy {
     fun decide(target: CanonicalRepairTarget, diagnostic: String): CanonicalRecoveryKind {
+        if (target == CanonicalRepairTarget.DEAL && (
+                diagnostic.contains("E1015") || diagnostic.contains("Auto UI cannot reach") ||
+                    Regex("\\bE1\\d{3}\\b").containsMatchIn(diagnostic)
+            )
+        ) return CanonicalRecoveryKind.LOCAL_PATCH
         val structuralSignals = listOf(
             "UI100", "UI2012", "UI2013", "UI2033", "UI2050",
             "Expected 'view'", "Expected ')'", "Expected '('", "Expected expression",
@@ -96,7 +130,7 @@ internal object CanonicalCompilerRecoveryPolicy {
             "Capability action", "requires ui.", "requires an onTick", "requires an onPointer"
         )
         if (structuralSignals.any(diagnostic::contains)) return CanonicalRecoveryKind.FULL_RETRY
-        // A single unknown prop is the only error family that can be safely fixed without changing structure.
+        // Legacy two-source records may still use the UI-only spelling repair path.
         val localProp = Regex("(?i)(unknown|unexpected) (property|prop) ['`][A-Za-z][A-Za-z0-9_]*['`]")
         return if (target == CanonicalRepairTarget.DEAL_UI && localProp.containsMatchIn(diagnostic)) {
             CanonicalRecoveryKind.LOCAL_PATCH
@@ -194,16 +228,21 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     dealModel,
                     if (attempt == CanonicalGenerationAttempt.INITIAL) CanonicalBundlePrompts.initialInput(request)
                     else CanonicalBundlePrompts.fullRetryInput(request)
-                )
+                ) {
+                    onProgress(
+                        if (attempt == CanonicalGenerationAttempt.INITIAL) CanonicalGenerationPhase.DEAL else CanonicalGenerationPhase.RETRYING,
+                        "Connection interrupted before source arrived — retrying once"
+                    )
+                }
                 if (attempt == CanonicalGenerationAttempt.INITIAL) initial = generated else fullRetry = generated
-                compilerToolTrace("RAW_BUNDLE\t${attempt.name}\t${generated.output}")
-                val parsed = runCatching { CanonicalBundleProtocol.parseBundle(generated.output) }
-                var candidate = parsed.getOrNull()
+                compilerToolTrace("RAW_DEAL\t${attempt.name}\t${generated.output}")
+                val parsed = runCatching { CanonicalBundleProtocol.parseDeal(generated.output) }
+                var candidate = parsed.getOrNull()?.let { CanonicalSourceBundle(deal = it, dealUi = "") }
                 if (attempt == CanonicalGenerationAttempt.INITIAL) initialBundle = candidate else fullRetryBundle = candidate
                 var checked: CandidateValidation = if (candidate == null) {
                     CandidateValidation.Rejected(CanonicalRepairTarget.DEAL, parsed.exceptionOrNull()?.message.orEmpty(), null)
                 } else {
-                    validating { validateCandidate(requireNotNull(candidate), request) }
+                    validating { validateCandidate(requireNotNull(candidate)) }
                 }
                 var patchesThisAttempt = 0
                 while (
@@ -216,39 +255,40 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     val patchNumber = patchesThisAttempt + 1
                 onProgress(
                     CanonicalGenerationPhase.REPAIRING,
-                    "${rejected.target.fileName} has one local prop error — applying patch $patchNumber/$MAX_LOCAL_PATCHES_PER_ATTEMPT"
+                    "DEAL has one local compiler error — applying patch $patchNumber/$MAX_LOCAL_PATCHES_PER_ATTEMPT"
                 )
                 val currentCandidate = requireNotNull(candidate)
-                val source = if (rejected.target == CanonicalRepairTarget.DEAL) currentCandidate.deal else currentCandidate.dealUi
+                val source = currentCandidate.deal
                 val patchGenerated = requestRaw(
                     dealModel,
                     CanonicalBundlePrompts.repairInput(
                         request = request,
-                        target = rejected.target,
+                        target = CanonicalRepairTarget.DEAL,
                         rejectedSource = source,
                         diagnostic = rejected.diagnostic,
                         appInterface = rejected.appInterface
                     )
-                )
-                patchResponses += rejected.target to patchGenerated
-                compilerToolTrace("RAW_PATCH\t${attempt.name}\t${rejected.target.fileName}\t${patchGenerated.output}")
+                ) {
+                    onProgress(
+                        CanonicalGenerationPhase.REPAIRING,
+                        "Connection interrupted before patch arrived — retrying once"
+                    )
+                }
+                patchResponses += CanonicalRepairTarget.DEAL to patchGenerated
+                compilerToolTrace("RAW_PATCH\t${attempt.name}\tapp.deal\t${patchGenerated.output}")
                 val applied = runCatching {
-                    val patch = CanonicalBundleProtocol.parsePatch(patchGenerated.output, rejected.target)
-                    candidate = if (patch.target == CanonicalRepairTarget.DEAL) {
-                        currentCandidate.copy(deal = patch.applyTo(currentCandidate.deal))
-                    } else {
-                        currentCandidate.copy(dealUi = patch.applyTo(currentCandidate.dealUi))
-                    }
+                    val patch = CanonicalBundleProtocol.parsePatch(patchGenerated.output, CanonicalRepairTarget.DEAL)
+                    candidate = currentCandidate.copy(deal = patch.applyTo(currentCandidate.deal), dealUi = "")
                 }
                 checked = if (applied.isSuccess) {
                     onProgress(CanonicalGenerationPhase.VALIDATING, "Compiling patched application")
-                    validating { validateCandidate(requireNotNull(candidate), request) }
+                    validating { validateCandidate(requireNotNull(candidate)) }
                 } else {
                     rejected
                 }
                 patchTelemetry += CanonicalPatchTelemetry(
                     attempt = attempt,
-                    target = rejected.target,
+                    target = CanonicalRepairTarget.DEAL,
                     latencyMs = patchGenerated.latencyMs,
                     timeToFirstTokenMs = patchGenerated.timeToFirstTokenMs,
                     inputTokens = patchGenerated.inputTokens ?: 0,
@@ -300,42 +340,42 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealUiSource = acceptedBundle.bundle.dealUi,
             checkedUiIr = acceptedBundle.checkedUiIr,
             dealLatencyMs = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::latencyMs),
-            dealUiLatencyMs = patchTelemetry.sumOf(CanonicalPatchTelemetry::latencyMs),
+            dealUiLatencyMs = 0,
             wallLatencyMs = wallLatencyMs,
             dealTimeToFirstPatchMs = initial?.timeToFirstTokenMs,
-            dealUiTimeToFirstTokenMs = patchTelemetry.firstOrNull()?.timeToFirstTokenMs,
+            dealUiTimeToFirstTokenMs = null,
             validationLatencyMs = validationLatencyMs,
             repairLatencyMs = patchTelemetry.sumOf(CanonicalPatchTelemetry::latencyMs),
             repairPasses = patchTelemetry.size,
             dealGraphRounds = attemptTelemetry.size,
-            dealUiGraphRounds = patchTelemetry.size,
+            dealUiGraphRounds = 0,
             dealAcceptedPatches = 1,
             dealRejectedPatches = patchTelemetry.count { !it.compilerAccepted },
             dealTypedHoles = 0,
             dealInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::inputTokens),
             dealCachedInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::cachedInputTokens),
             dealOutputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::outputTokens),
-            dealUiRejectedPatches = patchTelemetry.count { it.target == CanonicalRepairTarget.DEAL_UI && !it.compilerAccepted },
-            dealUiInputTokens = patchTelemetry.sumOf(CanonicalPatchTelemetry::inputTokens),
-            dealUiCachedInputTokens = patchTelemetry.sumOf(CanonicalPatchTelemetry::cachedInputTokens),
-            dealUiOutputTokens = patchTelemetry.sumOf(CanonicalPatchTelemetry::outputTokens),
-            dealUiAcceptedPatches = patchTelemetry.count(CanonicalPatchTelemetry::compilerAccepted),
+            dealUiRejectedPatches = 0,
+            dealUiInputTokens = 0,
+            dealUiCachedInputTokens = 0,
+            dealUiOutputTokens = 0,
+            dealUiAcceptedPatches = 0,
             firstInteractivePreviewMs = wallLatencyMs,
             dealModelId = dealModel.name,
-            dealUiModelId = dealUiModel.name,
-            promptDigest = sha256(CanonicalBundlePrompts.instructions + CanonicalDealUiPack.SHA256),
-            compilerProtocolVersion = "compiler-protocol-capability-raw-retry-v3",
-            agentSurfaceVersion = "canonical-capability-raw-retry-v3",
-            agentSurfaceBytes = CanonicalBundlePrompts.instructions.encodeToByteArray().size +
-                CanonicalDealUiPack.generationContract.encodeToByteArray().size,
-            agentSurfaceEstimatedTokens = (
-                CanonicalBundlePrompts.instructions.length + CanonicalDealUiPack.generationContract.length
-            ) / 4,
+            dealUiModelId = "studio-auto-ui",
+            promptDigest = sha256(CanonicalBundlePrompts.instructions),
+            compilerProtocolVersion = "deal-only-auto-ui-v1",
+            agentSurfaceVersion = "deal-only-auto-ui-v1",
+            agentSurfaceBytes = CanonicalBundlePrompts.instructions.encodeToByteArray().size,
+            agentSurfaceEstimatedTokens = CanonicalBundlePrompts.instructions.length / 4,
             generationModelCalls = attemptTelemetry.size + patchTelemetry.size,
             compilerRepairCalls = patchTelemetry.size,
             patchTelemetry = patchTelemetry.toList(),
             attemptTelemetry = attemptTelemetry.toList(),
-            usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet()
+            usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet(),
+            autoUiSynthesisLatencyMs = acceptedBundle.autoUiSynthesisLatencyMs,
+            autoUiSourceBytes = acceptedBundle.autoUiSourceBytes,
+            autoUiCompilerVersion = CanonicalAutoUiCompiler.VERSION
             )
         } catch (failure: Exception) {
             val artifact = failureStore.write(
@@ -360,16 +400,36 @@ internal class CanonicalGeneratedAppCloudCompiler(
         }
     }
 
-    private fun requestRaw(model: DeepSeekGenerationModel, input: String): DeepSeekGenerationResult =
-        dealClient.generate(
-            DeepSeekGenerationRequest(
-                model = model,
-                instructions = CanonicalBundlePrompts.instructions,
-                input = input,
-                maxOutputTokens = BUNDLE_MAX_TOKENS,
-                temperature = 0.0
-            )
-        )
+    private fun requestRaw(
+        model: DeepSeekGenerationModel,
+        input: String,
+        onTransportRetry: () -> Unit = {}
+    ): DeepSeekGenerationResult {
+        var lastFailure: Throwable? = null
+        repeat(CanonicalTransportRetryPolicy.MAX_ATTEMPTS) { attempt ->
+            try {
+                return dealClient.generate(
+                    DeepSeekGenerationRequest(
+                        model = model,
+                        instructions = CanonicalBundlePrompts.instructions,
+                        input = input,
+                        maxOutputTokens = BUNDLE_MAX_TOKENS,
+                        temperature = 0.0
+                    )
+                )
+            } catch (failure: Throwable) {
+                lastFailure = failure
+                if (attempt == CanonicalTransportRetryPolicy.MAX_ATTEMPTS - 1 ||
+                    !CanonicalTransportRetryPolicy.shouldRetry(failure)
+                ) {
+                    throw failure
+                }
+                compilerToolTrace("RAW_TRANSPORT_RETRY\t${failure.javaClass.simpleName}\t${failure.message.orEmpty()}")
+                onTransportRetry()
+            }
+        }
+        throw requireNotNull(lastFailure)
+    }
 
     private fun compileDealUi(bundle: CanonicalSourceBundle, appInterface: String): String {
         check(appInterface.isNotBlank()) { "Extracted AppInterface is empty" }
@@ -390,7 +450,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         )
     }
 
-    private fun validateCandidate(bundle: CanonicalSourceBundle, request: String): CandidateValidation {
+    private fun validateCandidate(bundle: CanonicalSourceBundle): CandidateValidation {
         val deal = runCatching {
             toolchain.validateDealForUi(bundle.deal)
             toolchain.extractAppInterface(bundle.deal)
@@ -401,24 +461,33 @@ internal class CanonicalGeneratedAppCloudCompiler(
             diagnostic = deal.exceptionOrNull()?.message.orEmpty(),
             appInterface = null
         )
-        val intent = runCatching { RequestedCapabilityContract.validate(request, requireNotNull(appInterface)) }
-        if (intent.isFailure) return CandidateValidation.Rejected(
+        val autoUiStarted = System.nanoTime()
+        val derived = runCatching { CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(requireNotNull(appInterface))) }
+        val autoUiSynthesisLatencyMs = (System.nanoTime() - autoUiStarted) / 1_000_000
+        if (derived.isFailure) return CandidateValidation.Rejected(
             target = CanonicalRepairTarget.DEAL,
-            diagnostic = intent.exceptionOrNull()?.message.orEmpty(),
+            diagnostic = derived.exceptionOrNull()?.message.orEmpty(),
             appInterface = appInterface
         )
+        val derivedBundle = bundle.copy(dealUi = requireNotNull(derived.getOrNull()))
         val ui = runCatching {
-            compileDealUi(bundle, requireNotNull(appInterface)).also {
+            compileDealUi(derivedBundle, requireNotNull(appInterface)).also {
                 GenerationCapabilityContracts.validate(requireNotNull(appInterface), it)
             }
         }
         if (ui.isFailure) return CandidateValidation.Rejected(
-            target = repairTargetFor(ui.exceptionOrNull()?.message.orEmpty()),
+            target = CanonicalRepairTarget.DEAL,
             diagnostic = ui.exceptionOrNull()?.message.orEmpty(),
             appInterface = appInterface
         )
         return CandidateValidation.Accepted(
-            ValidatedCanonicalBundle(bundle, requireNotNull(ui.getOrNull()), requireNotNull(appInterface))
+            ValidatedCanonicalBundle(
+                derivedBundle,
+                requireNotNull(ui.getOrNull()),
+                requireNotNull(appInterface),
+                autoUiSynthesisLatencyMs = autoUiSynthesisLatencyMs,
+                autoUiSourceBytes = derivedBundle.dealUi.encodeToByteArray().size
+            )
         )
     }
 
@@ -433,7 +502,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
     }
     private companion object {
         const val BUNDLE_MAX_TOKENS = 16_384
-        const val MAX_LOCAL_PATCHES_PER_ATTEMPT = 1
+        const val MAX_LOCAL_PATCHES_PER_ATTEMPT = 3
     }
 }
 
@@ -482,7 +551,7 @@ internal object AppInterfaceCompiler {
           },
           "${'$'}defs":{
             "field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},
-            "type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":24,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}
+            "type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":48,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}
           }
         }
         """.trimIndent()
@@ -500,7 +569,7 @@ internal object AppInterfaceCompiler {
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
           },
-            "${'$'}defs":{"field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},"type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":24,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}}
+            "${'$'}defs":{"field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},"type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":48,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}}
         }
         """.trimIndent()
     ).jsonObject
@@ -574,7 +643,7 @@ internal object AppInterfaceCompiler {
                 field.getValue("type").jsonPrimitive.content
             )
         }
-        require(fields.size <= 24) { "AppInterfaceV1 class has too many fields" }
+        require(fields.size <= 48) { "AppInterfaceV1 class has too many fields" }
         require(fields.map(AppInterfaceField::name).distinct().size == fields.size) {
             "AppInterface field names must be unique in ${value.getValue("name").jsonPrimitive.content}"
         }

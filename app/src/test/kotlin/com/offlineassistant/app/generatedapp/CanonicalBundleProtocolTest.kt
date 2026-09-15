@@ -1,11 +1,21 @@
 package com.offlineassistant.app.generatedapp
 
+import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CanonicalBundleProtocolTest {
+
+    @Test
+    fun `temporary transport errors receive one retry but auth and compiler errors do not`() {
+        assertTrue(CanonicalTransportRetryPolicy.shouldRetry(IOException("Software caused connection abort")))
+        assertTrue(CanonicalTransportRetryPolicy.shouldRetry(IOException("Read timed out")))
+        assertFalse(CanonicalTransportRetryPolicy.shouldRetry(IOException("DeepSeek rejected the API key. Update it in Settings.")))
+        assertFalse(CanonicalTransportRetryPolicy.shouldRetry(IllegalArgumentException("E1015 Expected ')' after if condition")))
+        assertEquals(2, CanonicalTransportRetryPolicy.MAX_ATTEMPTS)
+    }
     @Test
     fun `raw bundle preserves source without json escaping`() {
         val output = """
@@ -105,14 +115,12 @@ class CanonicalBundleProtocolTest {
     }
 
     @Test
-    fun `prompts contain raw framing and compact syntax cards`() {
+    fun `prompts contain DEAL-only framing and compact syntax card`() {
         val prompt = CanonicalBundlePrompts.instructions
         assertTrue(prompt.contains(CanonicalBundleProtocol.DEAL_START))
-        assertTrue(prompt.contains(CanonicalBundleProtocol.BUNDLE_END))
+        assertTrue(prompt.contains(CanonicalBundleProtocol.DEAL_END))
         assertTrue(prompt.contains("if (next > 0) { return"))
         assertTrue(prompt.contains("`has value`"))
-        assertTrue(prompt.contains("Never traverse string, int, boolean, null, array"))
-        assertTrue(prompt.contains("ForEach(state.items"))
         assertTrue(prompt.contains("within the 16,384-token output cap"))
         assertTrue(prompt.contains("Never use recursion"))
         assertTrue(prompt.contains("nextItems[nextItems.length]"))
@@ -121,32 +129,71 @@ class CanonicalBundleProtocolTest {
         assertTrue(prompt.contains("exactly two typed parameters"))
         assertTrue(prompt.contains("never assign `state.field = ...` or `next.field = ...`"))
         assertTrue(prompt.contains("never call `intText`,"))
-        assertTrue(prompt.contains("array may appear only as the direct source of `ForEach`"))
         assertTrue(prompt.contains("Never invent demo records"))
         assertTrue(prompt.contains("REALTIME CANVAS CAPABILITY"))
-        assertTrue(prompt.contains("ui.FrameClock"))
-        assertTrue(prompt.contains("ui.PointerSurface"))
-        assertTrue(prompt.contains("ui.CapabilityNotice"))
         assertTrue(prompt.contains("bounded time-step"))
         assertTrue(prompt.contains("FrameAction must produce a typed state change"))
         assertFalse(prompt.contains("do not use simulation/game loop"))
         assertFalse(prompt.contains("submit_canonical_bundle"))
         assertFalse(prompt.contains("typed hole"))
+        assertTrue(prompt.contains("Studio generates checked Deal UI automatically"))
+        assertFalse(prompt.contains("full app.dealui"))
+        assertFalse(prompt.contains("Full exact typed Deal UI component contract"))
     }
 
     @Test
-    fun `initial and full retry inputs use the full checked UI contract`() {
+    fun `initial and full retry inputs never expose Deal UI contract`() {
         val initial = CanonicalBundlePrompts.initialInput("Build a game")
         val retry = CanonicalBundlePrompts.fullRetryInput("Build a game")
 
         listOf(initial, retry).forEach { input ->
-            assertTrue(input.contains("FrameClock(ClockProps)"))
-            assertTrue(input.contains("PointerSurface(PointerProps)"))
-            assertTrue(input.contains("Canvas(CanvasProps)"))
-            assertTrue(input.contains("ShapeProps{x?:int,y?:int,width?:int,height?:int,color?:string"))
+            assertFalse(input.contains("FrameClock(ClockProps)"))
+            assertFalse(input.contains("PointerSurface(PointerProps)"))
+            assertFalse(input.contains("Canvas(CanvasProps)"))
         }
         assertTrue(initial.contains("Never write `ui.`, `Text`, `IntText`"))
         assertTrue(initial.contains("Do not declare keyboard, storage.private, notifications"))
+    }
+
+    @Test
+    fun `DEAL-only framing preserves authored source`() {
+        val source = CanonicalBundleProtocol.parseDeal(
+            "${CanonicalBundleProtocol.DEAL_START}\nexport class AppState {}\n${CanonicalBundleProtocol.DEAL_END}\n"
+        )
+        assertEquals("\nexport class AppState {}\n", source)
+    }
+
+    @Test
+    fun `DEAL-only framing rejects old UI delimiters and trailing prose`() {
+        val oldProtocol = runCatching {
+            CanonicalBundleProtocol.parseDeal(
+                "${CanonicalBundleProtocol.DEAL_START}\nclass AppState {}\n" +
+                    "${CanonicalBundleProtocol.DEAL_UI_START}\n"
+            )
+        }.exceptionOrNull()
+        assertTrue(oldProtocol?.message.orEmpty().contains(CanonicalBundleProtocol.DEAL_END))
+
+        val trailing = runCatching {
+            CanonicalBundleProtocol.parseDeal(
+                "${CanonicalBundleProtocol.DEAL_START}\nclass AppState {}\n${CanonicalBundleProtocol.DEAL_END}\nExplanation"
+            )
+        }.exceptionOrNull()
+        assertTrue(trailing?.message.orEmpty().contains("must not contain text after"))
+    }
+
+    @Test
+    fun `DEAL parser and auto UI diagnostics use bounded local repair`() {
+        assertEquals(
+            CanonicalRecoveryKind.LOCAL_PATCH,
+            CanonicalCompilerRecoveryPolicy.decide(CanonicalRepairTarget.DEAL, "E1015 Expected ')' after if condition")
+        )
+        assertEquals(
+            CanonicalRecoveryKind.LOCAL_PATCH,
+            CanonicalCompilerRecoveryPolicy.decide(
+                CanonicalRepairTarget.DEAL,
+                "Auto UI cannot reach AddAction because its action payload is not a primitive root-field setter"
+            )
+        )
     }
 
     @Test
@@ -172,15 +219,6 @@ class CanonicalBundleProtocolTest {
                 "error UI2021: Unknown property 'colro'"
             )
         )
-    }
-
-    @Test
-    fun `realtime intent requires frame and pointer capabilities`() {
-        assertEquals(
-            setOf("clock.frame", "pointer"),
-            RequestedCapabilityContract.requiredBy("Build a touch-controlled Arkanoid canvas game with continuous animation")
-        )
-        assertTrue(RequestedCapabilityContract.requiredBy("Build a percentage calculator").isEmpty())
     }
 
     @Test

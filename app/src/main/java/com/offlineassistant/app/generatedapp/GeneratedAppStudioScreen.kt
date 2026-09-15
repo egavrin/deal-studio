@@ -139,6 +139,8 @@ internal fun GeneratedAppStudioRoute(
             onGenerationModeSelected = viewModel::selectGenerationMode,
             onGenerate = viewModel::generate,
             onGenerateSurprise = viewModel::generateSurprise,
+            onGenerateMatchedComparison = viewModel::generateMatchedComparison,
+            onGenerateSurpriseMatchedComparison = viewModel::generateSurpriseMatchedComparison,
             onRefine = viewModel::refine,
             onRebuildLegacy = viewModel::rebuildLegacy,
             onCancel = viewModel::cancel,
@@ -180,6 +182,8 @@ internal data class GeneratedAppStudioActions(
     val onGenerationModeSelected: (StudioGenerationMode) -> Unit,
     val onGenerate: () -> Unit,
     val onGenerateSurprise: () -> Unit,
+    val onGenerateMatchedComparison: () -> Unit,
+    val onGenerateSurpriseMatchedComparison: () -> Unit,
     val onRefine: () -> Unit,
     val onRebuildLegacy: (String) -> Unit,
     val onCancel: () -> Unit,
@@ -225,8 +229,10 @@ internal fun GeneratedAppStudioScreen(
             }
             val canonical = state.runnable
             val html5 = state.experimentalHtml5Session.result
-            if (canonical != null && html5 != null) {
+            if (canonical != null && html5 != null && state.hasMatchedComparison) {
                 GenerationComparison(canonical.bundle, html5)
+            } else if (canonical != null && html5 != null) {
+                ComparisonRequiresMatchingPrompt()
             }
             SavedApps(state.savedApps, actions)
             LegacyRequests(state.legacyRequests, actions.onRebuildLegacy)
@@ -301,6 +307,24 @@ private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedApp
                 }
             }
         }
+        OutlinedButton(
+            onClick = actions.onGenerateMatchedComparison,
+            enabled = state.canGenerate,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text("Compare this prompt in DEAL and HTML5")
+        }
+        TextButton(
+            onClick = actions.onGenerateSurpriseMatchedComparison,
+            enabled = state.canGenerateSurprise,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Surprise pair — same prompt in both modes") }
+        Text(
+            "For a fair DEAL vs HTML5 comparison, reuse this exact visible prompt in the other mode; " +
+                "do not press Surprise me a second time.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -333,7 +357,7 @@ private fun GenerationModeSelector(
         }
         Text(
             if (selected == StudioGenerationMode.CANONICAL) {
-                "Compiler-checked DEAL and Deal UI. This is the authoritative Studio path."
+                "One model-authored DEAL source. Studio derives and checks Deal UI locally."
             } else {
                 "One direct call with the selected DEAL model, rendered as untrusted content in an offline " +
                     "sandbox. It cannot be saved."
@@ -468,7 +492,7 @@ private fun SandboxedHtml5Preview(html: String, onExpand: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun SandboxedHtml5WebView(html: String, modifier: Modifier) {
+internal fun SandboxedHtml5WebView(html: String, modifier: Modifier) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
@@ -585,6 +609,21 @@ private fun GenerationComparison(canonical: CanonicalGeneratedAppBundle, html5: 
 }
 
 @Composable
+private fun ComparisonRequiresMatchingPrompt() {
+    Surface(
+        Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Text(
+            "Comparison withheld: the current DEAL and HTML5 results were generated from different prompts.",
+            modifier = Modifier.padding(14.dp),
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
 private fun ComparisonRow(
     label: String,
     total: String,
@@ -634,7 +673,7 @@ private fun GenerationProgress(session: CanonicalStudioSession.Generating, onCan
         message = session.message,
         supporting = when (session.phase) {
             CanonicalGenerationPhase.DEAL -> "DeepSeek is producing one complete DEAL and Deal UI bundle."
-            CanonicalGenerationPhase.DEAL_UI -> "DeepSeek is producing one complete application bundle."
+            CanonicalGenerationPhase.DEAL_UI -> "Studio is deriving checked Deal UI from DEAL."
             CanonicalGenerationPhase.VALIDATING -> "The pinned compilers are checking both canonical sources."
             CanonicalGenerationPhase.REPAIRING -> "DeepSeek is applying one compiler-directed local source patch."
             CanonicalGenerationPhase.RETRYING -> "A structural compiler error needs one fresh complete-bundle retry."
@@ -759,7 +798,7 @@ private fun RunnableResult(
                 RefinementBox(state, actions)
             }
 
-            GeneratedArtifact.DEAL_UI -> SourcePanel("app.dealui", app.bundle.dealUiSource)
+            GeneratedArtifact.DEAL_UI -> SourcePanel("Generated app.dealui", app.bundle.dealUiSource)
 
             GeneratedArtifact.DEAL -> SourcePanel("app.deal", app.bundle.dealSource)
         }
@@ -779,7 +818,7 @@ private fun ArtifactTabs(selected: GeneratedArtifact, onSelected: (GeneratedArti
                     Text(
                         when (artifact) {
                             GeneratedArtifact.PREVIEW -> "Preview"
-                            GeneratedArtifact.DEAL_UI -> "Deal UI"
+                            GeneratedArtifact.DEAL_UI -> "Generated UI"
                             GeneratedArtifact.DEAL -> "DEAL"
                         }
                     )
@@ -844,7 +883,7 @@ private fun GenerationDetails(bundle: CanonicalGeneratedAppBundle) {
         }
         if (expanded) {
             GenerationSummary(metrics)
-            GenerationStageCards(metrics)
+            GenerationStageCards(bundle, metrics)
             GenerationTokenGrid(metrics)
             GenerationCompilerSummary(bundle, metrics)
             Text(
@@ -898,17 +937,37 @@ private fun GenerationSummary(metrics: CanonicalGenerationMetrics) {
 }
 
 @Composable
-private fun GenerationStageCards(metrics: CanonicalGenerationMetrics) {
+private fun GenerationStageCards(bundle: CanonicalGeneratedAppBundle, metrics: CanonicalGenerationMetrics) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth >= 600.dp) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GenerationStageCard("Behavior", "DEAL", metrics.behavior, Modifier.weight(1f))
-                GenerationStageCard("Interface", "Deal UI", metrics.interfaceUi, Modifier.weight(1f))
+                AutoUiStageCard(bundle, Modifier.weight(1f))
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 GenerationStageCard("Behavior", "DEAL", metrics.behavior)
-                GenerationStageCard("Interface", "Deal UI", metrics.interfaceUi)
+                AutoUiStageCard(bundle)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modifier = Modifier) {
+    Surface(
+        modifier,
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Interface", style = MaterialTheme.typography.titleMedium)
+            Text("Studio-derived Deal UI", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GenerationFact("Model tokens", "0", Modifier.weight(1f))
+                GenerationFact("Synthesis", formatGenerationDuration(bundle.autoUiSynthesisLatencyMs), Modifier.weight(1f))
+                GenerationFact("Source", formatGenerationBytes(bundle.autoUiSourceBytes), Modifier.weight(1f))
             }
         }
     }
@@ -1044,7 +1103,7 @@ private fun GenerationCompilerSummary(
                 }
                 Text(
                     "Validation ${formatGenerationDuration(metrics.validationDurationMs)} · " +
-                        "full DEAL + Deal UI compilation",
+                        "DEAL + compiler-derived Deal UI compilation · ${bundle.autoUiCompilerVersion.ifBlank { "legacy UI" }}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.74f)
                 )

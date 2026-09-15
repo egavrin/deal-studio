@@ -3,6 +3,7 @@ package com.offlineassistant.app.generatedapp
 /** The only model-facing framing for the two canonical source files. */
 internal object CanonicalBundleProtocol {
     const val DEAL_START = "<<<DEAL:app.deal>>>"
+    const val DEAL_END = "<<<END_DEAL>>>"
     const val DEAL_UI_START = "<<<DEAL_UI:app.dealui>>>"
     const val BUNDLE_END = "<<<END_CANONICAL_BUNDLE>>>"
     const val PATCH_OLD = "<<<OLD>>>"
@@ -33,6 +34,19 @@ internal object CanonicalBundleProtocol {
         require(deal.isNotBlank()) { "app.deal source is empty" }
         require(dealUi.isNotBlank()) { "app.dealui source is empty" }
         return CanonicalSourceBundle(deal = deal, dealUi = dealUi)
+    }
+
+    /** DEAL-only Studio protocol. The UI is always derived after DEAL has been checked. */
+    fun parseDeal(output: String): String {
+        val text = output.removePrefix("\uFEFF")
+        require(!text.contains("```")) { "Canonical DEAL source must not contain Markdown fences" }
+        require(text.startsWith(DEAL_START)) { "Canonical DEAL source must begin with $DEAL_START" }
+        require(text.count(DEAL_START) == 1) { "Canonical DEAL source must contain $DEAL_START exactly once" }
+        val end = text.indexOf(DEAL_END, DEAL_START.length)
+        require(end >= 0) { "Canonical DEAL source ended before $DEAL_END" }
+        require(text.count(DEAL_END) == 1) { "Canonical DEAL source must contain $DEAL_END exactly once" }
+        require(text.substring(end + DEAL_END.length).isBlank()) { "Canonical DEAL source must not contain text after $DEAL_END" }
+        return text.substring(DEAL_START.length, end).also { require(it.isNotBlank()) { "app.deal source is empty" } }
     }
 
     fun parsePatch(output: String, target: CanonicalRepairTarget): CanonicalSourcePatch {
@@ -236,36 +250,29 @@ internal object CanonicalDealUiSyntaxCard {
 
 internal object CanonicalBundlePrompts {
     val instructions: String = """
-        Build one complete, compact mobile application. Return raw source only, using this exact framing with no prose or Markdown:
+        Build one complete, compact mobile application. Return only one valid DEAL source using this exact framing with no prose or Markdown:
         ${CanonicalBundleProtocol.DEAL_START}
         full app.deal
-        ${CanonicalBundleProtocol.DEAL_UI_START}
-        full app.dealui
-        ${CanonicalBundleProtocol.BUNDLE_END}
+        ${CanonicalBundleProtocol.DEAL_END}
 
-        Finish the entire framed bundle within the 16,384-token output cap. Put the DEAL_UI delimiter and END delimiter
-        in the response before optional polish. Prefer direct local state transitions over unnecessary helpers. Never
+        Studio generates checked Deal UI automatically from the checked DEAL AppInterface. Never write Deal UI imports,
+        `ui.*`, view declarations, component names, layout, Canvas calls, action literals, or presentation helpers.
+        Finish the framed DEAL source within the 16,384-token output cap. Prefer direct local state transitions over unnecessary helpers. Never
         use recursion, self-calling helpers, generated helper chains, unbounded generated lists, or host-independent
         infinite work. A requested realtime interaction may use an explicit bounded time-step action from FrameClock.
         An incomplete framed bundle is rejected without a runnable app.
-
-        In Deal UI, collections are render-only: use an array only as `ForEach(state.items, ...)`. Never use
-        `state.items.length`, `state.items[index]`, or an array in `When`. Add a typed boolean/count projection in
-        AppState in DEAL (for example `hasItems: boolean`) and bind UI conditions to that projection instead.
 
         ${GeneratedProductGuide.TEXT}
 
         ${CanonicalDealSyntaxCard.TEXT}
 
-        ${CanonicalDealUiSyntaxCard.TEXT}
-
         ${GenerationCapabilityContracts.prompt}
 
-        The root view parameter must exactly match the root type returned by `initialState()`. Use one ui.AppTheme and
-        one ui.Root. Use only components, props, events and tokens from the exact compact pack contract supplied below.
-        Components are reusable primitives, not mandatory features. Choose a compact coherent mobile hierarchy. Never
-        invent remote image URLs, demo records or app-specific components. Filtering, sorting, aggregation and
-        formatting belong in DEAL; Deal UI renders prepared typed state and binds only real user/host actions.
+        The generated UI can expose zero-payload actions and single primitive `Set...` actions. For editable forms,
+        model draft fields plus one typed Set action per draft field and one zero-payload submit action. For a list
+        empty state, include an authoritative boolean projection such as `hasMedications` beside `medications` and
+        update both together. Keep routes, counts, empty-state booleans, display labels, statuses and aggregates in
+        AppState. Never invent demo records.
     """.trimIndent()
 
     fun initialInput(request: String): String = """
@@ -279,23 +286,17 @@ internal object CanonicalBundlePrompts {
 
         User request:
         $request
-
-        Full exact typed Deal UI component contract:
-        ${CanonicalDealUiPack.generationContract}
     """.trimIndent()
 
     fun fullRetryInput(request: String): String = """
-        Generate a fresh complete canonical bundle for this request. The previous candidate was rejected after
-        compiler-directed local patches. Do not explain or patch it: emit a new complete two-file bundle using the
-        exact raw framing from the instructions. Preserve the requested product outcome and choose only checked APIs.
+        Generate a fresh complete DEAL source for this request. The previous candidate was rejected after
+        compiler-directed local patches. Do not explain or patch it: emit a new DEAL-only source using the exact raw
+        framing from the instructions. Preserve the requested product outcome and choose only checked APIs.
         app.deal is never allowed to call UI components or formatting helpers. Do not declare optional host
         capabilities unless the user explicitly asks for the corresponding platform operation.
 
         User request:
         $request
-
-        Full exact typed Deal UI component contract:
-        ${CanonicalDealUiPack.generationContract}
     """.trimIndent()
 
     fun repairInput(

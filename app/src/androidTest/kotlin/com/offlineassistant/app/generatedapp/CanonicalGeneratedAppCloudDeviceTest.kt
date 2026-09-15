@@ -1696,6 +1696,21 @@ class CanonicalGeneratedAppCloudDeviceTest {
         assertTrue("Arkanoid UI must expose pointer input", "ui.PointerSurface(" in bundle.dealUiSource)
         assertTrue("Arkanoid UI must drive frame updates", "ui.FrameClock(" in bundle.dealUiSource)
 
+        // A request with explicit Start/Pause states is allowed to start inactive. Exercise its reachable
+        // start transition before asserting that the frame clock advances retained game state.
+        val startAction = appInterface.actions.firstOrNull { action ->
+            action.name.contains("Start") && action.fields.isEmpty()
+        }
+        val stateBeforePointer = if (startAction == null) {
+            initialState
+        } else {
+            runtime.dispatch(
+                handler = "on${startAction.name.removeSuffix("Action")}",
+                actionType = startAction.name,
+                fields = emptyMap()
+            )
+        }
+
         val pointerActionName = requireNotNull(
             Regex("onPointer:\\s*action app\\.([A-Z][A-Za-z0-9]*)")
                 .find(bundle.dealUiSource)
@@ -1721,12 +1736,12 @@ class CanonicalGeneratedAppCloudDeviceTest {
         }
         val pointerHandler = "on${pointerAction.name.removeSuffix("Action")}"
         val afterPointerDown = runtime.dispatch(pointerHandler, pointerAction.name, pointerFields(phase = 0))
-        val afterPointer = if (afterPointerDown != initialState) {
+        val afterPointer = if (afterPointerDown != stateBeforePointer) {
             afterPointerDown
         } else {
             runtime.dispatch(pointerHandler, pointerAction.name, pointerFields(phase = 1))
         }
-        assertNotEquals("Pointer input must update Arkanoid state", initialState, afterPointer)
+        assertNotEquals("Pointer input must update Arkanoid state", stateBeforePointer, afterPointer)
 
         val tickActionName = requireNotNull(
             Regex("onTick:\\s*action app\\.([A-Z][A-Za-z0-9]*)")

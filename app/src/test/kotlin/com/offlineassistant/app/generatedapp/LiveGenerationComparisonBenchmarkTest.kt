@@ -108,7 +108,6 @@ class LiveGenerationComparisonBenchmarkTest {
         val runDirectory = File(outputRoot, "$scenario/run-$run").apply { mkdirs() }
         canonical.bundle?.let { bundle ->
             File(runDirectory, "canonical.deal").writeText(bundle.deal)
-            File(runDirectory, "canonical.dealui").writeText(bundle.dealUi)
         } ?: File(runDirectory, "canonical.raw.txt").writeText(canonical.rawOutput)
         File(runDirectory, "html5.html").writeText(html5.html)
         val result = buildJsonObject {
@@ -119,7 +118,7 @@ class LiveGenerationComparisonBenchmarkTest {
             put("maxOutputTokens", OUTPUT_LIMIT)
             put(
                 "canonicalValidation",
-                canonical.error ?: "raw-bundle-framing-parsed; android-compiler-not-run"
+                canonical.error ?: "raw-deal-framing-parsed; Android DEAL and auto-UI compiler not run in JVM benchmark"
             )
             put("canonicalSuccess", canonical.error == null)
             canonical.error?.let { put("canonicalFailure", it) }
@@ -131,7 +130,6 @@ class LiveGenerationComparisonBenchmarkTest {
             canonical.generation.outputTokens?.let { put("canonicalOutputTokens", it) }
             canonical.bundle?.let { bundle ->
                 put("canonicalDealBytes", bundle.deal.encodeToByteArray().size)
-                put("canonicalDealUiBytes", bundle.dealUi.encodeToByteArray().size)
             } ?: put("canonicalRawBytes", canonical.rawOutput.encodeToByteArray().size)
             put("html5WallMs", html5.generation.latencyMs)
             html5.generation.timeToFirstTokenMs?.let { put("html5FirstMs", it) }
@@ -237,9 +235,9 @@ class LiveGenerationComparisonBenchmarkTest {
                 temperature = 0.0
             )
         )
-        val parsed = runCatching { CanonicalBundleProtocol.parseBundle(generation.output) }
+        val parsed = runCatching { CanonicalBundleProtocol.parseDeal(generation.output) }
         return CanonicalAttempt(
-            bundle = parsed.getOrNull(),
+            bundle = parsed.getOrNull()?.let { CanonicalSourceBundle(deal = it, dealUi = "") },
             rawOutput = generation.output,
             generation = generation,
             error = parsed.exceptionOrNull()?.message
