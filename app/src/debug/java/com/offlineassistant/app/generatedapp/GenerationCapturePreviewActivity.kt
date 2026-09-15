@@ -94,7 +94,10 @@ private fun DealCaptureRuntime(capture: File?, context: android.content.Context)
 @Composable
 private fun Html5CaptureRuntime(capture: File?) {
     val html = remember(capture) {
-        runCatching { requireNotNull(capture) { "Capture not found" }; File(capture, "app.html").readText() }
+        runCatching {
+            requireNotNull(capture) { "Capture not found" }
+            File(capture, "app.html").readText()
+        }
     }.getOrElse { return CaptureError(it.message ?: "Cannot load HTML5 capture") }
     SandboxedHtml5WebView(html, Modifier.fillMaxSize())
 }
