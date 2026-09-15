@@ -555,9 +555,7 @@ class DeepSeekGenerationClient(
                     if (payload == SSE_DONE) return@forEach
                     val root = json.parseToJsonElement(payload).jsonObject
                     root["error"]?.takeUnless { it is JsonNull }?.let { throw IOException("Cloud tool response failed: $it") }
-                    val finishReason = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
-                        ?.get("finish_reason")?.jsonPrimitive?.contentOrNull
-                    if (finishReason == "length") throw IOException("Incomplete response: max_output_tokens")
+                    chatTerminalError(root)?.let { throw IOException(it) }
                     root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
                         ?.get("delta")?.jsonObject?.get("tool_calls")?.jsonArray
                         ?.forEach { element ->
@@ -976,6 +974,15 @@ class DeepSeekGenerationClient(
                 )
             }
         )
+    }
+
+    internal fun chatTerminalError(payload: String): String? =
+        chatTerminalError(json.parseToJsonElement(payload).jsonObject)
+
+    private fun chatTerminalError(root: JsonObject): String? {
+        val finishReason = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+            ?.get("finish_reason")?.jsonPrimitive?.contentOrNull
+        return if (finishReason == "length") "Incomplete response: max_output_tokens" else null
     }
 
     private fun elapsedMillis(started: Long): Long = (System.nanoTime() - started)

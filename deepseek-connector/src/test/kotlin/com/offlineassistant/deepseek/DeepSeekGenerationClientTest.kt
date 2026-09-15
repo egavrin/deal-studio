@@ -361,6 +361,14 @@ class DeepSeekGenerationClientTest {
     }
 
     @Test
+    fun `truncated staged constructor call remains a transport failure`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val terminal = """{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"stage_constructor_calls","arguments":"{\\\"ticket\\\":\\\"abc\\\",\\\"calls\\\":["}}]},"finish_reason":"length"}]}"""
+
+        assertEquals("Incomplete response: max_output_tokens", client.chatTerminalError(terminal))
+    }
+
+    @Test
     fun `reasoning tool requests use supported auto selection without source output format`() {
         val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
         val body = client.toolRequestBody(
