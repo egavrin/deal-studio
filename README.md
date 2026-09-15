@@ -1,9 +1,9 @@
 # DEAL Studio
 
 DEAL Studio is an Android environment for generating, running, refining and saving small interactive
-applications from a natural-language request. Generated behavior is written in DEAL, presentation is
-written in Deal UI, and only compiler-checked canonical applications reach the native Compose
-runtime.
+applications from a natural-language request. Users choose either compiler-checked DEAL + Deal UI,
+rendered by the native Compose runtime, or an isolated HTML/CSS/JavaScript application rendered in
+an offline WebView sandbox.
 
 Examples include utilities, trackers, widgets, dashboards and small touch-controlled games. The
 system is intentionally general: production code must not contain branches, components or validators
@@ -17,7 +17,8 @@ specialized for acceptance scenarios.
 
 ```text
 natural-language request
-  -> DEAL Streaming Compiler
+  -> selected runtime: DEAL or JavaScript
+  -> DEAL Streaming Compiler (DEAL mode)
   -> compact compiler-owned Agent Surface
   -> selected cloud model calls DEAL construction API
   -> production-checked app.deal
@@ -81,7 +82,6 @@ Important implementation entry points:
 - `CanonicalDealToolchain.kt` loads the pinned compiler bridge.
 - `CanonicalDealUiRuntime.kt` maps checked Deal UI nodes to native Compose.
 - `GeneratedAppActivity.kt` runs a saved application fullscreen.
-- `GeneratedAppWidgetProvider.kt` projects supported canonical UI onto Android widgets.
 
 The generated application's canonical artifacts are exactly:
 
@@ -165,7 +165,7 @@ Run focused connected checks after installing both APKs:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w -r \
-  -e class 'com.offlineassistant.app.generatedapp.CanonicalDealToolchainDeviceTest,com.offlineassistant.app.generatedapp.CanonicalDealUiTouchDeviceTest' \
+  -e class 'com.offlineassistant.app.generatedapp.CanonicalDealUiTouchDeviceTest' \
   com.dealstudio.app.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
@@ -176,14 +176,15 @@ supported widths, and remain usable in light and dark modes.
 
 ## Safety Boundary
 
-Generated source is untrusted data. Studio does not evaluate arbitrary Kotlin, JavaScript or native
-code and does not emit arbitrary APKs. Candidates pass pinned parsers, type and capability checks
-before execution. The runtime imposes step, call-depth and collection bounds. A failed or cancelled
-generation keeps the previous runnable application.
+Generated source is untrusted data. Studio does not evaluate arbitrary Kotlin or native code and does
+not emit arbitrary APKs. DEAL candidates pass pinned parsers, type and capability checks before
+execution. JavaScript documents run with network, file, content and Android bridges disabled; their
+only persistence boundary is a bounded JSON export/import contract. A failed or cancelled generation
+keeps the previous runnable application.
 
-Saved applications remain inside DEAL Studio. A launcher icon opens `GeneratedAppActivity`; a home
-screen widget is a constrained Android projection whose actions resolve to the same nominal DEAL
-handlers as the full application.
+Saved applications remain inside DEAL Studio. Opening a saved application launches
+`GeneratedAppActivity`; Studio does not publish generated APKs, launcher shortcuts or home-screen
+widgets.
 
 Normative engineering constraints are documented in [AGENTS.md](AGENTS.md). The external generation
 engine is maintained in

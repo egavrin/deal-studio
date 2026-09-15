@@ -75,13 +75,19 @@ class GeneratedAppActivity : ComponentActivity() {
 private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val controller = remember(appId) { GeneratedAppRuntimeController(context, appId) }
+    val jsLibrary = remember { JsGeneratedAppLibrary(context) }
     var loaded by remember(appId) { mutableStateOf<LoadedGeneratedApp?>(null) }
     var error by remember(appId) { mutableStateOf<String?>(null) }
+    var jsApp by remember(appId) { mutableStateOf<SavedJsGeneratedApp?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(controller) {
         runCatching { withContext(Dispatchers.Default) { controller.load() } }
             .onSuccess { loaded = it }
-            .onFailure { error = it.message ?: "Could not open the generated app" }
+            .onFailure {
+                runCatching { withContext(Dispatchers.IO) { jsLibrary.load(appId) } }
+                    .onSuccess { jsApp = it }
+                    .onFailure { error = it.message ?: "Could not open the generated app" }
+            }
     }
     Scaffold(
         topBar = {
@@ -138,6 +144,12 @@ private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> U
                         .onFailure { error = it.message }
                 },
                 hostScrolling = true
+            )
+
+            jsApp != null -> SandboxedHtml5WebView(
+                requireNotNull(jsApp).html,
+                Modifier.fillMaxSize().padding(padding),
+                requireNotNull(jsApp).record.stateJson
             )
 
             error != null -> Box(Modifier.fillMaxSize().padding(padding)) { Text(requireNotNull(error)) }

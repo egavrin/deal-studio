@@ -122,7 +122,6 @@ internal fun GeneratedAppStudioRoute(
 ) {
     val viewModel = viewModel<GeneratedAppStudioViewModel>()
     val state by viewModel.state.collectAsState()
-    val context = LocalContext.current
     LaunchedEffect(initialAppId, state.savedApps) {
         if (initialAppId != null && state.currentSavedAppId != initialAppId &&
             state.savedApps.any { it.record.id == initialAppId }
@@ -139,10 +138,7 @@ internal fun GeneratedAppStudioRoute(
             onGenerationModeSelected = viewModel::selectGenerationMode,
             onGenerate = viewModel::generate,
             onGenerateSurprise = viewModel::generateSurprise,
-            onGenerateMatchedComparison = viewModel::generateMatchedComparison,
-            onGenerateSurpriseMatchedComparison = viewModel::generateSurpriseMatchedComparison,
             onRefine = viewModel::refine,
-            onRebuildLegacy = viewModel::rebuildLegacy,
             onCancel = viewModel::cancel,
             onOpenSettings = onOpenSettings,
             onDismissSettings = onDismissSettings,
@@ -157,17 +153,9 @@ internal fun GeneratedAppStudioRoute(
             onSaveCurrent = viewModel::saveCurrent,
             onOpenSaved = viewModel::openSaved,
             onDeleteSaved = viewModel::deleteSaved,
-            onAddToHome = { id, target ->
-                val entry = state.savedApps.firstOrNull { it.record.id == id }
-                val result = entry?.let { GeneratedAppHomeScreenManager.request(context, it, target) }
-                    ?: HomeScreenRequestResult.Unavailable("The saved app is no longer available")
-                val message = when (result) {
-                    HomeScreenRequestResult.Requested -> "Confirm on your Home screen"
-                    HomeScreenRequestResult.Updated -> "Home screen app updated"
-                    is HomeScreenRequestResult.Unavailable -> result.reason
-                }
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-            },
+            onOpenSavedJs = viewModel::openSavedJs,
+            onDeleteSavedJs = viewModel::deleteSavedJs,
+            onJsStateExport = viewModel::updateJsState,
             onCanonicalAction = viewModel::dispatchCanonical
         ),
         settingsOpen = settingsOpen,
@@ -182,10 +170,7 @@ internal data class GeneratedAppStudioActions(
     val onGenerationModeSelected: (StudioGenerationMode) -> Unit,
     val onGenerate: () -> Unit,
     val onGenerateSurprise: () -> Unit,
-    val onGenerateMatchedComparison: () -> Unit,
-    val onGenerateSurpriseMatchedComparison: () -> Unit,
     val onRefine: () -> Unit,
-    val onRebuildLegacy: (String) -> Unit,
     val onCancel: () -> Unit,
     val onOpenSettings: () -> Unit,
     val onDismissSettings: () -> Unit,
@@ -197,7 +182,9 @@ internal data class GeneratedAppStudioActions(
     val onSaveCurrent: () -> Unit,
     val onOpenSaved: (String) -> Unit,
     val onDeleteSaved: (String) -> Unit,
-    val onAddToHome: (String, GeneratedAppHomeTarget) -> Unit,
+    val onOpenSavedJs: (String) -> Unit,
+    val onDeleteSavedJs: (String) -> Unit,
+    val onJsStateExport: (String) -> Unit,
     val onCanonicalAction: (CanonicalUiAction) -> Unit
 )
 
@@ -225,17 +212,10 @@ internal fun GeneratedAppStudioScreen(
             if (state.generationMode == StudioGenerationMode.CANONICAL) {
                 CanonicalStudioResult(state, actions)
             } else {
-                ExperimentalHtml5StudioResult(state.experimentalHtml5Session, actions)
-            }
-            val canonical = state.runnable
-            val html5 = state.experimentalHtml5Session.result
-            if (canonical != null && html5 != null && state.hasMatchedComparison) {
-                GenerationComparison(canonical.bundle, html5)
-            } else if (canonical != null && html5 != null) {
-                ComparisonRequiresMatchingPrompt()
+                ExperimentalHtml5StudioResult(state, actions)
             }
             SavedApps(state.savedApps, actions)
-            LegacyRequests(state.legacyRequests, actions.onRebuildLegacy)
+            SavedJsApps(state.savedJsApps, actions)
             IdeaGallery(actions.onExampleSelected)
         }
     }
@@ -247,7 +227,7 @@ private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedApp
         GenerationModeSelector(state.generationMode, !state.isBusy, actions.onGenerationModeSelected)
         Text(
             when {
-                state.generationMode == StudioGenerationMode.EXPERIMENTAL_HTML5 -> "Generate a comparison baseline"
+                state.generationMode == StudioGenerationMode.JS -> "Create a JavaScript app"
                 state.runnable == null -> "Create an app"
                 else -> "Create another app"
             },
@@ -307,24 +287,6 @@ private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedApp
                 }
             }
         }
-        OutlinedButton(
-            onClick = actions.onGenerateMatchedComparison,
-            enabled = state.canGenerate,
-            modifier = Modifier.fillMaxWidth().height(48.dp)
-        ) {
-            Text("Compare this prompt in DEAL and HTML5")
-        }
-        TextButton(
-            onClick = actions.onGenerateSurpriseMatchedComparison,
-            enabled = state.canGenerateSurprise,
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Surprise pair — same prompt in both modes") }
-        Text(
-            "For a fair DEAL vs HTML5 comparison, reuse this exact visible prompt in the other mode; " +
-                "do not press Surprise me a second time.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -347,7 +309,7 @@ private fun GenerationModeSelector(
                             if (mode == StudioGenerationMode.CANONICAL) {
                                 "Canonical DEAL"
                             } else {
-                                "JS / HTML5 · Experimental"
+                                "JavaScript"
                             },
                             maxLines = 2
                         )
@@ -357,10 +319,9 @@ private fun GenerationModeSelector(
         }
         Text(
             if (selected == StudioGenerationMode.CANONICAL) {
-                "One model-authored DEAL source. Studio derives and checks Deal UI locally."
+                "A checked app.deal + app.dealui pair rendered by the native runtime."
             } else {
-                "One direct call with the selected DEAL model, rendered as untrusted content in an offline " +
-                    "sandbox. It cannot be saved."
+                "An isolated HTML/CSS/JavaScript application. It has no network or Android bridge and can be saved."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -396,27 +357,28 @@ private fun CanonicalStudioResult(state: GeneratedAppStudioState, actions: Gener
 
 @Composable
 private fun ExperimentalHtml5StudioResult(
-    session: ExperimentalHtml5Session,
+    state: GeneratedAppStudioState,
     actions: GeneratedAppStudioActions
 ) {
+    val session = state.experimentalHtml5Session
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (session) {
             ExperimentalHtml5Session.Empty -> Unit
 
             is ExperimentalHtml5Session.Generating -> {
                 GenerationProgress(
-                    message = "Generating experimental HTML5 baseline",
-                    supporting = "One direct model call; output is never added to the canonical library.",
+                    message = "Generating JavaScript application",
+                    supporting = "One direct model call in an offline sandbox.",
                     onCancel = actions.onCancel
                 )
-                session.previousResult?.let { ExperimentalHtml5ResultPanel(it) }
+                session.previousResult?.let { ExperimentalHtml5ResultPanel(it, state, actions) }
             }
 
-            is ExperimentalHtml5Session.Ready -> ExperimentalHtml5ResultPanel(session.result)
+            is ExperimentalHtml5Session.Ready -> ExperimentalHtml5ResultPanel(session.result, state, actions)
 
             is ExperimentalHtml5Session.Failed -> {
                 ExperimentalHtml5Failure(session, actions.onGenerate)
-                session.previousResult?.let { ExperimentalHtml5ResultPanel(it) }
+                session.previousResult?.let { ExperimentalHtml5ResultPanel(it, state, actions) }
             }
         }
     }
@@ -427,7 +389,7 @@ private fun ExperimentalHtml5Failure(failure: ExperimentalHtml5Session.Failed, o
     var details by rememberSaveable(failure.technicalTrace) { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(6.dp)) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("HTML5 baseline failed", style = MaterialTheme.typography.titleMedium)
+            Text("JavaScript application failed", style = MaterialTheme.typography.titleMedium)
             Text(failure.userMessage)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onRetry) { Text("Try again") }
@@ -441,11 +403,16 @@ private fun ExperimentalHtml5Failure(failure: ExperimentalHtml5Session.Failed, o
 }
 
 @Composable
-private fun ExperimentalHtml5ResultPanel(result: ExperimentalHtml5Result) {
+private fun ExperimentalHtml5ResultPanel(result: ExperimentalHtml5Result, state: GeneratedAppStudioState, actions: GeneratedAppStudioActions) {
     var isFullscreen by remember(result.html) { mutableStateOf(false) }
 
     if (isFullscreen) {
-        FullscreenHtml5Preview(result.html, onCollapse = { isFullscreen = false })
+        FullscreenHtml5Preview(
+            html = result.html,
+            stateJson = result.stateJson,
+            onStateExport = actions.onJsStateExport,
+            onCollapse = { isFullscreen = false }
+        )
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -455,28 +422,33 @@ private fun ExperimentalHtml5ResultPanel(result: ExperimentalHtml5Result) {
             shape = RoundedCornerShape(6.dp)
         ) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Experimental JS / HTML5 baseline", style = MaterialTheme.typography.titleMedium)
+                Text("JavaScript application", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Untrusted preview · offline sandbox · no file/content access, network loads, or JS bridge",
+                    "Offline sandbox · no file/content access, network loads, or Android bridge",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         }
-        SandboxedHtml5Preview(result.html, onExpand = { isFullscreen = true })
+        SandboxedHtml5Preview(result.html, result.stateJson, actions.onJsStateExport, onExpand = { isFullscreen = true })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconButton(onClick = actions.onSaveCurrent) { Icon(Icons.Default.Save, contentDescription = "Save JS app") }
+            Text(if (result.savedApp == null) "Ready to save" else "Saved revision ${result.savedApp.record.revision}")
+        }
+        RefinementBox(state, actions)
         ExperimentalHtml5Metrics(result)
     }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun SandboxedHtml5Preview(html: String, onExpand: () -> Unit) {
+private fun SandboxedHtml5Preview(html: String, stateJson: String?, onStateExport: (String) -> Unit, onExpand: () -> Unit) {
     Surface(
         Modifier.fillMaxWidth().height(560.dp),
         shape = RoundedCornerShape(6.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Box(Modifier.fillMaxSize()) {
-            SandboxedHtml5WebView(html, Modifier.fillMaxSize())
+            SandboxedHtml5WebView(html, Modifier.fillMaxSize(), stateJson, onStateExport)
             Surface(
                 Modifier.align(Alignment.TopEnd).padding(10.dp),
                 shape = RoundedCornerShape(6.dp),
@@ -492,7 +464,12 @@ private fun SandboxedHtml5Preview(html: String, onExpand: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun SandboxedHtml5WebView(html: String, modifier: Modifier) {
+internal fun SandboxedHtml5WebView(
+    html: String,
+    modifier: Modifier,
+    stateJson: String? = null,
+    onStateExport: (String) -> Unit = {}
+) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
@@ -515,9 +492,39 @@ internal fun SandboxedHtml5WebView(html: String, modifier: Modifier) {
                 overScrollMode = WebView.OVER_SCROLL_IF_CONTENT_SCROLLS
                 isNestedScrollingEnabled = true
                 webViewClient = OfflineOnlyWebViewClient()
+                setOnTouchListener { view, event ->
+                    if (event.action == android.view.MotionEvent.ACTION_UP) {
+                        view.performClick()
+                        view.postDelayed(
+                            {
+                                (view as WebView).evaluateJavascript(JsAppStateContract.EXPORT_EXPRESSION) { result ->
+                                    (view.webViewClient as OfflineOnlyWebViewClient).stateExport(result)
+                                }
+                            },
+                            300
+                        )
+                    }
+                    false
+                }
+                postDelayed(
+                    object : Runnable {
+                        override fun run() {
+                            if (!isAttachedToWindow) return
+                            evaluateJavascript(JsAppStateContract.EXPORT_EXPRESSION) { result ->
+                                (webViewClient as OfflineOnlyWebViewClient).stateExport(result)
+                            }
+                            postDelayed(this, 1_000)
+                        }
+                    },
+                    1_000
+                )
             }
         },
         update = { webView ->
+            (webView.webViewClient as OfflineOnlyWebViewClient).apply {
+                pendingStateJson = stateJson
+                stateExport = onStateExport
+            }
             if (webView.tag != html) {
                 webView.tag = html
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
@@ -533,6 +540,18 @@ internal fun SandboxedHtml5WebView(html: String, modifier: Modifier) {
 }
 
 private class OfflineOnlyWebViewClient : WebViewClient() {
+    var pendingStateJson: String? = null
+    var stateExport: (String) -> Unit = {}
+
+    override fun onPageFinished(view: WebView, url: String) {
+        super.onPageFinished(view, url)
+        val export = { view.evaluateJavascript(JsAppStateContract.EXPORT_EXPRESSION) { result -> stateExport(result) } }
+        pendingStateJson?.let { state ->
+            runCatching { JsAppStateContract.importExpression(state) }
+                .onSuccess { expression -> view.evaluateJavascript(expression) { export() } }
+                .onFailure { export() }
+        } ?: export()
+    }
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = request?.url?.scheme !in setOf("about", "data")
 
     override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
@@ -562,80 +581,18 @@ private fun ExperimentalHtml5Metrics(result: ExperimentalHtml5Result) {
         shape = RoundedCornerShape(6.dp)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Baseline generation details", style = MaterialTheme.typography.titleSmall)
+            Text("Generation details", style = MaterialTheme.typography.titleSmall)
             facts.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { (label, value) -> GenerationFact(label, value, Modifier.weight(1f)) }
                 }
             }
             Text(
-                "$provider · ${result.model.apiId}. Token-volume proxy is input + output tokens, not a price quote.",
+                "$provider · ${result.model.apiId}. Token volume is input + output tokens, not a price quote.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
-}
-
-@Composable
-private fun GenerationComparison(canonical: CanonicalGeneratedAppBundle, html5: ExperimentalHtml5Result) {
-    val canonicalMetrics = remember(canonical) { canonical.generationMetrics() }
-    Surface(
-        Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(6.dp)
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Canonical vs experimental baseline", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Comparable wall time and token counts; the HTML5 token volume is not a price quote.",
-                style = MaterialTheme.typography.bodySmall
-            )
-            ComparisonRow("Result", "Total", "Input", "Output", FontWeight.SemiBold)
-            ComparisonRow(
-                "Canonical DEAL",
-                formatGenerationDuration(canonicalMetrics.totalDurationMs),
-                formatGenerationTokens(canonicalMetrics.inputTokens),
-                formatGenerationTokens(canonicalMetrics.outputTokens)
-            )
-            ComparisonRow(
-                "HTML5 experimental",
-                formatGenerationDuration(html5.wallLatencyMs),
-                formatGenerationTokens(html5.inputTokens),
-                formatGenerationTokens(html5.outputTokens)
-            )
-        }
-    }
-}
-
-@Composable
-private fun ComparisonRequiresMatchingPrompt() {
-    Surface(
-        Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(6.dp)
-    ) {
-        Text(
-            "Comparison withheld: the current DEAL and HTML5 results were generated from different prompts.",
-            modifier = Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-}
-
-@Composable
-private fun ComparisonRow(
-    label: String,
-    total: String,
-    input: String,
-    output: String,
-    weight: FontWeight = FontWeight.Normal
-) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, Modifier.weight(1.6f), fontWeight = weight)
-        Text(total, Modifier.weight(1f), fontWeight = weight)
-        Text(input, Modifier.weight(1f), fontWeight = weight)
-        Text(output, Modifier.weight(1f), fontWeight = weight)
     }
 }
 
@@ -648,7 +605,7 @@ private fun BuildButton(state: GeneratedAppStudioState, actions: GeneratedAppStu
             if (state.generationMode == StudioGenerationMode.CANONICAL) {
                 "Build app"
             } else {
-                "Generate HTML5 baseline"
+                "Build JS app"
             }
         )
     }
@@ -798,13 +755,7 @@ private fun RunnableResult(
                 RefinementBox(state, actions)
             }
 
-            GeneratedArtifact.DEAL_UI -> {
-                val embedded = app.bundle.usesEmbeddedUi()
-                SourcePanel(
-                    if (embedded) "Embedded UI section in app.deal" else "Generated app.dealui",
-                    if (embedded) app.bundle.embeddedUiSource() else app.bundle.dealUiSource
-                )
-            }
+            GeneratedArtifact.DEAL_UI -> SourcePanel("app.dealui", app.bundle.dealUiSource)
 
             GeneratedArtifact.DEAL -> SourcePanel("app.deal", app.bundle.dealSource)
         }
@@ -970,39 +921,25 @@ private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modif
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Interface", style = MaterialTheme.typography.titleMedium)
             Text(
-                if (bundle.isModelAuthoredUi()) "Model-authored, compiler-checked Deal UI" else "Studio-derived Deal UI",
+                "Model-authored, compiler-checked Deal UI",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GenerationFact(
-                    if (bundle.isModelAuthoredUi()) "Model tokens" else "Model tokens",
-                    if (bundle.isModelAuthoredUi()) formatGenerationTokens(bundle.dealOutputTokens) else "0",
+                    "Model tokens",
+                    formatGenerationTokens(bundle.dealUiOutputTokens),
                     Modifier.weight(1f)
                 )
-                GenerationFact("Check", formatGenerationDuration(bundle.autoUiSynthesisLatencyMs), Modifier.weight(1f))
+                GenerationFact("Check", formatGenerationDuration(bundle.validationLatencyMs), Modifier.weight(1f))
                 GenerationFact(
                     "Source",
-                    if (bundle.isModelAuthoredUi()) {
-                        formatGenerationBytes(bundle.modelAuthoredUiSource().encodeToByteArray().size)
-                    } else {
-                        formatGenerationBytes(bundle.autoUiSourceBytes)
-                    },
+                    formatGenerationBytes(bundle.dealUiSource.encodeToByteArray().size),
                     Modifier.weight(1f)
                 )
             }
         }
     }
-}
-
-private fun CanonicalGeneratedAppBundle.usesEmbeddedUi(): Boolean = compilerProtocolVersion == "embedded-deal-ui-v1"
-
-private fun CanonicalGeneratedAppBundle.isModelAuthoredUi(): Boolean = compilerProtocolVersion == "embedded-deal-ui-v1" || compilerProtocolVersion == "embedded-deal-ui-split-v1"
-
-private fun CanonicalGeneratedAppBundle.modelAuthoredUiSource(): String = if (usesEmbeddedUi()) embeddedUiSource() else dealUiSource
-
-private fun CanonicalGeneratedAppBundle.embeddedUiSource(): String = dealSource.substringAfter("// @ui-root", missingDelimiterValue = "").let { source ->
-    if (source.isBlank()) "No embedded UI declaration was found." else "// @ui-root$source"
 }
 
 @Composable
@@ -1135,7 +1072,7 @@ private fun GenerationCompilerSummary(
                 }
                 Text(
                     "Validation ${formatGenerationDuration(metrics.validationDurationMs)} · " +
-                        "DEAL + compiler-derived Deal UI compilation · ${bundle.autoUiCompilerVersion.ifBlank { "legacy UI" }}",
+                        "DEAL + compiler-checked Deal UI source pair",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.74f)
                 )
@@ -1184,13 +1121,37 @@ private fun SavedApps(entries: List<CanonicalGeneratedAppLibraryEntry>, actions:
 }
 
 @Composable
+private fun SavedJsApps(entries: List<SavedJsGeneratedApp>, actions: GeneratedAppStudioActions) {
+    if (entries.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Saved JavaScript apps", style = MaterialTheme.typography.titleMedium)
+        entries.forEach { entry ->
+            Surface(
+                Modifier.fillMaxWidth().clickable { actions.onOpenSavedJs(entry.record.id) },
+                shape = RoundedCornerShape(6.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(entry.record.title, style = MaterialTheme.typography.titleSmall)
+                        Text("JavaScript · revision ${entry.record.revision}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    IconButton(onClick = { actions.onDeleteSavedJs(entry.record.id) }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete ${entry.record.title}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SavedAppCard(
     entry: CanonicalGeneratedAppLibraryEntry,
     actions: GeneratedAppStudioActions,
     modifier: Modifier
 ) {
     var menu by remember { mutableStateOf(false) }
-    var homeDialog by remember { mutableStateOf(false) }
     val title = entry.program.displayTitle(entry.initialState, entry.record.title)
     Surface(
         modifier = modifier.clickable { actions.onOpenSaved(entry.record.id) },
@@ -1217,14 +1178,6 @@ private fun SavedAppCard(
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
-                            text = { Text("Add to Home screen") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.AddToHomeScreen, null) },
-                            onClick = {
-                                menu = false
-                                homeDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
                             text = { Text("Delete") },
                             leadingIcon = { Icon(Icons.Default.Delete, null) },
                             onClick = {
@@ -1236,35 +1189,6 @@ private fun SavedAppCard(
                 }
             }
         }
-    }
-    if (homeDialog) {
-        AlertDialog(
-            onDismissRequest = { homeDialog = false },
-            title = { Text("Add $title") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HomeTargetButton("App icon", Icons.AutoMirrored.Filled.AddToHomeScreen) {
-                        homeDialog = false
-                        actions.onAddToHome(entry.record.id, GeneratedAppHomeTarget.APP)
-                    }
-                    HomeTargetButton("Interactive widget", Icons.Default.Widgets) {
-                        homeDialog = false
-                        actions.onAddToHome(entry.record.id, GeneratedAppHomeTarget.WIDGET)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { homeDialog = false }) { Text("Cancel") } }
-        )
-    }
-}
-
-@Composable
-private fun HomeTargetButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-        Icon(icon, contentDescription = null)
-        Spacer(Modifier.width(8.dp))
-        Text(label, Modifier.weight(1f))
     }
 }
 
@@ -1295,33 +1219,9 @@ private fun CanonicalThumbnail(
 }
 
 @Composable
-private fun LegacyRequests(requests: List<LegacyGeneratedAppRequest>, onRebuild: (String) -> Unit) {
-    if (requests.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Rebuild older apps", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Older generated code is never executed. Rebuild from the original request with the canonical compiler.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        requests.forEach { request ->
-            Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(4.dp)) {
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(request.title, style = MaterialTheme.typography.titleSmall)
-                        Text(request.request, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    TextButton(onClick = { onRebuild(request.id) }) { Text("Rebuild") }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun IdeaGallery(onSelected: (String) -> Unit) {
     val ideas = listOf(
-        "Track a daily habit with a colorful weekly view and a useful Home screen widget.",
+        "Track a daily habit with a colorful weekly view and clear progress.",
         "Plan a focused three-day study schedule with progress, reminders, and clear next actions.",
         "Build a polished touch-controlled mini game with score, pause, restart, and responsive graphics.",
         "Create a compact personal dashboard with forms, charts, filters, and persistent state."
@@ -1595,14 +1495,24 @@ private fun FullscreenCanonicalApp(
 }
 
 @Composable
-private fun FullscreenHtml5Preview(html: String, onCollapse: () -> Unit) {
+private fun FullscreenHtml5Preview(
+    html: String,
+    stateJson: String?,
+    onStateExport: (String) -> Unit,
+    onCollapse: () -> Unit
+) {
     Dialog(
         onDismissRequest = onCollapse,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
-                SandboxedHtml5WebView(html, Modifier.fillMaxSize())
+                SandboxedHtml5WebView(
+                    html = html,
+                    modifier = Modifier.fillMaxSize(),
+                    stateJson = stateJson,
+                    onStateExport = onStateExport
+                )
                 Surface(
                     Modifier.align(Alignment.TopEnd).padding(12.dp),
                     shape = RoundedCornerShape(6.dp),

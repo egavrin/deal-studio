@@ -50,13 +50,6 @@ internal sealed interface CanonicalStudioSession {
     ) : CanonicalStudioSession
 }
 
-internal data class LegacyGeneratedAppRequest(
-    val id: String,
-    val title: String,
-    val request: String,
-    val createdAtEpochMs: Long
-)
-
 internal data class GeneratedAppStudioState(
     val prompt: String = "",
     val refinementPrompt: String = "",
@@ -70,15 +63,9 @@ internal data class GeneratedAppStudioState(
     val selectedArtifact: GeneratedArtifact = GeneratedArtifact.PREVIEW,
     val isPreviewExpanded: Boolean = false,
     val savedApps: List<CanonicalGeneratedAppLibraryEntry> = emptyList(),
-    val legacyRequests: List<LegacyGeneratedAppRequest> = emptyList(),
-    val pendingLegacyRebuildId: String? = null,
+    val savedJsApps: List<SavedJsGeneratedApp> = emptyList(),
     val currentSavedAppId: String? = null,
-    val lastRefinement: String? = null,
-    /** Requests are retained only while the two in-memory results are available for comparison. */
-    val canonicalComparisonRequest: String? = null,
-    val html5ComparisonRequest: String? = null,
-    /** Non-null only while a matched HTML5 follow-up is waiting for canonical acceptance. */
-    val pendingComparisonRequest: String? = null
+    val lastRefinement: String? = null
 ) {
     val isBusy: Boolean
         get() = session is CanonicalStudioSession.Generating ||
@@ -107,18 +94,11 @@ internal data class GeneratedAppStudioState(
         get() = selectedProviderKeysConfigured && !isBusy
 
     val canRefine: Boolean
-        get() = generationMode == StudioGenerationMode.CANONICAL && runnable != null &&
-            // Canonical generation now has one model-authored source. `dealUiModel`
-            // remains only as a legacy preference and must not hide Update for a
-            // runnable embedded/derived-UI application.
-            refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && !isBusy
+        get() = refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && !isBusy &&
+            (runnable != null || experimentalHtml5Session.result != null)
 
     val selectedProviderKeysConfigured: Boolean
         get() = modelKeyConfigured(dealModel)
-
-    val hasMatchedComparison: Boolean
-        get() = canonicalComparisonRequest?.takeIf(String::isNotBlank) ==
-            html5ComparisonRequest?.takeIf(String::isNotBlank)
 
     private fun modelKeyConfigured(model: DeepSeekGenerationModel): Boolean = when (model.provider) {
         GenerationProvider.DEEPSEEK -> deepSeekKeyConfigured
