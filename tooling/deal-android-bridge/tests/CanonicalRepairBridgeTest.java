@@ -26,6 +26,16 @@ public final class CanonicalRepairBridgeTest {
         String request = CanonicalDealToolchainBridge.refinementNextRequest(configured);
         assertV2(request);
         if (!request.contains("\"reasoningEffort\":\"none\"")) throw new AssertionError("Reasoning profile changed");
+        Object portioned = CanonicalDealToolchainBridge.configureConstructionPortions(
+                CanonicalDealToolchainBridge.createGenerationSession(pack, "Create a counter", 6, 2));
+        CanonicalDealToolchainBridge.configureHostCapabilityProfile(portioned, "android-host-effects-v1");
+        String portionRequest = CanonicalDealToolchainBridge.refinementNextRequest(portioned);
+        if (!portionRequest.contains("stage_constructor_calls")) {
+            throw new AssertionError("Bounded construction portions were not enabled: " + portionRequest);
+        }
+        if (!portionRequest.contains("PlatformHostAction")) {
+            throw new AssertionError("Compiler-owned host capability profile is missing: " + portionRequest);
+        }
         boolean rejected = false;
         try {
             CanonicalDealToolchainBridge.configureRepairProtocol(

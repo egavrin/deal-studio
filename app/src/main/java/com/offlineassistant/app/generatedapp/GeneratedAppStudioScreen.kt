@@ -122,6 +122,14 @@ internal fun GeneratedAppStudioRoute(
 ) {
     val viewModel = viewModel<GeneratedAppStudioViewModel>()
     val state by viewModel.state.collectAsState()
+    val runnable = state.runnable
+    val canonicalAction = rememberCanonicalHostAction(
+        context = LocalContext.current,
+        dealSource = runnable?.bundle?.dealSource.orEmpty(),
+        appInterface = runnable?.bundle?.appInterface.orEmpty(),
+        ownerId = runnable?.hostEffectOwnerId.orEmpty(),
+        dispatch = viewModel::dispatchCanonical
+    )
     LaunchedEffect(initialAppId, state.savedApps) {
         if (initialAppId != null && state.currentSavedAppId != initialAppId &&
             state.savedApps.any { it.record.id == initialAppId }
@@ -156,7 +164,7 @@ internal fun GeneratedAppStudioRoute(
             onOpenSavedJs = viewModel::openSavedJs,
             onDeleteSavedJs = viewModel::deleteSavedJs,
             onJsStateExport = viewModel::updateJsState,
-            onCanonicalAction = viewModel::dispatchCanonical
+            onCanonicalAction = canonicalAction
         ),
         settingsOpen = settingsOpen,
         modifier = modifier

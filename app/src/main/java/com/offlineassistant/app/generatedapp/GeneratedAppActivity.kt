@@ -154,7 +154,12 @@ private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> U
                 program = requireNotNull(loaded).entry.program,
                 state = requireNotNull(loaded).state,
                 modifier = Modifier.fillMaxSize().padding(padding),
-                onAction = { action ->
+                onAction = rememberCanonicalHostAction(
+                    context = context,
+                    dealSource = requireNotNull(loaded).entry.bundle.dealSource,
+                    appInterface = requireNotNull(loaded).entry.bundle.appInterface,
+                    ownerId = requireNotNull(loaded).entry.record.hostEffectOwnerId
+                ) { action ->
                     runCatching { controller.dispatch(requireNotNull(loaded), action) }
                         .onSuccess { loaded = it }
                         .onFailure { error = it.message }

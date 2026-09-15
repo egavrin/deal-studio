@@ -158,6 +158,16 @@ internal class CanonicalDealToolchain(
             parameterTypes,
             arguments
         )
+        invokeBridge(
+            "configureConstructionPortions",
+            arrayOf(Any::class.java),
+            arrayOf(session)
+        )
+        invokeBridge(
+            "configureHostCapabilityProfile",
+            arrayOf(Any::class.java, String::class.java),
+            arrayOf(session, "android-host-effects-v1")
+        )
         return CanonicalStreamingRefinementSession(bridge, session)
     }
 
@@ -334,10 +344,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "8b9df6bbbc7bb2751db2a6b62965a5a110bb4666dc78e16b4740755489e2a45a"
+        const val ARTIFACT_SHA256 = "29d80f745f5b627c8d32a6b4458f8d55b7a942b6de8bd244cb95652eace6c1ac"
         const val DEAL_REVISION = "fde98e7bd6e33cc0c41c1a321ab0bffb7b621db2"
         const val DEAL_UI_REVISION = "6b749dc8ace270e19f81987f28a58919572c48a5"
-        const val STREAMING_COMPILER_REVISION = "6a7225845f1efc754e9be04d9e23c970856b8ea3"
+        const val STREAMING_COMPILER_REVISION = "c08589409bde38dda820ab4d2a0ff48b7245dfa4"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val PRIOR_V15_ASSET_NAME = "deal-android-toolchain-v15-pr41.dex"

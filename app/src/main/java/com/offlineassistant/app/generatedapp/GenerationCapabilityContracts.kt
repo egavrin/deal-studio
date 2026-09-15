@@ -113,7 +113,43 @@ internal object GenerationCapabilityContracts {
         """.trimIndent()
     )
 
-    val all: List<GenerationCapabilityContract> = listOf(minuteClock, pointer, realtimeCanvas, hostCompletion)
+    private val platformOperations = GenerationCapabilityContract(
+        id = "platform-operations",
+        capabilities = setOf("map.navigation", "calendar.events.owned", "calendar.open"),
+        requiredComponents = setOf("CapabilityNotice"),
+        prompt = """
+            PLATFORM OPERATION CAPABILITY. Declare only the operations explicitly requested, using
+            map.navigation, calendar.events.owned, and/or calendar.open. These operations use one compact nominal ABI:
+            export class PlatformHostAction {
+              operation: string = ""; requestId: string = ""; status: string = ""; message: string = "";
+              originLatitudeE6: int = 0; originLongitudeE6: int = 0;
+              destinationLatitudeE6: int = 0; destinationLongitudeE6: int = 0;
+              title: string = ""; startEpochMinute: int = 0; durationMinutes: int = 0;
+              reminderMinutes: int = 0; eventId: string = ""; confirmed: boolean = false;
+            }
+            // @ui-update
+            export function onPlatformHostAction(state: AppState, action: PlatformHostAction): AppState { return state; }
+            UI may create this action only with status: "request" and one operation: "map.navigate",
+            "calendar.insert", "calendar.open", or "calendar.remove-owned". Keep a stable requestId so the completion
+            updates the correct typed item. Android sends the same action type back with status "success", "cancelled",
+            "unavailable", or "error" and a domain-neutral message. calendar.insert success includes a durable eventId;
+            retain it in DEAL state. calendar.remove-owned must use only a retained eventId from an earlier successful
+            insert by this app. A blank removal eventId means all events in this app's host-owned identity ledger,
+            never all calendar events. Removal requires confirmed: true after an explicit checked confirmation surface.
+            Never synthesize an eventId or offer broad calendar deletion.
+            Map requests include explicit origin and destination coordinates as signed millionths of a degree (E6).
+            Derive the origin in DEAL from the last
+            reached item (or the declared starting point), never from list position in UI. Calendar insertion includes
+            absolute startEpochMinute, positive durationMinutes, and non-negative reminderMinutes. Set pending state in
+            the request transition, then clear it only from a terminal completion. A platform launch is success only
+            when Android accepted it; permission denial is cancelled; missing handlers/providers are unavailable.
+            Bind request actions to ordinary Button/IconButton/ListItem controls. Also include a truthful
+            CapabilityNotice for the declared operation capability.
+        """.trimIndent()
+    )
+
+    val all: List<GenerationCapabilityContract> =
+        listOf(minuteClock, pointer, realtimeCanvas, hostCompletion, platformOperations)
 
     val prompt: String = all.joinToString("\n\n") { it.prompt }
 
@@ -124,6 +160,8 @@ internal object GenerationCapabilityContracts {
         val actions = interfaceModel.actions.associateBy { it.name }
         val reachable = program.metadata.reachableInputActions
         val capabilities = interfaceModel.capabilities.toSet()
+
+        CanonicalHostEffectContract.validate(interfaceModel, program)
 
         fun requireAction(name: String, fields: Set<String>) {
             val action = requireNotNull(actions[name]) { "Capability UI binding references undeclared action $name" }

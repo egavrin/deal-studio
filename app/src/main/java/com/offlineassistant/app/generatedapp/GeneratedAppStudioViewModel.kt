@@ -238,7 +238,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     bundle = bundle,
                     program = CanonicalDealUiParser.parse(bundle.checkedUiIr),
                     runtime = runtime,
-                    state = runtime.snapshot()
+                    state = runtime.snapshot(),
+                    hostEffectOwnerId = CanonicalHostEffectContract.newOwnerId()
                 )
             }.onSuccess { runnable ->
                 mutableState.update { current ->
@@ -382,7 +383,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     program = program,
                     runtime = runtime,
                     state = nextState,
-                    savedRecord = savedRecord
+                    savedRecord = savedRecord,
+                    hostEffectOwnerId = previous.hostEffectOwnerId
                 )
                 savedRecord?.let {
                     stateStore.save(it, nextState)
@@ -502,7 +504,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         val job = viewModelScope.launch(Dispatchers.IO) {
             val title = app.program.displayTitle(app.state, "Generated app")
             val record = app.savedRecord?.let { library.update(it.id, app.bundle, title) }
-                ?: library.save(app.bundle, title)
+                ?: library.save(app.bundle, title, app.hostEffectOwnerId)
             stateStore.save(record, app.state)
             val saved = library.restoreAll(toolchain)
             mutableState.update { current ->
@@ -529,7 +531,14 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     prompt = record.request,
                     generationMode = StudioGenerationMode.CANONICAL,
                     session = CanonicalStudioSession.Runnable(
-                        CanonicalRunnableApp(entry.bundle, entry.program, runtime, restoredState, record)
+                        CanonicalRunnableApp(
+                            entry.bundle,
+                            entry.program,
+                            runtime,
+                            restoredState,
+                            record,
+                            record.hostEffectOwnerId
+                        )
                     ),
                     selectedArtifact = GeneratedArtifact.PREVIEW,
                     currentSavedAppId = id

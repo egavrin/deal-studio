@@ -322,6 +322,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         val checkedUiIr = toolchain.compilePortable(dealSource, dealUiSource, CanonicalDealUiPack.source)
         val program = CanonicalDealUiParser.parse(checkedUiIr)
         val appInterface = toolchain.extractAppInterface(dealSource)
+        GenerationCapabilityContracts.validate(appInterface, checkedUiIr)
         val validationMs = validationStarted.elapsedNow().inWholeMilliseconds
         val wallMs = wall.elapsedNow().inWholeMilliseconds
         onUiPreview(CanonicalDealUiPreview(dealSource, dealUiSource, checkedUiIr, 1))
@@ -769,7 +770,7 @@ internal object AppInterfaceCompiler {
             "root_state":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},
             "types":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
-            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
+            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control","map.navigation","calendar.events.owned","calendar.open"]},"uniqueItems":true}
           },
           "${'$'}defs":{
             "field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},
@@ -789,7 +790,7 @@ internal object AppInterfaceCompiler {
             "root_state":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},
             "types":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
-            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
+            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control","map.navigation","calendar.events.owned","calendar.open"]},"uniqueItems":true}
           },
             "${'$'}defs":{"field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},"type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":48,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}}
         }
@@ -886,7 +887,7 @@ internal object AppInterfaceCompiler {
         "camera.capture",
         "vision.ocr",
         "health.read",
-        "focus.control"
+        "focus.control", "map.navigation", "calendar.events.owned", "calendar.open"
     )
 }
 

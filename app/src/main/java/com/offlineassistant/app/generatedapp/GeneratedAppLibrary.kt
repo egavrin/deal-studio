@@ -61,6 +61,7 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val selectedComponents: Set<String> = emptySet(),
     val usedComponents: Set<String> = emptySet(),
     val selectedTheme: String = "",
+    val hostEffectOwnerId: String = "",
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -190,7 +191,8 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
 
     fun save(
         bundle: CanonicalGeneratedAppBundle,
-        title: String
+        title: String,
+        hostEffectOwnerId: String = ""
     ): SavedCanonicalGeneratedAppRecord {
         val fingerprint = fingerprint(bundle.dealUiSource, bundle.dealSource)
         val existing = loadRecords().firstOrNull {
@@ -200,6 +202,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             id = "canonical-${fingerprint.take(16)}",
             title = title,
             bundle = bundle,
+            hostEffectOwnerId = hostEffectOwnerId,
             createdAtEpochMs = System.currentTimeMillis(),
             revision = 1
         )
@@ -219,6 +222,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             id = previous.id,
             title = title,
             bundle = bundle,
+            hostEffectOwnerId = previous.hostEffectOwnerId,
             createdAtEpochMs = previous.createdAtEpochMs,
             revision = previous.revision + 1
         )
@@ -234,6 +238,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         id: String,
         title: String,
         bundle: CanonicalGeneratedAppBundle,
+        hostEffectOwnerId: String,
         createdAtEpochMs: Long,
         revision: Int
     ): SavedCanonicalGeneratedAppRecord {
@@ -294,6 +299,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             selectedComponents = bundle.selectedComponents,
             usedComponents = bundle.usedComponents,
             selectedTheme = bundle.selectedTheme,
+            hostEffectOwnerId = hostEffectOwnerId,
             createdAtEpochMs = createdAtEpochMs,
             updatedAtEpochMs = System.currentTimeMillis(),
             revision = revision,
