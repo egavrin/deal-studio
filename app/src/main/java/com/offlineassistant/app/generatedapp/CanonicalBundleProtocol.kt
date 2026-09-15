@@ -97,6 +97,33 @@ internal object CanonicalBundleProtocol {
 
 internal data class CanonicalSourceBundle(val deal: String, val dealUi: String)
 
+/**
+ * Studio accepts a compact one-file model response, but the checked runtime, persistence and refinement
+ * contracts remain the upstream pair of a DEAL module plus a Deal UI module. Keep this conversion mechanical:
+ * the model owns the embedded view source; Studio supplies only the two imports required by that view.
+ */
+internal object EmbeddedDealUiSource {
+    private const val ROOT_MARKER = "// @ui-root"
+
+    fun split(source: String): CanonicalSourceBundle {
+        val marker = source.indexOf(ROOT_MARKER)
+        require(marker >= 0) { "Embedded app.deal must contain exactly one $ROOT_MARKER view" }
+        require(source.indexOf(ROOT_MARKER, marker + ROOT_MARKER.length) < 0) {
+            "Embedded app.deal must contain exactly one $ROOT_MARKER view"
+        }
+        val deal = source.substring(0, marker).trimEnd() + "\n"
+        val view = source.substring(marker).trimStart()
+        require(deal.isNotBlank()) { "Embedded app.deal behavior source is empty" }
+        require(view.isNotBlank()) { "Embedded app.deal view source is empty" }
+        return CanonicalSourceBundle(
+            deal = deal,
+            dealUi = "import * as app from \"./app.deal\";\n" +
+                "import * as ui from \"./platform-ui.dealui-pack\";\n\n" +
+                view.trimEnd() + "\n"
+        )
+    }
+}
+
 internal data class CanonicalSourcePatch(
     val target: CanonicalRepairTarget,
     val old: String,
@@ -336,7 +363,7 @@ internal object CanonicalBundlePrompts {
 
         The embedded UI can expose zero-payload actions and single primitive `Set...` actions. For editable forms,
         model draft fields plus one typed Set action per draft field and one zero-payload submit action. For a list
-        empty state, include an authoritative boolean projection such as `hasMedications` beside `medications` and
+        empty state, include an authoritative boolean projection such as `hasItems` beside `items` and
         update both together. Keep routes, counts, empty-state booleans, display labels, statuses and aggregates in
         AppState. Never invent demo records.
     """.trimIndent()

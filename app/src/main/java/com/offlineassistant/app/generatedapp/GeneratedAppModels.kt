@@ -108,7 +108,10 @@ internal data class GeneratedAppStudioState(
 
     val canRefine: Boolean
         get() = generationMode == StudioGenerationMode.CANONICAL && runnable != null &&
-            refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && modelKeyConfigured(dealUiModel) && !isBusy
+            // Canonical generation now has one model-authored source. `dealUiModel`
+            // remains only as a legacy preference and must not hide Update for a
+            // runnable embedded/derived-UI application.
+            refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && !isBusy
 
     val selectedProviderKeysConfigured: Boolean
         get() = modelKeyConfigured(dealModel)

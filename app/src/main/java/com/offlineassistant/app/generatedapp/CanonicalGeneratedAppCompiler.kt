@@ -357,9 +357,12 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealAcceptedPatches = 1,
             dealRejectedPatches = patchTelemetry.count { !it.compilerAccepted },
             dealTypedHoles = 0,
-            dealInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::inputTokens),
-            dealCachedInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::cachedInputTokens),
-            dealOutputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::outputTokens),
+            dealInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::inputTokens) +
+                patchTelemetry.sumOf(CanonicalPatchTelemetry::inputTokens),
+            dealCachedInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::cachedInputTokens) +
+                patchTelemetry.sumOf(CanonicalPatchTelemetry::cachedInputTokens),
+            dealOutputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::outputTokens) +
+                patchTelemetry.sumOf(CanonicalPatchTelemetry::outputTokens),
             dealUiRejectedPatches = 0,
             dealUiInputTokens = 0,
             dealUiCachedInputTokens = 0,
@@ -369,8 +372,8 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealModelId = dealModel.name,
             dealUiModelId = "embedded-deal-ui",
             promptDigest = sha256(CanonicalBundlePrompts.instructions),
-            compilerProtocolVersion = "embedded-deal-ui-v1",
-            agentSurfaceVersion = "embedded-deal-ui-v1",
+            compilerProtocolVersion = "embedded-deal-ui-split-v1",
+            agentSurfaceVersion = "embedded-deal-ui-split-v1",
             agentSurfaceBytes = CanonicalBundlePrompts.instructions.encodeToByteArray().size,
             agentSurfaceEstimatedTokens = CanonicalBundlePrompts.instructions.length / 4,
             generationModelCalls = attemptTelemetry.size + patchTelemetry.size,
@@ -380,7 +383,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet(),
             autoUiSynthesisLatencyMs = acceptedBundle.autoUiSynthesisLatencyMs,
             autoUiSourceBytes = acceptedBundle.autoUiSourceBytes,
-            autoUiCompilerVersion = "embedded-deal-ui-v1"
+            autoUiCompilerVersion = "embedded-deal-ui-split-v1"
             )
         } catch (failure: Exception) {
             val artifact = failureStore.write(
@@ -456,9 +459,16 @@ internal class CanonicalGeneratedAppCloudCompiler(
     }
 
     private fun validateCandidate(bundle: CanonicalSourceBundle): CandidateValidation {
+        val separated = runCatching { EmbeddedDealUiSource.split(bundle.deal) }
+        if (separated.isFailure) return CandidateValidation.Rejected(
+            target = CanonicalRepairTarget.DEAL,
+            diagnostic = separated.exceptionOrNull()?.message.orEmpty(),
+            appInterface = null
+        )
+        val sourcePair = requireNotNull(separated.getOrNull())
         val deal = runCatching {
-            toolchain.validateDealForUi(bundle.deal)
-            toolchain.extractAppInterface(bundle.deal)
+            toolchain.validateDealForUi(sourcePair.deal)
+            toolchain.extractAppInterface(sourcePair.deal)
         }
         val appInterface = deal.getOrNull()
         if (deal.isFailure) return CandidateValidation.Rejected(
@@ -468,7 +478,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         )
         val embeddedUiStarted = System.nanoTime()
         val ui = runCatching {
-            toolchain.compileEmbeddedPortable(bundle.deal, CanonicalDealUiPack.source).also {
+            compileDealUi(sourcePair, requireNotNull(appInterface)).also {
                 GenerationCapabilityContracts.validate(requireNotNull(appInterface), it)
             }
         }
@@ -479,11 +489,11 @@ internal class CanonicalGeneratedAppCloudCompiler(
         )
         return CandidateValidation.Accepted(
             ValidatedCanonicalBundle(
-                bundle.copy(dealUi = ""),
+                sourcePair,
                 requireNotNull(ui.getOrNull()),
                 requireNotNull(appInterface),
                 autoUiSynthesisLatencyMs = (System.nanoTime() - embeddedUiStarted) / 1_000_000,
-                autoUiSourceBytes = 0
+                autoUiSourceBytes = sourcePair.dealUi.encodeToByteArray().size
             )
         )
     }

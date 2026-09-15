@@ -13,11 +13,12 @@ internal object CanonicalAutoUiCompiler {
         val types = app.types.associateBy(AppInterfaceType::name)
         val realtime = "clock.frame" in app.capabilities
         val setters = app.actions.filter { action -> action.isRootFieldSetter(root) }
-        val unsupported = app.actions.filterNot { action -> action in setters || action.fields.all { it.type in primitiveTypes } }
+        val unsupported = app.actions.filterNot { action ->
+            action in setters || action.fields.isEmpty() || (realtime && action.isRealtimeDriver())
+        }
         require(unsupported.isEmpty()) {
-            "Auto UI cannot reach ${unsupported.joinToString { it.name }} because its action payload is not a " +
-                "primitive root-field setter. Use draft AppState fields with Set<Field>Action plus a zero-payload " +
-                "submit action, or use a primitive action payload."
+            "Auto UI cannot reach ${unsupported.joinToString { it.name }} because it cannot truthfully bind its " +
+                "action payload. Use draft AppState fields with Set<Field>Action plus a zero-payload submit action."
         }
         val buttonActions = app.actions.filter { action ->
             action !in setters && !(realtime && action.isRealtimeDriver())
@@ -193,20 +194,9 @@ internal object CanonicalAutoUiCompiler {
         }
     }
 
-    private fun actionLiteral(action: AppInterfaceType): String = if (action.fields.isEmpty()) {
-        "action app.${action.name} {}"
-    } else {
-        "action app.${action.name} { " +
-            action.fields.joinToString(", ") { field -> "${field.name}: ${defaultValue(field.type)}" } +
-            " }"
-    }
-
-    private fun defaultValue(type: String): String = when (type) {
-        "string" -> "\"\""
-        "int" -> "0"
-        "number" -> "0.0"
-        "boolean" -> "false"
-        else -> error("Auto UI cannot supply a non-primitive action payload: $type")
+    private fun actionLiteral(action: AppInterfaceType): String {
+        require(action.fields.isEmpty()) { "Auto UI action ${action.name} requires an explicit typed binding" }
+        return "action app.${action.name} {}"
     }
 
     private fun label(value: String): String = value

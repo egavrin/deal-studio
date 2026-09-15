@@ -175,6 +175,21 @@ class CanonicalBundleProtocolTest {
     }
 
     @Test
+    fun `embedded one-file source splits into standard checked DEAL and Deal UI modules`() {
+        val pair = EmbeddedDealUiSource.split(
+            """
+                export class AppState { count: int = 0; }
+                // @ui-root
+                export view App(state: app.AppState): View { ui.Root() { ui.Text(value: "Ready") } }
+            """.trimIndent()
+        )
+
+        assertEquals("export class AppState { count: int = 0; }\n", pair.deal)
+        assertTrue(pair.dealUi.startsWith("import * as app from \"./app.deal\";"))
+        assertTrue(pair.dealUi.contains("// @ui-root\nexport view App"))
+    }
+
+    @Test
     fun `DEAL-only framing rejects old UI delimiters and trailing prose`() {
         val oldProtocol = runCatching {
             CanonicalBundleProtocol.parseDeal(
