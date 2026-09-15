@@ -81,29 +81,15 @@ internal fun restoreCanonicalGeneratedApp(
 ): CanonicalGeneratedAppLibraryEntry {
     require(record.dealSource.sha256() == record.dealSourceSha256) { "Saved app.deal digest mismatch" }
     require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
-    require(record.dealCompilerRevision == CanonicalDealToolchain.DEAL_REVISION) {
-        "Required DEAL compiler revision is unavailable"
-    }
-    require(record.dealUiCompilerRevision == CanonicalDealToolchain.DEAL_UI_REVISION) {
-        "Required Deal UI compiler revision is unavailable"
-    }
-    require(
-        record.streamingCompilerRevision.isBlank() ||
-            record.streamingCompilerRevision == CanonicalDealToolchain.STREAMING_COMPILER_REVISION
-    ) {
-        "Required streaming compiler revision is unavailable"
-    }
-    require(record.toolchainSha256 == CanonicalDealToolchain.ARTIFACT_SHA256) {
-        "Required canonical toolchain is unavailable"
-    }
     require(record.componentPackVersion == CanonicalDealUiPack.VERSION) {
         "Saved app uses unsupported component pack ${record.componentPackVersion}; regenerate the app with ${CanonicalDealUiPack.VERSION}"
     }
     require(record.componentPackSha256 == CanonicalDealUiPack.SHA256) {
         "Saved v15 component pack digest mismatch; regenerate the app"
     }
-    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
-    val extractedInterface = toolchain.extractAppInterface(record.dealSource)
+    val restoreToolchain = toolchain.forRestore(record)
+    val checkedIr = restoreToolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
+    val extractedInterface = restoreToolchain.extractAppInterface(record.dealSource)
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
         appInterface = extractedInterface,
@@ -153,7 +139,7 @@ internal fun restoreCanonicalGeneratedApp(
         selectedTheme = record.selectedTheme
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
-    val initialState = toolchain.createRuntime(record.dealSource).snapshot()
+    val initialState = restoreToolchain.createRuntime(record.dealSource).snapshot()
     return CanonicalGeneratedAppLibraryEntry(record, bundle, program, initialState)
 }
 

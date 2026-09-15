@@ -10,9 +10,56 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class CanonicalDealUiPackConformanceTest {
+    @Test
+    fun `current and prior v15 toolchain provenance are exact and fail closed`() {
+        fun provenance(
+            dealUi: String,
+            streaming: String,
+            dex: String,
+            pack: String = CanonicalDealUiPack.SHA256
+        ) = CanonicalToolchainProvenance(
+            dealRevision = CanonicalDealToolchain.DEAL_REVISION,
+            dealUiRevision = dealUi,
+            streamingCompilerRevision = streaming,
+            toolchainSha256 = dex,
+            componentPackVersion = CanonicalDealUiPack.VERSION,
+            componentPackSha256 = pack
+        )
+        val current = provenance(
+            CanonicalDealToolchain.DEAL_UI_REVISION,
+            CanonicalDealToolchain.STREAMING_COMPILER_REVISION,
+            CanonicalDealToolchain.ARTIFACT_SHA256
+        )
+        val prior = provenance(
+            CanonicalDealToolchain.PRIOR_V15_DEAL_UI_REVISION,
+            CanonicalDealToolchain.PRIOR_V15_STREAMING_COMPILER_REVISION,
+            CanonicalDealToolchain.PRIOR_V15_ARTIFACT_SHA256
+        )
+        assertEquals("current-v15", CanonicalDealToolchain.restoreProfileId(current))
+        assertEquals("pr41-v15-restore", CanonicalDealToolchain.restoreProfileId(prior))
+        listOf(
+            prior.copy(streamingCompilerRevision = CanonicalDealToolchain.STREAMING_COMPILER_REVISION),
+            current.copy(toolchainSha256 = CanonicalDealToolchain.PRIOR_V15_ARTIFACT_SHA256),
+            prior.copy(componentPackSha256 = "unknown")
+        ).forEach { mixed ->
+            runCatching { CanonicalDealToolchain.restoreProfileId(mixed) }
+                .onSuccess { fail("Mixed provenance selected $it") }
+        }
+        runCatching { CanonicalDealToolchain.requireProductionWriteProfile("pr41-v15-restore") }
+            .onSuccess { fail("Compatibility profile admitted production generation") }
+
+        val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
+        val restoreDex = File(root, "app/src/debug/assets/${CanonicalDealToolchain.PRIOR_V15_ASSET_NAME}")
+        assertEquals(
+            CanonicalDealToolchain.PRIOR_V15_ARTIFACT_SHA256,
+            MessageDigest.getInstance("SHA-256").digest(restoreDex.readBytes()).joinToString("") { "%02x".format(it) }
+        )
+    }
+
     @Test
     fun `tracked v15 pack is the exact runtime and prompt source`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))

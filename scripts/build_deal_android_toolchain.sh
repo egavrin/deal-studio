@@ -90,7 +90,14 @@ OUT="$ROOT/build/deal-android-toolchain"
 CLASSES="$OUT/classes"
 JAR="$OUT/deal-android-toolchain.jar"
 ASSET="$ROOT/app/src/debug/assets/deal-android-toolchain.dex"
+RESTORE_ASSET="$ROOT/app/src/debug/assets/$RESTORE_V15_PR41_ASSET"
 KOTLIN_TOOLCHAIN="$ROOT/app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealToolchain.kt"
+[[ -f "$RESTORE_ASSET" ]] || { printf 'Pinned v15 restore asset is unavailable: %s\n' "$RESTORE_ASSET" >&2; exit 1; }
+RESTORE_DIGEST_BEFORE=$(shasum -a 256 "$RESTORE_ASSET" | awk '{print $1}')
+[[ "$RESTORE_DIGEST_BEFORE" == "$RESTORE_V15_PR41_DEX_SHA256" ]] || {
+  printf 'Pinned v15 restore asset mismatch: expected %s, found %s\n' "$RESTORE_V15_PR41_DEX_SHA256" "$RESTORE_DIGEST_BEFORE" >&2
+  exit 1
+}
 rm -rf "$OUT"
 mkdir -p "$CLASSES" "$(dirname "$ASSET")"
 
@@ -139,6 +146,11 @@ javac --release "$JAVAC_RELEASE" \
 jar --create --date=2020-01-01T00:00:00Z --file "$JAR" -C "$CLASSES" .
 "$D8" --min-api "$MIN_ANDROID_API" --output "$OUT" "$JAR"
 cp "$OUT/classes.dex" "$ASSET"
+RESTORE_DIGEST_AFTER=$(shasum -a 256 "$RESTORE_ASSET" | awk '{print $1}')
+[[ "$RESTORE_DIGEST_AFTER" == "$RESTORE_DIGEST_BEFORE" ]] || {
+  printf 'Current toolchain build modified the pinned v15 restore asset\n' >&2
+  exit 1
+}
 
 DIGEST=$(shasum -a 256 "$ASSET" | awk '{print $1}')
 if $UPDATE_LOCK; then
