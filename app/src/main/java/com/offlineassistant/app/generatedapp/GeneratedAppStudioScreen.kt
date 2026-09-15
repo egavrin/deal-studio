@@ -407,7 +407,12 @@ private fun ExperimentalHtml5ResultPanel(result: ExperimentalHtml5Result, state:
     var isFullscreen by remember(result.html) { mutableStateOf(false) }
 
     if (isFullscreen) {
-        FullscreenHtml5Preview(result.html, onCollapse = { isFullscreen = false })
+        FullscreenHtml5Preview(
+            html = result.html,
+            stateJson = result.stateJson,
+            onStateExport = actions.onJsStateExport,
+            onCollapse = { isFullscreen = false }
+        )
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1490,14 +1495,24 @@ private fun FullscreenCanonicalApp(
 }
 
 @Composable
-private fun FullscreenHtml5Preview(html: String, onCollapse: () -> Unit) {
+private fun FullscreenHtml5Preview(
+    html: String,
+    stateJson: String?,
+    onStateExport: (String) -> Unit,
+    onCollapse: () -> Unit
+) {
     Dialog(
         onDismissRequest = onCollapse,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
-                SandboxedHtml5WebView(html, Modifier.fillMaxSize())
+                SandboxedHtml5WebView(
+                    html = html,
+                    modifier = Modifier.fillMaxSize(),
+                    stateJson = stateJson,
+                    onStateExport = onStateExport
+                )
                 Surface(
                     Modifier.align(Alignment.TopEnd).padding(12.dp),
                     shape = RoundedCornerShape(6.dp),
