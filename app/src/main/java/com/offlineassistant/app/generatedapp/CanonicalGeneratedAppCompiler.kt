@@ -372,7 +372,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             diagnosticCodes = diagnosticCodes.toList(),
             selectedComponents = selectedComponents + program.metadata.usedComponents,
             usedComponents = program.metadata.usedComponents,
-            selectedTheme = program.themeSpec().style
+            selectedTheme = program.themeSpec().asDealUiArguments()
         )
     }
 
