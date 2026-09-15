@@ -29,6 +29,9 @@ internal data class CanonicalGenerationMetrics(
     val firstInteractivePreviewMs: Long?,
     val repairPasses: Int,
     val typedHoles: Int,
+    val modelCalls: Int,
+    val compilerRepairCalls: Int,
+    val patches: List<CanonicalPatchTelemetry>,
     val behavior: GenerationStageMetrics,
     val interfaceUi: GenerationStageMetrics
 ) {
@@ -72,6 +75,9 @@ internal fun CanonicalGeneratedAppBundle.generationMetrics() = CanonicalGenerati
     firstInteractivePreviewMs = firstInteractivePreviewMs,
     repairPasses = repairPasses,
     typedHoles = dealTypedHoles,
+    modelCalls = generationModelCalls,
+    compilerRepairCalls = compilerRepairCalls,
+    patches = patchTelemetry,
     behavior = GenerationStageMetrics(
         durationMs = dealLatencyMs,
         timeToFirstOutputMs = dealTimeToFirstPatchMs,

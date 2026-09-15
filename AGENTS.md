@@ -81,9 +81,12 @@ cones, the currently legal operations and stable structured diagnostics. A write
 fingerprints. Accepted writes expire all aliases. Stale aliases, digests and fingerprints are
 rejected before candidate mutation.
 
-Failed ChangeSets are retained only as ephemeral compiler-owned repair workspaces. The model receives
-one rejected slot through `patch_repair_slot`; operation kinds, targets and accepted sibling payloads
-remain immutable and are never reconstructed from Kotlin source inspection.
+Failed ChangeSets are retained only as ephemeral compiler-owned repair workspaces. Both generation
+and refinement negotiate `repair-workspace-v2` by default in the portable bridge. The model receives
+compiler-issued group grants through source-free constructor tools. Scope expansion can allocate a
+new UI insertion slot or authorize an exactly identified missing DEAL dependency; it cannot grant
+arbitrary edits. Kotlin never derives these permissions. Unsupported bridge capabilities fail
+explicitly without falling back to v1. The build remains internal until measured release gates pass.
 
 Refinement uses this v2 protocol in production. During cutover, the engine also applies each
 authorized ChangeSet through the unguarded v1 API in shadow and records parity; a precondition

@@ -1,0 +1,41 @@
+export class EffectState {
+  status: string = "idle";
+}
+
+export class RefreshRequested {}
+export class RefreshCompleted { status: string = "done"; }
+export class EffectCommand {
+  operation: string = "start";
+  key: string = "refresh";
+  delayMillis: int = 0;
+  cancellationMode: string = "replace";
+}
+
+export function initialState(): EffectState { return {}; }
+
+// @ui-update
+export function beginRefresh(state: EffectState, action: RefreshRequested): EffectState {
+  return { status: "loading" };
+}
+
+// @ui-effect-policy
+export function refreshPolicy(state: EffectState, action: RefreshRequested): EffectCommand {
+  return { operation: "start", key: "refresh", delayMillis: 1, cancellationMode: "replace" };
+}
+
+// @ui-effect
+export async function refresh(state: EffectState, action: RefreshRequested): RefreshCompleted {
+  return { status: "done" };
+}
+
+// @ui-effect-failure
+export function refreshFailure(state: EffectState, action: RefreshRequested, message: string): RefreshCompleted {
+  return { status: message };
+}
+
+// @ui-update
+export function finishRefresh(state: EffectState, action: RefreshCompleted): EffectState {
+  return { status: action.status };
+}
+
+export function main(): null { return null; }

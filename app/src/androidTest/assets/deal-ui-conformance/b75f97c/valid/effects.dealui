@@ -1,0 +1,12 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+
+// @ui-root
+export view App(state: app.EffectState): View {
+  ui.AppTheme() {
+    ui.Root() {
+      ui.Text(value: state.status)
+      ui.Button(text: "Refresh", onClick: action app.RefreshRequested {}, accessibilityLabel: "Refresh")
+    }
+  }
+}

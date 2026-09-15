@@ -5,6 +5,7 @@ import java.io.File
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -57,6 +58,12 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val agentSurfaceVersion: String = "legacy-greenfield-v1",
     val agentSurfaceBytes: Int = 0,
     val agentSurfaceEstimatedTokens: Int = 0,
+    @EncodeDefault val generationModelCalls: Int = dealGraphRounds + dealUiGraphRounds,
+    @EncodeDefault val compilerRepairCalls: Int = repairPasses,
+    /** Present only for DEAL-only records. Legacy pairs keep this blank and remain runnable unchanged. */
+    val autoUiCompilerVersion: String = "",
+    val autoUiSynthesisLatencyMs: Long = 0,
+    val autoUiSourceBytes: Int = 0,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -140,7 +147,12 @@ internal fun restoreCanonicalGeneratedApp(
         compilerProtocolVersion = record.compilerProtocolVersion,
         agentSurfaceVersion = record.agentSurfaceVersion,
         agentSurfaceBytes = record.agentSurfaceBytes,
-        agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens
+        agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens,
+        generationModelCalls = record.generationModelCalls,
+        compilerRepairCalls = record.compilerRepairCalls,
+        autoUiCompilerVersion = record.autoUiCompilerVersion,
+        autoUiSynthesisLatencyMs = record.autoUiSynthesisLatencyMs,
+        autoUiSourceBytes = record.autoUiSourceBytes
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
@@ -272,6 +284,11 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         agentSurfaceVersion = bundle.agentSurfaceVersion,
         agentSurfaceBytes = bundle.agentSurfaceBytes,
         agentSurfaceEstimatedTokens = bundle.agentSurfaceEstimatedTokens,
+        generationModelCalls = bundle.generationModelCalls,
+        compilerRepairCalls = bundle.compilerRepairCalls,
+        autoUiCompilerVersion = bundle.autoUiCompilerVersion,
+        autoUiSynthesisLatencyMs = bundle.autoUiSynthesisLatencyMs,
+        autoUiSourceBytes = bundle.autoUiSourceBytes,
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = System.currentTimeMillis(),
         revision = revision,

@@ -54,6 +54,173 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
     @get:org.gradle.api.tasks.OutputDirectory
     abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
 
+    private data class PackContractMetadata(
+        val typeContracts: LinkedHashMap<String, String>,
+        val typeDependencies: Map<String, Set<String>>,
+        val componentContracts: LinkedHashMap<String, String>,
+        val componentPropTypes: Map<String, String>,
+        val componentExtraTypes: Map<String, Set<String>>,
+        val componentDependencies: Map<String, Set<String>>,
+        val tokenContracts: LinkedHashMap<String, String>,
+        val tokenTypes: Map<String, String>
+    )
+
+    private val mobileCoreComponents = linkedSetOf(
+        "AppTheme", "Root", "Column", "Row", "Stack", "Scroll", "Grid", "Card", "Section", "TopBar",
+        "Text", "IntText", "NumberText", "Icon", "Button", "IconButton", "TextField", "IntField",
+        "NumberField", "TimeField", "Toggle", "Checkbox", "Choice", "ChoiceItem", "Slider", "ProgressBar",
+        "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Divider", "Badge", "Stat",
+        "IntStat", "NumberStat", "ListItem", "IntListItem", "EmptyState", "Snackbar", "Tabs", "TabItem",
+        "NavigationBar", "NavigationItem", "BarChart", "Sparkline", "Modal", "Dialog", "BottomSheet", "Route"
+    )
+
+    private fun parseContractMetadata(packSource: String): PackContractMetadata {
+        val classDeclaration = Regex(
+            "export\\s+class\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\{(.*?)\\}",
+            RegexOption.DOT_MATCHES_ALL
+        )
+        val fieldDeclaration = Regex(
+            "([A-Za-z_][A-Za-z0-9_]*)(\\?)?\\s*:\\s*" +
+                "([A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?)(\\s*=\\s*[^;]+)?"
+        )
+        val componentDeclaration = Regex(
+            "(?m)^export component ([A-Za-z_][A-Za-z0-9_]*)\\(props: ([A-Za-z_][A-Za-z0-9_]*)\\): View \\{ (.*) \\}$"
+        )
+        val requiredChildren = Regex(
+            "children required ([A-Za-z_][A-Za-z0-9_]*(?: \\| [A-Za-z_][A-Za-z0-9_]*)*)"
+        )
+        val requiredParent = Regex("parent required ([A-Za-z_][A-Za-z0-9_]*)")
+        val eventDeclaration = Regex(
+            "event ([A-Za-z_][A-Za-z0-9_]*)(?:\\(payload:\\s*([A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?)\\))?"
+        )
+        val tokenDeclaration = Regex(
+            "(?m)^export token ([A-Za-z_][A-Za-z0-9_]*): ([A-Za-z_][A-Za-z0-9_]*) ="
+        )
+
+        val typeContracts = linkedMapOf<String, String>()
+        val typeDependencies = linkedMapOf<String, Set<String>>()
+        classDeclaration.findAll(packSource).forEach { match ->
+            val fields = fieldDeclaration.findAll(match.groupValues[2]).toList()
+            typeContracts[match.groupValues[1]] = fields.joinToString(",") { field ->
+                val optional = field.groupValues[2].isNotBlank() || field.groupValues[4].isNotBlank()
+                "${field.groupValues[1]}${if (optional) "?" else ""}:${field.groupValues[3]}"
+            }
+            typeDependencies[match.groupValues[1]] = fields
+                .map { it.groupValues[3].removeSuffix("[]") }
+                .filterTo(linkedSetOf()) { dependency -> dependency.firstOrNull()?.isUpperCase() == true }
+        }
+        val componentContracts = linkedMapOf<String, String>()
+        val componentPropTypes = linkedMapOf<String, String>()
+        val componentExtraTypes = linkedMapOf<String, Set<String>>()
+        val componentDependencies = linkedMapOf<String, Set<String>>()
+        componentDeclaration.findAll(packSource).forEach { match ->
+            val name = match.groupValues[1]
+            val metadata = match.groupValues[3]
+            val dependencies = linkedSetOf<String>()
+            val extraTypes = linkedSetOf<String>()
+            val constraints = buildList {
+                when {
+                    "children optional" in metadata -> add("children:?")
+
+                    else -> requiredChildren.find(metadata)?.groupValues?.get(1)?.let { children ->
+                        val names = children.split(" | ")
+                        dependencies += names
+                        add("children:${names.joinToString("|")}")
+                    }
+                }
+                requiredParent.find(metadata)?.groupValues?.get(1)?.let { parent ->
+                    dependencies += parent
+                    add("parent:$parent")
+                }
+                eventDeclaration.findAll(metadata).forEach { event ->
+                    val payload = event.groupValues[2]
+                    payload.removeSuffix("[]").takeIf { it.firstOrNull()?.isUpperCase() == true }?.let(extraTypes::add)
+                    val typedPayload = payload.takeIf(String::isNotBlank)?.let { ":$it" }.orEmpty()
+                    add("event:${event.groupValues[1]}$typedPayload")
+                }
+            }
+            componentContracts[name] = buildString {
+                append(name)
+                append("(${match.groupValues[2]})")
+                if (constraints.isNotEmpty()) append(constraints.joinToString(prefix = "[", postfix = "]"))
+            }
+            componentPropTypes[name] = match.groupValues[2]
+            componentExtraTypes[name] = extraTypes
+            componentDependencies[name] = dependencies
+        }
+        val tokenContracts = linkedMapOf<String, String>()
+        val tokenTypes = linkedMapOf<String, String>()
+        tokenDeclaration.findAll(packSource).forEach { match ->
+            tokenContracts[match.groupValues[1]] = "${match.groupValues[1]}:${match.groupValues[2]}"
+            tokenTypes[match.groupValues[1]] = match.groupValues[2]
+        }
+        return PackContractMetadata(
+            typeContracts,
+            typeDependencies,
+            componentContracts,
+            componentPropTypes,
+            componentExtraTypes,
+            componentDependencies,
+            tokenContracts,
+            tokenTypes
+        )
+    }
+
+    private fun componentClosure(
+        selected: Set<String>,
+        componentDependencies: Map<String, Set<String>>
+    ): Set<String> {
+        val result = selected.toMutableSet()
+        val pending = ArrayDeque(selected)
+        while (pending.isNotEmpty()) {
+            componentDependencies.getValue(pending.removeFirst()).forEach { dependency ->
+                if (result.add(dependency)) pending.addLast(dependency)
+            }
+        }
+        return result
+    }
+
+    private fun buildGenerationContract(
+        metadata: PackContractMetadata,
+        packVersion: String,
+        selectedComponents: Set<String> = metadata.componentContracts.keys
+    ): String = buildString {
+        val components = componentClosure(selectedComponents, metadata.componentDependencies)
+        val types = components.mapTo(linkedSetOf()) { metadata.componentPropTypes.getValue(it) }
+        components.forEach { types += metadata.componentExtraTypes.getValue(it) }
+        val pendingTypes = ArrayDeque(types)
+        while (pendingTypes.isNotEmpty()) {
+            metadata.typeDependencies[pendingTypes.removeFirst()].orEmpty().forEach { dependency ->
+                if (dependency in metadata.typeContracts && types.add(dependency)) pendingTypes.addLast(dependency)
+            }
+        }
+        appendLine("Deal UI component signatures ($packVersion):")
+        appendLine("Props (`?` means optional):")
+        metadata.typeContracts.forEach { (name, fields) ->
+            if (name in types) appendLine("$name{$fields}")
+        }
+        appendLine("Components (`children:?` allows arbitrary children; named children and parents are required):")
+        metadata.componentContracts.forEach { (name, contract) ->
+            if (name in components) appendLine(contract)
+        }
+        appendLine("Tokens:")
+        metadata.tokenContracts.forEach { (name, contract) ->
+            if (metadata.tokenTypes.getValue(name) in types) appendLine(contract)
+        }
+    }.trimEnd()
+
+    private fun String.kotlinString(): String = "\"" +
+        replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
+
+    private fun Map<String, String>.kotlinStringMap(): String = entries.joinToString(",\n") {
+        "            ${it.key.kotlinString()} to ${it.value.kotlinString()}"
+    }
+
+    private fun Map<String, Set<String>>.kotlinStringSetMap(): String = entries.joinToString(",\n") { entry ->
+        val values = entry.value.joinToString(", ") { it.kotlinString() }
+        "            ${entry.key.kotlinString()} to setOf($values)"
+    }
+
     @org.gradle.api.tasks.TaskAction
     fun generate() {
         packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
@@ -68,12 +235,39 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV$version.kt"
             ).asFile
             destination.parentFile.mkdirs()
+            val contractMetadata = parseContractMetadata(packSource)
+            val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys
+            if (version == "13") {
+                require(missingCoreComponents.isEmpty()) {
+                    "Mobile core components missing from ${sourceFile.name}: ${missingCoreComponents.joinToString()}"
+                }
+            }
+            val availableMobileCoreComponents = mobileCoreComponents.intersect(contractMetadata.componentContracts.keys)
             val encodedLines = packSource.lines().joinToString(",\n") { line ->
                 val escaped = line
                     .replace("\\", "\\\\")
                     .replace("\"", "\\\"")
                     .replace("$", "\\$")
                 "        \"$escaped\""
+            }
+            val generationContract = buildGenerationContract(
+                metadata = contractMetadata,
+                packVersion = "deal-studio-dealui-pack-v$version"
+            )
+            val mobileCoreGenerationContract = buildGenerationContract(
+                metadata = contractMetadata,
+                packVersion = "deal-studio-dealui-pack-v$version mobile-core",
+                selectedComponents = availableMobileCoreComponents
+            )
+            val encodedContractLines = generationContract.lines().joinToString(",\n") { line ->
+                val escaped = line
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("$", "\\$")
+                "        \"$escaped\""
+            }
+            val encodedMobileCoreContractLines = mobileCoreGenerationContract.lines().joinToString(",\n") { line ->
+                "        ${line.kotlinString()}"
             }
             destination.writeText(
                 """
@@ -84,6 +278,39 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                         val SOURCE: String = listOf(
                     $encodedLines
                         ).joinToString("\n")
+                        val GENERATION_CONTRACT: String = listOf(
+                    $encodedContractLines
+                        ).joinToString("\n")
+                        val MOBILE_CORE_GENERATION_CONTRACT: String = listOf(
+                    $encodedMobileCoreContractLines
+                        ).joinToString("\n")
+                        val MOBILE_CORE_COMPONENTS: Set<String> = setOf(
+                            ${availableMobileCoreComponents.joinToString(", ") { it.kotlinString() }}
+                        )
+                        val COMPONENT_CONTRACTS: Map<String, String> = mapOf(
+                    ${contractMetadata.componentContracts.kotlinStringMap()}
+                        )
+                        val COMPONENT_PROP_TYPES: Map<String, String> = mapOf(
+                    ${contractMetadata.componentPropTypes.kotlinStringMap()}
+                        )
+                        val COMPONENT_EXTRA_TYPES: Map<String, Set<String>> = mapOf(
+                    ${contractMetadata.componentExtraTypes.kotlinStringSetMap()}
+                        )
+                        val COMPONENT_DEPENDENCIES: Map<String, Set<String>> = mapOf(
+                    ${contractMetadata.componentDependencies.kotlinStringSetMap()}
+                        )
+                        val TYPE_CONTRACTS: Map<String, String> = mapOf(
+                    ${contractMetadata.typeContracts.kotlinStringMap()}
+                        )
+                        val TYPE_DEPENDENCIES: Map<String, Set<String>> = mapOf(
+                    ${contractMetadata.typeDependencies.kotlinStringSetMap()}
+                        )
+                        val TOKEN_CONTRACTS: Map<String, String> = mapOf(
+                    ${contractMetadata.tokenContracts.kotlinStringMap()}
+                        )
+                        val TOKEN_TYPES: Map<String, String> = mapOf(
+                    ${contractMetadata.tokenTypes.kotlinStringMap()}
+                        )
                     }
                 """.trimIndent() + "\n"
             )

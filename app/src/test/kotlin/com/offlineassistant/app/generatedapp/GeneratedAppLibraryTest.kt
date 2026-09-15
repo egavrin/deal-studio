@@ -28,6 +28,8 @@ class GeneratedAppLibraryTest {
         assertFalse(metadata.contains("checkedUiIr"))
         assertFalse(metadata.contains("GraphLog"))
         assertFalse(metadata.contains(bundle.dealSource))
+        assertTrue(metadata.contains("generationModelCalls"))
+        assertTrue(metadata.contains("compilerRepairCalls"))
 
         val updated = library.update(
             saved.id,

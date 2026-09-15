@@ -1,0 +1,86 @@
+{
+  "upstreamRepository": "https://github.com/arkts-dev/deal-ui",
+  "upstreamCommit": "b75f97cc4a004feec79f0d6cfd18af1500cc7950",
+  "upstreamTree": "https://github.com/arkts-dev/deal-ui/tree/b75f97cc4a004feec79f0d6cfd18af1500cc7950",
+  "fixtureCharacterization": "Local derived conformance fixtures adapted to the Android v13 component pack; they are not verbatim upstream copies.",
+  "fixtures": [
+    {
+      "id": "valid-composition",
+      "deal": "valid/composition.deal",
+      "dealUi": "valid/composition.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/examples/museum/gallery.dealui#L1-L39",
+      "derivation": "Adapted from the upstream museum composition to use the Android v13 pack's AppTheme, Root, TextField, and ListItem components.",
+      "rule": "full AppTheme/Root app, pure view, When, keyed ForEach with explicit item, and typed event payload",
+      "expected": "valid"
+    },
+    {
+      "id": "valid-effects",
+      "deal": "valid/effects.deal",
+      "dealUi": "valid/effects.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/src/test/java/deal/ui/UiFrameworkTest.java#L283-L313",
+      "derivation": "Adapted from typedPayloadContracts into a standalone Android-pack effect fixture.",
+      "rule": "effect completion/failure and effect policy stay internal while the triggering action remains reachable",
+      "expected": "valid",
+      "reachableInputAction": "RefreshRequested",
+      "effectCompletionAction": "RefreshCompleted"
+    },
+    {
+      "id": "invalid-unknown-component",
+      "deal": "invalid/composition.deal",
+      "dealUi": "invalid/unknown-component.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/src/test/java/deal/ui/UiFrameworkTest.java#L70",
+      "derivation": "Standalone adaptation of the upstream UI2012 mutation case.",
+      "rule": "unknown pack components are rejected",
+      "expected": "invalid",
+      "diagnostic": "UI2012"
+    },
+    {
+      "id": "invalid-unknown-prop",
+      "deal": "invalid/composition.deal",
+      "dealUi": "invalid/unknown-prop.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/src/test/java/deal/ui/UiFrameworkTest.java#L71",
+      "derivation": "Standalone adaptation of the upstream UI2029 mutation case.",
+      "rule": "unknown component props are rejected",
+      "expected": "invalid",
+      "diagnostic": "UI2029"
+    },
+    {
+      "id": "invalid-payload-mismatch",
+      "deal": "invalid/composition.deal",
+      "dealUi": "invalid/payload-mismatch.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/src/test/java/deal/ui/UiFrameworkTest.java#L283-L318",
+      "derivation": "Adapted from typedPayloadContracts to bind an int event payload to a string action field.",
+      "rule": "typed event payloads cannot be assigned to incompatible action fields",
+      "expected": "invalid",
+      "diagnostic": "UI2031"
+    },
+    {
+      "id": "invalid-null-to-non-nullable-prop",
+      "deal": "invalid/composition.deal",
+      "dealUi": "invalid/null-to-non-nullable-prop.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/src/test/java/deal/ui/UiFrameworkTest.java#L78",
+      "derivation": "Direct adaptation of the upstream spacing-token mutation using the Android pack's Root component.",
+      "rule": "a null literal cannot flow to the non-nullable value represented by an optional Space prop",
+      "expected": "invalid",
+      "diagnostic": "UI2013"
+    },
+    {
+      "id": "invalid-nullable-member-traversal",
+      "deal": "invalid/nullable-member-traversal.deal",
+      "dealUi": "invalid/nullable-member-traversal.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/docs/deal-ui-framework-design.md#L115-L120",
+      "derivation": "Local executable fixture for the upstream semantic statement that nullable traversal fails.",
+      "rule": "a member path cannot traverse a nullable nominal state value without narrowing",
+      "expected": "invalid"
+    },
+    {
+      "id": "invalid-nondeclarative-form",
+      "deal": "invalid/composition.deal",
+      "dealUi": "invalid/nondeclarative-form.dealui",
+      "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/docs/deal-ui-framework-design.md#L34-L65",
+      "derivation": "Local parser-negative fixture derived from the upstream declarative grammar.",
+      "rule": "Deal UI rejects statement-style local declarations and non-declarative bodies",
+      "expected": "invalid"
+    }
+  ]
+}
