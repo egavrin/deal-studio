@@ -22,8 +22,10 @@ internal object GenerationCapabilityContracts {
             export class MinuteTickAction { deltaMs: int = 0; }
             // @ui-update
             export function onMinuteTick(state: AppState, action: MinuteTickAction): AppState { return state; }
-            Studio derives the clock surface and binds the checked action automatically. The action must update
-            authoritative state when a tick matters to the product.
+            In the final embedded `// @ui-root` view, bind the exact action with:
+            `ui.MinuteClock(onTick: action app.MinuteTickAction { deltaMs: payload })`.
+            The action must update authoritative state when a tick matters to the product. A tick action that is
+            declared but not bound from this reachable view is rejected as unreachable.
         """.trimIndent()
     )
 
@@ -37,8 +39,9 @@ internal object GenerationCapabilityContracts {
             export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
             // @ui-update
             export function onPointer(state: AppState, action: PointerAction): AppState { return state; }
-            Studio derives the pointer surface and binds this exact typed action automatically. Keep pointer
-            coordinates in the same logical space as retained game state.
+            In the final embedded `// @ui-root` view, bind the exact action with
+            `ui.PointerSurface(onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase }) { ... }`.
+            Keep pointer coordinates in the same logical space as retained game state.
         """.trimIndent()
     )
 
@@ -67,8 +70,11 @@ internal object GenerationCapabilityContracts {
             export function onFrame(state: AppState, action: FrameAction): AppState { return state; }
             // @ui-update
             export function onPointer(state: AppState, action: PointerAction): AppState { return state; }
-            Studio derives FrameClock, PointerSurface, Canvas and StudioSceneShape rectangles automatically from
-            the checked capabilities and typed actions. Never write UI calls or UI components in DEAL.
+            In the final embedded `// @ui-root` view, bind the declared actions explicitly using
+            `ui.FrameClock(onTick: action app.FrameAction { deltaMs: payload })` and
+            `ui.PointerSurface(onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase }) { ... }`.
+            Nest a checked `ui.Canvas(...) { ... }` inside PointerSurface. Never write UI calls or UI components
+            outside that final embedded view.
             FrameAction must produce a typed state change while the realtime product is active; it must never be a
             decorative no-op. If the user did not explicitly request a start/pause gate, initialState starts active
             and a frame tick changes visible state. If the user requested Start or Pause, the Start action must switch

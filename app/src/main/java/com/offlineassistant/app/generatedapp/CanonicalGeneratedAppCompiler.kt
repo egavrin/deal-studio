@@ -122,6 +122,11 @@ internal object CanonicalCompilerRecoveryPolicy {
                     Regex("\\bE1\\d{3}\\b").containsMatchIn(diagnostic)
             )
         ) return CanonicalRecoveryKind.LOCAL_PATCH
+        // In the embedded profile, these checker diagnostics are single-expression UI mistakes inside app.deal.
+        // They are safe to repair locally and otherwise needlessly spend a full fresh generation.
+        if (target == CanonicalRepairTarget.DEAL && Regex("UI(1009|20(21|29|31))").containsMatchIn(diagnostic)) {
+            return CanonicalRecoveryKind.LOCAL_PATCH
+        }
         val structuralSignals = listOf(
             "UI100", "UI2012", "UI2013", "UI2033", "UI2050",
             "Expected 'view'", "Expected ')'", "Expected '('", "Expected expression",

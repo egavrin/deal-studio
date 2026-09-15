@@ -529,6 +529,59 @@ class CanonicalGeneratedAppCloudDeviceTest {
     }
 
     @Test
+    fun randomHtml5FlashNoReasoningGenerates() = runBlocking {
+        val arguments = InstrumentationRegistry.getArguments()
+        val request = String(
+            android.util.Base64.decode(
+                requireNotNull(arguments.getString("request_base64")),
+                android.util.Base64.DEFAULT
+            ),
+            Charsets.UTF_8
+        )
+        val captureId = requireNotNull(arguments.getString("capture_id"))
+        require(captureId.matches(Regex("[0-9]+-html5-[0-9a-f-]{36}")))
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val client = DeepSeekGenerationClient(apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY })
+        val generationRequest = DeepSeekGenerationRequest(
+                model = DeepSeekGenerationModel.FLASH,
+                instructions = ExperimentalHtml5Prompt.INSTRUCTIONS,
+                input = ExperimentalHtml5Prompt.input(request),
+                maxOutputTokens = 16_384,
+                temperature = 0.0
+            )
+        val generated = runCatching { client.generate(generationRequest) }.recoverCatching { failure ->
+            if (CanonicalTransportRetryPolicy.shouldRetry(failure)) client.generate(generationRequest) else throw failure
+        }.getOrThrow()
+        val html = normalizeExperimentalHtml(generated.output)
+        val capture = File(context.filesDir, "generation-run-captures/$captureId").apply { mkdirs() }
+        File(capture, "request.txt").writeText(request)
+        File(capture, "app.html").writeText(html)
+        File(capture, "metrics.txt").writeText(
+            "model=${DeepSeekGenerationModel.FLASH.apiId}\n" +
+                "wall_latency_ms=${generated.latencyMs}\n" +
+                "ttft_ms=${generated.timeToFirstTokenMs}\n" +
+                "input_tokens=${generated.inputTokens}\n" +
+                "cached_input_tokens=${generated.cachedInputTokens}\n" +
+                "output_tokens=${generated.outputTokens}\n"
+        )
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        val intent = android.content.Intent(context, GenerationCapturePreviewActivity::class.java)
+            .putExtra(GenerationCapturePreviewActivity.EXTRA_CAPTURE_ID, captureId)
+            .putExtra(GenerationCapturePreviewActivity.EXTRA_MODE, GenerationCapturePreviewActivity.MODE_HTML5)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        ActivityScenario.launch<GenerationCapturePreviewActivity>(intent).use { scenario ->
+            assertTrue(device.wait(Until.hasObject(By.clazz("android.webkit.WebView")), RENDER_TIMEOUT_MS))
+            SystemClock.sleep(500)
+            val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(
+                "screencap -p /sdcard/Download/$captureId.png"
+            )
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+            assertEquals(Lifecycle.State.RESUMED, scenario.state)
+        }
+        println("RANDOM_HTML5_CAPTURE=$captureId")
+    }
+
+    @Test
     fun surpriseFlashNoReasoningGenerates() {
         val run = requireNotNull(InstrumentationRegistry.getArguments().getString("run_id"))
         require(run.matches(Regex("[a-z0-9-]{1,60}")))

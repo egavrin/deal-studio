@@ -103,6 +103,7 @@ internal data class CanonicalSourcePatch(
     val new: String
 ) {
     fun applyTo(source: String): String {
+        require(old != new) { "Patch NEW fragment must change ${target.fileName}; no-op patches are rejected" }
         val first = source.indexOf(old)
         require(first >= 0) { "Patch OLD fragment is absent from ${target.fileName}" }
         require(source.indexOf(old, first + old.length) < 0) {
@@ -266,6 +267,21 @@ internal object CanonicalDealUiSyntaxCard {
         }
         UI is declarative: use only checked components, When, ForEach, typed fields and action bindings. Do not use
         statements, helpers, collection indexing, map/filter/reduce, formatting helpers or mutations inside a view.
+        Event bindings receive the declared primitive as `payload`, never `event.value`. Copy these exact shapes:
+        ui.TextField(value: state.nameDraft, label: "Name", onChange: action app.SetNameDraftAction { nameDraft: payload })
+        ui.IntField(value: state.goalDraft, label: "Goal", onChange: action app.SetGoalDraftAction { goalDraft: payload })
+        ui.Stepper(value: state.goalDraft, label: "Goal", onChange: action app.SetGoalDraftAction { goalDraft: payload })
+        The action field type must match the component event payload exactly. Use TextField only for string, IntField
+        or Stepper only for int, and NumberField only for number. Do not invent `Metric`, and do not use `event`,
+        `event.value`, a missing action payload, or a NumberField for an int.
+        ui.Text uses `value`, never `text`. `ui.ListItem.title`, `subtitle`, and `trailing` are string-only. Do not
+        pass an int, boolean, or number to a text prop and do not invent `minutesText`, `countText`, or conversion
+        helpers. Render an int with `ui.IntStat(label: "Minutes", value: recipe.minutes)` or `ui.IntText(value: ...)`
+        in the same Section/Card; render a string only in Text/ListItem props.
+        Never write `state.cards[state.index]`, `items[index]`, or `.length` in a view. For a selected/current item,
+        DEAL must maintain typed scalar projections such as `hasCurrentCard`, `currentWord`, and `currentMeaning` and
+        update them in the same action as the selected index. The only allowed direct array UI use is
+        `ForEach(state.items, item: app.Item, key: item.id) { ... }`.
         Do not render internal ids, draft plumbing, coordinates or cached implementation values unless they are an
         intentional user-facing value. Put the primary product outcome before secondary actions and long collections.
         For a realtime scene, make the surface explicit with ui.Frame(...) { ui.PointerSurface(...) { ui.Canvas(...) } }
@@ -329,6 +345,11 @@ internal object CanonicalBundlePrompts {
         app.deal contains typed state, pure computations, typed actions, then one embedded declarative UI view.
         `ui.*` calls are allowed only inside that final `// @ui-root export view`; never call UI components from a
         DEAL function or use presentation/formatting helpers in behavior code.
+        UI non-negotiables: every component call has parentheses, including `ui.Card() { ... }`; Text uses
+        `value:`, never `text:`; never use `ui.Metric`; input events bind their value as `payload`, never
+        `event.value`; use `When(condition) { ... } Else { ... }` with capital `Else`, never JavaScript `else`;
+        and a view may not index an array. Use only direct ForEach for arrays and typed scalar
+        projections prepared in AppState for a current/selected item.
         Do not declare keyboard, storage.private, notifications, camera.capture, vision.ocr, health.read or
         focus.control merely because the product has forms, reminders, reports, history or a health-related topic.
         Declare such a host capability only when the user explicitly asks for that platform operation; a declaration
@@ -360,6 +381,8 @@ internal object CanonicalBundlePrompts {
         val start = "<<<PATCH:${target.fileName}>>>"
         appendLine("The pinned compiler rejected only ${target.fileName}. Return exactly one local source patch.")
         appendLine("The OLD text must occur exactly once in the supplied source window; do not rewrite the file.")
+        appendLine("OLD and NEW must differ. Locate the exact compiler-reported line inside the source window and include")
+        appendLine("that line in OLD. A no-op patch, a patch for another line, or a guessed replacement is rejected.")
         appendLine("This is a true local hunk: NEW may grow by at most 4 lines or 640 bytes. Do not insert a new")
         appendLine("nested view, ForEach, action, route, or duplicate block. Replace only the compiler-reported expression or call.")
         appendLine("Return raw patch only, framed exactly as:")
@@ -376,6 +399,11 @@ internal object CanonicalBundlePrompts {
         appendLine()
         appendLine("Compiler diagnostic:")
         appendLine(diagnostic.take(8_000))
+        if (diagnostic.contains("UI1009: Expected '('")) {
+            appendLine()
+            appendLine("This diagnostic means the reported UI component call is missing its invocation parentheses.")
+            appendLine("For example, repair `ui.Card {` to `ui.Card() {` on the diagnostic line; do not alter another call.")
+        }
         appendLine()
         appendLine("Source digest: ${rejectedSource.sha256()}")
         appendLine("Relevant ${target.fileName} source window:")
@@ -392,6 +420,12 @@ internal object CanonicalBundlePrompts {
         } else {
             appendLine()
             appendLine(CanonicalDealSyntaxCard.TEXT)
+            appendLine()
+            appendLine("The rejected fragment may be the embedded UI section of app.deal. Follow this exact UI binding contract:")
+            appendLine(CanonicalDealUiSyntaxCard.EMBEDDED_TEXT)
+            appendLine()
+            appendLine("Checked mobile component contract for this local repair:")
+            appendLine(CanonicalDealUiPack.repairGenerationContract(rejectedSource, diagnostic))
         }
     }.trimEnd()
 

@@ -1369,9 +1369,13 @@ private fun RenderCall(
         }
 
         "Stepper" -> {
-            val minimum = value("minimum").asInt()
-            val maximum = value("maximum").asInt().coerceAtLeast(minimum)
-            val current = value("value").asInt().coerceIn(minimum, maximum)
+            // Checked IR omits props whose defaults live in the component-pack declaration. Preserve those
+            // declared defaults here; treating an omitted maximum as JSON's numeric zero clamps every Stepper
+            // to zero even when its bound state is valid (for example, a 25-minute focus duration).
+            val minimum = if (call.arguments.containsKey("minimum")) value("minimum").asInt() else 0
+            val maximum = if (call.arguments.containsKey("maximum")) value("maximum").asInt() else 100
+            val boundedMaximum = maximum.coerceAtLeast(minimum)
+            val current = value("value").asInt().coerceIn(minimum, boundedMaximum)
             Row(
                 modifier = modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),

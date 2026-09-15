@@ -93,6 +93,11 @@ class CanonicalBundleProtocolTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    fun `patch rejects no-op replacement`() {
+        CanonicalSourcePatch(CanonicalRepairTarget.DEAL, "unchanged", "unchanged").applyTo("unchanged")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     fun `patch rejects a large replacement disguised as a local hunk`() {
         CanonicalBundleProtocol.parsePatch(
             "<<<PATCH:app.deal>>>\n${CanonicalBundleProtocol.PATCH_OLD}\nold\n" +
@@ -140,6 +145,9 @@ class CanonicalBundleProtocolTest {
         assertTrue(prompt.contains("Studio does not infer a layout from"))
         assertTrue(prompt.contains("AppState field order"))
         assertTrue(prompt.contains("compiler-provided aliases inside that view"))
+        assertTrue(prompt.contains("Event bindings receive the declared primitive as `payload`"))
+        assertTrue(prompt.contains("Never write `state.cards[state.index]`"))
+        assertTrue(prompt.contains("ui.ListItem.title`, `subtitle`, and `trailing` are string-only"))
         assertFalse(prompt.contains(CanonicalBundleProtocol.DEAL_UI_START))
         assertFalse(prompt.contains("Full exact typed Deal UI component contract"))
     }
@@ -154,6 +162,7 @@ class CanonicalBundleProtocolTest {
             assertTrue(input.contains("behavior functions never call UI components") || input.contains("never call UI components from a"))
         }
         assertTrue(initial.contains("`ui.*` calls are allowed only inside that final"))
+        assertTrue(initial.contains("every component call has parentheses"))
         assertTrue(initial.contains("Do not declare keyboard, storage.private, notifications"))
     }
 
@@ -193,7 +202,28 @@ class CanonicalBundleProtocolTest {
             CanonicalRecoveryKind.LOCAL_PATCH,
             CanonicalCompilerRecoveryPolicy.decide(
                 CanonicalRepairTarget.DEAL,
+                "/generated/app.deal:22:30: error UI2029: Unknown prop 'text'"
+            )
+        )
+        assertEquals(
+            CanonicalRecoveryKind.LOCAL_PATCH,
+            CanonicalCompilerRecoveryPolicy.decide(
+                CanonicalRepairTarget.DEAL,
                 "Auto UI cannot reach AddAction because its action payload is not a primitive root-field setter"
+            )
+        )
+        assertEquals(
+            CanonicalRecoveryKind.LOCAL_PATCH,
+            CanonicalCompilerRecoveryPolicy.decide(
+                CanonicalRepairTarget.DEAL,
+                "/generated/app.deal:22:30: error UI2021: Unknown path root 'event'"
+            )
+        )
+        assertEquals(
+            CanonicalRecoveryKind.LOCAL_PATCH,
+            CanonicalCompilerRecoveryPolicy.decide(
+                CanonicalRepairTarget.DEAL,
+                "/generated/app.deal:22:30: error UI2031: Expected number, got int"
             )
         )
     }

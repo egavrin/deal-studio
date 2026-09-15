@@ -71,9 +71,9 @@ private fun DealCaptureRuntime(capture: File?, context: android.content.Context)
             val deal = File(capture, "app.deal").readText()
             val toolchain = CanonicalDealToolchain(context)
             toolchain.validateDealForUi(deal)
-            val appInterface = toolchain.extractAppInterface(deal)
-            val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
-            val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source))
+            val program = CanonicalDealUiParser.parse(
+                toolchain.compileEmbeddedPortable(deal, CanonicalDealUiPack.source)
+            )
             CaptureDealRuntime(program, toolchain.createRuntime(deal))
         }
     }
