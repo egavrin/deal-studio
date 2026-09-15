@@ -160,9 +160,14 @@ private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> U
                     appInterface = requireNotNull(loaded).entry.bundle.appInterface,
                     ownerId = requireNotNull(loaded).entry.record.hostEffectOwnerId
                 ) { action ->
+                    var applied = false
                     runCatching { controller.dispatch(requireNotNull(loaded), action) }
-                        .onSuccess { loaded = it }
+                        .onSuccess {
+                            loaded = it
+                            applied = true
+                        }
                         .onFailure { error = it.message }
+                    applied
                 },
                 hostScrolling = true
             )

@@ -373,7 +373,7 @@ internal fun rememberCanonicalHostAction(
     dealSource: String,
     appInterface: String,
     ownerId: String,
-    dispatch: (CanonicalUiAction) -> Unit
+    dispatch: (CanonicalUiAction) -> Boolean
 ): (CanonicalUiAction) -> Unit {
     val capabilities = remember(appInterface) {
         if (appInterface.isBlank()) emptySet() else AppInterfaceCompiler.parse(appInterface).capabilities.toSet()
@@ -410,7 +410,7 @@ internal fun rememberCanonicalHostAction(
     return remember(capabilities, executor, dispatch) {
         { action ->
             val parsed = runCatching { CanonicalHostEffectContract.request(action, capabilities) }
-            dispatch(action)
+            val requestRecorded = dispatch(action)
             parsed.exceptionOrNull()?.let { failure ->
                 if (action.type == CanonicalHostEffectContract.ACTION &&
                     action.fields["status"] == CanonicalHostEffectContract.STATUS_REQUEST
@@ -426,7 +426,7 @@ internal fun rememberCanonicalHostAction(
                 }
             }
             val request = parsed.getOrNull()
-            if (request != null) {
+            if (request != null && requestRecorded) {
                 val permissions = arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
                 if (request.needsCalendarWrite && permissions.any {
                         ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED

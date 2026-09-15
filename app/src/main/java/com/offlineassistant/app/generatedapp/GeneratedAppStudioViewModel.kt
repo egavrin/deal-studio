@@ -602,10 +602,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
     }
 
-    fun dispatchCanonical(action: CanonicalUiAction) {
+    fun dispatchCanonical(action: CanonicalUiAction): Boolean {
         val snapshot = state.value
-        val app = snapshot.runnable ?: return
-        val handler = app.program.updates[action.type] ?: return
+        val app = snapshot.runnable ?: return false
+        val handler = app.program.updates[action.type] ?: return false
         val next = runCatching {
             app.savedRecord?.let { stateStore.dispatch(it, app.runtime, handler, action) }
                 ?: app.runtime.dispatch(handler, action.type, action.fields)
@@ -619,10 +619,11 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     )
                 )
             }
-            return
+            return false
         }
         val updated = app.copy(state = next)
         mutableState.update { current -> current.withRunnable(updated) }
+        return true
     }
 
     fun cancel() {
