@@ -983,8 +983,11 @@ private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modif
                 GenerationFact("Check", formatGenerationDuration(bundle.autoUiSynthesisLatencyMs), Modifier.weight(1f))
                 GenerationFact(
                     "Source",
-                    if (bundle.usesEmbeddedUi()) formatGenerationBytes(bundle.embeddedUiSource().encodeToByteArray().size)
-                    else formatGenerationBytes(bundle.autoUiSourceBytes),
+                    if (bundle.usesEmbeddedUi()) {
+                        formatGenerationBytes(bundle.embeddedUiSource().encodeToByteArray().size)
+                    } else {
+                        formatGenerationBytes(bundle.autoUiSourceBytes)
+                    },
                     Modifier.weight(1f)
                 )
             }
@@ -992,13 +995,11 @@ private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modif
     }
 }
 
-private fun CanonicalGeneratedAppBundle.usesEmbeddedUi(): Boolean =
-    compilerProtocolVersion == "embedded-deal-ui-v1"
+private fun CanonicalGeneratedAppBundle.usesEmbeddedUi(): Boolean = compilerProtocolVersion == "embedded-deal-ui-v1"
 
-private fun CanonicalGeneratedAppBundle.embeddedUiSource(): String =
-    dealSource.substringAfter("// @ui-root", missingDelimiterValue = "").let { source ->
-        if (source.isBlank()) "No embedded UI declaration was found." else "// @ui-root$source"
-    }
+private fun CanonicalGeneratedAppBundle.embeddedUiSource(): String = dealSource.substringAfter("// @ui-root", missingDelimiterValue = "").let { source ->
+    if (source.isBlank()) "No embedded UI declaration was found." else "// @ui-root$source"
+}
 
 @Composable
 private fun GenerationStageCard(

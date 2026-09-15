@@ -7,10 +7,10 @@ import com.offlineassistant.deepseek.DeepSeekGenerationResult
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -190,18 +190,16 @@ class LiveGenerationComparisonBenchmarkTest {
     private fun median(values: List<Long>): Long = values.sorted().let { it[(it.size - 1) / 2] }
     private fun median(values: List<Double>): Double = values.sorted().let { it[(it.size - 1) / 2] }
 
-    private fun List<kotlinx.serialization.json.JsonObject>.longMetric(name: String): List<Long> =
-        mapNotNull { it[name]?.jsonPrimitive?.long }
+    private fun List<kotlinx.serialization.json.JsonObject>.longMetric(name: String): List<Long> = mapNotNull { it[name]?.jsonPrimitive?.long }
 
-    private fun List<kotlinx.serialization.json.JsonObject>.estimatedCostMetric(prefix: String): List<Double> =
-        map { row ->
-            row["${prefix}EstimatedUsd"]?.jsonPrimitive?.content?.toDoubleOrNull()
-                ?: estimatedUsd(
-                    input = row["${prefix}InputTokens"]?.jsonPrimitive?.long ?: 0L,
-                    cached = row["${prefix}CachedInputTokens"]?.jsonPrimitive?.long ?: 0L,
-                    output = row["${prefix}OutputTokens"]?.jsonPrimitive?.long ?: 0L
-                )
-        }
+    private fun List<kotlinx.serialization.json.JsonObject>.estimatedCostMetric(prefix: String): List<Double> = map { row ->
+        row["${prefix}EstimatedUsd"]?.jsonPrimitive?.content?.toDoubleOrNull()
+            ?: estimatedUsd(
+                input = row["${prefix}InputTokens"]?.jsonPrimitive?.long ?: 0L,
+                cached = row["${prefix}CachedInputTokens"]?.jsonPrimitive?.long ?: 0L,
+                output = row["${prefix}OutputTokens"]?.jsonPrimitive?.long ?: 0L
+            )
+    }
 
     private fun successRate(rows: List<kotlinx.serialization.json.JsonObject>, field: String): String {
         val successful = rows.count { it[field]?.jsonPrimitive?.booleanOrNull ?: true }
@@ -272,8 +270,10 @@ class LiveGenerationComparisonBenchmarkTest {
     private companion object {
         const val REPETITIONS = 3
         const val MAX_REPETITIONS = 5
+
         // Shared production-client cap for both direct HTML and canonical tool generation.
         const val OUTPUT_LIMIT = 16_384
+
         // Official DeepSeek V4-Flash off-peak USD / 1M tokens, retrieved 2026-09-14.
         const val CACHE_HIT_USD_PER_MILLION = 0.007
         const val CACHE_MISS_USD_PER_MILLION = 0.22

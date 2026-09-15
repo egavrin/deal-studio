@@ -91,7 +91,13 @@ internal object GenerationCapabilityContracts {
     private val hostCompletion = GenerationCapabilityContract(
         id = "host-completion",
         capabilities = setOf(
-            "keyboard", "storage.private", "notifications", "camera.capture", "vision.ocr", "health.read", "focus.control"
+            "keyboard",
+            "storage.private",
+            "notifications",
+            "camera.capture",
+            "vision.ocr",
+            "health.read",
+            "focus.control"
         ),
         requiredComponents = setOf("CapabilityNotice"),
         prompt = """
@@ -157,8 +163,7 @@ internal object GenerationCapabilityContracts {
     }
 }
 
-private fun CanonicalDealUiProgram.allCalls(): List<CanonicalUiNode.Call> =
-    nodes.flatMap { it.capabilityCalls() }
+private fun CanonicalDealUiProgram.allCalls(): List<CanonicalUiNode.Call> = nodes.flatMap { it.capabilityCalls() }
 
 private fun CanonicalUiNode.capabilityCalls(): List<CanonicalUiNode.Call> = when (this) {
     is CanonicalUiNode.Call -> listOf(this) + children.flatMap { it.capabilityCalls() }

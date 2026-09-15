@@ -55,7 +55,9 @@ class CanonicalSurpriseSoakDeviceTest {
                     onProgress = { phase, partial ->
                         when (phase) {
                             CanonicalGenerationPhase.DEAL -> partialDeal = partial
+
                             CanonicalGenerationPhase.DEAL_UI -> partialDealUi = partial
+
                             CanonicalGenerationPhase.VALIDATING, CanonicalGenerationPhase.REPAIRING,
                             CanonicalGenerationPhase.RETRYING -> Unit
                         }

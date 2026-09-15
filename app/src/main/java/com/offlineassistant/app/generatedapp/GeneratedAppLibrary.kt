@@ -3,9 +3,9 @@ package com.offlineassistant.app.generatedapp
 import android.content.Context
 import java.io.File
 import java.security.MessageDigest
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject

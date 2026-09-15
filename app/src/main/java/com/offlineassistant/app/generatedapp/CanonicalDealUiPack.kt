@@ -197,10 +197,9 @@ internal object CanonicalDealUiPack {
         return result
     }
 
-    private fun unknownSpecializedComponent(diagnostic: String, knownComponents: Set<String>): Boolean =
-        UNKNOWN_SPECIALIZED_COMPONENT.findAll(diagnostic).any { match ->
-            match.groupValues[1] !in knownComponents
-        }
+    private fun unknownSpecializedComponent(diagnostic: String, knownComponents: Set<String>): Boolean = UNKNOWN_SPECIALIZED_COMPONENT.findAll(diagnostic).any { match ->
+        match.groupValues[1] !in knownComponents
+    }
 
     private fun buildContract(
         version: String,

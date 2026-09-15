@@ -104,10 +104,19 @@ internal object CanonicalTransportRetryPolicy {
             ?: return false
         val detail = transport.message.orEmpty().lowercase()
         return detail.isNotBlank() && listOf(
-            "connection abort", "connection reset", "broken pipe", "unexpected end",
-            "timed out", "temporarily unavailable", "http 5"
+            "connection abort",
+            "connection reset",
+            "broken pipe",
+            "unexpected end",
+            "timed out",
+            "temporarily unavailable",
+            "http 5"
         ).any(detail::contains) && listOf(
-            "api key", "unauthorized", "forbidden", "rate-limited", "http 4"
+            "api key",
+            "unauthorized",
+            "forbidden",
+            "rate-limited",
+            "http 4"
         ).none(detail::contains)
     }
 }
@@ -120,8 +129,10 @@ internal object CanonicalCompilerRecoveryPolicy {
         if (target == CanonicalRepairTarget.DEAL && (
                 diagnostic.contains("E1015") || diagnostic.contains("Auto UI cannot reach") ||
                     Regex("\\bE1\\d{3}\\b").containsMatchIn(diagnostic)
-            )
-        ) return CanonicalRecoveryKind.LOCAL_PATCH
+                )
+        ) {
+            return CanonicalRecoveryKind.LOCAL_PATCH
+        }
         // In the embedded profile, these checker diagnostics are single-expression UI mistakes inside app.deal.
         // They are safe to repair locally and otherwise needlessly spend a full fresh generation.
         if (target == CanonicalRepairTarget.DEAL && Regex("UI(1009|20(21|29|31))").containsMatchIn(diagnostic)) {
@@ -221,7 +232,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
         var firstInteractivePreviewMs: Long? = null
         fun <T> validating(block: () -> T): T {
             val validationStarted = System.nanoTime()
-            return try { block() } finally {
+            return try {
+                block()
+            } finally {
                 validationLatencyMs += (System.nanoTime() - validationStarted) / 1_000_000
             }
         }
@@ -235,8 +248,11 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 )
                 val generated = requestRaw(
                     dealModel,
-                    if (attempt == CanonicalGenerationAttempt.INITIAL) CanonicalBundlePrompts.initialInput(request)
-                    else CanonicalBundlePrompts.fullRetryInput(request)
+                    if (attempt == CanonicalGenerationAttempt.INITIAL) {
+                        CanonicalBundlePrompts.initialInput(request)
+                    } else {
+                        CanonicalBundlePrompts.fullRetryInput(request)
+                    }
                 ) {
                     onProgress(
                         if (attempt == CanonicalGenerationAttempt.INITIAL) CanonicalGenerationPhase.DEAL else CanonicalGenerationPhase.RETRYING,
@@ -262,53 +278,53 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 ) {
                     val rejected = checked
                     val patchNumber = patchesThisAttempt + 1
-                onProgress(
-                    CanonicalGenerationPhase.REPAIRING,
-                    "DEAL has one local compiler error — applying patch $patchNumber/$MAX_LOCAL_PATCHES_PER_ATTEMPT"
-                )
-                val currentCandidate = requireNotNull(candidate)
-                val source = currentCandidate.deal
-                val patchGenerated = requestRaw(
-                    dealModel,
-                    CanonicalBundlePrompts.repairInput(
-                        request = request,
-                        target = CanonicalRepairTarget.DEAL,
-                        rejectedSource = source,
-                        diagnostic = rejected.diagnostic,
-                        appInterface = rejected.appInterface
-                    )
-                ) {
                     onProgress(
                         CanonicalGenerationPhase.REPAIRING,
-                        "Connection interrupted before patch arrived — retrying once"
+                        "DEAL has one local compiler error — applying patch $patchNumber/$MAX_LOCAL_PATCHES_PER_ATTEMPT"
                     )
+                    val currentCandidate = requireNotNull(candidate)
+                    val source = currentCandidate.deal
+                    val patchGenerated = requestRaw(
+                        dealModel,
+                        CanonicalBundlePrompts.repairInput(
+                            request = request,
+                            target = CanonicalRepairTarget.DEAL,
+                            rejectedSource = source,
+                            diagnostic = rejected.diagnostic,
+                            appInterface = rejected.appInterface
+                        )
+                    ) {
+                        onProgress(
+                            CanonicalGenerationPhase.REPAIRING,
+                            "Connection interrupted before patch arrived — retrying once"
+                        )
+                    }
+                    patchResponses += CanonicalRepairTarget.DEAL to patchGenerated
+                    compilerToolTrace("RAW_PATCH\t${attempt.name}\tapp.deal\t${patchGenerated.output}")
+                    val applied = runCatching {
+                        val patch = CanonicalBundleProtocol.parsePatch(patchGenerated.output, CanonicalRepairTarget.DEAL)
+                        candidate = currentCandidate.copy(deal = patch.applyTo(currentCandidate.deal), dealUi = "")
+                    }
+                    checked = if (applied.isSuccess) {
+                        onProgress(CanonicalGenerationPhase.VALIDATING, "Compiling patched application")
+                        validating { validateCandidate(requireNotNull(candidate)) }
+                    } else {
+                        rejected
+                    }
+                    patchTelemetry += CanonicalPatchTelemetry(
+                        attempt = attempt,
+                        target = CanonicalRepairTarget.DEAL,
+                        latencyMs = patchGenerated.latencyMs,
+                        timeToFirstTokenMs = patchGenerated.timeToFirstTokenMs,
+                        inputTokens = patchGenerated.inputTokens ?: 0,
+                        cachedInputTokens = patchGenerated.cachedInputTokens ?: 0,
+                        outputTokens = patchGenerated.outputTokens ?: 0,
+                        applied = applied.isSuccess,
+                        compilerAccepted = checked is CandidateValidation.Accepted,
+                        failure = applied.exceptionOrNull()?.message ?: (checked as? CandidateValidation.Rejected)?.diagnostic
+                    )
+                    patchesThisAttempt += 1
                 }
-                patchResponses += CanonicalRepairTarget.DEAL to patchGenerated
-                compilerToolTrace("RAW_PATCH\t${attempt.name}\tapp.deal\t${patchGenerated.output}")
-                val applied = runCatching {
-                    val patch = CanonicalBundleProtocol.parsePatch(patchGenerated.output, CanonicalRepairTarget.DEAL)
-                    candidate = currentCandidate.copy(deal = patch.applyTo(currentCandidate.deal), dealUi = "")
-                }
-                checked = if (applied.isSuccess) {
-                    onProgress(CanonicalGenerationPhase.VALIDATING, "Compiling patched application")
-                    validating { validateCandidate(requireNotNull(candidate)) }
-                } else {
-                    rejected
-                }
-                patchTelemetry += CanonicalPatchTelemetry(
-                    attempt = attempt,
-                    target = CanonicalRepairTarget.DEAL,
-                    latencyMs = patchGenerated.latencyMs,
-                    timeToFirstTokenMs = patchGenerated.timeToFirstTokenMs,
-                    inputTokens = patchGenerated.inputTokens ?: 0,
-                    cachedInputTokens = patchGenerated.cachedInputTokens ?: 0,
-                    outputTokens = patchGenerated.outputTokens ?: 0,
-                    applied = applied.isSuccess,
-                    compilerAccepted = checked is CandidateValidation.Accepted,
-                    failure = applied.exceptionOrNull()?.message ?: (checked as? CandidateValidation.Rejected)?.diagnostic
-                )
-                patchesThisAttempt += 1
-            }
                 val outcome = if (checked is CandidateValidation.Accepted) "accepted" else "rejected:${(checked as CandidateValidation.Rejected).diagnostic.take(500)}"
                 val recoveryDecision = if (checked is CandidateValidation.Accepted) {
                     "accepted"
@@ -319,8 +335,14 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     ).name
                 }
                 attemptTelemetry += CanonicalGenerationAttemptTelemetry(
-                    attempt, generated.latencyMs, generated.timeToFirstTokenMs, generated.inputTokens ?: 0,
-                    generated.cachedInputTokens ?: 0, generated.outputTokens ?: 0, outcome, recoveryDecision
+                    attempt,
+                    generated.latencyMs,
+                    generated.timeToFirstTokenMs,
+                    generated.inputTokens ?: 0,
+                    generated.cachedInputTokens ?: 0,
+                    generated.outputTokens ?: 0,
+                    outcome,
+                    recoveryDecision
                 )
                 if (checked is CandidateValidation.Accepted) {
                     accepted = checked.value
@@ -342,53 +364,53 @@ internal class CanonicalGeneratedAppCloudCompiler(
             )
             firstInteractivePreviewMs = (System.nanoTime() - started) / 1_000_000
             CanonicalGeneratedAppBundle(
-            request = request,
-            appInterface = acceptedBundle.appInterface,
-            dealGraphLog = "",
-            dealUiGraphLog = "",
-            dealSource = acceptedBundle.bundle.deal,
-            dealUiSource = acceptedBundle.bundle.dealUi,
-            checkedUiIr = acceptedBundle.checkedUiIr,
-            dealLatencyMs = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::latencyMs),
-            dealUiLatencyMs = 0,
-            wallLatencyMs = wallLatencyMs,
-            dealTimeToFirstPatchMs = initial?.timeToFirstTokenMs,
-            dealUiTimeToFirstTokenMs = null,
-            validationLatencyMs = validationLatencyMs,
-            repairLatencyMs = patchTelemetry.sumOf(CanonicalPatchTelemetry::latencyMs),
-            repairPasses = patchTelemetry.size,
-            dealGraphRounds = attemptTelemetry.size,
-            dealUiGraphRounds = 0,
-            dealAcceptedPatches = 1,
-            dealRejectedPatches = patchTelemetry.count { !it.compilerAccepted },
-            dealTypedHoles = 0,
-            dealInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::inputTokens) +
-                patchTelemetry.sumOf(CanonicalPatchTelemetry::inputTokens),
-            dealCachedInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::cachedInputTokens) +
-                patchTelemetry.sumOf(CanonicalPatchTelemetry::cachedInputTokens),
-            dealOutputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::outputTokens) +
-                patchTelemetry.sumOf(CanonicalPatchTelemetry::outputTokens),
-            dealUiRejectedPatches = 0,
-            dealUiInputTokens = 0,
-            dealUiCachedInputTokens = 0,
-            dealUiOutputTokens = 0,
-            dealUiAcceptedPatches = 0,
-            firstInteractivePreviewMs = firstInteractivePreviewMs,
-            dealModelId = dealModel.name,
-            dealUiModelId = "embedded-deal-ui",
-            promptDigest = sha256(CanonicalBundlePrompts.instructions),
-            compilerProtocolVersion = "embedded-deal-ui-split-v1",
-            agentSurfaceVersion = "embedded-deal-ui-split-v1",
-            agentSurfaceBytes = CanonicalBundlePrompts.instructions.encodeToByteArray().size,
-            agentSurfaceEstimatedTokens = CanonicalBundlePrompts.instructions.length / 4,
-            generationModelCalls = attemptTelemetry.size + patchTelemetry.size,
-            compilerRepairCalls = patchTelemetry.size,
-            patchTelemetry = patchTelemetry.toList(),
-            attemptTelemetry = attemptTelemetry.toList(),
-            usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet(),
-            autoUiSynthesisLatencyMs = acceptedBundle.autoUiSynthesisLatencyMs,
-            autoUiSourceBytes = acceptedBundle.autoUiSourceBytes,
-            autoUiCompilerVersion = "embedded-deal-ui-split-v1"
+                request = request,
+                appInterface = acceptedBundle.appInterface,
+                dealGraphLog = "",
+                dealUiGraphLog = "",
+                dealSource = acceptedBundle.bundle.deal,
+                dealUiSource = acceptedBundle.bundle.dealUi,
+                checkedUiIr = acceptedBundle.checkedUiIr,
+                dealLatencyMs = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::latencyMs),
+                dealUiLatencyMs = 0,
+                wallLatencyMs = wallLatencyMs,
+                dealTimeToFirstPatchMs = initial?.timeToFirstTokenMs,
+                dealUiTimeToFirstTokenMs = null,
+                validationLatencyMs = validationLatencyMs,
+                repairLatencyMs = patchTelemetry.sumOf(CanonicalPatchTelemetry::latencyMs),
+                repairPasses = patchTelemetry.size,
+                dealGraphRounds = attemptTelemetry.size,
+                dealUiGraphRounds = 0,
+                dealAcceptedPatches = 1,
+                dealRejectedPatches = patchTelemetry.count { !it.compilerAccepted },
+                dealTypedHoles = 0,
+                dealInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::inputTokens) +
+                    patchTelemetry.sumOf(CanonicalPatchTelemetry::inputTokens),
+                dealCachedInputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::cachedInputTokens) +
+                    patchTelemetry.sumOf(CanonicalPatchTelemetry::cachedInputTokens),
+                dealOutputTokens = attemptTelemetry.sumOf(CanonicalGenerationAttemptTelemetry::outputTokens) +
+                    patchTelemetry.sumOf(CanonicalPatchTelemetry::outputTokens),
+                dealUiRejectedPatches = 0,
+                dealUiInputTokens = 0,
+                dealUiCachedInputTokens = 0,
+                dealUiOutputTokens = 0,
+                dealUiAcceptedPatches = 0,
+                firstInteractivePreviewMs = firstInteractivePreviewMs,
+                dealModelId = dealModel.name,
+                dealUiModelId = "embedded-deal-ui",
+                promptDigest = sha256(CanonicalBundlePrompts.instructions),
+                compilerProtocolVersion = "embedded-deal-ui-split-v1",
+                agentSurfaceVersion = "embedded-deal-ui-split-v1",
+                agentSurfaceBytes = CanonicalBundlePrompts.instructions.encodeToByteArray().size,
+                agentSurfaceEstimatedTokens = CanonicalBundlePrompts.instructions.length / 4,
+                generationModelCalls = attemptTelemetry.size + patchTelemetry.size,
+                compilerRepairCalls = patchTelemetry.size,
+                patchTelemetry = patchTelemetry.toList(),
+                attemptTelemetry = attemptTelemetry.toList(),
+                usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet(),
+                autoUiSynthesisLatencyMs = acceptedBundle.autoUiSynthesisLatencyMs,
+                autoUiSourceBytes = acceptedBundle.autoUiSourceBytes,
+                autoUiCompilerVersion = "embedded-deal-ui-split-v1"
             )
         } catch (failure: Exception) {
             val artifact = failureStore.write(
@@ -465,33 +487,39 @@ internal class CanonicalGeneratedAppCloudCompiler(
 
     private fun validateCandidate(bundle: CanonicalSourceBundle): CandidateValidation {
         val separated = runCatching { EmbeddedDealUiSource.split(bundle.deal) }
-        if (separated.isFailure) return CandidateValidation.Rejected(
-            target = CanonicalRepairTarget.DEAL,
-            diagnostic = separated.exceptionOrNull()?.message.orEmpty(),
-            appInterface = null
-        )
+        if (separated.isFailure) {
+            return CandidateValidation.Rejected(
+                target = CanonicalRepairTarget.DEAL,
+                diagnostic = separated.exceptionOrNull()?.message.orEmpty(),
+                appInterface = null
+            )
+        }
         val sourcePair = requireNotNull(separated.getOrNull())
         val deal = runCatching {
             toolchain.validateDealForUi(sourcePair.deal)
             toolchain.extractAppInterface(sourcePair.deal)
         }
         val appInterface = deal.getOrNull()
-        if (deal.isFailure) return CandidateValidation.Rejected(
-            target = CanonicalRepairTarget.DEAL,
-            diagnostic = deal.exceptionOrNull()?.message.orEmpty(),
-            appInterface = null
-        )
+        if (deal.isFailure) {
+            return CandidateValidation.Rejected(
+                target = CanonicalRepairTarget.DEAL,
+                diagnostic = deal.exceptionOrNull()?.message.orEmpty(),
+                appInterface = null
+            )
+        }
         val embeddedUiStarted = System.nanoTime()
         val ui = runCatching {
             compileDealUi(sourcePair, requireNotNull(appInterface)).also {
                 GenerationCapabilityContracts.validate(requireNotNull(appInterface), it)
             }
         }
-        if (ui.isFailure) return CandidateValidation.Rejected(
-            target = CanonicalRepairTarget.DEAL,
-            diagnostic = ui.exceptionOrNull()?.message.orEmpty(),
-            appInterface = appInterface
-        )
+        if (ui.isFailure) {
+            return CandidateValidation.Rejected(
+                target = CanonicalRepairTarget.DEAL,
+                diagnostic = ui.exceptionOrNull()?.message.orEmpty(),
+                appInterface = appInterface
+            )
+        }
         return CandidateValidation.Accepted(
             ValidatedCanonicalBundle(
                 sourcePair,

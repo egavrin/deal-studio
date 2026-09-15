@@ -16,6 +16,7 @@ class CanonicalBundleProtocolTest {
         assertFalse(CanonicalTransportRetryPolicy.shouldRetry(IllegalArgumentException("E1015 Expected ')' after if condition")))
         assertEquals(2, CanonicalTransportRetryPolicy.MAX_ATTEMPTS)
     }
+
     @Test
     fun `raw bundle preserves source without json escaping`() {
         val output = """

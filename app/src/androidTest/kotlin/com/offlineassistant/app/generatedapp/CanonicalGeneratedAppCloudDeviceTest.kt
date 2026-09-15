@@ -543,12 +543,12 @@ class CanonicalGeneratedAppCloudDeviceTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val client = DeepSeekGenerationClient(apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY })
         val generationRequest = DeepSeekGenerationRequest(
-                model = DeepSeekGenerationModel.FLASH,
-                instructions = ExperimentalHtml5Prompt.INSTRUCTIONS,
-                input = ExperimentalHtml5Prompt.input(request),
-                maxOutputTokens = 16_384,
-                temperature = 0.0
-            )
+            model = DeepSeekGenerationModel.FLASH,
+            instructions = ExperimentalHtml5Prompt.INSTRUCTIONS,
+            input = ExperimentalHtml5Prompt.input(request),
+            maxOutputTokens = 16_384,
+            temperature = 0.0
+        )
         val generated = runCatching { client.generate(generationRequest) }.recoverCatching { failure ->
             if (CanonicalTransportRetryPolicy.shouldRetry(failure)) client.generate(generationRequest) else throw failure
         }.getOrThrow()

@@ -95,6 +95,5 @@ class CanonicalDealUiUpstreamConformanceDeviceTest {
         }
     }
 
-    private fun android.content.res.AssetManager.readText(path: String): String =
-        open(path).bufferedReader().use { it.readText() }
+    private fun android.content.res.AssetManager.readText(path: String): String = open(path).bufferedReader().use { it.readText() }
 }

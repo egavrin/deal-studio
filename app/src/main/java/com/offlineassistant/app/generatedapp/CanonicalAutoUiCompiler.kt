@@ -205,22 +205,17 @@ internal object CanonicalAutoUiCompiler {
         .trim()
         .ifBlank { "App" }
 
-    private fun AppInterfaceType.isRootFieldSetter(root: AppInterfaceType): Boolean =
-        name.startsWith("Set") && fields.size == 1 && fields.single().type in primitiveTypes &&
-            root.fields.any { it.name == fields.single().name && it.type == fields.single().type }
+    private fun AppInterfaceType.isRootFieldSetter(root: AppInterfaceType): Boolean = name.startsWith("Set") && fields.size == 1 && fields.single().type in primitiveTypes &&
+        root.fields.any { it.name == fields.single().name && it.type == fields.single().type }
 
-    private fun AppInterfaceType.isPrimaryAction(): Boolean =
-        listOf("add", "create", "record", "take", "mark", "submit", "save", "confirm", "start", "reset")
-            .any(name.lowercase()::contains)
+    private fun AppInterfaceType.isPrimaryAction(): Boolean = listOf("add", "create", "record", "take", "mark", "submit", "save", "confirm", "start", "reset")
+        .any(name.lowercase()::contains)
 
-    private fun AppInterfaceType.isSetupAction(): Boolean =
-        listOf("add", "create", "setup", "configure", "start").any(name.lowercase()::contains)
+    private fun AppInterfaceType.isSetupAction(): Boolean = listOf("add", "create", "setup", "configure", "start").any(name.lowercase()::contains)
 
-    private fun AppInterfaceType.isRealtimeDriver(): Boolean =
-        name.contains("Frame") || name.contains("Pointer")
+    private fun AppInterfaceType.isRealtimeDriver(): Boolean = name.contains("Frame") || name.contains("Pointer")
 
-    private fun String.isTimeLike(): Boolean =
-        listOf("time", "minute", "hour", "schedule", "due").any(lowercase()::contains)
+    private fun String.isTimeLike(): Boolean = listOf("time", "minute", "hour", "schedule", "due").any(lowercase()::contains)
 
     /** A checked boolean projection avoids unsupported collection-length expressions in Deal UI. */
     private fun String.isPresenceProjectionFor(collection: String): Boolean {
