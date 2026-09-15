@@ -178,9 +178,10 @@ internal fun GeneratedAppTheme(
     spec: GeneratedAppThemeSpec,
     content: @Composable () -> Unit
 ) {
-    val primary = ensureWhiteTextContrast(parseHex(spec.primary))
-    val secondary = ensureWhiteTextContrast(parseHex(spec.secondary))
-    val containerBlend = when (spec.style) {
+    val styled = spec.materializedStyle()
+    val primary = ensureWhiteTextContrast(parseHex(styled.primary))
+    val secondary = ensureWhiteTextContrast(parseHex(styled.secondary))
+    val containerBlend = when (styled.style) {
         "soft" -> 0.82f
         "expressive" -> 0.74f
         "editorial" -> 0.9f
@@ -188,12 +189,12 @@ internal fun GeneratedAppTheme(
         "playful" -> 0.7f
         else -> 0.88f
     }
-    val background = when (spec.background) {
+    val background = when (styled.background) {
         "solid" -> Color(0xFFF8F9FC)
         "atmospheric" -> mix(primary, Color.White, 0.94f)
         else -> mix(primary, Color.White, 0.965f)
     }
-    val surface = when (spec.surface) {
+    val surface = when (styled.surface) {
         "tonal" -> mix(primary, Color.White, 0.985f)
         else -> Color.White
     }
@@ -217,7 +218,7 @@ internal fun GeneratedAppTheme(
         onSurface = INK,
         surfaceVariant = mix(secondary, Color.White, 0.92f),
         onSurfaceVariant = MUTED_INK,
-        outline = if (spec.contrast == "high") mix(primary, Color.Black, 0.55f) else mix(primary, NEUTRAL, 0.82f),
+        outline = if (styled.contrast == "high") mix(primary, Color.Black, 0.55f) else mix(primary, NEUTRAL, 0.82f),
         outlineVariant = mix(primary, Color.White, 0.88f),
         error = ERROR,
         onError = Color.White,
@@ -237,7 +238,7 @@ internal fun GeneratedAppTheme(
             onSecondary = Color.Black,
             secondaryContainer = mix(secondary, Color.Black, 0.4f),
             onSecondaryContainer = Color.White,
-            background = when (spec.background) {
+            background = when (styled.background) {
                 "solid" -> Color(0xFF101216)
                 "atmospheric" -> mix(primary, Color.Black, 0.82f)
                 else -> Color(0xFF151820)
@@ -249,12 +250,12 @@ internal fun GeneratedAppTheme(
             onSurfaceVariant = Color(0xFFC8CCD6),
             error = Color(0xFFFFB4AB),
             onError = Color(0xFF690005),
-            outline = if (spec.contrast == "high") Color(0xFFE2E5ED) else Color(0xFF8E929D)
+            outline = if (styled.contrast == "high") Color(0xFFE2E5ED) else Color(0xFF8E929D)
         )
     } else {
         lightScheme
     }
-    val typography = when (spec.typography) {
+    val typography = when (styled.typography) {
         "technical" -> MaterialTheme.typography.copy(
             bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
             bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
@@ -283,8 +284,8 @@ internal fun GeneratedAppTheme(
 
         else -> MaterialTheme.typography
     }
-    val shapes = generatedShapes(spec.shape)
-    val visuals = generatedVisuals(spec)
+    val shapes = generatedShapes(styled.shape)
+    val visuals = generatedVisuals(styled)
     CompositionLocalProvider(
         LocalGeneratedAppVisuals provides visuals,
         LocalGeneratedAppSemanticColors provides generatedSemanticColors(dark)
@@ -296,6 +297,16 @@ internal fun GeneratedAppTheme(
             content = content
         )
     }
+}
+
+internal fun GeneratedAppThemeSpec.materializedStyle(): GeneratedAppThemeSpec = when (style) {
+    "clean" -> copy(typography = "neutral", density = "comfortable", surface = "outlined", background = "solid", motion = "restrained")
+    "soft" -> copy(typography = "friendly", density = "spacious", surface = "tonal", background = "tonal", motion = "none", shape = "soft")
+    "expressive" -> copy(typography = "expressive", density = "comfortable", surface = "layered", background = "atmospheric", motion = "expressive")
+    "editorial" -> copy(typography = "editorial", density = "spacious", surface = "flat", background = "solid", motion = "none", shape = "geometric")
+    "technical" -> copy(typography = "technical", density = "compact", surface = "outlined", background = "solid", motion = "none", shape = "geometric")
+    "playful" -> copy(typography = "expressive", density = "comfortable", surface = "tonal", background = "tonal", motion = "restrained", shape = "pill-controls")
+    else -> this
 }
 
 internal fun GeneratedAppThemeSpec.withRuntimeValues(

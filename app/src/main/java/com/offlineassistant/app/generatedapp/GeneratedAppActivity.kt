@@ -112,13 +112,9 @@ private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> U
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    val app = loaded
-                    Text(
-                        app?.entry?.program?.displayTitle(app.state, app.entry.record.title)
-                            ?: "Generated app"
-                    )
-                },
+                // The checked app owns its visible Header/TopBar. The host chrome exposes only
+                // navigation and overflow so fullscreen never duplicates the application title.
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

@@ -1,23 +1,23 @@
 package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
-    const val VERSION = "deal-studio-dealui-pack-v14"
-    const val SHA256 = GeneratedCanonicalDealUiPackV14.SHA256
-    const val MANIFEST_SHA256 = GeneratedCanonicalDealUiPackV14.MANIFEST_SHA256
-    const val BUNDLE_SHA256 = GeneratedCanonicalDealUiPackV14.BUNDLE_SHA256
+    const val VERSION = "deal-studio-dealui-pack-v15"
+    const val SHA256 = GeneratedCanonicalDealUiPackV15.SHA256
+    const val MANIFEST_SHA256 = GeneratedCanonicalDealUiPackV15.MANIFEST_SHA256
+    const val BUNDLE_SHA256 = GeneratedCanonicalDealUiPackV15.BUNDLE_SHA256
 
-    val source: String = GeneratedCanonicalDealUiPackV14.SOURCE
-    val agentManifestSource: String = GeneratedCanonicalDealUiPackV14.AGENT_MANIFEST_SOURCE
+    val source: String = GeneratedCanonicalDealUiPackV15.SOURCE
+    val agentManifestSource: String = GeneratedCanonicalDealUiPackV15.AGENT_MANIFEST_SOURCE
 
     /** Lossless model-facing signature catalog for the only supported production pack. */
-    val generationContract: String = GeneratedCanonicalDealUiPackV14.GENERATION_CONTRACT
+    val generationContract: String = GeneratedCanonicalDealUiPackV15.GENERATION_CONTRACT
 
     /** Fixed, validated mobile primitives supplied to the initial model call. */
-    val initialGenerationContract: String = GeneratedCanonicalDealUiPackV14.MOBILE_CORE_GENERATION_CONTRACT
+    val initialGenerationContract: String = GeneratedCanonicalDealUiPackV15.MOBILE_CORE_GENERATION_CONTRACT
 
     /** Expands the mobile core for the sole repair attempt without changing the authoritative pack. */
     fun repairGenerationContract(rejectedDealUi: String, diagnostic: String): String {
-        val generated = GeneratedCanonicalDealUiPackV14
+        val generated = GeneratedCanonicalDealUiPackV15
         val knownComponents = generated.COMPONENT_CONTRACTS.keys
         val selected = generated.MOBILE_CORE_COMPONENTS.toMutableSet()
         COMPONENT_USE.findAll(rejectedDealUi)

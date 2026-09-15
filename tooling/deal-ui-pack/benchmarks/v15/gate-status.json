@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "deal-studio-pack-release-gates-v1",
+  "packVersion": "deal-studio-dealui-pack-v15",
+  "measurement": {
+    "baselinePackVersion": "deal-studio-dealui-pack-v14",
+    "candidatePackVersion": "deal-studio-dealui-pack-v15",
+    "pairedRepeats": 5,
+    "alternatingOrder": true,
+    "dataset": "app/src/androidTest/assets/pack-v15-benchmark-v1.json",
+    "surpriseSoakRuns": 20
+  },
+  "promotionStatus": "PENDING",
+  "gates": {
+    "deterministicContracts": "PENDING",
+    "unsupportedRecordQuarantine": "PENDING",
+    "rendererMatrix": "PENDING",
+    "deviceRuntime": "PENDING",
+    "cloudUtilityMatrix": "PENDING",
+    "heldOutCompositional": "PENDING",
+    "visualAccessibilityReview": "PENDING"
+  },
+  "evidence": []
+}

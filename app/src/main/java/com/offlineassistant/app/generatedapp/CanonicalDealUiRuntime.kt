@@ -114,6 +114,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -300,7 +301,7 @@ internal object CanonicalDealUiParser {
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
-            .also(CanonicalDealUiProgram::validateV14Structure)
+            .also(CanonicalDealUiProgram::validateV15Structure)
     }
 
     private fun metadata(value: JsonObject) = CanonicalDealUiCheckedMetadata(
@@ -458,7 +459,38 @@ private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String, tokens: Map
     } ?: throw IllegalArgumentException("AppTheme $name must be a static string literal or exported typed token")
 }
 
-private fun CanonicalDealUiProgram.validateV14Structure() {
+private fun CanonicalDealUiProgram.validateV15Structure() {
+    val contentWidths = setOf("compact", "standard", "wide", "full")
+    val itemSizes = setOf("compact", "standard", "prominent")
+    val balances = setOf("content-first", "balanced", "metric-first")
+    val closedProps = mapOf(
+        "Root.contentWidth" to contentWidths,
+        "Section.contentWidth" to contentWidths,
+        "Header.contentWidth" to contentWidths,
+        "Hero.contentWidth" to contentWidths,
+        "Section.sectionSpacing" to setOf("tight", "regular", "relaxed"),
+        "Card.size" to itemSizes,
+        "ListItem.size" to itemSizes,
+        "IntListItem.size" to itemSizes,
+        "GridItem.span" to setOf("one", "two", "full"),
+        "MetricGroup.balance" to balances,
+        "KeyValueGroup.balance" to balances,
+        "Section.edge" to setOf("none", "inset", "full-bleed"),
+        "Timeline.density" to setOf("compact", "comfortable"),
+        "ListGroup.density" to setOf("compact", "comfortable"),
+        "Hero.height" to setOf("compact", "standard", "expanded"),
+        "Card.orientation" to setOf("vertical", "horizontal"),
+        "ActionBar.collapseBehavior" to setOf("wrap", "stack")
+    )
+    fun staticString(expression: CanonicalUiExpr): String? = runCatching {
+        evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null).let { value ->
+            when (value) {
+                is JsonPrimitive -> value.takeIf { it.isString }?.content
+                is JsonObject -> value["value"]?.asString()
+                else -> null
+            }
+        }
+    }.getOrNull()
     fun countHeroes(nodes: List<CanonicalUiNode>): Int = nodes.sumOf { node ->
         when (node) {
             is CanonicalUiNode.Call -> {
@@ -474,7 +506,7 @@ private fun CanonicalDealUiProgram.validateV14Structure() {
             is CanonicalUiNode.Scope -> countHeroes(node.children)
         }
     }
-    fun walk(node: CanonicalUiNode, insideCard: Boolean): Unit = when (node) {
+    fun walk(node: CanonicalUiNode, insideCard: Boolean, parent: String? = null): Unit = when (node) {
         is CanonicalUiNode.Call -> {
             val component = node.name.substringAfterLast('.')
             require(!(insideCard && component == "Card")) { "Card may not be nested inside Card" }
@@ -482,14 +514,49 @@ private fun CanonicalDealUiProgram.validateV14Structure() {
             if (component == "Root" || component == "Route") {
                 require(countHeroes(node.children) <= 1) { "Root or Route may contain at most one Hero" }
             }
-            node.children.forEach { walk(it, insideCard || component == "Card") }
+            node.arguments.forEach { (name, expression) ->
+                closedProps["$component.$name"]?.let { allowed ->
+                    staticString(expression)?.let { value ->
+                        require(value in allowed) { "$component.$name has unsupported value '$value'" }
+                    }
+                }
+            }
+            if (component == "Header" || component == "SectionHeader") {
+                require(
+                    node.children.size <= 1 && node.children.all {
+                        it is CanonicalUiNode.Call && it.name.substringAfterLast('.') in setOf("Button", "IconButton")
+                    }
+                ) { "$component accepts at most one Button or IconButton child" }
+            }
+            if (component == "SegmentedControl") {
+                require(node.children.size in 2..4) { "SegmentedControl requires two to four SegmentItem children" }
+                val staticSelections = node.children.mapNotNull { child ->
+                    (child as? CanonicalUiNode.Call)?.arguments?.get("selected")?.let {
+                        staticString(it) ?: runCatching {
+                            evaluate(it, JsonObject(emptyMap()), emptyMap(), tokens, null).jsonPrimitive.boolean.toString()
+                        }.getOrNull()
+                    }
+                }
+                if (staticSelections.size == node.children.size) {
+                    require(staticSelections.count { it == "true" } == 1) { "SegmentedControl requires exactly one statically selected SegmentItem" }
+                }
+            }
+            if (component == "SegmentItem") require(parent == "SegmentedControl") { "SegmentItem requires SegmentedControl parent" }
+            if (component == "TimelineItem") require(parent == "Timeline") { "TimelineItem requires Timeline parent" }
+            if (component == "KeyValueItem") require(parent == "KeyValueGroup") { "KeyValueItem requires KeyValueGroup parent" }
+            if (component == "GridItem") require(parent == "Grid") { "GridItem requires Grid parent" }
+            if (component == "Grid") {
+                val wrapped = node.children.count { it is CanonicalUiNode.Call && it.name.substringAfterLast('.') == "GridItem" }
+                require(wrapped == 0 || wrapped == node.children.size) { "Grid cannot mix direct children with GridItem children" }
+            }
+            node.children.forEach { walk(it, insideCard || component == "Card", component) }
         }
 
-        is CanonicalUiNode.When -> (node.thenNodes + node.elseNodes).forEach { walk(it, insideCard) }
+        is CanonicalUiNode.When -> (node.thenNodes + node.elseNodes).forEach { walk(it, insideCard, parent) }
 
-        is CanonicalUiNode.ForEach -> node.children.forEach { walk(it, insideCard) }
+        is CanonicalUiNode.ForEach -> node.children.forEach { walk(it, insideCard, parent) }
 
-        is CanonicalUiNode.Scope -> node.children.forEach { walk(it, insideCard) }
+        is CanonicalUiNode.Scope -> node.children.forEach { walk(it, insideCard, parent) }
     }
     nodes.forEach { walk(it, false) }
 }
@@ -538,11 +605,12 @@ private val WIDGET_COMPONENTS = setOf(
 )
 
 internal val canonicalRendererComponents = setOf(
-    "ActionBar", "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button",
+    "ActionBar", "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button", "Header", "SectionHeader",
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
     "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
     "MetricGroup", "PointerSurface", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
@@ -553,6 +621,14 @@ internal fun adaptiveColumnCount(availableWidthDp: Float, maximumColumns: Int, m
     return (availableWidthDp.coerceAtLeast(0f) / minimumCellWidthDp)
         .toInt()
         .coerceIn(1, maximum)
+}
+
+internal fun contentWidthLimit(value: String): Dp = when (value.ifBlank { "standard" }) {
+    "compact" -> 480.dp
+    "standard" -> 680.dp
+    "wide" -> 840.dp
+    "full" -> Dp.Infinity
+    else -> error("Unsupported ContentWidth: $value")
 }
 
 internal data class CanonicalUiAction(
@@ -704,7 +780,7 @@ private fun RenderCall(
         }
 
         "Root" -> BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            val maximumContentWidth = if (program.hasSpatialSurface()) 560.dp else 840.dp
+            val maximumContentWidth = contentWidthLimit(value("contentWidth").typedTokenString())
             CompositionLocalProvider(LocalCanonicalViewportHeight provides maxHeight) {
                 Column(
                     modifier = Modifier
@@ -840,10 +916,37 @@ private fun RenderCall(
                 horizontalArrangement = Arrangement.spacedBy(spacing),
                 verticalArrangement = Arrangement.spacedBy(spacing),
                 content = {
-                    val cellModifier = Modifier.weight(1f).then(
-                        cellAspectRatio?.let { Modifier.aspectRatio(it) } ?: Modifier
-                    )
-                    children(cellModifier)
+                    val wrapped = call.children.all { it is CanonicalUiNode.Call && it.name.substringAfterLast('.') == "GridItem" }
+                    if (wrapped) {
+                        call.children.forEach { child ->
+                            child as CanonicalUiNode.Call
+                            val span = child.arguments["span"]?.let {
+                                evaluate(it, state, scope, program.tokens, null).let { token ->
+                                    if (token is JsonObject) token["value"]?.asString() else token.asString()
+                                }
+                            }.orEmpty().ifBlank { "one" }
+                            val units = when (span) {
+                                "two" -> 2
+                                "full" -> columns
+                                else -> 1
+                            }.coerceAtMost(columns)
+                            CanonicalNode(
+                                program,
+                                state,
+                                scope,
+                                child,
+                                onAction,
+                                Modifier.fillMaxWidth(units.toFloat() / columns).then(
+                                    cellAspectRatio?.let { Modifier.aspectRatio(it) } ?: Modifier
+                                )
+                            )
+                        }
+                    } else {
+                        val cellModifier = Modifier.weight(1f).then(
+                            cellAspectRatio?.let { Modifier.aspectRatio(it) } ?: Modifier
+                        )
+                        children(cellModifier)
+                    }
                 }
             )
         }
@@ -886,22 +989,46 @@ private fun RenderCall(
                 border = BorderStroke(if (emphasis == "high") 2.dp else 1.dp, cardBorder(treatment)),
                 elevation = CardDefaults.cardElevation(defaultElevation = if (treatment == "elevated" || emphasis == "high") 2.dp else visuals.cardElevation)
             ) {
-                Column(
-                    Modifier.fillMaxWidth().padding(
-                        padding.coerceAtLeast(DealStudioSpacing.Md * visuals.densityScale)
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
-                ) { children(Modifier.fillMaxWidth()) }
+                val contentModifier = Modifier.fillMaxWidth().padding(
+                    padding.coerceAtLeast(
+                        when (value("size").typedTokenString()) {
+                            "compact" -> DealStudioSpacing.Sm
+                            "prominent" -> DealStudioSpacing.Lg
+                            else -> DealStudioSpacing.Md * visuals.densityScale
+                        }
+                    )
+                )
+                if (value("orientation").typedTokenString() == "horizontal") {
+                    Row(contentModifier, horizontalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md)), verticalAlignment = Alignment.CenterVertically) {
+                        children(Modifier.weight(1f).widthIn(min = 120.dp))
+                    }
+                } else {
+                    Column(contentModifier, verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))) {
+                        children(Modifier.fillMaxWidth())
+                    }
+                }
             }
         }
 
         "Section" -> Surface(
-            modifier = modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth().widthIn(max = contentWidthLimit(value("contentWidth").typedTokenString())),
             color = treatmentColor(value("treatment").typedTokenString())
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(if (value("treatment").typedTokenString().isBlank()) 0.dp else DealStudioSpacing.Md),
-                verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
+                Modifier.fillMaxWidth().padding(
+                    when (value("edge").typedTokenString()) {
+                        "none", "full-bleed" -> 0.dp
+                        "inset" -> DealStudioSpacing.Md
+                        else -> if (value("treatment").typedTokenString().isBlank()) 0.dp else DealStudioSpacing.Md
+                    }
+                ),
+                verticalArrangement = Arrangement.spacedBy(
+                    when (value("sectionSpacing").typedTokenString()) {
+                        "tight" -> DealStudioSpacing.Sm
+                        "relaxed" -> DealStudioSpacing.Lg
+                        else -> spacing.coerceAtLeast(DealStudioSpacing.Md)
+                    }
+                )
             ) {
                 val role = value("role").typedTokenString()
                 Text(
@@ -917,7 +1044,15 @@ private fun RenderCall(
         }
 
         "Hero" -> Surface(
-            modifier = modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth()
+                .widthIn(max = contentWidthLimit(value("contentWidth").typedTokenString()))
+                .then(
+                    when (value("height").typedTokenString()) {
+                        "compact" -> Modifier.defaultMinSize(minHeight = 120.dp)
+                        "expanded" -> Modifier.defaultMinSize(minHeight = 240.dp)
+                        else -> Modifier.defaultMinSize(minHeight = 176.dp)
+                    }
+                ),
             color = treatmentColor(value("treatment").typedTokenString())
         ) {
             Column(
@@ -930,7 +1065,9 @@ private fun RenderCall(
         "MetricGroup" -> BoxWithConstraints(modifier.fillMaxWidth()) {
             val spacingValue = spacing.coerceAtLeast(DealStudioSpacing.Sm)
             val maximum = value("columns").asInt().coerceIn(1, 6)
-            val minimum = value("minimumCellWidth").asInt().coerceAtLeast(96)
+            val minimum = value("minimumCellWidth").asInt().coerceAtLeast(
+                if (value("balance").typedTokenString() == "metric-first") 120 else 96
+            )
             val columns = adaptiveColumnCount(maxWidth.value, maximum, minimum)
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -940,11 +1077,157 @@ private fun RenderCall(
             ) { children(Modifier.weight(1f).widthIn(min = minimum.dp)) }
         }
 
-        "ActionBar" -> FlowRow(
-            modifier = modifier.fillMaxWidth(),
-            horizontalArrangement = horizontalArrangement(value("alignment").asString(), spacing.coerceAtLeast(DealStudioSpacing.Sm)),
-            verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Sm))
-        ) { children(Modifier) }
+        "ActionBar" -> BoxWithConstraints(modifier.fillMaxWidth()) {
+            val shouldStack = value("collapseBehavior").typedTokenString() == "stack" || maxWidth < 480.dp
+            if (shouldStack) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Sm))) {
+                    children(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp))
+                }
+            } else {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = horizontalArrangement(value("alignment").asString(), spacing.coerceAtLeast(DealStudioSpacing.Sm)),
+                    verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Sm))
+                ) { children(Modifier.defaultMinSize(minHeight = 48.dp)) }
+            }
+        }
+
+        "Header" -> BoxWithConstraints(
+            modifier.fillMaxWidth().widthIn(max = contentWidthLimit(value("contentWidth").typedTokenString()))
+                .background(treatmentColor(value("treatment").typedTokenString())).padding(vertical = 8.dp)
+        ) {
+            val compact = maxWidth < 600.dp
+            val heading: @Composable () -> Unit = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    value("eyebrow").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        value("leadingIcon").asString().takeIf(String::isNotBlank)?.let { Icon(icon(it), null) }
+                        Text(value("title").asString(), style = MaterialTheme.typography.headlineMedium)
+                    }
+                    value("supporting").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+            if (compact) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    heading()
+                    children(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp))
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { heading() }
+                    children(Modifier.defaultMinSize(minHeight = 48.dp))
+                }
+            }
+        }
+
+        "SectionHeader" -> Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        value("title").asString(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = emphasisWeight(value("emphasis").typedTokenString())
+                    )
+                    value("count").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+                    value("badge").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+                }
+                value("subtitle").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            children(Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp))
+        }
+
+        "SegmentedControl" -> FlowRow(modifier.fillMaxWidth().semantics { contentDescription = value("accessibilityLabel").asString() }) {
+            val directItems = call.children.filterIsInstance<CanonicalUiNode.Call>()
+            if (directItems.size == call.children.size) {
+                require(
+                    directItems.count { item ->
+                        item.arguments["selected"]?.let { evaluate(it, state, scope, program.tokens, null).asBoolean() } == true
+                    } == 1
+                ) { "SegmentedControl requires exactly one selected SegmentItem in the rendered state" }
+            }
+            children(Modifier.weight(1f).defaultMinSize(minHeight = 48.dp))
+        }
+
+        "SegmentItem" -> FilterChip(
+            selected = value("selected").asBoolean(),
+            onClick = { emit("onClick", null) },
+            modifier = modifier.defaultMinSize(minHeight = 48.dp).semantics {
+                contentDescription = value("accessibilityLabel").asString()
+            },
+            label = { Text(value("label").asString()) }
+        )
+
+        "Timeline" -> Surface(modifier.fillMaxWidth(), color = treatmentColor(value("treatment").typedTokenString())) {
+            Column(
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(if (value("density").typedTokenString() == "compact") 4.dp else 12.dp)
+            ) { children(Modifier.fillMaxWidth()) }
+        }
+
+        "TimelineItem" -> Row(modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).then(if (action("onClick") != null) Modifier.clickable { emit("onClick", null) } else Modifier), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(icon(value("icon").asString().ifBlank { "info" }), null, Modifier.size(20.dp), tint = textTone(value("tone").typedTokenString()))
+                Box(Modifier.width(2.dp).height(32.dp).background(MaterialTheme.colorScheme.outlineVariant))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
+                value("subtitle").asString().takeIf(String::isNotBlank)?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            value("trailing").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+        }
+
+        "KeyValueGroup" -> BoxWithConstraints(modifier.fillMaxWidth()) {
+            val minimum = value("minimumCellWidth").asInt().coerceAtLeast(
+                if (value("balance").typedTokenString() == "content-first") 192 else 96
+            )
+            val columns = adaptiveColumnCount(maxWidth.value, value("columns").asInt().coerceIn(1, 6), minimum)
+            FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = columns, horizontalArrangement = Arrangement.spacedBy(spacing), verticalArrangement = Arrangement.spacedBy(spacing)) {
+                children(Modifier.weight(1f).widthIn(min = minimum.dp))
+            }
+        }
+
+        "KeyValueItem" -> Column(modifier.defaultMinSize(minHeight = 48.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(value("label").asString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value("value").asString(), style = MaterialTheme.typography.titleMedium)
+            value("supporting").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
+
+        "InsetBanner" -> Surface(modifier.fillMaxWidth(), color = treatmentColor("tonal"), shape = MaterialTheme.shapes.medium) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon(value("icon").asString()), null, tint = textTone(value("tone").typedTokenString()))
+                Column(Modifier.weight(1f)) {
+                    Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
+                    Text(value("message").asString(), style = MaterialTheme.typography.bodyMedium)
+                }
+                value("actionText").asString().takeIf(String::isNotBlank)?.let { TextButton(onClick = { emit("onAction", null) }, modifier = Modifier.defaultMinSize(minHeight = 48.dp)) { Text(it) } }
+            }
+        }
+
+        "ListGroup" -> Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, color = treatmentColor(value("treatment").typedTokenString())) {
+            Column(Modifier.fillMaxWidth()) {
+                if (value("title").asString().isNotBlank() || value("subtitle").asString().isNotBlank()) {
+                    Column(Modifier.padding(16.dp, 12.dp)) {
+                        Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
+                        value("subtitle").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
+                call.children.forEachIndexed { index, child ->
+                    if (index > 0) HorizontalDivider()
+                    CanonicalNode(
+                        program,
+                        state,
+                        scope,
+                        child,
+                        onAction,
+                        Modifier.fillMaxWidth().defaultMinSize(
+                            minHeight = if (value("density").typedTokenString() == "compact") 48.dp else 56.dp
+                        )
+                    )
+                }
+            }
+        }
+
+        "GridItem" -> children(Modifier.fillMaxWidth())
 
         "Text" -> Text(
             text = value("value").displayString(),
@@ -1367,6 +1650,17 @@ private fun RenderCall(
 
         "ListItem", "IntListItem" -> {
             val palette = generatedTonePalette(value("tone").typedTokenString())
+            val itemSize = value("size").typedTokenString()
+            val itemHeight = when (itemSize) {
+                "compact" -> 48.dp
+                "prominent" -> 72.dp
+                else -> 56.dp
+            }
+            val itemPadding = when (itemSize) {
+                "compact" -> 8.dp
+                "prominent" -> 16.dp
+                else -> 12.dp
+            }
             Surface(
                 modifier = modifier
                     .fillMaxWidth()
@@ -1377,7 +1671,7 @@ private fun RenderCall(
             ) {
                 Column {
                     Row(
-                        Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(vertical = 12.dp),
+                        Modifier.fillMaxWidth().defaultMinSize(minHeight = itemHeight).padding(vertical = itemPadding),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -2196,7 +2490,7 @@ private fun JsonElement?.asIntList(): List<Int> = (this as? JsonArray).orEmpty()
 private fun JsonElement?.tokenInt(): Int = (this as? JsonObject)?.get("value").asInt()
 private fun JsonElement?.tokenString(): String = (this as? JsonObject)?.get("value").asString()
 
-/** Resolves both v14 typed token objects and legacy primitive string values. */
+/** Resolves both v15 typed token objects and legacy primitive string values. */
 private fun JsonElement?.typedTokenString(): String = when (this) {
     is JsonObject -> get("value").asString()
     is JsonPrimitive -> contentOrNull.orEmpty()
@@ -2380,10 +2674,6 @@ private val LocalCanonicalHostScrolling = staticCompositionLocalOf { false }
 private val LocalCanonicalViewportHeight = staticCompositionLocalOf { Dp.Infinity }
 
 private fun CanonicalDealUiProgram.needsHostScrolling(): Boolean = !nodes.any { it.containsCall("Scroll") }
-
-private fun CanonicalDealUiProgram.hasSpatialSurface(): Boolean = nodes.any {
-    it.containsCall("Canvas") || it.containsCall("PointerSurface") || it.containsCall("Tile")
-}
 
 private val UNICODE_GLYPH_ESCAPE = Regex("""\\u([0-9A-Fa-f]{4})""")
 

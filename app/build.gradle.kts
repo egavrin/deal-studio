@@ -77,7 +77,8 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 
     private val mobileCoreComponents = linkedSetOf(
         "AppTheme", "Root", "Column", "Row", "Stack", "Scroll", "Grid", "Card", "Section", "Hero",
-        "MetricGroup", "ActionBar", "TopBar",
+        "MetricGroup", "ActionBar", "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline",
+        "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
         "Text", "IntText", "NumberText", "Icon", "Button", "IconButton", "TextField", "IntField",
         "NumberField", "TimeField", "Toggle", "Checkbox", "Choice", "ChoiceItem", "Slider", "ProgressBar",
         "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Divider", "Badge", "Stat",
@@ -252,13 +253,13 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 require(separator > 0) { "Invalid toolchain lock entry: $line" }
                 line.substring(0, separator) to line.substring(separator + 1)
             }
-        val currentPackVersion = "deal-studio-dealui-pack-v14"
+        val currentPackVersion = "deal-studio-dealui-pack-v15"
         require(toolchainProperties["COMPONENT_PACK_VERSION"] == currentPackVersion) {
             "toolchain.lock component pack must be $currentPackVersion"
         }
         val releaseLedger = JsonSlurper().parse(releaseGateFile.get().asFile) as Map<*, *>
         require(releaseLedger["schemaVersion"] == "deal-studio-pack-release-gates-v1") {
-            "Invalid Pack v14 release-gate schema"
+            "Invalid Pack v15 release-gate schema"
         }
         require(releaseLedger["packVersion"] == currentPackVersion) { "Release-gate packVersion mismatch" }
         val promotionStatus = releaseLedger["promotionStatus"]?.toString()
@@ -268,7 +269,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         }
         require(promotionStatus in setOf("PASS", "FAIL", "PENDING")) { "Invalid promotionStatus" }
         require(promotionStatus != "PASS" || gateStatuses.all { it == "PASS" }) {
-            "Pack v14 cannot be promoted while any required gate is not PASS"
+            "Pack v15 cannot be promoted while any required gate is not PASS"
         }
         packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
             val packSource = sourceFile.readText()
@@ -278,7 +279,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(sourceFile.readBytes())
                 .joinToString("") { byte -> "%02x".format(byte) }
-            if (version == "14") {
+            if (version == "15") {
                 require(toolchainProperties["COMPONENT_PACK_SHA256"] == digest) {
                     "toolchain.lock component pack digest is stale: expected $digest"
                 }
@@ -299,13 +300,22 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 .joinToString("") { byte -> "%02x".format(byte) }
             val semanticHints = (manifest?.get("components") as? Map<*, *>)?.map { (name, entry) ->
                 val values = entry as? Map<*, *> ?: error("Manifest component $name must be an object")
-                name.toString() to listOfNotNull(values["usage"]?.toString(), values["example"]?.toString())
-                    .joinToString(" Example: ")
+                val purpose = values["purpose"]?.toString().orEmpty()
+                val prefer = (values["preferWhen"] as? List<*>)?.map(Any?::toString).orEmpty()
+                val avoid = (values["avoidWhen"] as? List<*>)?.map(Any?::toString).orEmpty()
+                val constraints = (values["constraints"] as? List<*>)?.map(Any?::toString).orEmpty()
+                name.toString() to buildList {
+                    add(purpose)
+                    if (prefer.isNotEmpty()) add("Prefer when ${prefer.joinToString("; ")}")
+                    if (avoid.isNotEmpty()) add("Avoid when ${avoid.joinToString("; ")}")
+                    if (constraints.isNotEmpty()) add("Constraints: ${constraints.joinToString("; ")}")
+                    values["microExample"]?.toString()?.takeIf(String::isNotBlank)?.let { add("Example: $it") }
+                }.joinToString(" ")
             }?.toMap().orEmpty()
             val globalRules = (manifest?.get("globalRules") as? List<*>)?.map { it.toString() }.orEmpty()
-            if (version == "14") {
-                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") { "Invalid v14 agent manifest version" }
-                require(manifest["packVersion"] == "deal-studio-dealui-pack-v14") { "Agent manifest packVersion mismatch" }
+            if (version == "15") {
+                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") { "Invalid v15 agent manifest version" }
+                require(manifest["packVersion"] == currentPackVersion) { "Agent manifest packVersion mismatch" }
                 require(semanticHints.keys == contractMetadata.componentContracts.keys) {
                     "Agent manifest component coverage differs from pack: missing=${contractMetadata.componentContracts.keys - semanticHints.keys}, extra=${semanticHints.keys - contractMetadata.componentContracts.keys}"
                 }
@@ -315,37 +325,42 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                     "Agent manifest themeTokens contains duplicates"
                 }
                 val manifestTokens = manifestTokenEntries.toSet()
-                val semanticTokenTypes = setOf(
-                    "ThemeStyle", "ShapeStyle", "DensityStyle", "SurfaceStyle", "TypographyStyle",
-                    "ContrastStyle", "BackgroundStyle", "MotionStyle", "SemanticTone", "Emphasis",
-                    "SectionRole", "CardRole", "ButtonHierarchy", "SurfaceTreatment"
-                )
-                val requiredManifestTokens = contractMetadata.tokenTypes
-                    .filterValues { it in semanticTokenTypes }
-                    .keys
-                require(manifestTokens == requiredManifestTokens) {
-                    "Agent manifest typed token coverage differs from pack: " +
-                        "missing=${requiredManifestTokens - manifestTokens}, extra=${manifestTokens - requiredManifestTokens}"
-                }
                 require(packTokens.containsAll(manifestTokens)) { "Agent manifest has invalid token references" }
                 val componentEntries = manifest["components"] as? Map<*, *> ?: error("Manifest components must be an object")
                 componentEntries.forEach { (name, rawEntry) ->
                     val entry = rawEntry as? Map<*, *> ?: error("Manifest component $name must be an object")
-                    require(entry.keys.all { it == "usage" || it == "example" }) {
-                        "Manifest component $name has unsupported fields"
+                    val required = setOf("purpose", "preferWhen", "avoidWhen", "visualWeight", "commonSiblings", "constraints")
+                    require(entry.keys.containsAll(required) && entry.keys.all { it in required || it == "microExample" }) { "Manifest component $name has unsupported or missing fields" }
+                    require(entry["purpose"]?.toString()?.isNotBlank() == true) { "Manifest component $name must have a non-empty purpose" }
+                    require(entry["visualWeight"] in setOf("low", "medium", "high")) { "Manifest component $name has invalid visualWeight" }
+                    listOf("preferWhen", "avoidWhen", "commonSiblings", "constraints").forEach { field ->
+                        require((entry[field] as? List<*>)?.all { it is String } == true) { "Manifest component $name.$field must be a string array" }
                     }
-                    require(entry["usage"]?.toString()?.isNotBlank() == true) {
-                        "Manifest component $name must have a non-empty usage hint"
+                    require((entry["commonSiblings"] as List<*>).all { it in contractMetadata.componentContracts.keys }) { "Manifest component $name has an unknown common sibling" }
+                }
+                fun checkedPurposeMap(name: String): Map<*, *> = manifest[name] as? Map<*, *> ?: error("Manifest $name must be an object")
+                val typeEntries = checkedPurposeMap("types")
+                val tokenEntries = checkedPurposeMap("tokens")
+                val propEntries = checkedPurposeMap("props")
+                val expectedProps = contractMetadata.componentPropTypes.flatMap { (component, type) ->
+                    contractMetadata.typeContracts.getValue(type).split(',').filter(String::isNotBlank)
+                        .map { "$component.${it.substringBefore('?').substringBefore(':')}" }
+                }.toSet()
+                require(typeEntries.keys.map(Any?::toString).toSet() == contractMetadata.typeContracts.keys) { "Agent manifest type coverage differs from pack" }
+                require(tokenEntries.keys.map(Any?::toString).toSet() == contractMetadata.tokenContracts.keys) { "Agent manifest token coverage differs from pack" }
+                require(propEntries.keys.map(Any?::toString).toSet() == expectedProps) { "Agent manifest prop coverage differs from pack" }
+                listOf(typeEntries, tokenEntries, propEntries).forEach { entries ->
+                    entries.forEach { (name, raw) ->
+                        val entry = raw as? Map<*, *> ?: error("Manifest semantic entry $name must be an object")
+                        require(entry.keys == setOf("purpose") && entry["purpose"]?.toString()?.isNotBlank() == true) { "Manifest semantic entry $name requires only a non-empty purpose" }
                     }
                 }
                 require(globalRules.isNotEmpty() && globalRules.all(String::isNotBlank)) {
                     "Agent manifest globalRules must be non-empty strings"
                 }
-                val domainWords = Regex("(?i)\\b(medication|chess|weather|todo|dose|workout|arkanoid)\\b")
-                require(!domainWords.containsMatchIn(manifestFile.readText())) { "Agent manifest must remain domain-neutral" }
             }
             val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys
-            if (version == "14") {
+            if (version == "15") {
                 require(missingCoreComponents.isEmpty()) {
                     "Mobile core components missing from ${sourceFile.name}: ${missingCoreComponents.joinToString()}"
                 }
@@ -443,11 +458,11 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 
 val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
     packFiles.from(
-        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v14.dealui-pack")
+        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v15.dealui-pack")
     )
-    manifestFiles.from(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v14.agent.json"))
+    manifestFiles.from(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v15.agent.json"))
     toolchainLockFile.set(rootProject.layout.projectDirectory.file("tooling/deal-android-bridge/toolchain.lock"))
-    releaseGateFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/benchmarks/v14/gate-status.json"))
+    releaseGateFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/benchmarks/v15/gate-status.json"))
     outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
 }
 

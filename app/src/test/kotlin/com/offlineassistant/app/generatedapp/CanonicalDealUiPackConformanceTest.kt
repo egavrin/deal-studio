@@ -14,9 +14,9 @@ import org.junit.Test
 
 class CanonicalDealUiPackConformanceTest {
     @Test
-    fun `tracked v14 pack is the exact runtime and prompt source`() {
+    fun `tracked v15 pack is the exact runtime and prompt source`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v14.dealui-pack")
+        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v15.dealui-pack")
         val bytes = sourceFile.readBytes()
 
         assertEquals(sourceFile.readText(), CanonicalDealUiPack.source)
@@ -29,8 +29,8 @@ class CanonicalDealUiPackConformanceTest {
     @Test
     fun `pack manifest bundle and bridge lock are one atomic versioned contract`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val pack = File(root, "tooling/deal-ui-pack/deal-studio-v14.dealui-pack").readBytes()
-        val manifest = File(root, "tooling/deal-ui-pack/deal-studio-v14.agent.json").readBytes()
+        val pack = File(root, "tooling/deal-ui-pack/deal-studio-v15.dealui-pack").readBytes()
+        val manifest = File(root, "tooling/deal-ui-pack/deal-studio-v15.agent.json").readBytes()
         fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
         val packDigest = digest(pack)
@@ -50,16 +50,16 @@ class CanonicalDealUiPackConformanceTest {
         val changedPackDigest = digest(pack + 0.toByte())
         assertNotEquals(bundleDigest, digest("$changedPackDigest:$manifestDigest".encodeToByteArray()))
         assertEquals(
-            File(root, "tooling/deal-ui-pack/deal-studio-v14.agent.json").readText(),
+            File(root, "tooling/deal-ui-pack/deal-studio-v15.agent.json").readText(),
             CanonicalDealUiPack.agentManifestSource
         )
     }
 
     @Test
-    fun `v14 release ledger cannot promote while an external gate is pending`() {
+    fun `v15 release ledger cannot promote while an external gate is pending`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val ledger = Json.parseToJsonElement(
-            File(root, "tooling/deal-ui-pack/benchmarks/v14/gate-status.json").readText()
+            File(root, "tooling/deal-ui-pack/benchmarks/v15/gate-status.json").readText()
         ).jsonObject
         val statuses = ledger.getValue("gates").jsonObject.values.map { it.jsonPrimitive.content }
         assertTrue(statuses.all { it in setOf("PASS", "FAIL", "PENDING") })
@@ -71,7 +71,7 @@ class CanonicalDealUiPackConformanceTest {
     fun `benchmark dataset freezes the required utility heldout and medication cases`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val dataset = Json.parseToJsonElement(
-            File(root, "app/src/androidTest/assets/pack-v14-benchmark-v1.json").readText()
+            File(root, "app/src/androidTest/assets/pack-v15-benchmark-v1.json").readText()
         ).jsonObject
         val cases = dataset.getValue("cases").jsonArray.map { it.jsonObject }
         val frozenUtilityIds = cases.filter { it.getValue("suite").jsonPrimitive.content == "frozen-utility" }
@@ -96,7 +96,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v14 is the only production pack source`() {
+    fun `v15 is the only production pack source and v14 remains a baseline artifact`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val productionPack = File(
             root,
@@ -105,12 +105,14 @@ class CanonicalDealUiPackConformanceTest {
         assertFalse(productionPack.contains("sourceFor"))
         assertFalse(productionPack.contains("digestFor"))
         assertEquals(
-            listOf("deal-studio-v14.dealui-pack"),
+            listOf("deal-studio-v14.dealui-pack", "deal-studio-v15.dealui-pack"),
             File(root, "tooling/deal-ui-pack").listFiles().orEmpty()
                 .filter { it.extension == "dealui-pack" }
                 .map { it.name }
                 .sorted()
         )
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV15"))
+        assertFalse(productionPack.contains("GeneratedCanonicalDealUiPackV14"))
     }
 
     @Test
@@ -124,7 +126,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v14 uses typed children for interactive option collections`() {
+    fun `v15 uses typed children for interactive option collections`() {
         assertTrue(CanonicalDealUiPack.source.contains("children required NavigationItem"))
         assertTrue(CanonicalDealUiPack.source.contains("children required TabItem"))
         assertTrue(CanonicalDealUiPack.source.contains("children required ChoiceItem"))
@@ -133,7 +135,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v14 exposes generic adaptive interactive cells`() {
+    fun `v15 exposes generic adaptive interactive cells`() {
         assertTrue(CanonicalDealUiPack.source.contains("cellAspectRatio: number = 0.0"))
         assertTrue(CanonicalDealUiPack.source.contains("export component Tile"))
         assertTrue(CanonicalDealUiPack.source.contains("class TileProps { glyph: string;"))
@@ -150,7 +152,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v14 exposes typed utility semantics and adaptive groups`() {
+    fun `v15 exposes typed utility semantics and adaptive groups`() {
         assertTrue(CanonicalDealUiPack.source.contains("style?: ThemeStyle"))
         assertTrue(CanonicalDealUiPack.source.contains("hierarchy?: ButtonHierarchy"))
         assertTrue(CanonicalDealUiPack.source.contains("export component Hero"))
@@ -158,13 +160,52 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(CanonicalDealUiPack.source.contains("children required Button | IconButton"))
         assertEquals(
             "MetricGroup(MetricGroupProps)[children:Stat|IntStat|NumberStat]",
-            GeneratedCanonicalDealUiPackV14.COMPONENT_CONTRACTS.getValue("MetricGroup")
+            GeneratedCanonicalDealUiPackV15.COMPONENT_CONTRACTS.getValue("MetricGroup")
         )
         assertEquals(
             "ActionBar(ActionBarProps)[children:Button|IconButton]",
-            GeneratedCanonicalDealUiPackV14.COMPONENT_CONTRACTS.getValue("ActionBar")
+            GeneratedCanonicalDealUiPackV15.COMPONENT_CONTRACTS.getValue("ActionBar")
         )
         assertTrue(CanonicalDealUiPack.MANIFEST_SHA256.isNotBlank())
         assertTrue(CanonicalDealUiPack.BUNDLE_SHA256.isNotBlank())
+        assertFalse(CanonicalDealUiPack.initialGenerationContract.contains("TopBar(TopBarProps)"))
+        listOf(
+            "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem",
+            "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem"
+        ).forEach { assertTrue(CanonicalDealUiPack.source.contains("export component $it")) }
+    }
+
+    @Test
+    fun `v15 manifest has exact semantic coverage and fields`() {
+        val manifest = Json.parseToJsonElement(CanonicalDealUiPack.agentManifestSource).jsonObject
+        val components = manifest.getValue("components").jsonObject
+        val types = manifest.getValue("types").jsonObject
+        val tokens = manifest.getValue("tokens").jsonObject
+        val props = manifest.getValue("props").jsonObject
+        val declaredComponents = Regex("export component (\\w+)\\(props: (\\w+)\\)")
+            .findAll(CanonicalDealUiPack.source).associate { it.groupValues[1] to it.groupValues[2] }
+        val declaredTypes = Regex("export class (\\w+) \\{").findAll(CanonicalDealUiPack.source).map { it.groupValues[1] }.toSet()
+        val declaredTokens = Regex("export token (\\w+):").findAll(CanonicalDealUiPack.source).map { it.groupValues[1] }.toSet()
+        assertEquals(declaredComponents.keys, components.keys)
+        assertEquals(declaredTypes, types.keys)
+        assertEquals(declaredTokens, tokens.keys)
+        val expectedProps = declaredComponents.flatMap { (component, type) ->
+            val body = Regex("export class ${Regex.escape(type)} \\{([^}]*)}").find(CanonicalDealUiPack.source)?.groupValues?.get(1).orEmpty()
+            Regex("(?:^|;)\\s*(\\w+)\\??\\s*:").findAll(body).map { "$component.${it.groupValues[1]}" }.toList()
+        }.toSet()
+        assertEquals(expectedProps, props.keys)
+        val requiredFields = setOf("purpose", "preferWhen", "avoidWhen", "visualWeight", "commonSiblings", "constraints")
+        components.forEach { (_, raw) ->
+            val entry = raw.jsonObject
+            assertTrue(entry.keys.containsAll(requiredFields))
+            assertTrue(entry.keys.all { it in requiredFields || it == "microExample" })
+            assertTrue(entry.getValue("visualWeight").jsonPrimitive.content in setOf("low", "medium", "high"))
+        }
+        listOf(types, tokens, props).forEach { catalog ->
+            catalog.forEach { (_, raw) ->
+                assertEquals(setOf("purpose"), raw.jsonObject.keys)
+                assertTrue(raw.jsonObject.getValue("purpose").jsonPrimitive.content.isNotBlank())
+            }
+        }
     }
 }

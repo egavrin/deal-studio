@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "deal-studio-pack-benchmark-v1",
+  "cases": [
+    {
+      "id": "utility-financial-summary",
+      "suite": "frozen-utility",
+      "request": "Create a personal financial summary utility with income and expense totals, category breakdowns, editable entries, monthly comparison, and clear warning and positive states."
+    },
+    {
+      "id": "utility-project-planner",
+      "suite": "frozen-utility",
+      "request": "Create a project planner with milestones, prioritized tasks, editable notes, completion actions, progress metrics, and separate overview and detail screens."
+    },
+    {
+      "id": "utility-workout-journal",
+      "suite": "frozen-utility",
+      "request": "Create a workout journal with dated sessions, editable exercise sets, duration and effort summaries, progress history, and accessible completion controls."
+    },
+    {
+      "id": "utility-study-progress",
+      "suite": "frozen-utility",
+      "request": "Create a study progress utility with subjects, session goals, completed work, upcoming review items, progress metrics, and editable plans."
+    },
+    {
+      "id": "utility-trip-preparation",
+      "suite": "frozen-utility",
+      "request": "Create a trip-preparation list with grouped packing items, documents and reservations, completion status, missing-item warnings, and editable checklist entries."
+    },
+    {
+      "id": "heldout-community-event",
+      "suite": "held-out-compositional",
+      "request": "Create a community-event operations utility with volunteer assignments, supply counts, schedule changes, readiness summaries, multiple screens, and a compact status widget."
+    },
+    {
+      "id": "heldout-home-maintenance",
+      "suite": "held-out-compositional",
+      "request": "Create a home-maintenance organizer with recurring tasks, service history, cost records, urgency states, editable details across overview and history screens, and a compact summary surface."
+    },
+    {
+      "id": "medication-regression-zh",
+      "suite": "frozen-regression",
+      "request": "我最近要吃药，每天饭后半小时内吃一颗，请帮我生成一个吃药管理应用，可以统计我历史上有没有按时间吃药，可以反馈给医生。"
+    }
+  ]
+}

@@ -113,7 +113,7 @@ class CanonicalSurpriseSoakDeviceTest {
             "runs=$runs\nsuccesses=$successes\nfirst_pass_successes=$firstPassSuccesses\n" +
                 "final_success_rate=$successRate\n"
         )
-        assertTrue("Final Surprise success rate $successRate is below 0.95; artifacts: $root", successRate >= 0.95)
+        assertTrue("Pack v15 requires every Surprise run to succeed; rate=$successRate; artifacts: $root", successRate == 1.0)
     }
 
     private fun summaryRow(

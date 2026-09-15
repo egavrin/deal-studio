@@ -30,13 +30,20 @@ internal object GeneratedProductGuide {
 internal object StudioDesignLanguage {
     val TEXT: String = """
         VISUAL COMPOSITION
-        Choose controls by human meaning, then arrange a concise mobile-first hierarchy: current summary, one obvious
-        primary action, supporting content, and an explicit helpful empty state when content is absent. Group two to
-        four related metrics compactly. Distinguish primary, secondary, and destructive actions. Use system type,
+        Choose one coherent theme preset and let it shape typography, rhythm, surfaces, metrics, buttons, icons, and
+        background—not only seed colour. Deliberately select the closest character: themeClean for restrained neutral,
+        themeSoft for calm friendly, themeExpressive for bold atmospheric, themeEditorial for content-led hierarchy,
+        themeTechnical for dense precise information, or themePlayful for energetic interaction. Do not default to
+        themeClean merely because a syntax example uses it. Build one dominant surface with an app-owned Header, one obvious primary
+        action, supporting sections, and an explicit helpful empty state when content is absent. Use SectionHeader for
+        section hierarchy and ListGroup for a related collection instead of wrapping each heading or row in a Card.
+        Use InsetBanner for persistent contextual status or guidance. Group two to four related metrics compactly.
+        Distinguish primary, secondary, and destructive actions. Use system type,
         semantic colours, adaptive parent-owned width and spacing, accessible labels, and at least 48dp/48px targets.
-        Keep card radius at most 8dp/8px. Never expose ids, storage encodings, internal ranges, draft plumbing, or
+        Keep Cards scarce and cohesive and card radius at most 8dp/8px. Never expose ids, storage encodings, internal ranges, draft plumbing, or
         diagnostics. Avoid fixed phone widths, nested cards, repetitive full-width controls, arbitrary decoration,
-        and raw monochrome button grids. A finite collection of discrete interactive items always uses adaptive Grid,
+        duplicate app titles, and raw monochrome button grids. Do not use TopBar for an ordinary single-surface app;
+        fullscreen host chrome already owns navigation. A finite collection of discrete interactive items always uses adaptive Grid,
         never Canvas. Reserve Canvas for continuous coordinates or animation and use only its exact checked drawing
         children. The result must read as an intentionally composed product, not a data schema.
     """.trimIndent()
