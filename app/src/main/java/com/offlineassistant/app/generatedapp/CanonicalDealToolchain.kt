@@ -125,7 +125,7 @@ internal class CanonicalDealToolchain(
         instruction: String,
         maxRounds: Int = 8,
         maxSemanticRepairs: Int = 2,
-        dealReasoningEffort: String = "low",
+        dealReasoningEffort: String = "none",
         uiReasoningEffort: String = "none"
     ): CanonicalStreamingRefinementSession {
         requireCurrent("generation")
@@ -344,10 +344,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "6367bd178fc690132fa92aee813b41b04f102fb58f4aee662790ce526ac11a89"
+        const val ARTIFACT_SHA256 = "59ee0f48f8c19e3d0b06a06f6f13def6cb3fc7e683e2e8ba40058217e67490db"
         const val DEAL_REVISION = "fde98e7bd6e33cc0c41c1a321ab0bffb7b621db2"
         const val DEAL_UI_REVISION = "6b749dc8ace270e19f81987f28a58919572c48a5"
-        const val STREAMING_COMPILER_REVISION = "6ce0525777964acbdc10b5f79dc225c86138219f"
+        const val STREAMING_COMPILER_REVISION = "f6a32984f5128825c633a52fa8bfc9a08bb11dc5"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val PRIOR_V15_ASSET_NAME = "deal-android-toolchain-v15-pr41.dex"
@@ -434,13 +434,15 @@ internal class CanonicalStreamingRefinementSession(
     ).jsonObject()
 
     fun toolCallError(calls: List<Pair<String, String>>): String? {
-        val validation = invoke(
-            "refinementValidateToolCalls",
-            arrayOf(String::class.java),
-            arrayOf(encodeCalls(calls))
-        ).jsonObject()
+        val validation = validateToolCalls(calls)
         return validation["error"]?.jsonPrimitive?.content
     }
+
+    fun validateToolCalls(calls: List<Pair<String, String>>): JsonObject = invoke(
+        "refinementValidateToolCalls",
+        arrayOf(String::class.java),
+        arrayOf(encodeCalls(calls))
+    ).jsonObject()
 
     private fun encodeCalls(calls: List<Pair<String, String>>): String = buildJsonArray {
         calls.forEach { (name, arguments) ->

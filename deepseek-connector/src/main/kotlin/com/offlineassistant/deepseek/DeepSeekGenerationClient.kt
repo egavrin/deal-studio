@@ -1,5 +1,6 @@
 package com.offlineassistant.deepseek
 
+import java.io.BufferedReader
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -97,6 +98,16 @@ class InvalidCompilerToolResponseException(
     message: String,
     val rejectedCalls: List<DeepSeekFunctionCall>
 ) : IOException(message)
+
+class IncompleteToolResponseException(
+    val outputTokens: Int?,
+    val reasoningTokens: Int?,
+    val argumentChars: Int,
+    val inputTokens: Int? = null,
+    val cachedInputTokens: Int? = null
+) : IOException(
+    "Incomplete response: max_output_tokens (outputTokens=$outputTokens, reasoningTokens=$reasoningTokens, argumentChars=$argumentChars)"
+)
 
 data class DeepSeekToolGenerationResult(
     val calls: List<DeepSeekFunctionCall>,
@@ -542,73 +553,96 @@ class DeepSeekGenerationClient(
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw IOException(httpErrorMessage(connection, request.model.provider))
             }
-            val calls = linkedMapOf<Int, PendingFunctionCall>()
-            var firstCallMs: Long? = null
-            var inputTokens: Int? = null
-            var cachedInputTokens: Int? = null
-            var outputTokens: Int? = null
-            var reasoningTokens: Int? = null
-            connection.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    if (!line.startsWith(SSE_DATA_PREFIX)) return@forEach
-                    val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
-                    if (payload == SSE_DONE) return@forEach
-                    val root = json.parseToJsonElement(payload).jsonObject
-                    root["error"]?.takeUnless { it is JsonNull }?.let { throw IOException("Cloud tool response failed: $it") }
-                    chatTerminalError(root)?.let { throw IOException(it) }
-                    root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
-                        ?.get("delta")?.jsonObject?.get("tool_calls")?.jsonArray
-                        ?.forEach { element ->
-                            val call = element.jsonObject
-                            val index = call["index"]?.jsonPrimitive?.intOrNull ?: 0
-                            val function = call["function"]?.jsonObject
-                            val pending = calls.getOrPut(index) { PendingFunctionCall() }
-                            call["id"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
-                                pending.callId = it
-                            }
-                            function?.get("name")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
-                                pending.name = it
-                            }
-                            function?.get("arguments")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
-                                if (firstCallMs == null) firstCallMs = elapsedMillis(started)
-                                pending.arguments.append(it)
-                                onArgumentsDelta(it)
-                            }
-                        }
-                    chatUsage(root)?.let { usage ->
-                        inputTokens = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull
-                        cachedInputTokens = usage["prompt_tokens_details"]?.jsonObject
-                            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull
-                            ?: usage["prompt_cache_hit_tokens"]?.jsonPrimitive?.intOrNull
-                        outputTokens = usage["completion_tokens"]?.jsonPrimitive?.intOrNull
-                        reasoningTokens = usage["completion_tokens_details"]?.jsonObject
-                            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull
-                    }
-                }
+            return connection.inputStream.bufferedReader().use { reader ->
+                readChatToolResponse(reader, started, onArgumentsDelta)
             }
-            return ToolResponsesExecution(
-                calls = calls.entries.sortedBy(Map.Entry<Int, PendingFunctionCall>::key).map { (index, call) ->
-                    call.complete(index)
-                },
-                timeToFirstCallMs = firstCallMs,
-                inputTokens = inputTokens,
-                cachedInputTokens = cachedInputTokens,
-                outputTokens = outputTokens,
-                transportAttempts = 1,
-                reasoningTokens = reasoningTokens
-            )
         } finally {
             activeConnection.compareAndSet(connection, null)
             connection.disconnect()
         }
     }
 
-    private fun executeValidToolResponses(
+    internal fun readChatToolResponse(
+        reader: BufferedReader,
+        started: Long = System.nanoTime(),
+        onArgumentsDelta: (String) -> Unit = {}
+    ): ToolResponsesExecution {
+        val calls = linkedMapOf<Int, PendingFunctionCall>()
+        var firstCallMs: Long? = null
+        var inputTokens: Int? = null
+        var cachedInputTokens: Int? = null
+        var outputTokens: Int? = null
+        var reasoningTokens: Int? = null
+        var incomplete = false
+        reader.useLines { lines ->
+            lines.forEach { line ->
+                if (!line.startsWith(SSE_DATA_PREFIX)) return@forEach
+                val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
+                if (payload == SSE_DONE) return@forEach
+                val root = json.parseToJsonElement(payload).jsonObject
+                root["error"]?.takeUnless { it is JsonNull }?.let { throw IOException("Cloud tool response failed: $it") }
+                if (chatTerminalError(root) != null) incomplete = true
+                root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("delta")?.jsonObject?.get("tool_calls")?.jsonArray
+                    ?.forEach { element ->
+                        val call = element.jsonObject
+                        val index = call["index"]?.jsonPrimitive?.intOrNull ?: 0
+                        val function = call["function"]?.jsonObject
+                        val pending = calls.getOrPut(index) { PendingFunctionCall() }
+                        call["id"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
+                            pending.callId = it
+                        }
+                        function?.get("name")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
+                            pending.name = it
+                        }
+                        function?.get("arguments")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotEmpty)?.let {
+                            if (firstCallMs == null) firstCallMs = elapsedMillis(started)
+                            pending.arguments.append(it)
+                            onArgumentsDelta(it)
+                        }
+                    }
+                chatUsage(root)?.let { usage ->
+                    inputTokens = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull
+                    cachedInputTokens = usage["prompt_tokens_details"]?.jsonObject
+                        ?.get("cached_tokens")?.jsonPrimitive?.intOrNull
+                        ?: usage["prompt_cache_hit_tokens"]?.jsonPrimitive?.intOrNull
+                    outputTokens = usage["completion_tokens"]?.jsonPrimitive?.intOrNull
+                    reasoningTokens = usage["completion_tokens_details"]?.jsonObject
+                        ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull
+                }
+            }
+        }
+        if (incomplete) {
+            throw IncompleteToolResponseException(
+                outputTokens,
+                reasoningTokens,
+                calls.values.sumOf { it.arguments.length },
+                inputTokens,
+                cachedInputTokens
+            )
+        }
+        return ToolResponsesExecution(
+            calls = calls.entries.sortedBy(Map.Entry<Int, PendingFunctionCall>::key).map { (index, call) ->
+                call.complete(index)
+            },
+            timeToFirstCallMs = firstCallMs,
+            inputTokens = inputTokens,
+            cachedInputTokens = cachedInputTokens,
+            outputTokens = outputTokens,
+            transportAttempts = 1,
+            reasoningTokens = reasoningTokens
+        )
+    }
+
+    internal fun executeValidToolResponses(
         request: DeepSeekToolRequest,
         apiKey: String,
         started: Long,
         onArgumentsDelta: (String) -> Unit,
-        onAttempt: (List<DeepSeekFunctionCall>, String?) -> Unit
+        onAttempt: (List<DeepSeekFunctionCall>, String?) -> Unit,
+        executeAttempt: (DeepSeekToolRequest) -> ToolResponsesExecution = {
+            executeToolResponses(it, apiKey, started, onArgumentsDelta)
+        }
     ): ToolResponsesExecution {
         var combined: ToolResponsesExecution? = null
         var lastProtocolError = ""
@@ -642,7 +676,7 @@ class DeepSeekGenerationClient(
                 )
             }
             val attempt = try {
-                executeToolResponses(attemptRequest, apiKey, started, onArgumentsDelta)
+                executeAttempt(attemptRequest)
             } catch (failure: IOException) {
                 lastProtocolError = failure.message ?: failure.javaClass.simpleName
                 onAttempt(emptyList(), lastProtocolError)
@@ -976,13 +1010,12 @@ class DeepSeekGenerationClient(
         )
     }
 
-    internal fun chatTerminalError(payload: String): String? =
-        chatTerminalError(json.parseToJsonElement(payload).jsonObject)
+    internal fun chatTerminalError(payload: String): String? = chatTerminalError(json.parseToJsonElement(payload).jsonObject)
 
     private fun chatTerminalError(root: JsonObject): String? {
         val finishReason = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
             ?.get("finish_reason")?.jsonPrimitive?.contentOrNull
-        return if (finishReason == "length") "Incomplete response: max_output_tokens" else null
+        return if (finishReason in setOf("length", "max_output_tokens")) "Incomplete response: max_output_tokens" else null
     }
 
     private fun elapsedMillis(started: Long): Long = (System.nanoTime() - started)
@@ -1177,7 +1210,7 @@ private data class ResponsesExecution(
     val outputTokens: Int?
 )
 
-private data class ToolResponsesExecution(
+internal data class ToolResponsesExecution(
     val calls: List<DeepSeekFunctionCall>,
     val timeToFirstCallMs: Long?,
     val inputTokens: Int?,

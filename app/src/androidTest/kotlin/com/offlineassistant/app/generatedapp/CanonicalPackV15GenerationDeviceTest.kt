@@ -61,6 +61,8 @@ class CanonicalPackV15GenerationDeviceTest {
             }.let { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) }
         )
         val runId = arguments.getString("run_id") ?: selected.id
+        val dealReasoningEffort = arguments.getString("deal_reasoning_effort") ?: "none"
+        require(dealReasoningEffort in setOf("none", "low"))
         val expectedPackVersion = arguments.getString("expected_pack_version") ?: "deal-studio-dealui-pack-v15"
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val output = File(context.filesDir, "pack-v15-generation/$runId").apply { mkdirs() }
@@ -73,6 +75,7 @@ class CanonicalPackV15GenerationDeviceTest {
             val bundle = CanonicalGeneratedAppCloudCompiler(
                 context = context,
                 apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                dealReasoningEffort = dealReasoningEffort,
                 compilerToolTrace = { event ->
                     trace.appendLine(event)
                     File(output, "compiler-trace.log").writeText(trace.toString())
@@ -117,7 +120,7 @@ class CanonicalPackV15GenerationDeviceTest {
                 put("dealUiProvider", DeepSeekGenerationModel.FLASH.provider.name)
                 put("dealModelId", bundle.dealModelId)
                 put("dealUiModelId", bundle.dealUiModelId)
-                put("reasoningEffort", "low")
+                put("reasoningEffort", dealReasoningEffort)
                 put("temperature", 0.0)
                 put("compilerProtocolVersion", bundle.compilerProtocolVersion)
                 put("agentSurfaceVersion", bundle.agentSurfaceVersion)
@@ -186,7 +189,7 @@ class CanonicalPackV15GenerationDeviceTest {
             }
             throw failure
         } finally {
-            writeMachineReadableResult(output, result)
+            writeMachineReadableResult(output, JsonObject(result + ("reasoningEffort" to JsonPrimitive(dealReasoningEffort))))
         }
     }
 

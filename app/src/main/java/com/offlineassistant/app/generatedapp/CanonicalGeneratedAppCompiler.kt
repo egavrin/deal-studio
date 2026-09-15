@@ -195,7 +195,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
     context: Context,
     apiKeyProvider: () -> String?,
     cerebrasApiKeyProvider: () -> String? = { null },
-    @Suppress("UnusedPrivateProperty") private val dealReasoningEffort: String = "low",
+    private val dealReasoningEffort: String = "none",
     private val compilerToolTrace: (String) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
@@ -293,10 +293,13 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     if (transportAttempt >= MAX_CONSTRUCTION_TRANSPORT_ATTEMPTS) throw failure
                     continue
                 }
-                val batchError = candidate.calls.compilerBatchError()
-                    ?: session.toolCallError(candidate.calls.map { it.name to it.arguments })
+                val validation = session.validateToolCalls(candidate.calls.map { it.name to it.arguments })
+                val batchError = validation["error"]?.jsonPrimitive?.contentOrNull
                 metrics.recordModelRound(artifact, candidate, compilerRound = batchError == null)
                 compilerToolTrace(metrics.roundTrace(artifact, candidate, batchError == null, transportAttempt))
+                require(validation["retryable"]?.jsonPrimitive?.booleanOrNull != false) {
+                    "${validation["code"]?.jsonPrimitive?.contentOrNull}: $batchError"
+                }
                 if (batchError == null) completed = candidate else transportFeedback = batchError
             }
             val result = requireNotNull(completed) {
