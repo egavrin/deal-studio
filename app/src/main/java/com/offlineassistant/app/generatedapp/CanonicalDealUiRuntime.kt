@@ -527,9 +527,34 @@ private fun CanonicalNodes(
     onAction: (CanonicalUiAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val renderedNodes = nodes.filter { it.producesLayout(program, state, scope) }
+    if (renderedNodes.isEmpty()) return
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DealStudioSpacing.Md)) {
-        nodes.forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
+        renderedNodes.forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
     }
+}
+
+private fun CanonicalUiNode.producesLayout(
+    program: CanonicalDealUiProgram,
+    state: JsonObject,
+    scope: Map<String, JsonElement>
+): Boolean = when (this) {
+    is CanonicalUiNode.When -> {
+        val selected = if (evaluate(condition, state, scope, program.tokens, null).asBoolean()) thenNodes else elseNodes
+        selected.any { it.producesLayout(program, state, scope) }
+    }
+
+    is CanonicalUiNode.ForEach -> {
+        val items = evaluate(source, state, scope, program.tokens, null) as? JsonArray ?: JsonArray(emptyList())
+        items.any { item -> children.any { it.producesLayout(program, state, scope + (this.item to item)) } }
+    }
+
+    is CanonicalUiNode.Scope -> {
+        val nested = scope + bindings.mapValues { evaluate(it.value, state, scope, program.tokens, null) }
+        children.any { it.producesLayout(program, state, nested) }
+    }
+
+    is CanonicalUiNode.Call -> true
 }
 
 @Composable
@@ -582,8 +607,6 @@ private fun RenderCall(
     val name = call.name.substringAfterLast('.')
     val value = { key: String -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) } }
     val visuals = LocalGeneratedAppVisuals.current
-    val density = LocalDensity.current
-    val containerSize = LocalWindowInfo.current.containerSize
     val spacing = (value("spacing").tokenInt() * visuals.densityScale).dp
     val padding = (value("padding").tokenInt() * visuals.densityScale).dp
     val action = { key: String -> call.arguments[key] as? CanonicalUiExpr.Action }
@@ -666,7 +689,8 @@ private fun RenderCall(
             }
         } else if (
             value("wrap").asBoolean(default = true) &&
-            containerSize.width < with(density) { ADAPTIVE_ROW_BREAKPOINT_DP.dp.roundToPx() }
+            with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } <
+            ADAPTIVE_ROW_BREAKPOINT_DP.dp
         ) {
             Column(
                 modifier = modifier.fillMaxWidth().padding(padding),
@@ -759,7 +783,7 @@ private fun RenderCall(
         "Scroll" -> {
             val viewport = LocalCanonicalViewportHeight.current
                 .takeIf { it.value.isFinite() && it.value > 0f }
-                ?: with(density) { containerSize.height.coerceAtLeast(1).toDp() }
+                ?: with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.coerceAtLeast(1).toDp() }
             // Studio previews and nested scroll content can supply an unbounded height.
             BoxWithConstraints(modifier.fillMaxWidth().padding(padding)) {
                 val limit = if (constraints.hasBoundedHeight) maxHeight else viewport
@@ -1345,9 +1369,13 @@ private fun RenderCall(
         }
 
         "Stepper" -> {
-            val minimum = value("minimum").asInt()
-            val maximum = value("maximum").asInt().coerceAtLeast(minimum)
-            val current = value("value").asInt().coerceIn(minimum, maximum)
+            // Checked IR omits props whose defaults live in the component-pack declaration. Preserve those
+            // declared defaults here; treating an omitted maximum as JSON's numeric zero clamps every Stepper
+            // to zero even when its bound state is valid (for example, a 25-minute focus duration).
+            val minimum = if (call.arguments.containsKey("minimum")) value("minimum").asInt() else 0
+            val maximum = if (call.arguments.containsKey("maximum")) value("maximum").asInt() else 100
+            val boundedMaximum = maximum.coerceAtLeast(minimum)
+            val current = value("value").asInt().coerceIn(minimum, boundedMaximum)
             Row(
                 modifier = modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),

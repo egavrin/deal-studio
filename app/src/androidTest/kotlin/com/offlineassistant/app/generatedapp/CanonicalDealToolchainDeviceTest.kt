@@ -18,6 +18,115 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CanonicalDealToolchainDeviceTest {
     @Test
+    fun syntaxCardsCompileAgainstPinnedAndroidToolchain() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+
+        toolchain.validateDealForUi(CanonicalDealSyntaxCard.FIXTURE_SOURCE)
+        val checkedIr = toolchain.compilePortable(
+            CanonicalDealSyntaxCard.FIXTURE_SOURCE,
+            CanonicalDealUiSyntaxCard.FIXTURE_SOURCE,
+            CanonicalDealUiPack.source
+        )
+
+        assertTrue(checkedIr.isNotBlank())
+        assertEquals("AppState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+    }
+
+    @Test
+    fun embeddedUiSectionCompilesFromOneAuthoredDealSource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val source = CanonicalDealUiSyntaxCard.EMBEDDED_FIXTURE_SOURCE
+
+        toolchain.validateDealForUi(source)
+        val checkedIr = toolchain.compileEmbeddedPortable(source, CanonicalDealUiPack.source)
+
+        assertEquals("AppState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+        assertTrue(checkedIr.contains("TopBar"))
+    }
+
+    @Test
+    fun embeddedUiDiagnosticPointsBackToTheAuthoredDealSource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val invalid = CanonicalDealUiSyntaxCard.EMBEDDED_FIXTURE_SOURCE.replace(
+            "action app.OpenAction {}",
+            "action app.MissingAction {}"
+        )
+
+        val failure = runCatching {
+            toolchain.compileEmbeddedPortable(invalid, CanonicalDealUiPack.source)
+        }.exceptionOrNull()
+
+        assertTrue(failure?.message.orEmpty().contains("/generated/app.deal:"))
+        assertTrue(!failure?.message.orEmpty().contains("/generated/app.dealui:"))
+    }
+
+    @Test
+    fun autoUiCompilerDerivesCheckedDealUiFromDealOnlySource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = CanonicalDealSyntaxCard.FIXTURE_SOURCE
+        val appInterface = toolchain.extractAppInterface(deal)
+        val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
+        val checkedIr = toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source)
+
+        assertTrue(ui.contains("// @ui-root"))
+        assertTrue(ui.contains("action app.OpenAction"))
+        assertEquals("AppState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+    }
+
+    @Test
+    fun autoUiCompilerDerivesInputEmptyListHistoryAndReportSurfaces() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val appInterface = toolchain.extractAppInterface(AUTO_UI_MANAGER_SOURCE)
+        val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
+        val checkedIr = toolchain.compilePortable(AUTO_UI_MANAGER_SOURCE, ui, CanonicalDealUiPack.source)
+
+        assertTrue(ui.contains("ui.TextField(value: state.draftName"))
+        assertTrue(ui.contains("ui.TimeField(valueMinutes: state.draftTimeMinutes"))
+        assertTrue(ui.contains("ui.Toggle(checked: state.remindersEnabled"))
+        assertTrue(ui.contains("ui.EmptyState("))
+        assertTrue(ui.contains("ui.BarChart(series: state.weeklyCounts"))
+        assertTrue(ui, ui.contains("action app.AddMedicationAction {}"))
+        assertEquals("MedicationState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+    }
+
+    @Test
+    fun autoUiCompilerLowersNominalStudioSceneShapesToCanvas() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val appInterface = toolchain.extractAppInterface(AUTO_UI_SCENE_SOURCE)
+        val ui = CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(appInterface))
+        val checkedIr = toolchain.compilePortable(AUTO_UI_SCENE_SOURCE, ui, CanonicalDealUiPack.source)
+
+        assertTrue(ui.contains("ui.FrameClock("))
+        assertTrue(ui.contains("ui.PointerSurface("))
+        assertTrue(ui.contains("ForEach(state.sceneShapes, shape: app.StudioSceneShape"))
+        assertTrue(ui.contains("ui.Rectangle(x: shape.x"))
+        assertTrue(ui.contains("coordinateWidth: state.canvasWidth"))
+        assertTrue(ui.contains("coordinateHeight: state.canvasHeight"))
+        assertTrue(ui.contains("ui.Canvas(width: state.canvasWidth, height: state.canvasHeight"))
+        assertTrue("Canvas must precede its non-visual frame driver", ui.indexOf("ui.PointerSurface(") < ui.indexOf("ui.FrameClock("))
+        assertTrue("Technical tick counters must not become large metric cards", !ui.contains("ui.IntStat("))
+        GenerationCapabilityContracts.validate(appInterface, checkedIr)
+    }
+
+    @Test
+    fun realtimeCanvasCapabilityRecipeCompilesAndPassesItsContract() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val appInterface = toolchain.extractAppInterface(REALTIME_SOURCE)
+        val checkedIr = toolchain.compilePortable(REALTIME_SOURCE, REALTIME_UI, CanonicalDealUiPack.source)
+
+        GenerationCapabilityContracts.validate(appInterface, checkedIr)
+        assertTrue(appInterface.contains("clock.frame"))
+        assertTrue(appInterface.contains("pointer"))
+    }
+
+    @Test
     fun portableStreamingCompilerOwnsRepairScopeOnDevice() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
@@ -28,6 +137,7 @@ class CanonicalDealToolchainDeviceTest {
             "Offset the pointer x coordinate by one"
         )
         val request = session.nextRequest()
+        assertEquals("repair-workspace-v2", request.getValue("repairProtocol").jsonPrimitive.content)
         val input = kotlinx.serialization.json.Json.parseToJsonElement(
             request.getValue("input").jsonPrimitive.content
         ).jsonObject
@@ -44,20 +154,45 @@ class CanonicalDealToolchainDeviceTest {
             }
             .getValue("target").jsonPrimitive.content
 
-        session.acceptToolCall("query_deal_node", buildJsonObject { put("target", body) }.toString())
+        session.acceptToolCall(
+            "inspect_deal_change",
+            buildJsonObject {
+                putJsonArray("anchors") { add(kotlinx.serialization.json.JsonPrimitive(body)) }
+                putJsonArray("requestedOperations") { add(kotlinx.serialization.json.JsonPrimitive("replaceFunctionBody")) }
+            }.toString()
+        )
         val repair = session.acceptToolCall(
-            "apply_deal_changes",
-            changeArguments(body, "return missing;")
+            "construct_apply_deal_changes",
+            """{
+              "calls":[
+                {"id":"missing","op":"path","parts":["missing"]},
+                {"id":"body","op":"return","value":"missing"}
+              ],
+              "arguments":{"operations":[{"operation":"replaceFunctionBody","body":"body"}],"final":true}
+            }
+            """.trimIndent()
         )
 
         val repairToolNames = repair.getValue("tools").jsonArray.map {
             it.jsonObject.getValue("name").jsonPrimitive.content
         }
-        assertEquals(listOf("apply_deal_changes"), repairToolNames)
+        assertTrue(repairToolNames.contains("construct_apply_repair_transaction"))
+        assertTrue(!repairToolNames.contains("construct_apply_deal_changes"))
 
         val result = session.acceptToolCall(
-            "apply_deal_changes",
-            changeArguments(body, "return { x: action.x + 1, y: action.y, phase: action.phase };")
+            "construct_apply_repair_transaction",
+            """{
+              "calls":[
+                {"id":"x","op":"binary","left":{"path":["action","x"]},"operator":"+","right":1},
+                {"id":"body","op":"returnRecord","fields":[
+                  {"name":"x","value":"x"},
+                  {"name":"y","value":{"path":["action","y"]}},
+                  {"name":"phase","value":{"path":["action","phase"]}}
+                ]}
+              ],
+              "arguments":{"patches":[{"slot":"R1","operation":"replaceFunctionBody","payload":{"body":"body"}}],"dependencies":[]}
+            }
+            """.trimIndent()
         )
 
         assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
@@ -66,7 +201,7 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     @Test
-    fun portableStreamingCompilerAddsACompilerOwnedViewOnDevice() {
+    fun portableStreamingCompilerDoesNotExposeWholeViewInsertionOnDevice() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
         val session = toolchain.createRefinementSession(
@@ -75,39 +210,22 @@ class CanonicalDealToolchainDeviceTest {
             CanonicalDealUiPack.source,
             "Add a compact read-only detail view"
         )
+        val initialRevision = session.nextRequest().getValue("revision")
         val queried = session.acceptToolCall(
-            "query_deal_ui_document",
-            buildJsonObject { put("target", "D1") }.toString()
+            "inspect_deal_ui_change",
+            """{"anchors":["D1"],"requestedOperations":["addView"]}"""
         )
         assertTrue(
             queried.getValue("tools").jsonArray.any {
-                it.jsonObject.getValue("name").jsonPrimitive.content == "apply_deal_ui_changes"
+                it.jsonObject.getValue("name").jsonPrimitive.content == "patch_tool_argument"
             }
         )
-
-        val result = session.acceptToolCall(
-            "apply_deal_ui_changes",
-            buildJsonObject {
-                putJsonArray("operations") {
-                    add(
-                        buildJsonObject {
-                            put("operation", "addView")
-                            put("target", "D1")
-                            put(
-                                "source",
-                                "export view Detail(state: app.PointerState): View { " +
-                                    "ui.Text(value: \"Pointer details\") }"
-                            )
-                        }
-                    )
-                }
-                put("final", true)
-            }.toString()
+        assertTrue(
+            queried.getValue("tools").jsonArray.none {
+                it.jsonObject.getValue("name").jsonPrimitive.content == "construct_apply_deal_ui_changes"
+            }
         )
-
-        assertTrue(result.getValue("accepted").jsonPrimitive.boolean)
-        assertTrue(result.getValue("dealUi").jsonPrimitive.content.contains("export view Detail"))
-        assertEquals(POINTER_SOURCE, result.getValue("deal").jsonPrimitive.content)
+        assertEquals(initialRevision, queried.getValue("revision"))
     }
 
     @Test
@@ -392,19 +510,42 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     private companion object {
-        fun changeArguments(target: String, body: String): String = buildJsonObject {
-            putJsonArray("operations") {
-                add(
-                    buildJsonObject {
-                        put("operation", "replaceFunctionBody")
-                        put("target", target)
-                        put("body", body)
-                    }
-                )
+        const val REALTIME_SOURCE = """
+            // generated-capability: clock.frame
+            // generated-capability: pointer
+            export class GameState { x: int = 160; y: int = 400; ticks: int = 0; }
+            export class FrameAction { deltaMs: int = 0; }
+            export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
+            export function initialState(): GameState { return { x: 160, y: 400, ticks: 0 }; }
+            // @ui-update
+            export function onFrame(state: GameState, action: FrameAction): GameState {
+              return { x: state.x, y: state.y, ticks: state.ticks + 1 };
             }
-            put("final", true)
-        }.toString()
+            // @ui-update
+            export function onPointer(state: GameState, action: PointerAction): GameState {
+              return { x: action.x, y: action.y, ticks: state.ticks };
+            }
+        """
 
+        const val REALTIME_UI = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.GameState): View {
+              ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+                ui.Root() {
+                  ui.FrameClock(intervalMillis: 16, onTick: action app.FrameAction { deltaMs: payload })
+                  ui.PointerSurface(coordinateWidth: 320, coordinateHeight: 480,
+                    onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
+                    accessibilityLabel: "Game board") {
+                    ui.Canvas(width: 320, height: 480, accessibilityLabel: "Game canvas") {
+                      ui.Rectangle(x: state.x, y: state.y, width: 64, height: 12, color: "#2563EB")
+                    }
+                  }
+                }
+              }
+            }
+        """
         const val ARRAY_LITERAL_SOURCE = """
             export class ArrayState {
               labels: string[] = [];
@@ -526,7 +667,9 @@ class CanonicalDealToolchainDeviceTest {
                     onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
                     accessibilityLabel: "Pointer surface"
                   ) {
-                    ui.Canvas(width: 640, height: 800, accessibilityLabel: "Canvas") {}
+                    ui.Canvas(width: 640, height: 800, accessibilityLabel: "Canvas") {
+                      ui.Rectangle(x: 0, y: 0, width: 640, height: 800, color: "#ffffff")
+                    }
                   }
                 }
               }
@@ -708,6 +851,69 @@ class CanonicalDealToolchainDeviceTest {
                 }
                 }
               }
+            }
+        """
+
+        const val AUTO_UI_MANAGER_SOURCE = """
+            export class Medication { id: int = 0; name: string = ""; dosage: string = ""; }
+            export class HistoryRecord { id: int = 0; name: string = ""; status: string = ""; }
+            export class MedicationState {
+              draftName: string = "";
+              draftTimeMinutes: int = 0;
+              remindersEnabled: boolean = false;
+              hasMedications: boolean = false;
+              medications: Medication[] = [];
+              history: HistoryRecord[] = [];
+              weeklyCounts: int[] = [];
+            }
+            export class SetDraftNameAction { draftName: string = ""; }
+            export class SetDraftTimeMinutesAction { draftTimeMinutes: int = 0; }
+            export class SetRemindersEnabledAction { remindersEnabled: boolean = false; }
+            export class AddMedicationAction {}
+            export class TakenAction {}
+            export function initialState(): MedicationState {
+              let medications: Medication[] = [];
+              let history: HistoryRecord[] = [];
+              let weeklyCounts: int[] = [];
+              return { draftName: "", draftTimeMinutes: 480, remindersEnabled: true, hasMedications: false, medications: medications, history: history, weeklyCounts: weeklyCounts };
+            }
+            // @ui-update
+            export function setDraftName(state: MedicationState, action: SetDraftNameAction): MedicationState {
+              return { draftName: action.draftName, draftTimeMinutes: state.draftTimeMinutes, remindersEnabled: state.remindersEnabled, hasMedications: state.hasMedications, medications: state.medications, history: state.history, weeklyCounts: state.weeklyCounts };
+            }
+            // @ui-update
+            export function setDraftTimeMinutes(state: MedicationState, action: SetDraftTimeMinutesAction): MedicationState {
+              return { draftName: state.draftName, draftTimeMinutes: action.draftTimeMinutes, remindersEnabled: state.remindersEnabled, hasMedications: state.hasMedications, medications: state.medications, history: state.history, weeklyCounts: state.weeklyCounts };
+            }
+            // @ui-update
+            export function setRemindersEnabled(state: MedicationState, action: SetRemindersEnabledAction): MedicationState {
+              return { draftName: state.draftName, draftTimeMinutes: state.draftTimeMinutes, remindersEnabled: action.remindersEnabled, hasMedications: state.hasMedications, medications: state.medications, history: state.history, weeklyCounts: state.weeklyCounts };
+            }
+            // @ui-update
+            export function addMedication(state: MedicationState, action: AddMedicationAction): MedicationState { return state; }
+            // @ui-update
+            export function taken(state: MedicationState, action: TakenAction): MedicationState { return state; }
+        """
+
+        const val AUTO_UI_SCENE_SOURCE = """
+            // generated-capability: clock.frame
+            // generated-capability: pointer
+            export class StudioSceneShape { id: int = 0; x: int = 0; y: int = 0; width: int = 0; height: int = 0; color: string = ""; }
+            export class GameState { sceneShapes: StudioSceneShape[] = []; canvasWidth: int = 360; canvasHeight: int = 640; ticks: int = 0; }
+            export class FrameAction { deltaMs: int = 0; }
+            export class PointerAction { x: int = 0; y: int = 0; phase: int = 0; }
+            export function initialState(): GameState {
+              let sceneShapes: StudioSceneShape[] = [];
+              sceneShapes[sceneShapes.length] = { id: 1, x: 20, y: 30, width: 90, height: 16, color: "#00FFAA" };
+              return { sceneShapes: sceneShapes, canvasWidth: 360, canvasHeight: 640, ticks: 0 };
+            }
+            // @ui-update
+            export function onFrame(state: GameState, action: FrameAction): GameState {
+              return { sceneShapes: state.sceneShapes, canvasWidth: state.canvasWidth, canvasHeight: state.canvasHeight, ticks: state.ticks + 1 };
+            }
+            // @ui-update
+            export function onPointer(state: GameState, action: PointerAction): GameState {
+              return { sceneShapes: state.sceneShapes, canvasWidth: state.canvasWidth, canvasHeight: state.canvasHeight, ticks: state.ticks + action.x };
             }
         """
     }

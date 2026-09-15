@@ -38,7 +38,7 @@ require_clean_revision() {
   local repository=$1
   local expected=$2
   local label=$3
-  [[ -d "$repository/.git" ]] || { printf '%s is not a Git checkout: %s\n' "$label" "$repository" >&2; exit 1; }
+  [[ -e "$repository/.git" ]] || { printf '%s is not a Git checkout: %s\n' "$label" "$repository" >&2; exit 1; }
   [[ -z "$(git -C "$repository" status --porcelain)" ]] || {
     printf '%s checkout is dirty: %s\n' "$label" "$repository" >&2
     exit 1
@@ -54,6 +54,23 @@ require_clean_revision() {
 require_clean_revision "$DEAL_REPO" "$DEAL_REVISION" "DEAL"
 require_clean_revision "$DEAL_UI_REPO" "$DEAL_UI_REVISION" "Deal UI"
 require_clean_revision "$STREAMING_COMPILER_REPO" "$STREAMING_COMPILER_REVISION" "streaming-compiler"
+
+report_provenance() {
+  local label=$1 repository=$2 expected=$3 source_origin=$4 source_ref=$5
+  local configured_origin
+  configured_origin=$(git -C "$repository" remote get-url origin 2>/dev/null || true)
+  local availability="local-only"
+  if [[ "$configured_origin" == "$source_origin" ]] && git ls-remote "$source_origin" 2>/dev/null | awk '{print $1}' | grep -qx "$expected"; then
+    availability="remote-reachable"
+  fi
+  printf '%s provenance: origin=%s ref=%s revision=%s availability=%s\n' \
+    "$label" "$source_origin" "$source_ref" "$expected" "$availability"
+}
+
+report_provenance "DEAL" "$DEAL_REPO" "$DEAL_REVISION" "$DEAL_SOURCE_ORIGIN" "$DEAL_SOURCE_REF"
+report_provenance "Deal UI" "$DEAL_UI_REPO" "$DEAL_UI_REVISION" "$DEAL_UI_SOURCE_ORIGIN" "$DEAL_UI_SOURCE_REF"
+report_provenance "streaming compiler" "$STREAMING_COMPILER_REPO" "$STREAMING_COMPILER_REVISION" \
+  "$STREAMING_COMPILER_SOURCE_ORIGIN" "$STREAMING_COMPILER_SOURCE_REF"
 
 ACTUAL_JAVAC=$(javac -version 2>&1 | awk '{print $2}')
 [[ "$ACTUAL_JAVAC" == "$JAVAC_VERSION" ]] || {
@@ -76,7 +93,14 @@ KOTLIN_TOOLCHAIN="$ROOT/app/src/main/java/com/offlineassistant/app/generatedapp/
 rm -rf "$OUT"
 mkdir -p "$CLASSES" "$(dirname "$ASSET")"
 
-(cd "$DEAL_REPO" && javac --release "$JAVAC_RELEASE" -d "$CLASSES" @build/prod-sources.txt)
+(
+  cd "$DEAL_REPO"
+  # The upstream manifest is the source-list authority. Fresh worktrees deliberately do not
+  # carry a generated build/prod-sources.txt, so never depend on another checkout's build output.
+  source tools/gate-manifest.sh
+  shopt -s nullglob
+  javac --release "$JAVAC_RELEASE" -proc:none -d "$CLASSES" ${PROD_SOURCES[@]}
+)
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
@@ -84,12 +108,16 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_REPO/deal/compiler/CompilerProtocolJson.java" \
   "$DEAL_REPO/deal/compiler/DealConstruction.java" \
   "$DEAL_REPO/deal/compiler/ConstructionRepairWorkspace.java" \
+  "$DEAL_REPO/deal/compiler/RepairWorkspaceProtocol.java" \
+  "$DEAL_REPO/deal/compiler/DeclarationReferences.java" \
+  "$DEAL_REPO/deal/compiler/RepairDiagnosticRegistry.java" \
   "$DEAL_REPO/deal/compiler/DealCompilerWorkspace.java"
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiModel.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDiagnostic.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiRepairDiagnostics.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiParser.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/DealUiDealSource.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiBorrowedValueChecker.java" \

@@ -50,10 +50,11 @@ internal class CanonicalGeneratedAppRefiner(
     ): CanonicalRefinementResult = withContext(Dispatchers.IO) {
         require(request.isNotBlank()) { "Refinement request is empty" }
         val wall = TimeSource.Monotonic.markNow()
-        val canonicalInputDeal = canonicalDealWithPlatformAbi(bundle.dealSource)
+        val refinementPair = bundle.refinementSourcePair()
+        val canonicalInputDeal = canonicalDealWithPlatformAbi(refinementPair.deal)
         val session = toolchain.createRefinementSession(
             dealSource = canonicalInputDeal,
-            dealUiSource = bundle.dealUiSource,
+            dealUiSource = refinementPair.dealUi,
             packSource = CanonicalDealUiPack.source,
             instruction = request
         )
@@ -62,7 +63,7 @@ internal class CanonicalGeneratedAppRefiner(
             "base",
             buildJsonObject {
                 put("deal", canonicalInputDeal)
-                put("dealUi", bundle.dealUiSource)
+                put("dealUi", refinementPair.dealUi)
                 put("pack", CanonicalDealUiPack.source)
                 put("instruction", request)
             }.toString()
@@ -187,13 +188,13 @@ internal class CanonicalGeneratedAppRefiner(
         }
         val sessionDealSource = canonical.getValue("deal").jsonPrimitive.content
         val dealSource = if (sessionDealSource == canonicalInputDeal) {
-            bundle.dealSource
+            refinementPair.deal
         } else {
             sessionDealSource
         }
         val dealUiSource = canonical.getValue("dealUi").jsonPrimitive.content
-        val changedDeal = dealSource != bundle.dealSource
-        val changedDealUi = dealUiSource != bundle.dealUiSource
+        val changedDeal = dealSource != refinementPair.deal
+        val changedDealUi = dealUiSource != refinementPair.dealUi
         require(changedDeal || changedDealUi) {
             "The requested refinement did not require a source change"
         }
@@ -254,6 +255,13 @@ internal class CanonicalGeneratedAppRefiner(
         const val MAX_REFINEMENT_OUTPUT_TOKENS = 4_096
         const val MAX_TRANSPORT_ATTEMPTS = 3
     }
+}
+
+/** Converts pre-split saved embedded apps at the refinement boundary without changing their stored revision. */
+private fun CanonicalGeneratedAppBundle.refinementSourcePair(): CanonicalSourceBundle = if (dealUiSource.isNotBlank()) {
+    CanonicalSourceBundle(dealSource, dealUiSource)
+} else {
+    EmbeddedDealUiSource.split(dealSource)
 }
 
 internal enum class Artifact { DEAL, DEAL_UI }

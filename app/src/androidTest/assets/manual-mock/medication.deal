@@ -1,0 +1,825 @@
+// generated-capability: clock.minute
+// generated-capability: storage.private
+
+export class Medication {
+  id: int = 0;
+  name: string = "";
+  dosage: string = "";
+  timeMinutes: int = 0;
+  timeLabel: string = "";
+  durationDays: int = 0;
+  notes: string = "";
+  afterFood: boolean = false;
+}
+
+export class DraftMedication {
+  name: string = "";
+  dosage: string = "";
+  timeMinutes: int = 0;
+  timeLabel: string = "";
+  durationDays: int = 0;
+  notes: string = "";
+  afterFood: boolean = false;
+}
+
+export class ScheduleEntry {
+  id: int = 0;
+  medId: int = 0;
+  dayIndex: int = 0;
+  dateLabel: string = "";
+  timeMinutes: int = 0;
+  timeLabel: string = "";
+  drugName: string = "";
+  dosage: string = "";
+  status: string = "";
+  tone: string = "";
+  notes: string = "";
+}
+
+export class HistoryRecord {
+  id: int = 0;
+  dateLabel: string = "";
+  timeLabel: string = "";
+  drugName: string = "";
+  dosage: string = "";
+  status: string = "";
+  tone: string = "";
+  notes: string = "";
+}
+
+export class RecognitionReview {
+  medications: Medication[] = [];
+  draft: DraftMedication = {};
+  editingId: int = 0;
+  confirmEnabled: boolean = false;
+}
+
+export class ScheduleView {
+  entries: ScheduleEntry[] = [];
+  todayIndex: int = 0;
+  todayLabel: string = "";
+  nextDoseId: int = 0;
+  nextDoseLabel: string = "";
+  timeUntilLabel: string = "";
+  completedCount: int = 0;
+  totalCount: int = 0;
+  progressLabel: string = "";
+}
+
+export class HistoryView {
+  records: HistoryRecord[] = [];
+  viewMode: string = "";
+  viewLabel: string = "";
+}
+
+export class PlanView {
+  medications: Medication[] = [];
+}
+
+export class TodayView {
+  dateLabel: string = "";
+  nextDoseLabel: string = "";
+  timeUntilLabel: string = "";
+  completedCount: int = 0;
+  totalCount: int = 0;
+  progressLabel: string = "";
+  statusMessage: string = "";
+  statusTone: string = "";
+}
+
+export class AppState {
+  phase: string = "";
+  review: RecognitionReview = {};
+  schedule: ScheduleView = {};
+  today: TodayView = {};
+  history: HistoryView = {};
+  plan: PlanView = {};
+  currentDateLabel: string = "";
+  currentTimeMinutes: int = 0;
+  currentDayIndex: int = 0;
+  sourcePhotoNote: string = "";
+}
+
+export class EditTextAction {
+  target: string = "";
+  value: string = "";
+}
+
+export class EditIntAction {
+  target: string = "";
+  value: int = 0;
+}
+
+export class CommandAction {
+  command: string = "";
+  id: int = 0;
+}
+
+export class ConfirmPlanAction {
+}
+
+export class TakenAction {
+  entryId: int = 0;
+}
+
+export class UndoAction {
+  entryId: int = 0;
+}
+
+export class DeleteHistoryAction {
+  recordId: int = 0;
+}
+
+export class ClearHistoryAction {
+}
+
+export class SwitchViewAction {
+  mode: string = "";
+}
+
+export function initialState(): AppState {
+  let meds: Medication[] = [];
+  let m1: Medication = {id: 1, name: "Bisoprolol (Concor)", dosage: "5 mg", timeMinutes: 480, timeLabel: "08:00", durationDays: 7, notes: "After food", afterFood: true};
+  meds[meds.length] = m1;
+  let m2: Medication = {id: 2, name: "Amlodipine", dosage: "5 mg", timeMinutes: 1200, timeLabel: "20:00", durationDays: 7, notes: "", afterFood: false};
+  meds[meds.length] = m2;
+  let draft: DraftMedication = {name: "", dosage: "", timeMinutes: 480, timeLabel: "08:00", durationDays: 7, notes: "", afterFood: false};
+  let review: RecognitionReview = {medications: meds, draft: draft, editingId: 0, confirmEnabled: true};
+  let scheduleEntries: ScheduleEntry[] = buildSchedule(meds, 0, "Day 1");
+  let firstEntry: ScheduleEntry = scheduleEntries[0];
+  let completedFirstEntry: ScheduleEntry = {id: firstEntry.id, medId: firstEntry.medId, dayIndex: firstEntry.dayIndex, dateLabel: firstEntry.dateLabel, timeMinutes: firstEntry.timeMinutes, timeLabel: firstEntry.timeLabel, drugName: firstEntry.drugName, dosage: firstEntry.dosage, status: "taken", tone: "success", notes: firstEntry.notes};
+  scheduleEntries[0] = completedFirstEntry;
+  let today: TodayView = computeToday(scheduleEntries, 0, 1080);
+  let scheduleView: ScheduleView = {entries: scheduleEntries, todayIndex: 0, todayLabel: "Day 1", nextDoseId: 2, nextDoseLabel: today.nextDoseLabel, timeUntilLabel: today.timeUntilLabel, completedCount: today.completedCount, totalCount: today.totalCount, progressLabel: today.progressLabel};
+  let historyRecords: HistoryRecord[] = [];
+  let historyView: HistoryView = {records: historyRecords, viewMode: "day", viewLabel: "Day"};
+  let planView: PlanView = {medications: meds};
+  let state: AppState = {phase: "today", review: review, schedule: scheduleView, today: today, history: historyView, plan: planView, currentDateLabel: "Day 1", currentTimeMinutes: 1080, currentDayIndex: 0, sourcePhotoNote: "Manual canonical UI probe sample. Not generated data."};
+  return state;
+}
+
+function formatTime(minutes: int): string {
+  let hour: int = minutes / 60;
+  let minute: int = minutes % 60;
+  let hh: string = platformPad2(hour);
+  let mm: string = platformPad2(minute);
+  return hh + ":" + mm;
+}
+
+function buildSchedule(medications: Medication[], startDayIndex: int, startDateLabel: string): ScheduleEntry[] {
+  let result: ScheduleEntry[] = [];
+  let idCounter: int = 1;
+  let day: int = 0;
+  while (day < 7) {
+    let mi: int = 0;
+    while (mi < medications.length) {
+      let med: Medication = medications[mi];
+      let dayLabel: string = "Day " + platformIntText(startDayIndex + day + 1);
+      let entry: ScheduleEntry = {id: idCounter, medId: med.id, dayIndex: startDayIndex + day, dateLabel: dayLabel, timeMinutes: med.timeMinutes, timeLabel: med.timeLabel, drugName: med.name, dosage: med.dosage, status: "scheduled", tone: "neutral", notes: med.notes};
+      result[result.length] = entry;
+      idCounter = idCounter + 1;
+      mi = mi + 1;
+    }
+    day = day + 1;
+  }
+  return result;
+}
+
+function computeToday(schedule: ScheduleEntry[], dayIndex: int, currentMinutes: int): TodayView {
+  let completed: int = 0;
+  let total: int = 0;
+  let nextId: int = 0;
+  let nextLabel: string = "";
+  let timeUntil: string = "";
+  let statusMsg: string = "";
+  let statusTone: string = "neutral";
+  let i: int = 0;
+  while (i < schedule.length) {
+    let e: ScheduleEntry = schedule[i];
+    if (e.dayIndex === dayIndex) {
+      total = total + 1;
+      if (e.status === "taken" || e.status === "makeup") {
+        completed = completed + 1;
+      }
+      if (nextId === 0 && e.status === "scheduled") {
+        if (e.timeMinutes <= currentMinutes) {
+          nextId = e.id;
+          nextLabel = e.drugName + " " + e.dosage + " at " + e.timeLabel;
+          timeUntil = "Due now";
+          statusMsg = "Dose due";
+          statusTone = "warning";
+        } else {
+          nextId = e.id;
+          nextLabel = e.drugName + " " + e.dosage + " at " + e.timeLabel;
+          let diff: int = e.timeMinutes - currentMinutes;
+          let hours: int = diff / 60;
+          let mins: int = diff % 60;
+          if (hours > 0) {
+            timeUntil = platformIntText(hours) + "h " + platformIntText(mins) + "m";
+          } else {
+            timeUntil = platformIntText(mins) + "m";
+          }
+          statusMsg = "Next dose scheduled";
+          statusTone = "neutral";
+        }
+      }
+    }
+    i = i + 1;
+  }
+  let progress: string = "";
+  if (total > 0) {
+    progress = platformIntText(completed) + "/" + platformIntText(total) + " completed";
+  } else {
+    progress = "No doses today";
+  }
+  if (nextId === 0 && total > 0) {
+    statusMsg = "All doses completed";
+    statusTone = "success";
+    nextLabel = "None remaining";
+    timeUntil = "";
+  }
+  let view: TodayView = {dateLabel: "", nextDoseLabel: nextLabel, timeUntilLabel: timeUntil, completedCount: completed, totalCount: total, progressLabel: progress, statusMessage: statusMsg, statusTone: statusTone};
+  return view;
+}
+
+function buildHistory(entries: ScheduleEntry[], viewMode: string): HistoryRecord[] {
+  let result: HistoryRecord[] = [];
+  let i: int = 0;
+  while (i < entries.length) {
+    let e: ScheduleEntry = entries[i];
+    let include: boolean = false;
+    if (viewMode === "day") {
+      if (e.dayIndex === 0) {
+        include = true;
+      }
+    } else {
+      include = true;
+    }
+    if (include) {
+      let rec: HistoryRecord = {id: e.id, dateLabel: e.dateLabel, timeLabel: e.timeLabel, drugName: e.drugName, dosage: e.dosage, status: e.status, tone: e.tone, notes: e.notes};
+      result[result.length] = rec;
+    }
+    i = i + 1;
+  }
+  let reversed: HistoryRecord[] = [];
+  let j: int = result.length - 1;
+  while (j >= 0) {
+    reversed[reversed.length] = result[j];
+    j = j - 1;
+  }
+  return reversed;
+}
+
+function nextDoseId(entries: ScheduleEntry[], dayIndex: int, currentMinutes: int): int {
+  let bestId: int = 0;
+  let bestTime: int = 0;
+  let found: boolean = false;
+  let i: int = 0;
+  while (i < entries.length) {
+    let e: ScheduleEntry = entries[i];
+    if (e.dayIndex === dayIndex && e.status === "scheduled") {
+      if (!found) {
+        bestId = e.id;
+        bestTime = e.timeMinutes;
+        found = true;
+      } else {
+        if (e.timeMinutes < bestTime) {
+          bestId = e.id;
+          bestTime = e.timeMinutes;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return bestId;
+}
+
+function countCompleted(entries: ScheduleEntry[], dayIndex: int): int {
+  let count: int = 0;
+  let i: int = 0;
+  while (i < entries.length) {
+    if (entries[i].dayIndex === dayIndex && entries[i].status === "taken") {
+      count = count + 1;
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+// @ui-update
+export function onEditText(state: AppState, action: EditTextAction): AppState {
+  let draft: DraftMedication = { name: state.review.draft.name, dosage: state.review.draft.dosage, timeMinutes: state.review.draft.timeMinutes, timeLabel: state.review.draft.timeLabel, durationDays: state.review.draft.durationDays, notes: state.review.draft.notes, afterFood: state.review.draft.afterFood };
+    if (action.target === "name") {
+      draft.name = action.value;
+    } else if (action.target === "dosage") {
+      draft.dosage = action.value;
+    } else if (action.target === "timeLabel") {
+      draft.timeLabel = action.value;
+      draft.timeMinutes = 0;
+    } else if (action.target === "notes") {
+      draft.notes = action.value;
+    } else if (action.target === "durationDays") {
+      draft.durationDays = 0;
+    } else if (action.target === "afterFood") {
+      draft.afterFood = false;
+    }
+    let confirmOk: boolean = draft.name !== "" && draft.dosage !== "" && draft.timeLabel !== "" && draft.durationDays > 0;
+    let meds: Medication[] = state.review.medications;
+    let editingId: int = state.review.editingId;
+    let editingIndex: int = -1;
+    let i: int = 0;
+    let newMeds: Medication[] = [];
+    if (editingId >= 0) {
+      while (i < meds.length) {
+        if (meds[i].id === editingId) {
+          editingIndex = i;
+        }
+        i = i + 1;
+      }
+      if (editingIndex >= 0) {
+        i = 0;
+        while (i < meds.length) {
+          if (i === editingIndex) {
+            newMeds[newMeds.length] = { id: meds[i].id, name: draft.name, dosage: draft.dosage, timeMinutes: draft.timeMinutes, timeLabel: draft.timeLabel, durationDays: draft.durationDays, notes: draft.notes, afterFood: draft.afterFood };
+          } else {
+            newMeds[newMeds.length] = meds[i];
+          }
+          i = i + 1;
+        }
+      } else {
+        newMeds = meds;
+      }
+    } else {
+      newMeds = meds;
+    }
+    let review: RecognitionReview = { medications: newMeds, draft: draft, editingId: editingId, confirmEnabled: confirmOk };
+    let next: AppState = { phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+    return next;
+}
+
+// @ui-update
+export function onEditInt(state: AppState, action: EditIntAction): AppState {
+  let next: AppState = state;
+  if (action.target === "timeMinutes") {
+    let draft: DraftMedication = state.review.draft;
+    let newDraft: DraftMedication = { name: draft.name, dosage: draft.dosage, timeMinutes: action.value, timeLabel: formatTime(action.value), durationDays: draft.durationDays, notes: draft.notes, afterFood: draft.afterFood };
+    let review: RecognitionReview = { medications: state.review.medications, draft: newDraft, editingId: state.review.editingId, confirmEnabled: state.review.confirmEnabled };
+    next = { phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  } else if (action.target === "durationDays") {
+    let draft: DraftMedication = state.review.draft;
+    let newDraft: DraftMedication = { name: draft.name, dosage: draft.dosage, timeMinutes: draft.timeMinutes, timeLabel: draft.timeLabel, durationDays: action.value, notes: draft.notes, afterFood: draft.afterFood };
+    let review: RecognitionReview = { medications: state.review.medications, draft: newDraft, editingId: state.review.editingId, confirmEnabled: state.review.confirmEnabled };
+    next = { phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  } else if (action.target === "editingId") {
+    let review: RecognitionReview = { medications: state.review.medications, draft: state.review.draft, editingId: action.value, confirmEnabled: state.review.confirmEnabled };
+    next = { phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  }
+  return next;
+}
+
+// @ui-update
+export function onCommand(state: AppState, action: CommandAction): AppState {
+  if (action.command === "confirmPlan") {
+    let meds: Medication[] = state.review.medications;
+    let entries: ScheduleEntry[] = buildSchedule(meds, state.currentDayIndex, state.currentDateLabel);
+    let today: TodayView = computeToday(entries, state.currentDayIndex, state.currentTimeMinutes);
+    let plan: PlanView = {medications: meds};
+    let schedule: ScheduleView = {entries: entries, todayIndex: state.currentDayIndex, todayLabel: state.currentDateLabel, nextDoseId: nextDoseId(entries, state.currentDayIndex, state.currentTimeMinutes), nextDoseLabel: today.nextDoseLabel, timeUntilLabel: today.timeUntilLabel, completedCount: today.completedCount, totalCount: today.totalCount, progressLabel: today.progressLabel};
+    let next: AppState = {phase: "today", review: state.review, schedule: schedule, today: today, history: state.history, plan: plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "addDrug") {
+    let meds: Medication[] = state.review.medications;
+    let draft: DraftMedication = state.review.draft;
+    let newId: int = 0;
+    let i: int = 0;
+    while (i < meds.length) {
+      if (meds[i].id >= newId) {
+        newId = meds[i].id + 1;
+      }
+      i = i + 1;
+    }
+    let name: string = draft.name;
+    if (name === "") {
+      name = "Medication";
+    }
+    let dosage: string = draft.dosage;
+    if (dosage === "") {
+      dosage = "1 tablet";
+    }
+    let med: Medication = {id: newId, name: name, dosage: dosage, timeMinutes: draft.timeMinutes, timeLabel: draft.timeLabel, durationDays: draft.durationDays, notes: draft.notes, afterFood: draft.afterFood};
+    let kept: Medication[] = [];
+    let j: int = 0;
+    while (j < meds.length) {
+      kept[kept.length] = meds[j];
+      j = j + 1;
+    }
+    kept[kept.length] = med;
+    let review: RecognitionReview = {medications: kept, draft: {name: "", dosage: "", timeMinutes: 480, timeLabel: "08:00", durationDays: 7, notes: "", afterFood: false}, editingId: -1, confirmEnabled: kept.length > 0};
+    let next: AppState = {phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "editDrug") {
+    let meds: Medication[] = state.review.medications;
+    let draft: DraftMedication = state.review.draft;
+    let i: int = 0;
+    while (i < meds.length) {
+      if (meds[i].id === action.id) {
+        draft = {name: meds[i].name, dosage: meds[i].dosage, timeMinutes: meds[i].timeMinutes, timeLabel: meds[i].timeLabel, durationDays: meds[i].durationDays, notes: meds[i].notes, afterFood: meds[i].afterFood};
+      }
+      i = i + 1;
+    }
+    let review: RecognitionReview = {medications: meds, draft: draft, editingId: action.id, confirmEnabled: state.review.confirmEnabled};
+    let next: AppState = {phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "saveEdit") {
+    let meds: Medication[] = state.review.medications;
+    let draft: DraftMedication = state.review.draft;
+    let editingId: int = state.review.editingId;
+    let kept: Medication[] = [];
+    let i: int = 0;
+    while (i < meds.length) {
+      if (meds[i].id === editingId) {
+        let name: string = draft.name;
+        if (name === "") {
+          name = meds[i].name;
+        }
+        let dosage: string = draft.dosage;
+        if (dosage === "") {
+          dosage = meds[i].dosage;
+        }
+        let med: Medication = {id: meds[i].id, name: name, dosage: dosage, timeMinutes: draft.timeMinutes, timeLabel: draft.timeLabel, durationDays: draft.durationDays, notes: draft.notes, afterFood: draft.afterFood};
+        kept[kept.length] = med;
+      } else {
+        kept[kept.length] = meds[i];
+      }
+      i = i + 1;
+    }
+    let review: RecognitionReview = {medications: kept, draft: {name: "", dosage: "", timeMinutes: 480, timeLabel: "08:00", durationDays: 7, notes: "", afterFood: false}, editingId: -1, confirmEnabled: kept.length > 0};
+    let next: AppState = {phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "cancelEdit") {
+    let review: RecognitionReview = {medications: state.review.medications, draft: {name: "", dosage: "", timeMinutes: 480, timeLabel: "08:00", durationDays: 7, notes: "", afterFood: false}, editingId: -1, confirmEnabled: state.review.confirmEnabled};
+    let next: AppState = {phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "deleteDrug") {
+    let meds: Medication[] = state.review.medications;
+    let kept: Medication[] = [];
+    let i: int = 0;
+    while (i < meds.length) {
+      if (meds[i].id !== action.id) {
+        kept[kept.length] = meds[i];
+      }
+      i = i + 1;
+    }
+    let review: RecognitionReview = {medications: kept, draft: {name: "", dosage: "", timeMinutes: 480, timeLabel: "08:00", durationDays: 7, notes: "", afterFood: false}, editingId: -1, confirmEnabled: kept.length > 0};
+    let next: AppState = {phase: state.phase, review: review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "takeDose") {
+    let entries: ScheduleEntry[] = state.schedule.entries;
+    let kept: ScheduleEntry[] = [];
+    let i: int = 0;
+    while (i < entries.length) {
+      if (entries[i].id === action.id) {
+        if (entries[i].status === "scheduled") {
+          let taken: ScheduleEntry = {id: entries[i].id, medId: entries[i].medId, dayIndex: entries[i].dayIndex, dateLabel: entries[i].dateLabel, timeMinutes: entries[i].timeMinutes, timeLabel: entries[i].timeLabel, drugName: entries[i].drugName, dosage: entries[i].dosage, status: "taken", tone: "success", notes: entries[i].notes};
+          kept[kept.length] = taken;
+        } else {
+          kept[kept.length] = entries[i];
+        }
+      } else {
+        kept[kept.length] = entries[i];
+      }
+      i = i + 1;
+    }
+    let today: TodayView = computeToday(kept, state.currentDayIndex, state.currentTimeMinutes);
+    let schedule: ScheduleView = {entries: kept, todayIndex: state.schedule.todayIndex, todayLabel: state.schedule.todayLabel, nextDoseId: nextDoseId(kept, state.currentDayIndex, state.currentTimeMinutes), nextDoseLabel: today.nextDoseLabel, timeUntilLabel: today.timeUntilLabel, completedCount: today.completedCount, totalCount: today.totalCount, progressLabel: today.progressLabel};
+    let history: HistoryView = {records: buildHistory(kept, state.history.viewMode), viewMode: state.history.viewMode, viewLabel: state.history.viewLabel};
+    let next: AppState = {phase: state.phase, review: state.review, schedule: schedule, today: today, history: history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "undoDose") {
+    let entries: ScheduleEntry[] = state.schedule.entries;
+    let kept: ScheduleEntry[] = [];
+    let i: int = 0;
+    while (i < entries.length) {
+      if (entries[i].id === action.id) {
+        if (entries[i].status === "taken" || entries[i].status === "makeup" || entries[i].status === "early") {
+          let undone: ScheduleEntry = {id: entries[i].id, medId: entries[i].medId, dayIndex: entries[i].dayIndex, dateLabel: entries[i].dateLabel, timeMinutes: entries[i].timeMinutes, timeLabel: entries[i].timeLabel, drugName: entries[i].drugName, dosage: entries[i].dosage, status: "scheduled", tone: "neutral", notes: entries[i].notes};
+          kept[kept.length] = undone;
+        } else {
+          kept[kept.length] = entries[i];
+        }
+      } else {
+        kept[kept.length] = entries[i];
+      }
+      i = i + 1;
+    }
+    let today: TodayView = computeToday(kept, state.currentDayIndex, state.currentTimeMinutes);
+    let schedule: ScheduleView = {entries: kept, todayIndex: state.schedule.todayIndex, todayLabel: state.schedule.todayLabel, nextDoseId: nextDoseId(kept, state.currentDayIndex, state.currentTimeMinutes), nextDoseLabel: today.nextDoseLabel, timeUntilLabel: today.timeUntilLabel, completedCount: today.completedCount, totalCount: today.totalCount, progressLabel: today.progressLabel};
+    let history: HistoryView = {records: buildHistory(kept, state.history.viewMode), viewMode: state.history.viewMode, viewLabel: state.history.viewLabel};
+    let next: AppState = {phase: state.phase, review: state.review, schedule: schedule, today: today, history: history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "deleteHistoryRecord") {
+    let records: HistoryRecord[] = state.history.records;
+    let kept: HistoryRecord[] = [];
+    let i: int = 0;
+    while (i < records.length) {
+      if (records[i].id !== action.id) {
+        kept[kept.length] = records[i];
+      }
+      i = i + 1;
+    }
+    let history: HistoryView = {records: kept, viewMode: state.history.viewMode, viewLabel: state.history.viewLabel};
+    let next: AppState = {phase: state.phase, review: state.review, schedule: state.schedule, today: state.today, history: history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "clearHistory") {
+    let empty: HistoryRecord[] = [];
+    let history: HistoryView = {records: empty, viewMode: state.history.viewMode, viewLabel: state.history.viewLabel};
+    let next: AppState = {phase: state.phase, review: state.review, schedule: state.schedule, today: state.today, history: history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "switchView") {
+    let viewMode: string = "day";
+    let viewLabel: string = "Day";
+    if (action.id === 1) {
+      viewMode = "week";
+      viewLabel = "Week";
+    }
+    let history: HistoryView = {records: buildHistory(state.schedule.entries, viewMode), viewMode: viewMode, viewLabel: viewLabel};
+    let next: AppState = {phase: state.phase, review: state.review, schedule: state.schedule, today: state.today, history: history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "navigateToday") {
+    let next: AppState = {phase: "today", review: state.review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "navigatePlan") {
+    let next: AppState = {phase: "plan", review: state.review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "navigateHistory") {
+    let next: AppState = {phase: "history", review: state.review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  if (action.command === "backToReview") {
+    let next: AppState = {phase: "review", review: state.review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+    return next;
+  }
+  return state;
+}
+
+// @ui-update
+export function onConfirmPlan(state: AppState, action: ConfirmPlanAction): AppState {
+  let meds: Medication[] = state.review.medications;
+  let entries: ScheduleEntry[] = buildSchedule(meds, state.currentDayIndex, state.currentDateLabel);
+  let today: TodayView = computeToday(entries, state.currentDayIndex, state.currentTimeMinutes);
+  let historyRecords: HistoryRecord[] = buildHistory(entries, state.history.viewMode);
+  let nextId: int = nextDoseId(entries, state.currentDayIndex, state.currentTimeMinutes);
+  let nextLabel: string = "";
+  let timeUntil: string = "";
+  let completed: int = 0;
+  let total: int = 0;
+  let progress: string = "";
+  let statusMsg: string = "Plan confirmed. Schedule built for seven days.";
+  let statusTone: string = "success";
+  let i: int = 0;
+  while (i < entries.length) {
+    if (entries[i].dayIndex === state.currentDayIndex) {
+      total = total + 1;
+      if (entries[i].status === "taken") {
+        completed = completed + 1;
+      }
+    }
+    i = i + 1;
+  }
+  if (nextId >= 0) {
+    i = 0;
+    while (i < entries.length) {
+      if (entries[i].id === nextId) {
+        nextLabel = entries[i].drugName + " " + entries[i].dosage + " at " + entries[i].timeLabel;
+        let diff: int = entries[i].timeMinutes - state.currentTimeMinutes;
+        if (diff < 0) {
+          diff = 0;
+        }
+        let hours: int = diff / 60;
+        let mins: int = diff - (hours * 60);
+        if (hours > 0) {
+          timeUntil = platformIntText(hours) + "h " + platformIntText(mins) + "m";
+        } else {
+          timeUntil = platformIntText(mins) + "m";
+        }
+      }
+      i = i + 1;
+    }
+  } else {
+    nextLabel = "All doses complete";
+    timeUntil = "";
+  }
+  if (total > 0) {
+    progress = platformIntText(completed) + "/" + platformIntText(total);
+  } else {
+    progress = "0/0";
+  }
+  let todayView: TodayView = {dateLabel: state.currentDateLabel, nextDoseLabel: nextLabel, timeUntilLabel: timeUntil, completedCount: completed, totalCount: total, progressLabel: progress, statusMessage: statusMsg, statusTone: statusTone};
+  let scheduleView: ScheduleView = {entries: entries, todayIndex: state.currentDayIndex, todayLabel: state.currentDateLabel, nextDoseId: nextId, nextDoseLabel: nextLabel, timeUntilLabel: timeUntil, completedCount: completed, totalCount: total, progressLabel: progress};
+  let historyView: HistoryView = {records: historyRecords, viewMode: state.history.viewMode, viewLabel: state.history.viewLabel};
+  let planView: PlanView = {medications: meds};
+  let reviewView: RecognitionReview = {medications: meds, draft: state.review.draft, editingId: state.review.editingId, confirmEnabled: state.review.confirmEnabled};
+  let result: AppState = {phase: "today", review: reviewView, schedule: scheduleView, today: todayView, history: historyView, plan: planView, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote};
+  return result;
+}
+
+// @ui-update
+export function onTaken(state: AppState, action: TakenAction): AppState {
+  let entryId: int = action.entryId;
+  let entries: ScheduleEntry[] = state.schedule.entries;
+  let found: int = -1;
+  let i: int = 0;
+  while (i < entries.length) {
+    if (entries[i].id === entryId) {
+      found = i;
+    }
+    i = i + 1;
+  }
+  if (found === -1) {
+    return state;
+  }
+  let current: ScheduleEntry = entries[found];
+  let newStatus: string = "";
+  let newTone: string = "";
+  if (current.status === "taken") {
+    return state;
+  }
+  if (current.status === "missed") {
+    newStatus = "makeup";
+    newTone = "warning";
+  } else if (current.status === "late") {
+    newStatus = "makeup";
+    newTone = "warning";
+  } else if (current.status === "due") {
+    newStatus = "taken";
+    newTone = "success";
+  } else if (current.status === "scheduled") {
+    if (current.timeMinutes <= state.currentTimeMinutes) {
+      newStatus = "taken";
+      newTone = "success";
+    } else {
+      newStatus = "taken";
+      newTone = "success";
+    }
+  } else {
+    newStatus = "taken";
+    newTone = "success";
+  }
+  let newEntries: ScheduleEntry[] = [];
+  i = 0;
+  while (i < entries.length) {
+    let e: ScheduleEntry = entries[i];
+    if (e.id === entryId) {
+      let updated: ScheduleEntry = { id: e.id, medId: e.medId, dayIndex: e.dayIndex, dateLabel: e.dateLabel, timeMinutes: e.timeMinutes, timeLabel: e.timeLabel, drugName: e.drugName, dosage: e.dosage, status: newStatus, tone: newTone, notes: e.notes };
+      newEntries[newEntries.length] = updated;
+    } else {
+      newEntries[newEntries.length] = e;
+    }
+    i = i + 1;
+  }
+  let newSchedule: ScheduleView = { entries: newEntries, todayIndex: state.schedule.todayIndex, todayLabel: state.schedule.todayLabel, nextDoseId: state.schedule.nextDoseId, nextDoseLabel: state.schedule.nextDoseLabel, timeUntilLabel: state.schedule.timeUntilLabel, completedCount: state.schedule.completedCount, totalCount: state.schedule.totalCount, progressLabel: state.schedule.progressLabel };
+  let newToday: TodayView = computeToday(newEntries, state.currentDayIndex, state.currentTimeMinutes);
+  let newHistory: HistoryView = { records: buildHistory(newEntries, state.history.viewMode), viewMode: state.history.viewMode, viewLabel: state.history.viewLabel };
+  let nextDose: int = nextDoseId(newEntries, state.currentDayIndex, state.currentTimeMinutes);
+  let nextLabel: string = "";
+  let timeUntil: string = "";
+  i = 0;
+  while (i < newEntries.length) {
+    if (newEntries[i].id === nextDose) {
+      nextLabel = newEntries[i].drugName + " " + newEntries[i].dosage + " at " + newEntries[i].timeLabel;
+      let diff: int = newEntries[i].timeMinutes - state.currentTimeMinutes;
+      if (diff < 0) {
+        diff = 0;
+      }
+      let hours: int = diff / 60;
+      let mins: int = diff - (hours * 60);
+      if (hours > 0) {
+        timeUntil = platformIntText(hours) + "h " + platformIntText(mins) + "m";
+      } else {
+        timeUntil = platformIntText(mins) + "m";
+      }
+    }
+    i = i + 1;
+  }
+  if (nextDose === 0) {
+    nextLabel = "All doses complete";
+    timeUntil = "";
+  }
+  let completed: int = countCompleted(newEntries, state.currentDayIndex);
+  let total: int = 0;
+  i = 0;
+  while (i < newEntries.length) {
+    if (newEntries[i].dayIndex === state.currentDayIndex) {
+      total = total + 1;
+    }
+    i = i + 1;
+  }
+  let progress: string = "";
+  if (total > 0) {
+    let pct: int = (completed * 100) / total;
+    progress = platformIntText(completed) + "/" + platformIntText(total) + " (" + platformIntText(pct) + "%)";
+  } else {
+    progress = "0/0";
+  }
+  let statusMsg: string = "";
+  let statusTone: string = "";
+  if (newStatus === "makeup") {
+    statusMsg = "Make-up dose recorded for " + current.drugName + ".";
+    statusTone = "warning";
+  } else {
+    statusMsg = "Dose recorded as taken for " + current.drugName + ".";
+    statusTone = "success";
+  }
+  let newTodayView: TodayView = { dateLabel: state.today.dateLabel, nextDoseLabel: nextLabel, timeUntilLabel: timeUntil, completedCount: completed, totalCount: total, progressLabel: progress, statusMessage: statusMsg, statusTone: statusTone };
+  let newScheduleView: ScheduleView = { entries: newEntries, todayIndex: state.schedule.todayIndex, todayLabel: state.schedule.todayLabel, nextDoseId: nextDose, nextDoseLabel: nextLabel, timeUntilLabel: timeUntil, completedCount: completed, totalCount: total, progressLabel: progress };
+  let newState: AppState = { phase: state.phase, review: state.review, schedule: newScheduleView, today: newTodayView, history: newHistory, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  return newState;
+}
+
+// @ui-update
+export function onUndo(state: AppState, action: UndoAction): AppState {
+  let entryId: int = action.entryId;
+  let entries: ScheduleEntry[] = state.schedule.entries;
+  let found: boolean = false;
+  let idx: int = 0;
+  while (idx < entries.length) {
+      if (entries[idx].id === entryId) {
+          found = true;
+      }
+      idx = idx + 1;
+  }
+  if (!found) {
+      return state;
+  }
+  let newEntries: ScheduleEntry[] = [];
+  let i: int = 0;
+  while (i < entries.length) {
+      let e: ScheduleEntry = entries[i];
+      if (e.id === entryId) {
+          let updated: ScheduleEntry = { id: e.id, medId: e.medId, dayIndex: e.dayIndex, dateLabel: e.dateLabel, timeMinutes: e.timeMinutes, timeLabel: e.timeLabel, drugName: e.drugName, dosage: e.dosage, status: "scheduled", tone: "neutral", notes: "" };
+          newEntries[newEntries.length] = updated;
+      } else {
+          newEntries[newEntries.length] = e;
+      }
+      i = i + 1;
+  }
+  let newSchedule: ScheduleView = { entries: newEntries, todayIndex: state.schedule.todayIndex, todayLabel: state.schedule.todayLabel, nextDoseId: state.schedule.nextDoseId, nextDoseLabel: state.schedule.nextDoseLabel, timeUntilLabel: state.schedule.timeUntilLabel, completedCount: state.schedule.completedCount, totalCount: state.schedule.totalCount, progressLabel: state.schedule.progressLabel };
+  let newToday: TodayView = computeToday(newEntries, state.currentDayIndex, state.currentTimeMinutes);
+  let newHistory: HistoryView = { records: buildHistory(newEntries, state.history.viewMode), viewMode: state.history.viewMode, viewLabel: state.history.viewLabel };
+  let newPlan: PlanView = { medications: state.plan.medications };
+  let newReview: RecognitionReview = { medications: state.review.medications, draft: state.review.draft, editingId: state.review.editingId, confirmEnabled: state.review.confirmEnabled };
+  let next: AppState = { phase: state.phase, review: newReview, schedule: newSchedule, today: newToday, history: newHistory, plan: newPlan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  return next;
+}
+
+// @ui-update
+export function onDeleteHistory(state: AppState, action: DeleteHistoryAction): AppState {
+  let records: HistoryRecord[] = [];
+  for (let i: int = 0; i < state.history.records.length; i = i + 1) {
+    let rec: HistoryRecord = state.history.records[i];
+    if (rec.id !== action.recordId) {
+      records[records.length] = rec;
+    }
+  }
+  let history: HistoryView = { records: records, viewMode: state.history.viewMode, viewLabel: state.history.viewLabel };
+  let next: AppState = { phase: state.phase, review: state.review, schedule: state.schedule, today: state.today, history: history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  return next;
+}
+
+// @ui-update
+export function onClearHistory(state: AppState, action: ClearHistoryAction): AppState {
+  let records: HistoryRecord[] = [];
+  let viewLabel: string = "History cleared";
+  let nextHistory: HistoryView = { records: records, viewMode: state.history.viewMode, viewLabel: viewLabel };
+  let next: AppState = { phase: state.phase, review: state.review, schedule: state.schedule, today: state.today, history: nextHistory, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+  return next;
+}
+
+// @ui-update
+export function onSwitchView(state: AppState, action: SwitchViewAction): AppState {
+  let phase: string = state.phase;
+    if (action.mode === "today") {
+      phase = "today";
+    } else if (action.mode === "plan") {
+      phase = "plan";
+    } else if (action.mode === "history") {
+      phase = "history";
+    } else if (action.mode === "review") {
+      phase = "review";
+    }
+    let next: AppState = { phase: phase, review: state.review, schedule: state.schedule, today: state.today, history: state.history, plan: state.plan, currentDateLabel: state.currentDateLabel, currentTimeMinutes: state.currentTimeMinutes, currentDayIndex: state.currentDayIndex, sourcePhotoNote: state.sourcePhotoNote };
+    return next;
+}

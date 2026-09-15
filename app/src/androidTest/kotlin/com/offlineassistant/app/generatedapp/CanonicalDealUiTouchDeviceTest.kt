@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -217,6 +218,52 @@ class CanonicalDealUiTouchDeviceTest {
         assertEquals(listOf(1), tapped)
     }
 
+    @Test
+    fun emptyConditionalBranchesInsideForEachDoNotCreateLayoutGaps() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = """
+            export class Entry { id: int = 0; visible: boolean = false; }
+            export class AppState { entries: Entry[] = []; }
+            export function initialState(): AppState {
+              let entries: Entry[] = [];
+              entries[entries.length] = { id: 1, visible: false };
+              entries[entries.length] = { id: 2, visible: false };
+              return { entries: entries };
+            }
+        """.trimIndent()
+        val ui = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+              ui.Root(spacing: ui.spaceSm) {
+                ui.Text(value: "Before")
+                ForEach(state.entries, item: app.Entry, key: item.id) {
+                  When(item.visible) { ui.Text(value: "Visible") }
+                }
+                ui.Text(value: "After")
+              }
+            }
+        """.trimIndent()
+        val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source))
+        val runtime = toolchain.createRuntime(deal)
+        var density = 1f
+
+        composeRule.setContent {
+            density = LocalDensity.current.density
+            MaterialTheme {
+                CanonicalDealUiRenderer(program, runtime.snapshot(), onAction = {})
+            }
+        }
+        composeRule.waitForIdle()
+
+        val before = composeRule.onNodeWithText("Before").fetchSemanticsNode().boundsInRoot
+        val after = composeRule.onNodeWithText("After").fetchSemanticsNode().boundsInRoot
+        val gapDp = (after.top - before.bottom) / density
+        assertTrue("Empty branches added an unexpected ${gapDp}dp gap", gapDp < 24f)
+    }
+
     private companion object {
         const val DEAL = """
             // generated-capability: pointer
@@ -255,7 +302,9 @@ class CanonicalDealUiTouchDeviceTest {
                 onPointer: action app.PointerAction { x: payload.x, y: payload.y, phase: payload.phase },
                 accessibilityLabel: "Test pointer"
               ) {
-                ui.Canvas(width: 400, height: 400, accessibilityLabel: "Test canvas") {}
+                ui.Canvas(width: 400, height: 400, accessibilityLabel: "Test canvas") {
+                  ui.Rectangle(x: 0, y: 0, width: 400, height: 400, color: "#ffffff")
+                }
               }
             }
         """

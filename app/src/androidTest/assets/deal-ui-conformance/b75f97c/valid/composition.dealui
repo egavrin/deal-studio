@@ -1,0 +1,33 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+
+view ItemRow(item: app.Item): View {
+  ui.ListItem(
+    title: item.title,
+    onClick: action app.SelectItem { id: item.id },
+    accessibilityLabel: item.title
+  )
+}
+
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+      ui.Text(value: state.title, style: ui.textTitle)
+      ui.TextField(
+        value: state.query,
+        label: "Query",
+        onChange: action app.SetQuery { value: payload },
+        accessibilityLabel: "Query"
+      )
+      When(state.showQuery) {
+        ui.Text(value: state.query)
+      } Else {
+        ui.Text(value: "No query")
+      }
+      ForEach(state.items, item: app.Item, key: item.id) {
+        When(item.visible) { ItemRow(item: item) }
+      }
+    }
+  }
+}

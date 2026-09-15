@@ -28,6 +28,8 @@ class GeneratedAppLibraryTest {
         assertFalse(metadata.contains("checkedUiIr"))
         assertFalse(metadata.contains("GraphLog"))
         assertFalse(metadata.contains(bundle.dealSource))
+        assertTrue(metadata.contains("generationModelCalls"))
+        assertTrue(metadata.contains("compilerRepairCalls"))
 
         val updated = library.update(
             saved.id,
@@ -39,6 +41,26 @@ class GeneratedAppLibraryTest {
 
         library.delete(saved.id)
         assertTrue(library.loadRecords().isEmpty())
+    }
+
+    @Test
+    fun `embedded UI revision persists one authored DEAL source only`() {
+        val directory = Files.createTempDirectory("embedded-generated-app-library").toFile()
+        val library = CanonicalGeneratedAppLibrary(directory, useDirectDirectory = true)
+        val embedded = bundle().copy(
+            dealSource = "export class State { count: int = 0; }\n// @ui-root\nexport view App(): View {}",
+            dealUiSource = "",
+            compilerProtocolVersion = "embedded-deal-ui-v1"
+        )
+
+        val saved = library.save(embedded, "Counter")
+        val appDirectory = directory.resolve("canonical-v2/${saved.id}")
+        val restored = CanonicalGeneratedAppLibrary(directory, useDirectDirectory = true).loadRecords().single()
+
+        assertEquals(setOf("app.deal", "metadata.json"), appDirectory.list()!!.toSet())
+        assertTrue(restored.embeddedUi)
+        assertEquals(embedded.dealSource, restored.dealSource)
+        assertEquals("", restored.dealUiSource)
     }
 
     @Test

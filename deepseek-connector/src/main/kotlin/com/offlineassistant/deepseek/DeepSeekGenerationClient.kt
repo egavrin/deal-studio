@@ -1057,7 +1057,7 @@ class DeepSeekGenerationClient(
         const val MAX_REQUEST_BYTES = 256 * 1024
         const val MAX_RESPONSE_CHARS = 64 * 1024
         const val MAX_ERROR_DETAIL_CHARS = 1_024
-        const val MAX_OUTPUT_TOKENS = 8_192
+        const val MAX_OUTPUT_TOKENS = 16_384
         const val MAX_TOOL_OUTPUT_TOKENS = 32_768
         const val MAX_FUNCTION_TOOLS = 128
         const val MAX_TOOL_PROTOCOL_ATTEMPTS = 2

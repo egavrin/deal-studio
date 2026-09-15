@@ -33,6 +33,8 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Android reflection boundary for the pinned production Deal and Deal UI frontends. */
 public final class CanonicalDealToolchainBridge {
@@ -103,7 +105,7 @@ public final class CanonicalDealToolchainBridge {
                 PACK_SPECIFIER,
                 instruction,
                 maxRounds,
-                maxSemanticRepairs).useConstructionApi();
+                maxSemanticRepairs).useConstructionApi().withRepairProtocol("repair-workspace-v2");
     }
 
     public static Object createGenerationSession(
@@ -116,11 +118,16 @@ public final class CanonicalDealToolchainBridge {
                 PACK_SPECIFIER,
                 instruction,
                 maxRounds,
-                maxSemanticRepairs).useConstructionApi();
+                maxSemanticRepairs).useConstructionApi().withRepairProtocol("repair-workspace-v2");
     }
 
     public static String refinementNextRequest(Object session) {
         return ((CanonicalRefinementSession) session).nextRequestJson();
+    }
+
+    /** Explicit capability negotiation; unsupported versions fail rather than silently falling back. */
+    public static Object configureRepairProtocol(Object session, String version) {
+        return ((CanonicalRefinementSession) session).withRepairProtocol(version);
     }
 
     public static Object createGenerationSessionWithReasoning(
@@ -183,19 +190,37 @@ public final class CanonicalDealToolchainBridge {
         }
     }
 
+    /**
+     * Compiles the one-file Studio profile. The embedded view is authored after the DEAL module
+     * under {@code // @ui-root}; the bridge gives the existing typed Deal UI checker a virtual
+     * module, rather than persisting or accepting a second application source file.
+     */
+    public static String compileEmbeddedPortable(String source, String packSource) {
+        EmbeddedSource embedded = embedded(source);
+        if (embedded.viewStartLine() == 0) {
+            throw new IllegalArgumentException("app.deal must end with exactly one // @ui-root embedded UI declaration");
+        }
+        try {
+            return CanonicalDealUiJson.encode(checkEmbedded(embedded, packSource, false));
+        } catch (UiDiagnostic diagnostic) {
+            throw new IllegalArgumentException(formatEmbeddedDiagnostic(diagnostic, embedded), diagnostic);
+        }
+    }
+
     /** Validates generated application logic without requiring a Deal UI document. */
     public static String validateDealOnly(String dealSource) {
         requireText(dealSource, "app.deal");
-        validateDeal(dealSource);
+        validateDeal(embedded(dealSource).dealSource());
         return "ok";
     }
 
     /** Validates DEAL plus the framework contracts that apply before a Deal UI exists. */
     public static String validateDealForUi(String dealSource) {
         requireText(dealSource, "app.deal");
-        validateDeal(dealSource);
+        String logic = embedded(dealSource).dealSource();
+        validateDeal(logic);
         try {
-            new UiChecker().parseDeal(DEAL_FILE, sourceWithPrelude(dealSource));
+            new UiChecker().parseDeal(DEAL_FILE, sourceWithPrelude(logic));
         } catch (UiDiagnostic diagnostic) {
             throw new IllegalArgumentException(diagnostic.format(), diagnostic);
         }
@@ -206,7 +231,7 @@ public final class CanonicalDealToolchainBridge {
     public static String extractAppInterface(String dealSource) {
         requireText(dealSource, "app.deal");
         validateDealForUi(dealSource);
-        var snapshot = CanonicalCompiler.extractAppInterface(dealSource);
+        var snapshot = CanonicalCompiler.extractAppInterface(embedded(dealSource).dealSource());
         if (snapshot == null) throw new IllegalArgumentException("app.deal has no AppInterface");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("version", "app-interface-v1");
@@ -220,7 +245,7 @@ public final class CanonicalDealToolchainBridge {
     public static Object createRuntime(String dealSource) {
         requireText(dealSource, "app.deal");
         validateDealForUi(dealSource);
-        return new CanonicalDealRuntime(dealSource);
+        return new CanonicalDealRuntime(embedded(dealSource).dealSource());
     }
 
     public static String runtimeSnapshot(Object runtime) {
@@ -300,6 +325,57 @@ public final class CanonicalDealToolchainBridge {
                 Map.of(PACK_SPECIFIER, pack),
                 allowUnreachableUpdates);
     }
+
+    private static UiModel.CheckedProgram checkEmbedded(EmbeddedSource embedded, String packSource, boolean allowUnreachableUpdates) {
+        requireText(packSource, "platform-ui.dealui-pack");
+        validateDeal(embedded.dealSource());
+        UiModel.ViewModule views = UiParser.parseViews(UI_FILE, embedded.virtualUiSource());
+        UiModel.PackModule pack = UiParser.parsePack(PACK_FILE, packSource);
+        UiChecker checker = new UiChecker();
+        UiModel.DealModule deal = checker.parseDeal(DEAL_FILE, sourceWithPrelude(embedded.dealSource()));
+        return checker.check(
+                UI_FILE,
+                views,
+                DEAL_FILE,
+                deal,
+                Map.of(PACK_SPECIFIER, pack),
+                allowUnreachableUpdates);
+    }
+
+    private static EmbeddedSource embedded(String source) {
+        String marker = "// @ui-root";
+        int start = source.indexOf(marker);
+        if (start < 0) return new EmbeddedSource(source, "", 0);
+        if (source.indexOf(marker, start + marker.length()) >= 0) {
+            throw new IllegalArgumentException("app.deal may contain exactly one // @ui-root embedded view marker");
+        }
+        String deal = source.substring(0, start).stripTrailing() + "\n";
+        String view = source.substring(start).trim();
+        if (!view.startsWith(marker)) throw new IllegalArgumentException("Embedded UI must start at // @ui-root");
+        String virtualUi = "import * as app from \"./app.deal\";\n"
+                + "import * as ui from \"" + PACK_SPECIFIER + "\";\n\n"
+                + view + "\n";
+        int viewStartLine = 1;
+        for (int index = 0; index < start; index++) if (source.charAt(index) == '\n') viewStartLine++;
+        return new EmbeddedSource(deal, virtualUi, viewStartLine);
+    }
+
+    private static String formatEmbeddedDiagnostic(UiDiagnostic diagnostic, EmbeddedSource embedded) {
+        String formatted = diagnostic.format();
+        if (embedded.viewStartLine() == 0) return formatted;
+        Pattern virtualLine = Pattern.compile(Pattern.quote(UI_FILE.toString()) + ":(\\d+):");
+        Matcher matcher = virtualLine.matcher(formatted);
+        StringBuffer rewritten = new StringBuffer();
+        while (matcher.find()) {
+            int virtualLineNumber = Integer.parseInt(matcher.group(1));
+            int sourceLineNumber = embedded.viewStartLine() + virtualLineNumber - 4;
+            matcher.appendReplacement(rewritten, Matcher.quoteReplacement(DEAL_FILE + ":" + sourceLineNumber + ":"));
+        }
+        matcher.appendTail(rewritten);
+        return rewritten.toString();
+    }
+
+    private record EmbeddedSource(String dealSource, String virtualUiSource, int viewStartLine) {}
 
     private static void validateDeal(String source) {
         String compilerSource = compilerSource(source);
