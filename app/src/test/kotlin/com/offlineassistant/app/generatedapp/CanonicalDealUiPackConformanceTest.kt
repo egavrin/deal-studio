@@ -169,6 +169,12 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(CanonicalDealUiPack.MANIFEST_SHA256.isNotBlank())
         assertTrue(CanonicalDealUiPack.BUNDLE_SHA256.isNotBlank())
         assertFalse(CanonicalDealUiPack.initialGenerationContract.contains("TopBar(TopBarProps)"))
+        listOf("Timeline", "KeyValueGroup", "SegmentedControl").forEach {
+            assertFalse(CanonicalDealUiPack.initialGenerationContract.contains("$it("))
+        }
+        listOf("Header", "SectionHeader", "ListGroup", "InsetBanner", "MetricGroup", "ActionBar").forEach {
+            assertTrue(CanonicalDealUiPack.initialGenerationContract.contains("$it("))
+        }
         listOf(
             "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem",
             "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem"
@@ -182,6 +188,8 @@ class CanonicalDealUiPackConformanceTest {
         val types = manifest.getValue("types").jsonObject
         val tokens = manifest.getValue("tokens").jsonObject
         val props = manifest.getValue("props").jsonObject
+        val initialComponents = manifest.getValue("initialComponents").jsonArray
+            .map { it.jsonPrimitive.content }.toSet()
         val declaredComponents = Regex("export component (\\w+)\\(props: (\\w+)\\)")
             .findAll(CanonicalDealUiPack.source).associate { it.groupValues[1] to it.groupValues[2] }
         val declaredTypes = Regex("export class (\\w+) \\{").findAll(CanonicalDealUiPack.source).map { it.groupValues[1] }.toSet()
@@ -200,7 +208,12 @@ class CanonicalDealUiPackConformanceTest {
             assertTrue(entry.keys.containsAll(requiredFields))
             assertTrue(entry.keys.all { it in requiredFields || it == "microExample" })
             assertTrue(entry.getValue("visualWeight").jsonPrimitive.content in setOf("low", "medium", "high"))
+            listOf("preferWhen", "avoidWhen", "constraints").forEach { field ->
+                assertTrue("$field is empty", entry.getValue(field).jsonArray.isNotEmpty())
+            }
         }
+        assertEquals(GeneratedCanonicalDealUiPackV15.MOBILE_CORE_COMPONENTS, initialComponents)
+        assertTrue(setOf("TopBar", "Timeline", "KeyValueGroup", "SegmentedControl").none(initialComponents::contains))
         listOf(types, tokens, props).forEach { catalog ->
             catalog.forEach { (_, raw) ->
                 assertEquals(setOf("purpose"), raw.jsonObject.keys)

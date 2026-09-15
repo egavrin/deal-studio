@@ -77,8 +77,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 
     private val mobileCoreComponents = linkedSetOf(
         "AppTheme", "Root", "Column", "Row", "Stack", "Scroll", "Grid", "Card", "Section", "Hero",
-        "MetricGroup", "ActionBar", "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline",
-        "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
+        "MetricGroup", "ActionBar", "Header", "SectionHeader", "InsetBanner", "ListGroup", "GridItem",
         "Text", "IntText", "NumberText", "Icon", "Button", "IconButton", "TextField", "IntField",
         "NumberField", "TimeField", "Toggle", "Checkbox", "Choice", "ChoiceItem", "Slider", "ProgressBar",
         "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Divider", "Badge", "Stat",
@@ -357,6 +356,20 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 }
                 require(globalRules.isNotEmpty() && globalRules.all(String::isNotBlank)) {
                     "Agent manifest globalRules must be non-empty strings"
+                }
+                val manifestInitialComponents = (manifest["initialComponents"] as? List<*>)
+                    ?.map(Any?::toString).orEmpty()
+                require(manifestInitialComponents.size == manifestInitialComponents.toSet().size) {
+                    "Agent manifest initialComponents contains duplicates"
+                }
+                require(manifestInitialComponents.toSet() == mobileCoreComponents) {
+                    "Agent manifest initialComponents differs from the checked mobile core"
+                }
+                require(
+                    setOf("TopBar", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "SegmentedControl", "SegmentItem")
+                        .none(manifestInitialComponents::contains)
+                ) {
+                    "Specialized components must enter through compiler-owned contract expansion"
                 }
             }
             val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys

@@ -114,6 +114,9 @@ internal class CanonicalDealToolchain(
         val bridge = bridgeClass()
         val semanticMethod = "createGenerationSessionWithReasoningAndAgentSemantics"
         val supportsSemantics = bridge.methods.any { it.name == semanticMethod }
+        require(supportsSemantics) {
+            "Pinned toolchain lacks the checked compiler-construction agent surface"
+        }
         val parameterTypes = buildList<Class<*>> {
             add(String::class.java)
             if (supportsSemantics) add(String::class.java)
@@ -133,7 +136,7 @@ internal class CanonicalDealToolchain(
             add(uiReasoningEffort)
         }.toTypedArray()
         val session = invokeBridge(
-            if (supportsSemantics) semanticMethod else "createGenerationSessionWithReasoning",
+            semanticMethod,
             parameterTypes,
             arguments
         )
@@ -297,10 +300,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "dda788fe89eefe7d2ec0ac95bdb86c40cd0c6b9622e4886d5a15d965e13a1953"
+        const val ARTIFACT_SHA256 = "8b9df6bbbc7bb2751db2a6b62965a5a110bb4666dc78e16b4740755489e2a45a"
         const val DEAL_REVISION = "fde98e7bd6e33cc0c41c1a321ab0bffb7b621db2"
-        const val DEAL_UI_REVISION = "d792fa64ead70c00fac08c709c28d315dc10a13e"
-        const val STREAMING_COMPILER_REVISION = "0ab0890b263be7d5e806d88593cb57877b8cb10a"
+        const val DEAL_UI_REVISION = "80a710097801b7bd7603e088cb46fb6c460e5cf0"
+        const val STREAMING_COMPILER_REVISION = "450d4de16cfe2ebef3eedbbc0ba130ee786d3d53"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
