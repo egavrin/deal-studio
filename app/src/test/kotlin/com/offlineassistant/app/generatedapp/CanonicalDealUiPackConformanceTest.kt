@@ -10,9 +10,56 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class CanonicalDealUiPackConformanceTest {
+    @Test
+    fun `current and prior v15 toolchain provenance are exact and fail closed`() {
+        fun provenance(
+            dealUi: String,
+            streaming: String,
+            dex: String,
+            pack: String = CanonicalDealUiPack.SHA256
+        ) = CanonicalToolchainProvenance(
+            dealRevision = CanonicalDealToolchain.DEAL_REVISION,
+            dealUiRevision = dealUi,
+            streamingCompilerRevision = streaming,
+            toolchainSha256 = dex,
+            componentPackVersion = CanonicalDealUiPack.VERSION,
+            componentPackSha256 = pack
+        )
+        val current = provenance(
+            CanonicalDealToolchain.DEAL_UI_REVISION,
+            CanonicalDealToolchain.STREAMING_COMPILER_REVISION,
+            CanonicalDealToolchain.ARTIFACT_SHA256
+        )
+        val prior = provenance(
+            CanonicalDealToolchain.PRIOR_V15_DEAL_UI_REVISION,
+            CanonicalDealToolchain.PRIOR_V15_STREAMING_COMPILER_REVISION,
+            CanonicalDealToolchain.PRIOR_V15_ARTIFACT_SHA256
+        )
+        assertEquals("current-v15", CanonicalDealToolchain.restoreProfileId(current))
+        assertEquals("pr41-v15-restore", CanonicalDealToolchain.restoreProfileId(prior))
+        listOf(
+            prior.copy(streamingCompilerRevision = CanonicalDealToolchain.STREAMING_COMPILER_REVISION),
+            current.copy(toolchainSha256 = CanonicalDealToolchain.PRIOR_V15_ARTIFACT_SHA256),
+            prior.copy(componentPackSha256 = "unknown")
+        ).forEach { mixed ->
+            runCatching { CanonicalDealToolchain.restoreProfileId(mixed) }
+                .onSuccess { fail("Mixed provenance selected $it") }
+        }
+        runCatching { CanonicalDealToolchain.requireProductionWriteProfile("pr41-v15-restore") }
+            .onSuccess { fail("Compatibility profile admitted production generation") }
+
+        val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
+        val restoreDex = File(root, "app/src/debug/assets/${CanonicalDealToolchain.PRIOR_V15_ASSET_NAME}")
+        assertEquals(
+            CanonicalDealToolchain.PRIOR_V15_ARTIFACT_SHA256,
+            MessageDigest.getInstance("SHA-256").digest(restoreDex.readBytes()).joinToString("") { "%02x".format(it) }
+        )
+    }
+
     @Test
     fun `tracked v15 pack is the exact runtime and prompt source`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
@@ -169,6 +216,12 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(CanonicalDealUiPack.MANIFEST_SHA256.isNotBlank())
         assertTrue(CanonicalDealUiPack.BUNDLE_SHA256.isNotBlank())
         assertFalse(CanonicalDealUiPack.initialGenerationContract.contains("TopBar(TopBarProps)"))
+        listOf("Timeline", "KeyValueGroup", "SegmentedControl").forEach {
+            assertFalse(CanonicalDealUiPack.initialGenerationContract.contains("$it("))
+        }
+        listOf("Header", "SectionHeader", "ListGroup", "InsetBanner", "MetricGroup", "ActionBar").forEach {
+            assertTrue(CanonicalDealUiPack.initialGenerationContract.contains("$it("))
+        }
         listOf(
             "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem",
             "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem"
@@ -182,6 +235,8 @@ class CanonicalDealUiPackConformanceTest {
         val types = manifest.getValue("types").jsonObject
         val tokens = manifest.getValue("tokens").jsonObject
         val props = manifest.getValue("props").jsonObject
+        val initialComponents = manifest.getValue("initialComponents").jsonArray
+            .map { it.jsonPrimitive.content }.toSet()
         val declaredComponents = Regex("export component (\\w+)\\(props: (\\w+)\\)")
             .findAll(CanonicalDealUiPack.source).associate { it.groupValues[1] to it.groupValues[2] }
         val declaredTypes = Regex("export class (\\w+) \\{").findAll(CanonicalDealUiPack.source).map { it.groupValues[1] }.toSet()
@@ -200,7 +255,12 @@ class CanonicalDealUiPackConformanceTest {
             assertTrue(entry.keys.containsAll(requiredFields))
             assertTrue(entry.keys.all { it in requiredFields || it == "microExample" })
             assertTrue(entry.getValue("visualWeight").jsonPrimitive.content in setOf("low", "medium", "high"))
+            listOf("preferWhen", "avoidWhen", "constraints").forEach { field ->
+                assertTrue("$field is empty", entry.getValue(field).jsonArray.isNotEmpty())
+            }
         }
+        assertEquals(GeneratedCanonicalDealUiPackV15.MOBILE_CORE_COMPONENTS, initialComponents)
+        assertTrue(setOf("TopBar", "Timeline", "KeyValueGroup", "SegmentedControl").none(initialComponents::contains))
         listOf(types, tokens, props).forEach { catalog ->
             catalog.forEach { (_, raw) ->
                 assertEquals(setOf("purpose"), raw.jsonObject.keys)

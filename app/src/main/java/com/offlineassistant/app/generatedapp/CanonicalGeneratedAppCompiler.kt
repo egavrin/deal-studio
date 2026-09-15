@@ -5,14 +5,21 @@ import com.offlineassistant.deepseek.DeepSeekGenerationClient
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 import com.offlineassistant.deepseek.DeepSeekGenerationRequest
 import com.offlineassistant.deepseek.DeepSeekGenerationResult
+import com.offlineassistant.deepseek.DeepSeekToolRequest
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -66,7 +73,15 @@ internal data class CanonicalGeneratedAppBundle(
     /** Ephemeral diagnostics for this accepted run; deliberately not part of persisted canonical source. */
     val patchTelemetry: List<CanonicalPatchTelemetry> = emptyList(),
     val attemptTelemetry: List<CanonicalGenerationAttemptTelemetry> = emptyList(),
-    val usedCapabilities: Set<String> = emptySet()
+    val usedCapabilities: Set<String> = emptySet(),
+    val componentPackDigest: String = "",
+    val agentManifestDigest: String = "",
+    val compilerBundleDigest: String = "",
+    val surfaceDigests: List<String> = emptyList(),
+    val diagnosticCodes: List<String> = emptyList(),
+    val selectedComponents: Set<String> = emptySet(),
+    val usedComponents: Set<String> = emptySet(),
+    val selectedTheme: String = ""
 )
 
 internal data class CanonicalPatchTelemetry(
@@ -180,7 +195,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
     context: Context,
     apiKeyProvider: () -> String?,
     cerebrasApiKeyProvider: () -> String? = { null },
-    @Suppress("UnusedPrivateProperty") private val dealReasoningEffort: String = "low",
+    private val dealReasoningEffort: String = "none",
     private val compilerToolTrace: (String) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
@@ -195,14 +210,179 @@ internal class CanonicalGeneratedAppCloudCompiler(
         dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
         onProgress: (CanonicalGenerationPhase, String) -> Unit = { _, _ -> },
         onUiPreview: (CanonicalDealUiPreview) -> Unit = {}
-    ): CanonicalGeneratedAppBundle = generateCanonicalBundle(
+    ): CanonicalGeneratedAppBundle = generateConstructionBundle(
         request = request,
         dealModel = dealModel,
+        dealUiModel = dealUiModel,
         onProgress = onProgress,
         onUiPreview = onUiPreview
     )
 
-    private suspend fun generateCanonicalBundle(
+    private suspend fun generateConstructionBundle(
+        request: String,
+        dealModel: DeepSeekGenerationModel,
+        dealUiModel: DeepSeekGenerationModel,
+        onProgress: (CanonicalGenerationPhase, String) -> Unit,
+        onUiPreview: (CanonicalDealUiPreview) -> Unit
+    ): CanonicalGeneratedAppBundle = withContext(Dispatchers.IO) {
+        require(request.isNotBlank()) { "Generated application request is empty" }
+        val wall = TimeSource.Monotonic.markNow()
+        val session = toolchain.createGenerationSession(
+            packSource = CanonicalDealUiPack.source,
+            instruction = request,
+            maxRounds = MAX_CONSTRUCTION_ROUNDS,
+            maxSemanticRepairs = MAX_CONSTRUCTION_REPAIRS,
+            dealReasoningEffort = dealReasoningEffort,
+            uiReasoningEffort = "none"
+        )
+        var protocol = session.nextRequest()
+        val metrics = RefinementMetrics()
+        val surfaceDigests = mutableListOf<String>()
+        val promptDigests = mutableListOf<String>()
+        val diagnosticCodes = linkedSetOf<String>()
+        val selectedComponents = linkedSetOf<String>()
+        var protocolVersion = ""
+        var surfaceVersion = ""
+        while (protocol.status() == "request") {
+            require(protocol["constructionProtocol"]?.jsonPrimitive?.content == "compiler-construction-v1") {
+                "Production generation requires compiler-construction-v1"
+            }
+            surfaceVersion = protocol["surfaceVersion"]?.jsonPrimitive?.content.orEmpty()
+            require(surfaceVersion.isNotBlank() && "legacy" !in surfaceVersion && "embedded" !in surfaceVersion) {
+                "Production generation requires a current compiler-owned agent surface"
+            }
+            protocolVersion = protocol["protocolVersion"]?.jsonPrimitive?.content.orEmpty()
+            protocol["surfaceDigest"]?.jsonPrimitive?.contentOrNull?.let(surfaceDigests::add)
+            protocol["instructions"]?.jsonPrimitive?.contentOrNull?.let { promptDigests += sha256(it) }
+            collectSelectedComponents(protocol, selectedComponents)
+            metrics.recordSurface(protocol)
+            val tools = protocol.functionTools()
+            require(tools.isNotEmpty()) { "Compiler returned no production generation tools" }
+            val artifact = protocol.requiredArtifact() ?: Artifact.DEAL
+            val model = if (artifact == Artifact.DEAL) dealModel else dealUiModel
+            onProgress(
+                if (artifact == Artifact.DEAL) CanonicalGenerationPhase.DEAL else CanonicalGenerationPhase.DEAL_UI,
+                if (artifact == Artifact.DEAL) "Constructing checked application behavior" else "Constructing checked interface"
+            )
+            var completed: com.offlineassistant.deepseek.DeepSeekToolGenerationResult? = null
+            var transportAttempt = 0
+            var transportFeedback = ""
+            while (completed == null && transportAttempt < MAX_CONSTRUCTION_TRANSPORT_ATTEMPTS) {
+                transportAttempt++
+                val retry = if (transportAttempt == 1) {
+                    ""
+                } else {
+                    "\nTransport correction: $transportFeedback. Call one currently supplied compiler tool with a complete valid argument object."
+                }
+                val candidate = try {
+                    dealClient.generateTools(
+                        DeepSeekToolRequest(
+                            reasoningEffort = protocol["reasoningEffort"]?.jsonPrimitive?.contentOrNull ?: "none",
+                            transportAttempts = 1,
+                            engineOwnsArgumentValidation = true,
+                            model = model,
+                            instructions = protocol.getValue("instructions").jsonPrimitive.content + retry,
+                            input = protocol.getValue("input").jsonPrimitive.content,
+                            tools = tools,
+                            maxOutputTokens = protocol["maxOutputTokens"]?.jsonPrimitive?.intOrNull ?: 16_384,
+                            temperature = 0.0
+                        )
+                    )
+                } catch (failure: IOException) {
+                    transportFeedback = failure.message.orEmpty()
+                    if (transportAttempt >= MAX_CONSTRUCTION_TRANSPORT_ATTEMPTS) throw failure
+                    continue
+                }
+                val validation = session.validateToolCalls(candidate.calls.map { it.name to it.arguments })
+                val batchError = validation["error"]?.jsonPrimitive?.contentOrNull
+                metrics.recordModelRound(artifact, candidate, compilerRound = batchError == null)
+                compilerToolTrace(metrics.roundTrace(artifact, candidate, batchError == null, transportAttempt))
+                require(validation["retryable"]?.jsonPrimitive?.booleanOrNull != false) {
+                    "${validation["code"]?.jsonPrimitive?.contentOrNull}: $batchError"
+                }
+                if (batchError == null) completed = candidate else transportFeedback = batchError
+            }
+            val result = requireNotNull(completed) {
+                "Model did not return a valid atomic compiler batch: $transportFeedback"
+            }
+            val repairsBefore = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull ?: 0
+            protocol = session.acceptToolCalls(result.calls.map { it.name to it.arguments })
+            val repairsAfter = protocol["semanticRepairs"]?.jsonPrimitive?.intOrNull
+                ?: session.result()["semanticRepairs"]?.jsonPrimitive?.intOrNull
+                ?: repairsBefore
+            if (repairsAfter > repairsBefore) {
+                metrics.recordSemanticRepair(artifact, result.latencyMs)
+                onProgress(CanonicalGenerationPhase.REPAIRING, "Repairing the compiler-rejected unit")
+            }
+            result.calls.forEach { metrics.recordTool(it.name, repairsAfter == repairsBefore) }
+            collectDiagnosticCodes(protocol, diagnosticCodes)
+        }
+        val canonical = if (protocol.status() == "complete") protocol else session.result()
+        require(canonical["accepted"]?.jsonPrimitive?.booleanOrNull == true) { canonical.failureMessage() }
+        val dealSource = canonical.getValue("deal").jsonPrimitive.content
+        val dealUiSource = canonical.getValue("dealUi").jsonPrimitive.content
+        val validationStarted = TimeSource.Monotonic.markNow()
+        val checkedUiIr = toolchain.compilePortable(dealSource, dealUiSource, CanonicalDealUiPack.source)
+        val program = CanonicalDealUiParser.parse(checkedUiIr)
+        val appInterface = toolchain.extractAppInterface(dealSource)
+        GenerationCapabilityContracts.validate(appInterface, checkedUiIr)
+        val validationMs = validationStarted.elapsedNow().inWholeMilliseconds
+        val wallMs = wall.elapsedNow().inWholeMilliseconds
+        onUiPreview(CanonicalDealUiPreview(dealSource, dealUiSource, checkedUiIr, 1))
+        CanonicalGeneratedAppBundle(
+            request = request,
+            appInterface = appInterface,
+            dealGraphLog = "",
+            dealUiGraphLog = "",
+            dealSource = dealSource,
+            dealUiSource = dealUiSource,
+            checkedUiIr = checkedUiIr,
+            dealLatencyMs = metrics.dealLatencyMs,
+            dealUiLatencyMs = metrics.dealUiLatencyMs,
+            wallLatencyMs = wallMs,
+            dealTimeToFirstPatchMs = metrics.dealTimeToFirstCallMs,
+            dealUiTimeToFirstTokenMs = metrics.dealUiTimeToFirstCallMs,
+            validationLatencyMs = validationMs,
+            repairLatencyMs = metrics.repairLatencyMs,
+            repairPasses = metrics.semanticRepairs,
+            dealGraphRounds = metrics.dealRounds,
+            dealUiGraphRounds = metrics.dealUiRounds,
+            dealAcceptedPatches = metrics.dealAcceptedTransactions,
+            dealRejectedPatches = metrics.dealRejectedTransactions,
+            dealTypedHoles = 0,
+            dealInputTokens = metrics.dealInputTokens,
+            dealCachedInputTokens = metrics.dealCachedInputTokens,
+            dealOutputTokens = metrics.dealOutputTokens,
+            dealUiRejectedPatches = metrics.dealUiRejectedTransactions,
+            dealUiInputTokens = metrics.dealUiInputTokens,
+            dealUiCachedInputTokens = metrics.dealUiCachedInputTokens,
+            dealUiOutputTokens = metrics.dealUiOutputTokens,
+            dealUiAcceptedPatches = metrics.dealUiAcceptedTransactions,
+            firstInteractivePreviewMs = wall.elapsedNow().inWholeMilliseconds,
+            dealModelId = dealModel.name,
+            dealUiModelId = dealUiModel.name,
+            promptDigest = sha256(promptDigests.joinToString("\u0000")),
+            compilerProtocolVersion = protocolVersion,
+            agentSurfaceVersion = surfaceVersion,
+            agentSurfaceBytes = metrics.agentSurfaceBytes,
+            agentSurfaceEstimatedTokens = metrics.agentSurfaceEstimatedTokens,
+            generationModelCalls = metrics.dealRounds + metrics.dealUiRounds,
+            compilerRepairCalls = metrics.semanticRepairs,
+            usedCapabilities = AppInterfaceCompiler.parse(appInterface).capabilities.toSet(),
+            componentPackDigest = CanonicalDealUiPack.SHA256,
+            agentManifestDigest = CanonicalDealUiPack.MANIFEST_SHA256,
+            compilerBundleDigest = CanonicalDealUiPack.BUNDLE_SHA256,
+            surfaceDigests = surfaceDigests.toList(),
+            diagnosticCodes = diagnosticCodes.toList(),
+            selectedComponents = selectedComponents + program.metadata.usedComponents,
+            usedComponents = program.metadata.usedComponents,
+            selectedTheme = program.themeSpec().asDealUiArguments()
+        )
+    }
+
+    /** Internal compatibility harness only. Production generation never calls this source-writing route. */
+    @Suppress("unused")
+    private suspend fun generateEmbeddedCompatibilityBundle(
         request: String,
         dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
         onProgress: (CanonicalGenerationPhase, String) -> Unit = { _, _ -> },
@@ -517,8 +697,38 @@ internal class CanonicalGeneratedAppCloudCompiler(
         dealClient.cancel()
     }
     private companion object {
+        const val MAX_CONSTRUCTION_ROUNDS = 12
+        const val MAX_CONSTRUCTION_REPAIRS = 3
+        const val MAX_CONSTRUCTION_TRANSPORT_ATTEMPTS = 3
         const val BUNDLE_MAX_TOKENS = 16_384
         const val MAX_LOCAL_PATCHES_PER_ATTEMPT = 3
+    }
+}
+
+private fun collectDiagnosticCodes(value: JsonElement, destination: MutableSet<String>) {
+    when (value) {
+        is JsonObject -> value.forEach { (key, child) ->
+            if (key == "code") {
+                child.jsonPrimitive.contentOrNull
+                    ?.takeIf { it.matches(Regex("[A-Z]{1,3}[0-9]{4}")) }
+                    ?.let(destination::add)
+            }
+            collectDiagnosticCodes(child, destination)
+        }
+
+        is JsonArray -> value.forEach { collectDiagnosticCodes(it, destination) }
+
+        else -> Unit
+    }
+}
+
+private fun collectSelectedComponents(protocol: JsonObject, destination: MutableSet<String>) {
+    val input = protocol["input"]?.jsonPrimitive?.contentOrNull ?: return
+    val context = runCatching { Json.parseToJsonElement(input).jsonObject }.getOrNull() ?: return
+    listOf("componentPack", "requestedContracts").forEach { contractName ->
+        context[contractName]?.jsonObject?.get("components")?.jsonArray?.forEach { component ->
+            component.jsonObject["name"]?.jsonPrimitive?.contentOrNull?.let(destination::add)
+        }
     }
 }
 
@@ -563,7 +773,7 @@ internal object AppInterfaceCompiler {
             "root_state":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},
             "types":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
-            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
+            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control","map.navigation","calendar.events.owned","calendar.open"]},"uniqueItems":true}
           },
           "${'$'}defs":{
             "field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},
@@ -583,7 +793,7 @@ internal object AppInterfaceCompiler {
             "root_state":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},
             "types":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
-            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
+            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control","map.navigation","calendar.events.owned","calendar.open"]},"uniqueItems":true}
           },
             "${'$'}defs":{"field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},"type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":48,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}}
         }
@@ -680,7 +890,7 @@ internal object AppInterfaceCompiler {
         "camera.capture",
         "vision.ocr",
         "health.read",
-        "focus.control"
+        "focus.control", "map.navigation", "calendar.events.owned", "calendar.open"
     )
 }
 

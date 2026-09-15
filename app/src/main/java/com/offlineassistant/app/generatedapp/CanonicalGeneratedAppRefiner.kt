@@ -385,11 +385,43 @@ internal fun JsonObject.status(): String = getValue("status").jsonPrimitive.cont
 
 internal fun JsonObject.requiredArtifact(): Artifact? = getValue("input")
     .jsonPrimitive.content
+    .leadingJsonDocument()
     .let(Json::parseToJsonElement)
     .jsonObject["requiredArtifact"]
     ?.jsonPrimitive
     ?.contentOrNull
-    ?.let { value -> Artifact.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } }
+    ?.let { value ->
+        when (value.lowercase()) {
+            "deal" -> Artifact.DEAL
+            "dealui", "deal_ui" -> Artifact.DEAL_UI
+            else -> null
+        }
+    }
+
+private fun String.leadingJsonDocument(): String {
+    val start = indexOf('{')
+    require(start >= 0) { "Compiler input does not contain a JSON context" }
+    var depth = 0
+    var quoted = false
+    var escaped = false
+    for (index in start until length) {
+        val character = this[index]
+        if (quoted) {
+            when {
+                escaped -> escaped = false
+                character == '\\' -> escaped = true
+                character == '"' -> quoted = false
+            }
+        } else {
+            when (character) {
+                '"' -> quoted = true
+                '{' -> depth++
+                '}' -> if (--depth == 0) return substring(start, index + 1)
+            }
+        }
+    }
+    error("Compiler input contains incomplete JSON context")
+}
 
 internal fun JsonObject.functionTools(): List<DeepSeekFunctionTool> = getValue("tools").jsonArray.map { element ->
     val tool = element.jsonObject

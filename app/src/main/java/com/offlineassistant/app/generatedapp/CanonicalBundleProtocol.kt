@@ -415,8 +415,9 @@ internal object CanonicalBundlePrompts {
         user event or data is pre-created; every event/action/handler chain has matching payload types and an exported
         two-parameter handler; the embedded UI contains no `+` or `?:` and behavior never joins strings with numbers;
         and the primary action, summary, content, and empty state are visually distinct.
-        Do not declare keyboard, storage.private, notifications, camera.capture, vision.ocr, health.read or
-        focus.control merely because the product has forms, reminders, reports, history or a health-related topic.
+        Do not declare keyboard, storage.private, notifications, camera.capture, vision.ocr, health.read,
+        focus.control, map.navigation, calendar.events.owned, or calendar.open merely because the product has forms,
+        reminders, reports, history, locations, schedules, or a health-related topic.
         Declare such a host capability only when the user explicitly asks for that platform operation; a declaration
         then requires a truthful CapabilityNotice surface and unavailable/pending state.
 

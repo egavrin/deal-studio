@@ -34,6 +34,14 @@ class CanonicalPackV15GenerationDeviceTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val arguments = InstrumentationRegistry.getArguments()
         val selected = arguments.getString("benchmark_case")?.let { selectedId ->
+            if (selectedId == SHANGHAI_HOST_EFFECTS_CASE) {
+                return@let BenchmarkRequest(
+                    id = selectedId,
+                    suite = "held-out-host-effects",
+                    request = instrumentation.context.assets.open("shanghai-host-effects-v1.txt")
+                        .bufferedReader().use { it.readText() }.removeSuffix("\n")
+                )
+            }
             val dataset = Json.parseToJsonElement(
                 instrumentation.context.assets.open("pack-v15-benchmark-v1.json").bufferedReader().use { it.readText() }
             ).jsonObject
@@ -53,6 +61,8 @@ class CanonicalPackV15GenerationDeviceTest {
             }.let { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) }
         )
         val runId = arguments.getString("run_id") ?: selected.id
+        val dealReasoningEffort = arguments.getString("deal_reasoning_effort") ?: "none"
+        require(dealReasoningEffort in setOf("none", "low"))
         val expectedPackVersion = arguments.getString("expected_pack_version") ?: "deal-studio-dealui-pack-v15"
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val output = File(context.filesDir, "pack-v15-generation/$runId").apply { mkdirs() }
@@ -65,6 +75,7 @@ class CanonicalPackV15GenerationDeviceTest {
             val bundle = CanonicalGeneratedAppCloudCompiler(
                 context = context,
                 apiKeyProvider = { BuildConfig.EMBEDDED_DEEPSEEK_API_KEY },
+                dealReasoningEffort = dealReasoningEffort,
                 compilerToolTrace = { event ->
                     trace.appendLine(event)
                     File(output, "compiler-trace.log").writeText(trace.toString())
@@ -79,6 +90,15 @@ class CanonicalPackV15GenerationDeviceTest {
             assertTrue(bundle.dealUiSource.contains("ui.AppTheme"))
             assertFalse("v15 utility generation must not use Canvas", bundle.dealUiSource.contains("ui.Canvas"))
             assertFalse("v15 utility generation must not request pointer ingress", bundle.dealUiSource.contains("ui.PointerSurface"))
+            if (selected.id == SHANGHAI_HOST_EFFECTS_CASE) {
+                assertEquals(
+                    setOf("map.navigation", "calendar.events.owned", "calendar.open"),
+                    bundle.usedCapabilities.intersect(
+                        setOf("map.navigation", "calendar.events.owned", "calendar.open")
+                    )
+                )
+                assertTrue(bundle.appInterface.contains("PlatformHostAction"))
+            }
             val runtimeSnapshot = CanonicalDealToolchain(context).createRuntime(bundle.dealSource).snapshot()
             val checked = Json.parseToJsonElement(bundle.checkedUiIr).jsonObject
             val usedComponents = checked.getValue("metadata").jsonObject.getValue("usedComponents").jsonArray
@@ -87,9 +107,11 @@ class CanonicalPackV15GenerationDeviceTest {
             File(output, "app.deal").writeText(bundle.dealSource)
             File(output, "app.dealui").writeText(bundle.dealUiSource)
             File(output, "checked-ui.json").writeText(bundle.checkedUiIr)
-            val saved = CanonicalGeneratedAppLibrary(context).save(bundle, runId)
+            val ownerId = CanonicalHostEffectContract.newOwnerId()
+            val saved = CanonicalGeneratedAppLibrary(context).save(bundle, runId, ownerId)
             val reopened = GeneratedAppRuntimeController(context, saved.id).load()
             assertEquals(saved.id, reopened.entry.record.id)
+            assertEquals(ownerId, reopened.entry.record.hostEffectOwnerId)
             assertEquals(runtimeSnapshot, reopened.state)
 
             result = baseResult(selected, runId, started) {
@@ -98,7 +120,7 @@ class CanonicalPackV15GenerationDeviceTest {
                 put("dealUiProvider", DeepSeekGenerationModel.FLASH.provider.name)
                 put("dealModelId", bundle.dealModelId)
                 put("dealUiModelId", bundle.dealUiModelId)
-                put("reasoningEffort", "low")
+                put("reasoningEffort", dealReasoningEffort)
                 put("temperature", 0.0)
                 put("compilerProtocolVersion", bundle.compilerProtocolVersion)
                 put("agentSurfaceVersion", bundle.agentSurfaceVersion)
@@ -167,7 +189,7 @@ class CanonicalPackV15GenerationDeviceTest {
             }
             throw failure
         } finally {
-            writeMachineReadableResult(output, result)
+            writeMachineReadableResult(output, JsonObject(result + ("reasoningEffort" to JsonPrimitive(dealReasoningEffort))))
         }
     }
 
@@ -208,6 +230,10 @@ class CanonicalPackV15GenerationDeviceTest {
     }
 
     private data class BenchmarkRequest(val id: String, val suite: String, val request: String)
+
+    private companion object {
+        const val SHANGHAI_HOST_EFFECTS_CASE = "shanghai-host-effects-v1"
+    }
 
     private fun optionalPackConstant(name: String): String = runCatching {
         CanonicalDealUiPack::class.java.getDeclaredField(name).apply { isAccessible = true }.get(null)?.toString()

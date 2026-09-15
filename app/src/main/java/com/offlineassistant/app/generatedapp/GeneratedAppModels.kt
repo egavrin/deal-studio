@@ -15,7 +15,8 @@ internal data class CanonicalRunnableApp(
     val program: CanonicalDealUiProgram,
     val runtime: CanonicalDealRuntimeSession,
     val state: JsonObject,
-    val savedRecord: SavedCanonicalGeneratedAppRecord? = null
+    val savedRecord: SavedCanonicalGeneratedAppRecord? = null,
+    val hostEffectOwnerId: String = ""
 )
 
 internal data class CanonicalAcceptedPreview(

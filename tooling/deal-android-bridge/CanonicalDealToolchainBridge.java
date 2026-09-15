@@ -171,6 +171,16 @@ public final class CanonicalDealToolchainBridge {
                 .withReasoningEffort(dealEffort, uiEffort);
     }
 
+    /** Enables bounded append-only constructor portions; accepted handles remain immutable until finish. */
+    public static Object configureConstructionPortions(Object session) {
+        return ((CanonicalRefinementSession) session).withConstructionPortions();
+    }
+
+    /** Selects a compiler-owned host ABI by version; callers cannot inject prompt text. */
+    public static Object configureHostCapabilityProfile(Object session, String profile) {
+        return ((CanonicalRefinementSession) session).withHostCapabilityProfile(profile);
+    }
+
     public static String refinementAcceptToolCall(
             Object session,
             String name,

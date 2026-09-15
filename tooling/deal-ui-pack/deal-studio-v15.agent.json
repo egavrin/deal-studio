@@ -91,667 +91,1190 @@
   "components": {
     "AppTheme": {
       "purpose": "Select exported typed theme tokens; primary and secondary are the only raw hex theme inputs.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": [],
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ],
       "microExample": "ui.AppTheme(primary: \"#2563EB\", secondary: \"#0F766E\", style: ui.themeClean)"
     },
     "Widget": {
-      "purpose": "Use Widget only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Widget semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Root": {
-      "purpose": "Use Root only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Root semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Column": {
-      "purpose": "Use Column only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Column semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Row": {
-      "purpose": "Use Row only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Row semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Stack": {
-      "purpose": "Use Stack only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Stack semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Frame": {
-      "purpose": "Use Frame only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Frame semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Grid": {
-      "purpose": "Use Grid only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Grid semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Scroll": {
-      "purpose": "Use Scroll only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Scroll semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Card": {
       "purpose": "Create one cohesive bounded surface whose contents need a shared background, outline, or elevation.",
-      "preferWhen": ["a small group must read as one selectable, metric, summary, content, or editor surface"],
-      "avoidWhen": ["the goal is only spacing, a section heading, a list row, or visual separation"],
+      "preferWhen": [
+        "a small group must read as one selectable, metric, summary, content, or editor surface"
+      ],
+      "avoidWhen": [
+        "the goal is only spacing, a section heading, a list row, or visual separation"
+      ],
       "visualWeight": "medium",
-      "commonSiblings": ["SectionHeader", "ListGroup", "Divider"],
-      "constraints": ["Never nest Card inside Card", "Keep Cards scarce; do not wrap every section or row"]
+      "commonSiblings": [
+        "SectionHeader",
+        "ListGroup",
+        "Divider"
+      ],
+      "constraints": [
+        "Never nest Card inside Card",
+        "Keep Cards scarce; do not wrap every section or row"
+      ]
     },
     "Section": {
-      "purpose": "Use Section only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Section semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Hero": {
       "purpose": "Use once at most per root or route for the leading identity and primary status. Never place under Card.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "high",
       "commonSiblings": [],
-      "constraints": [],
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ],
       "microExample": "ui.Hero(treatment: ui.treatmentTonal, alignment: \"start\") { ui.Text(value: state.title, style: ui.textDisplay) }"
     },
     "MetricGroup": {
       "purpose": "Group only Stat, IntStat, or NumberStat children; columns is a maximum and minimumCellWidth controls adaptation.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "high",
       "commonSiblings": [],
-      "constraints": [],
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ],
       "microExample": "ui.MetricGroup(columns: 3, minimumCellWidth: 128, spacing: ui.spaceSm) { ui.IntStat(label: \"Items\", value: state.count) }"
     },
     "ActionBar": {
       "purpose": "Group only action-capable Button or IconButton controls and keep one clear primary hierarchy.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": [],
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ],
       "microExample": "ui.ActionBar(alignment: \"end\", spacing: ui.spaceSm) { ui.Button(text: \"Save\", hierarchy: ui.buttonPrimary, onClick: Save()) }"
     },
     "Header": {
       "purpose": "Establish the app-owned title, identity, and concise supporting context as the dominant opening surface.",
-      "preferWhen": ["starting an ordinary root or route surface"],
-      "avoidWhen": ["a section-level heading is sufficient", "host navigation chrome already supplies the same title"],
+      "preferWhen": [
+        "starting an ordinary root or route surface"
+      ],
+      "avoidWhen": [
+        "a section-level heading is sufficient",
+        "host navigation chrome already supplies the same title"
+      ],
       "visualWeight": "high",
-      "commonSiblings": ["MetricGroup", "InsetBanner", "SectionHeader", "ActionBar"],
-      "constraints": ["At most one Button or IconButton child", "Do not pair with a duplicate TopBar title"],
+      "commonSiblings": [
+        "MetricGroup",
+        "InsetBanner",
+        "SectionHeader",
+        "ActionBar"
+      ],
+      "constraints": [
+        "At most one Button or IconButton child",
+        "Do not pair with a duplicate TopBar title"
+      ],
       "microExample": "ui.Header(title: state.title, supporting: state.status, leadingIcon: \"home\")"
     },
     "SectionHeader": {
       "purpose": "Introduce a content section without creating another Card or surface container.",
-      "preferWhen": ["a section needs a title, count, badge, subtitle, or one trailing action"],
-      "avoidWhen": ["the text is the app's dominant title", "no section boundary is needed"],
+      "preferWhen": [
+        "a section needs a title, count, badge, subtitle, or one trailing action"
+      ],
+      "avoidWhen": [
+        "the text is the app's dominant title",
+        "no section boundary is needed"
+      ],
       "visualWeight": "medium",
-      "commonSiblings": ["ListGroup", "KeyValueGroup", "Timeline", "Divider"],
-      "constraints": ["At most one Button or IconButton child", "Does not create its own Card"]
+      "commonSiblings": [
+        "ListGroup",
+        "KeyValueGroup",
+        "Timeline",
+        "Divider"
+      ],
+      "constraints": [
+        "At most one Button or IconButton child",
+        "Does not create its own Card"
+      ]
     },
     "SegmentedControl": {
       "purpose": "Use SegmentedControl through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "SegmentItem": {
       "purpose": "Use SegmentItem through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Timeline": {
       "purpose": "Use Timeline through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "TimelineItem": {
       "purpose": "Use TimelineItem through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "KeyValueGroup": {
       "purpose": "Use KeyValueGroup through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "KeyValueItem": {
       "purpose": "Use KeyValueItem through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "InsetBanner": {
       "purpose": "Show persistent contextual status, guidance, warning, or outcome inside the current page hierarchy.",
-      "preferWhen": ["a visible message should remain available while the user works"],
-      "avoidWhen": ["feedback is transient", "the message is merely a section heading"],
+      "preferWhen": [
+        "a visible message should remain available while the user works"
+      ],
+      "avoidWhen": [
+        "feedback is transient",
+        "the message is merely a section heading"
+      ],
       "visualWeight": "high",
-      "commonSiblings": ["Header", "ActionBar", "SectionHeader"],
-      "constraints": ["Children are forbidden", "Use semantic tone rather than raw colour"],
+      "commonSiblings": [
+        "Header",
+        "ActionBar",
+        "SectionHeader"
+      ],
+      "constraints": [
+        "Children are forbidden",
+        "Use semantic tone rather than raw colour"
+      ],
       "microExample": "ui.InsetBanner(title: \"Needs attention\", message: state.status, icon: \"info\", tone: ui.toneWarning, emphasis: ui.emphasisMedium)"
     },
     "ListGroup": {
       "purpose": "Present related list rows with renderer-owned separators, density, and grouped shape.",
-      "preferWhen": ["two or more related ListItem or IntListItem rows form one collection"],
-      "avoidWhen": ["content is a free-form section", "items are chronological TimelineItem entries"],
+      "preferWhen": [
+        "two or more related ListItem or IntListItem rows form one collection"
+      ],
+      "avoidWhen": [
+        "content is a free-form section",
+        "items are chronological TimelineItem entries"
+      ],
       "visualWeight": "medium",
-      "commonSiblings": ["SectionHeader", "EmptyState", "ActionBar"],
-      "constraints": ["Only ListItem and IntListItem children are allowed", "Do not wrap each child in Card"],
+      "commonSiblings": [
+        "SectionHeader",
+        "EmptyState",
+        "ActionBar"
+      ],
+      "constraints": [
+        "Only ListItem and IntListItem children are allowed",
+        "Do not wrap each child in Card"
+      ],
       "microExample": "ui.ListGroup(treatment: ui.treatmentPlain, density: ui.listComfortable) { ui.ListItem(title: state.label) }"
     },
     "GridItem": {
       "purpose": "Use GridItem through its checked typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Text": {
-      "purpose": "Use Text only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Text semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "IntText": {
-      "purpose": "Use IntText only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the IntText semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NumberText": {
-      "purpose": "Use NumberText only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NumberText semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Icon": {
-      "purpose": "Use Icon only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Icon semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "IconButton": {
       "purpose": "Apply the same hierarchy semantics as Button and always provide accessibilityLabel.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Button": {
       "purpose": "Use buttonPrimary for the main action, buttonSecondary for alternatives, buttonQuiet for low emphasis, and buttonDestructive only for destructive actions.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": [],
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ],
       "microExample": "ui.Button(text: \"Continue\", hierarchy: ui.buttonPrimary, onClick: Continue())"
     },
     "Tile": {
-      "purpose": "Use Tile only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Tile semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "ProgressBar": {
-      "purpose": "Use ProgressBar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the ProgressBar semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "ProgressRing": {
-      "purpose": "Use ProgressRing only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the ProgressRing semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NumberProgressBar": {
-      "purpose": "Use NumberProgressBar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NumberProgressBar semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NumberProgressRing": {
-      "purpose": "Use NumberProgressRing only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NumberProgressRing semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "TextField": {
-      "purpose": "Use TextField only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the TextField semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "IntField": {
-      "purpose": "Use IntField only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the IntField semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NumberField": {
-      "purpose": "Use NumberField only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NumberField semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "TimeField": {
-      "purpose": "Use TimeField only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the TimeField semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Toggle": {
-      "purpose": "Use Toggle only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Toggle semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Choice": {
-      "purpose": "Use Choice only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Choice semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "ChoiceItem": {
-      "purpose": "Use ChoiceItem only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the ChoiceItem semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Slider": {
-      "purpose": "Use Slider only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Slider semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Spacer": {
-      "purpose": "Use Spacer only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Spacer semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "low",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Badge": {
-      "purpose": "Use Badge only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Badge semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Stat": {
-      "purpose": "Use Stat only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Stat semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "IntStat": {
-      "purpose": "Use IntStat only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the IntStat semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NumberStat": {
-      "purpose": "Use NumberStat only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NumberStat semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "ListItem": {
-      "purpose": "Use ListItem only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the ListItem semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "IntListItem": {
-      "purpose": "Use IntListItem only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the IntListItem semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Image": {
-      "purpose": "Use Image only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Image semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "EmptyState": {
-      "purpose": "Use EmptyState only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the EmptyState semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Snackbar": {
-      "purpose": "Use Snackbar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Snackbar semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "TopBar": {
-      "purpose": "Use TopBar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the TopBar semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Checkbox": {
-      "purpose": "Use Checkbox only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Checkbox semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Stepper": {
-      "purpose": "Use Stepper only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Stepper semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Tabs": {
-      "purpose": "Use Tabs only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Tabs semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "TabItem": {
-      "purpose": "Use TabItem only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the TabItem semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NavigationBar": {
-      "purpose": "Use NavigationBar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NavigationBar semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "NavigationItem": {
-      "purpose": "Use NavigationItem only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the NavigationItem semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "BarChart": {
-      "purpose": "Use BarChart only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the BarChart semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Sparkline": {
-      "purpose": "Use Sparkline only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Sparkline semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Avatar": {
-      "purpose": "Use Avatar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Avatar semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "AnimatedVisibility": {
-      "purpose": "Use AnimatedVisibility only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the AnimatedVisibility semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Divider": {
-      "purpose": "Use Divider only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Divider semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "low",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "FrameClock": {
-      "purpose": "Use FrameClock only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the FrameClock semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "low",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "MinuteClock": {
-      "purpose": "Use MinuteClock only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the MinuteClock semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "low",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "PointerSurface": {
-      "purpose": "Use PointerSurface only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the PointerSurface semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Canvas": {
-      "purpose": "Use Canvas only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Canvas semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Rectangle": {
-      "purpose": "Use Rectangle only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Rectangle semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "RoundRectangle": {
-      "purpose": "Use RoundRectangle only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the RoundRectangle semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Circle": {
-      "purpose": "Use Circle only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Circle semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Line": {
-      "purpose": "Use Line only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Line semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "CanvasText": {
-      "purpose": "Use CanvasText only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the CanvasText semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Route": {
-      "purpose": "Use Route only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Route semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Modal": {
-      "purpose": "Use Modal only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Modal semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Dialog": {
-      "purpose": "Use Dialog only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Dialog semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "BottomSheet": {
-      "purpose": "Use BottomSheet only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the BottomSheet semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "Menu": {
-      "purpose": "Use Menu only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the Menu semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "MenuItem": {
-      "purpose": "Use MenuItem only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the MenuItem semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     },
     "CapabilityNotice": {
-      "purpose": "Use CapabilityNotice only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render the CapabilityNotice semantic role using its compiler-declared typed contract.",
+      "preferWhen": [
+        "its semantic role matches the intended content or interaction"
+      ],
+      "avoidWhen": [
+        "another declared component communicates the intended role more directly"
+      ],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": [
+        "Use only compiler-declared properties, events, children, and parent placement"
+      ]
     }
   },
   "types": {
@@ -2510,6 +3033,69 @@
     "Choose one coherent theme preset and use it for typography, rhythm, surfaces, metrics, controls, icons, and background—not only seed colour.",
     "Use one dominant Header and one primary action per surface; do not make every element high emphasis.",
     "Keep Cards scarce: prefer SectionHeader for headings and ListGroup for related rows.",
-    "Do not duplicate an app-owned Header with TopBar or host chrome."
+    "Do not duplicate an app-owned Header with TopBar or host chrome.",
+    "Choose theme character deliberately from the checked theme tokens; do not default to themeClean because an example uses it.",
+    "Use an array only as the direct collection path of ForEach; expose counts, presence, labels, and summaries as explicit DEAL state fields.",
+    "ListGroup accepts only ListItem or IntListItem children; place ActionBar and other controls as siblings outside the group.",
+    "Use at most one primary action per surface and never repeat primary-hierarchy actions inside collection rows.",
+    "Compiler-declared child and parent contracts override semantic suggestions."
+  ],
+  "initialComponents": [
+    "AppTheme",
+    "Root",
+    "Column",
+    "Row",
+    "Stack",
+    "Scroll",
+    "Grid",
+    "Card",
+    "Section",
+    "Hero",
+    "MetricGroup",
+    "ActionBar",
+    "Header",
+    "SectionHeader",
+    "InsetBanner",
+    "ListGroup",
+    "GridItem",
+    "Text",
+    "IntText",
+    "NumberText",
+    "Icon",
+    "Button",
+    "IconButton",
+    "TextField",
+    "IntField",
+    "NumberField",
+    "TimeField",
+    "Toggle",
+    "Checkbox",
+    "Choice",
+    "ChoiceItem",
+    "Slider",
+    "ProgressBar",
+    "ProgressRing",
+    "NumberProgressBar",
+    "NumberProgressRing",
+    "Spacer",
+    "Divider",
+    "Badge",
+    "Stat",
+    "IntStat",
+    "NumberStat",
+    "ListItem",
+    "IntListItem",
+    "EmptyState",
+    "Snackbar",
+    "Tabs",
+    "TabItem",
+    "NavigationBar",
+    "NavigationItem",
+    "BarChart",
+    "Sparkline",
+    "Modal",
+    "Dialog",
+    "BottomSheet",
+    "Route"
   ]
 }

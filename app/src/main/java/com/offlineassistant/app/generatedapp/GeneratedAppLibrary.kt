@@ -53,6 +53,15 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val agentSurfaceEstimatedTokens: Int = 0,
     @EncodeDefault val generationModelCalls: Int = dealGraphRounds + dealUiGraphRounds,
     @EncodeDefault val compilerRepairCalls: Int = repairPasses,
+    val componentPackDigest: String = "",
+    val agentManifestDigest: String = "",
+    val compilerBundleDigest: String = "",
+    val surfaceDigests: List<String> = emptyList(),
+    val diagnosticCodes: List<String> = emptyList(),
+    val selectedComponents: Set<String> = emptySet(),
+    val usedComponents: Set<String> = emptySet(),
+    val selectedTheme: String = "",
+    val hostEffectOwnerId: String = "",
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -73,29 +82,15 @@ internal fun restoreCanonicalGeneratedApp(
 ): CanonicalGeneratedAppLibraryEntry {
     require(record.dealSource.sha256() == record.dealSourceSha256) { "Saved app.deal digest mismatch" }
     require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
-    require(record.dealCompilerRevision == CanonicalDealToolchain.DEAL_REVISION) {
-        "Required DEAL compiler revision is unavailable"
-    }
-    require(record.dealUiCompilerRevision == CanonicalDealToolchain.DEAL_UI_REVISION) {
-        "Required Deal UI compiler revision is unavailable"
-    }
-    require(
-        record.streamingCompilerRevision.isBlank() ||
-            record.streamingCompilerRevision == CanonicalDealToolchain.STREAMING_COMPILER_REVISION
-    ) {
-        "Required streaming compiler revision is unavailable"
-    }
-    require(record.toolchainSha256 == CanonicalDealToolchain.ARTIFACT_SHA256) {
-        "Required canonical toolchain is unavailable"
-    }
     require(record.componentPackVersion == CanonicalDealUiPack.VERSION) {
         "Saved app uses unsupported component pack ${record.componentPackVersion}; regenerate the app with ${CanonicalDealUiPack.VERSION}"
     }
     require(record.componentPackSha256 == CanonicalDealUiPack.SHA256) {
         "Saved v15 component pack digest mismatch; regenerate the app"
     }
-    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
-    val extractedInterface = toolchain.extractAppInterface(record.dealSource)
+    val restoreToolchain = toolchain.forRestore(record)
+    val checkedIr = restoreToolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
+    val extractedInterface = restoreToolchain.extractAppInterface(record.dealSource)
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
         appInterface = extractedInterface,
@@ -134,10 +129,18 @@ internal fun restoreCanonicalGeneratedApp(
         agentSurfaceBytes = record.agentSurfaceBytes,
         agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens,
         generationModelCalls = record.generationModelCalls,
-        compilerRepairCalls = record.compilerRepairCalls
+        compilerRepairCalls = record.compilerRepairCalls,
+        componentPackDigest = record.componentPackDigest,
+        agentManifestDigest = record.agentManifestDigest,
+        compilerBundleDigest = record.compilerBundleDigest,
+        surfaceDigests = record.surfaceDigests,
+        diagnosticCodes = record.diagnosticCodes,
+        selectedComponents = record.selectedComponents,
+        usedComponents = record.usedComponents,
+        selectedTheme = record.selectedTheme
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
-    val initialState = toolchain.createRuntime(record.dealSource).snapshot()
+    val initialState = restoreToolchain.createRuntime(record.dealSource).snapshot()
     return CanonicalGeneratedAppLibraryEntry(record, bundle, program, initialState)
 }
 
@@ -188,7 +191,8 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
 
     fun save(
         bundle: CanonicalGeneratedAppBundle,
-        title: String
+        title: String,
+        hostEffectOwnerId: String = ""
     ): SavedCanonicalGeneratedAppRecord {
         val fingerprint = fingerprint(bundle.dealUiSource, bundle.dealSource)
         val existing = loadRecords().firstOrNull {
@@ -198,6 +202,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             id = "canonical-${fingerprint.take(16)}",
             title = title,
             bundle = bundle,
+            hostEffectOwnerId = hostEffectOwnerId,
             createdAtEpochMs = System.currentTimeMillis(),
             revision = 1
         )
@@ -217,6 +222,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             id = previous.id,
             title = title,
             bundle = bundle,
+            hostEffectOwnerId = previous.hostEffectOwnerId,
             createdAtEpochMs = previous.createdAtEpochMs,
             revision = previous.revision + 1
         )
@@ -232,57 +238,75 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         id: String,
         title: String,
         bundle: CanonicalGeneratedAppBundle,
+        hostEffectOwnerId: String,
         createdAtEpochMs: Long,
         revision: Int
-    ) = SavedCanonicalGeneratedAppRecord(
-        id = id,
-        title = title,
-        request = bundle.request,
-        dealSourceSha256 = bundle.dealSource.sha256(),
-        dealUiSourceSha256 = bundle.dealUiSource.sha256(),
-        dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
-        dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
-        streamingCompilerRevision = CanonicalDealToolchain.STREAMING_COMPILER_REVISION,
-        componentPackVersion = CanonicalDealUiPack.VERSION,
-        componentPackSha256 = CanonicalDealUiPack.SHA256,
-        toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
-        dealModelId = bundle.dealModelId,
-        dealUiModelId = bundle.dealUiModelId,
-        promptDigest = bundle.promptDigest,
-        dealLatencyMs = bundle.dealLatencyMs,
-        dealUiLatencyMs = bundle.dealUiLatencyMs,
-        wallLatencyMs = bundle.wallLatencyMs,
-        dealTimeToFirstPatchMs = bundle.dealTimeToFirstPatchMs,
-        dealUiTimeToFirstTokenMs = bundle.dealUiTimeToFirstTokenMs,
-        validationLatencyMs = bundle.validationLatencyMs,
-        repairLatencyMs = bundle.repairLatencyMs,
-        repairPasses = bundle.repairPasses,
-        dealGraphRounds = bundle.dealGraphRounds,
-        dealUiGraphRounds = bundle.dealUiGraphRounds,
-        dealAcceptedPatches = bundle.dealAcceptedPatches,
-        dealRejectedPatches = bundle.dealRejectedPatches,
-        dealTypedHoles = bundle.dealTypedHoles,
-        dealInputTokens = bundle.dealInputTokens,
-        dealCachedInputTokens = bundle.dealCachedInputTokens,
-        dealOutputTokens = bundle.dealOutputTokens,
-        dealUiRejectedPatches = bundle.dealUiRejectedPatches,
-        dealUiInputTokens = bundle.dealUiInputTokens,
-        dealUiCachedInputTokens = bundle.dealUiCachedInputTokens,
-        dealUiOutputTokens = bundle.dealUiOutputTokens,
-        dealUiAcceptedPatches = bundle.dealUiAcceptedPatches,
-        firstInteractivePreviewMs = bundle.firstInteractivePreviewMs,
-        compilerProtocolVersion = bundle.compilerProtocolVersion,
-        agentSurfaceVersion = bundle.agentSurfaceVersion,
-        agentSurfaceBytes = bundle.agentSurfaceBytes,
-        agentSurfaceEstimatedTokens = bundle.agentSurfaceEstimatedTokens,
-        generationModelCalls = bundle.generationModelCalls,
-        compilerRepairCalls = bundle.compilerRepairCalls,
-        createdAtEpochMs = createdAtEpochMs,
-        updatedAtEpochMs = System.currentTimeMillis(),
-        revision = revision,
-        dealSource = bundle.dealSource,
-        dealUiSource = bundle.dealUiSource
-    )
+    ): SavedCanonicalGeneratedAppRecord {
+        require(bundle.compilerProtocolVersion == "compiler-protocol-v2") {
+            "New saved generations require compiler-protocol-v2"
+        }
+        require("legacy" !in bundle.agentSurfaceVersion && "embedded" !in bundle.agentSurfaceVersion) {
+            "New saved generations require a current compiler-owned agent surface"
+        }
+        return SavedCanonicalGeneratedAppRecord(
+            id = id,
+            title = title,
+            request = bundle.request,
+            dealSourceSha256 = bundle.dealSource.sha256(),
+            dealUiSourceSha256 = bundle.dealUiSource.sha256(),
+            dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
+            dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
+            streamingCompilerRevision = CanonicalDealToolchain.STREAMING_COMPILER_REVISION,
+            componentPackVersion = CanonicalDealUiPack.VERSION,
+            componentPackSha256 = CanonicalDealUiPack.SHA256,
+            toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
+            dealModelId = bundle.dealModelId,
+            dealUiModelId = bundle.dealUiModelId,
+            promptDigest = bundle.promptDigest,
+            dealLatencyMs = bundle.dealLatencyMs,
+            dealUiLatencyMs = bundle.dealUiLatencyMs,
+            wallLatencyMs = bundle.wallLatencyMs,
+            dealTimeToFirstPatchMs = bundle.dealTimeToFirstPatchMs,
+            dealUiTimeToFirstTokenMs = bundle.dealUiTimeToFirstTokenMs,
+            validationLatencyMs = bundle.validationLatencyMs,
+            repairLatencyMs = bundle.repairLatencyMs,
+            repairPasses = bundle.repairPasses,
+            dealGraphRounds = bundle.dealGraphRounds,
+            dealUiGraphRounds = bundle.dealUiGraphRounds,
+            dealAcceptedPatches = bundle.dealAcceptedPatches,
+            dealRejectedPatches = bundle.dealRejectedPatches,
+            dealTypedHoles = bundle.dealTypedHoles,
+            dealInputTokens = bundle.dealInputTokens,
+            dealCachedInputTokens = bundle.dealCachedInputTokens,
+            dealOutputTokens = bundle.dealOutputTokens,
+            dealUiRejectedPatches = bundle.dealUiRejectedPatches,
+            dealUiInputTokens = bundle.dealUiInputTokens,
+            dealUiCachedInputTokens = bundle.dealUiCachedInputTokens,
+            dealUiOutputTokens = bundle.dealUiOutputTokens,
+            dealUiAcceptedPatches = bundle.dealUiAcceptedPatches,
+            firstInteractivePreviewMs = bundle.firstInteractivePreviewMs,
+            compilerProtocolVersion = bundle.compilerProtocolVersion,
+            agentSurfaceVersion = bundle.agentSurfaceVersion,
+            agentSurfaceBytes = bundle.agentSurfaceBytes,
+            agentSurfaceEstimatedTokens = bundle.agentSurfaceEstimatedTokens,
+            generationModelCalls = bundle.generationModelCalls,
+            compilerRepairCalls = bundle.compilerRepairCalls,
+            componentPackDigest = bundle.componentPackDigest,
+            agentManifestDigest = bundle.agentManifestDigest,
+            compilerBundleDigest = bundle.compilerBundleDigest,
+            surfaceDigests = bundle.surfaceDigests,
+            diagnosticCodes = bundle.diagnosticCodes,
+            selectedComponents = bundle.selectedComponents,
+            usedComponents = bundle.usedComponents,
+            selectedTheme = bundle.selectedTheme,
+            hostEffectOwnerId = hostEffectOwnerId,
+            createdAtEpochMs = createdAtEpochMs,
+            updatedAtEpochMs = System.currentTimeMillis(),
+            revision = revision,
+            dealSource = bundle.dealSource,
+            dealUiSource = bundle.dealUiSource
+        )
+    }
 
     private fun writeRecord(record: SavedCanonicalGeneratedAppRecord) {
         val target = File(appsDirectory, record.id)

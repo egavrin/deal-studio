@@ -238,7 +238,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     bundle = bundle,
                     program = CanonicalDealUiParser.parse(bundle.checkedUiIr),
                     runtime = runtime,
-                    state = runtime.snapshot()
+                    state = runtime.snapshot(),
+                    hostEffectOwnerId = CanonicalHostEffectContract.newOwnerId()
                 )
             }.onSuccess { runnable ->
                 mutableState.update { current ->
@@ -382,7 +383,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     program = program,
                     runtime = runtime,
                     state = nextState,
-                    savedRecord = savedRecord
+                    savedRecord = savedRecord,
+                    hostEffectOwnerId = previous.hostEffectOwnerId
                 )
                 savedRecord?.let {
                     stateStore.save(it, nextState)
@@ -502,7 +504,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         val job = viewModelScope.launch(Dispatchers.IO) {
             val title = app.program.displayTitle(app.state, "Generated app")
             val record = app.savedRecord?.let { library.update(it.id, app.bundle, title) }
-                ?: library.save(app.bundle, title)
+                ?: library.save(app.bundle, title, app.hostEffectOwnerId)
             stateStore.save(record, app.state)
             val saved = library.restoreAll(toolchain)
             mutableState.update { current ->
@@ -529,7 +531,14 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     prompt = record.request,
                     generationMode = StudioGenerationMode.CANONICAL,
                     session = CanonicalStudioSession.Runnable(
-                        CanonicalRunnableApp(entry.bundle, entry.program, runtime, restoredState, record)
+                        CanonicalRunnableApp(
+                            entry.bundle,
+                            entry.program,
+                            runtime,
+                            restoredState,
+                            record,
+                            record.hostEffectOwnerId
+                        )
                     ),
                     selectedArtifact = GeneratedArtifact.PREVIEW,
                     currentSavedAppId = id
@@ -593,10 +602,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
     }
 
-    fun dispatchCanonical(action: CanonicalUiAction) {
+    fun dispatchCanonical(action: CanonicalUiAction): Boolean {
         val snapshot = state.value
-        val app = snapshot.runnable ?: return
-        val handler = app.program.updates[action.type] ?: return
+        val app = snapshot.runnable ?: return false
+        val handler = app.program.updates[action.type] ?: return false
         val next = runCatching {
             app.savedRecord?.let { stateStore.dispatch(it, app.runtime, handler, action) }
                 ?: app.runtime.dispatch(handler, action.type, action.fields)
@@ -610,10 +619,11 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     )
                 )
             }
-            return
+            return false
         }
         val updated = app.copy(state = next)
         mutableState.update { current -> current.withRunnable(updated) }
+        return true
     }
 
     fun cancel() {

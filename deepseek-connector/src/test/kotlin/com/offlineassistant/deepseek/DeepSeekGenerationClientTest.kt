@@ -20,6 +20,110 @@ import org.junit.Test
 
 class DeepSeekGenerationClientTest {
     @Test
+    fun `staged wire request preserves canonical constructor arrays without alternate slots`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val schema = Json.parseToJsonElement("""{"type":"object","properties":{"calls":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}}},"required":["calls"],"additionalProperties":false}""").jsonObject
+        val request = DeepSeekToolRequest(
+            DeepSeekGenerationModel.FLASH,
+            "Stage at most sixteen calls",
+            "Current ticket",
+            listOf(DeepSeekFunctionTool("stage_constructor_calls", "Stage", schema)),
+            8192,
+            reasoningEffort = "none"
+        )
+        val wire = client.toolRequestBody(request)
+        val parameters = wire["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject["parameters"]!!.jsonObject
+        assertEquals("array", parameters["properties"]!!.jsonObject["calls"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertFalse("\$def" in parameters)
+        assertFalse(parameters.toString().contains("slot0"))
+        val calls = listOf(DeepSeekFunctionCall("call", "stage_constructor_calls", """{"calls":[{"id":"n0"}]}"""))
+        assertEquals(calls, client.normalizeToolArguments(request, calls))
+        assertEquals(null, client.invalidToolArguments(request, calls))
+    }
+
+    @Test
+    fun `construction DEAL and UI requests emit disabled thinking from their first call`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        for (tool in listOf("construct_apply_deal_batch", "construct_apply_deal_ui_changes", "stage_constructor_calls")) {
+            val request = DeepSeekToolRequest(
+                model = DeepSeekGenerationModel.FLASH,
+                instructions = "Construct checked artifacts",
+                input = "Compiler-issued state",
+                tools = listOf(DeepSeekFunctionTool(tool, "Compiler tool", buildJsonObject { put("type", "object") })),
+                maxOutputTokens = 8192,
+                reasoningEffort = "none"
+            )
+            val wire = client.toolRequestBody(request)
+            assertEquals("deepseek-v4-flash", wire["model"]!!.jsonPrimitive.content)
+            assertEquals("disabled", wire["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+            assertFalse("reasoning_effort" in wire)
+            assertEquals(8192, wire["max_tokens"]!!.jsonPrimitive.int)
+            assertFalse("max_output_tokens" in wire)
+            assertEquals("required", wire["tool_choice"]!!.jsonPrimitive.content)
+            val explicitLow = client.toolRequestBody(request.copy(reasoningEffort = "low"))
+            assertEquals("enabled", explicitLow["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+            assertEquals("low", explicitLow["reasoning_effort"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `terminal token exhaustion discards calls and retains trailing usage before fresh response`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        for (reason in listOf("length", "max_output_tokens")) {
+            val stream = """
+                data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"failed","function":{"name":"stage_constructor_calls","arguments":"{"}}]},"finish_reason":null}]}
+                data: {"choices":[{"delta":{},"finish_reason":"$reason"}]}
+                data: {"choices":[],"usage":{"completion_tokens":8192,"completion_tokens_details":{"reasoning_tokens":8000}}}
+                data: [DONE]
+            """.trimIndent()
+            val failure = assertThrows(IncompleteToolResponseException::class.java) {
+                client.readChatToolResponse(stream.reader().buffered())
+            }
+            assertEquals(8192, failure.outputTokens)
+            assertEquals(8000, failure.reasoningTokens)
+            assertEquals(1, failure.argumentChars)
+        }
+        val complete = """
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"accepted","function":{"name":"stage_constructor_calls","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
+            data: [DONE]
+        """.trimIndent()
+        val recovered = client.readChatToolResponse(complete.reader().buffered())
+        assertEquals("accepted", recovered.calls.single().callId)
+        assertEquals("{}", recovered.calls.single().arguments)
+    }
+
+    @Test
+    fun `terminal truncation retries only the issued budget without dispatching partial calls`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val request = DeepSeekToolRequest(
+            DeepSeekGenerationModel.FLASH,
+            "Build",
+            "Input",
+            listOf(DeepSeekFunctionTool("stage", "Stage", buildJsonObject { put("type", "object") })),
+            8192,
+            transportAttempts = 2
+        )
+        val stream = """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"discard","function":{"name":"stage","arguments":"{}"}}]},"finish_reason":"length"}]}
+        """.trimIndent()
+        var attempts = 0
+        var callbacks = 0
+        assertThrows(IncompleteToolResponseException::class.java) {
+            client.executeValidToolResponses(request, "test", System.nanoTime(), {}, { calls, error ->
+                callbacks++
+                assertTrue(calls.isEmpty())
+                assertTrue(error!!.startsWith("Incomplete response: max_output_tokens"))
+            }) { retry ->
+                attempts++
+                assertEquals(request.tools, retry.tools)
+                assertEquals(request.input, retry.input)
+                client.readChatToolResponse(stream.reader().buffered())
+            }
+        }
+        assertEquals(2, attempts)
+        assertEquals(2, callbacks)
+    }
+
+    @Test
     fun `deepseek wire schema preserves compiler discriminators and local bounds`() {
         val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
         val original = Json.parseToJsonElement("""{"type":"object","properties":{"minItems":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"object","properties":{"op":{"type":"string","const":"block"}},"required":["op"],"additionalProperties":false}}},"required":["minItems"],"additionalProperties":false}""").jsonObject
@@ -358,6 +462,14 @@ class DeepSeekGenerationClientTest {
         val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
         val event = client.parseResponsesEvent("""{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}""")
         assertEquals("Incomplete response: max_output_tokens", event.error)
+    }
+
+    @Test
+    fun `truncated staged constructor call remains a transport failure`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val terminal = """{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"stage_constructor_calls","arguments":"{\\\"ticket\\\":\\\"abc\\\",\\\"calls\\\":["}}]},"finish_reason":"length"}]}"""
+
+        assertEquals("Incomplete response: max_output_tokens", client.chatTerminalError(terminal))
     }
 
     @Test

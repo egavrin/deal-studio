@@ -1,0 +1,4 @@
+Shanghai layover: I land at Pudong International Airport at 09:00 with 11 hours before my next flight. Plan the day hour by hour around the sights worth seeing, each stop with its name,
+  how long to spend there and its coordinates, a button that starts navigation to it from the last stop I reached, a button that puts the stop in my phone's calendar with a reminder, and
+  the latest time I must leave for the airport. Keep a note of which stops I actually reached, and give me a button that wipes every calendar event this app added and one that opens the
+  phone's calendar.
