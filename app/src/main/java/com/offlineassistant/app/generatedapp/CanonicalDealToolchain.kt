@@ -297,10 +297,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "f624ae2fa0bc1a0bc2467892da5c910eb17a4883ba02482d0aa2e111b9ec1c46"
-        const val DEAL_REVISION = "df8395e145c36cbe0590219a47d3a39f69a5ea6a"
-        const val DEAL_UI_REVISION = "18150c97dd519b771fc2e1b2f1ee25c344e64f52"
-        const val STREAMING_COMPILER_REVISION = "f6dc95e0d8890bc333876e70a01af56ccfa96df0"
+        const val ARTIFACT_SHA256 = "dda788fe89eefe7d2ec0ac95bdb86c40cd0c6b9622e4886d5a15d965e13a1953"
+        const val DEAL_REVISION = "fde98e7bd6e33cc0c41c1a321ab0bffb7b621db2"
+        const val DEAL_UI_REVISION = "d792fa64ead70c00fac08c709c28d315dc10a13e"
+        const val STREAMING_COMPILER_REVISION = "0ab0890b263be7d5e806d88593cb57877b8cb10a"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"

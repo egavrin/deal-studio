@@ -1,0 +1,288 @@
+pack version "deal-studio-dealui-pack-v15";
+
+export class Space { value: int = 0; }
+export class ColorToken { value: string = ""; }
+export class TextStyle { value: string = "body"; }
+export class ThemeStyle { value: string = "clean"; }
+export class ShapeStyle { value: string = "rounded"; }
+export class DensityStyle { value: string = "comfortable"; }
+export class SurfaceStyle { value: string = "tonal"; }
+export class TypographyStyle { value: string = "neutral"; }
+export class ContrastStyle { value: string = "standard"; }
+export class BackgroundStyle { value: string = "solid"; }
+export class MotionStyle { value: string = "restrained"; }
+export class SemanticTone { value: string = "default"; }
+export class Emphasis { value: string = "medium"; }
+export class SectionRole { value: string = "content"; }
+export class CardRole { value: string = "content"; }
+export class ButtonHierarchy { value: string = "primary"; }
+export class SurfaceTreatment { value: string = "plain"; }
+export class ContentWidth { value: string = "standard"; }
+export class SectionSpacing { value: string = "regular"; }
+export class ItemSize { value: string = "standard"; }
+export class ColumnSpan { value: string = "one"; }
+export class VisualBalance { value: string = "balanced"; }
+export class EdgeTreatment { value: string = "inset"; }
+export class ListDensity { value: string = "comfortable"; }
+export class HeroHeight { value: string = "standard"; }
+export class CardOrientation { value: string = "vertical"; }
+export class CollapseBehavior { value: string = "wrap"; }
+export class AppThemeProps {
+  primary: string = "#2563EB";
+  secondary: string = "#0F766E";
+  style?: ThemeStyle;
+  shape?: ShapeStyle;
+  density?: DensityStyle;
+  surface?: SurfaceStyle;
+  typography?: TypographyStyle;
+  contrast?: ContrastStyle;
+  background?: BackgroundStyle;
+  motion?: MotionStyle;
+}
+export class EmptyProps {}
+export class LayoutProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; }
+export class RootProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; contentWidth?: ContentWidth; }
+export class FrameProps { ratioWidth: int = 0; ratioHeight: int = 0; maxWidth: int = 0; maxHeight: int = 0; viewportHeightFraction: number = 0.0; }
+export class GridProps { columns: int = 1; minimumCellWidth: int = 0; cellAspectRatio: number = 0.0; spacing?: Space; padding?: Space; }
+export class CardProps { role?: CardRole; treatment?: SurfaceTreatment; emphasis?: Emphasis; spacing?: Space; padding?: Space; orientation?: CardOrientation; size?: ItemSize; onClick?: Action; accessibilityLabel?: string; }
+export class TextProps { value: string = ""; style?: TextStyle; tone?: SemanticTone; }
+export class IntTextProps { value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
+export class NumberTextProps { value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
+export class IconProps { name: string = "info"; description: string = ""; tone: string = "default"; }
+export class IconButtonProps { icon: string = "info"; onClick?: Action; accessibilityLabel: string = ""; hierarchy?: ButtonHierarchy; }
+export class ButtonProps { text: string = ""; icon: string = ""; onClick?: Action; accessibilityLabel?: string; hierarchy?: ButtonHierarchy; }
+export class TileProps { glyph: string; supporting: string = ""; icon: string = ""; tone: string; selected: boolean = false; highlighted: boolean = false; onClick?: Action; accessibilityLabel: string; }
+export class ProgressProps { value: int = 0; maximum: int = 100; label: string = ""; }
+export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; }
+export class TextFieldProps { value: string = ""; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class IntFieldProps { value: int = 0; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class NumberFieldProps { value: number = 0.0; label: string = ""; placeholder: string = ""; fractionDigits: int = 1; onChange?: Action; accessibilityLabel?: string; }
+export class TimeFieldProps { valueMinutes: int = 0; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class ToggleProps { checked: boolean = false; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class ChoiceProps { accessibilityLabel?: string; }
+export class ChoiceItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
+export class SliderProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class SpacerProps { size?: Space; }
+export class BadgeProps { text: string = ""; tone: string = "neutral"; icon: string = ""; }
+export class StatProps { label: string = ""; value: string = ""; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class IntStatProps { label: string = ""; value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class NumberStatProps { label: string = ""; value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class ListItemProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; trailing: string = ""; tone?: SemanticTone; emphasis?: Emphasis; size?: ItemSize; onClick?: Action; accessibilityLabel?: string; }
+export class IntListItemProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; trailingValue: int = 0; trailingPrefix: string = ""; trailingSuffix: string = ""; minimumDigits: int = 1; tone?: SemanticTone; emphasis?: Emphasis; size?: ItemSize; onClick?: Action; accessibilityLabel?: string; }
+export class SectionProps { title: string = ""; subtitle: string = ""; role?: SectionRole; treatment?: SurfaceTreatment; spacing?: Space; contentWidth?: ContentWidth; sectionSpacing?: SectionSpacing; edge?: EdgeTreatment; }
+export class HeroProps { treatment?: SurfaceTreatment; alignment: string = "start"; height?: HeroHeight; contentWidth?: ContentWidth; }
+export class MetricGroupProps { columns: int = 3; minimumCellWidth: int = 128; spacing?: Space; balance?: VisualBalance; }
+export class ActionBarProps { alignment: string = "end"; spacing?: Space; collapseBehavior?: CollapseBehavior; }
+export class HeaderProps { title: string = ""; eyebrow: string = ""; supporting: string = ""; leadingIcon: string = ""; treatment?: SurfaceTreatment; contentWidth?: ContentWidth; }
+export class SectionHeaderProps { title: string = ""; subtitle: string = ""; count: string = ""; badge: string = ""; emphasis?: Emphasis; }
+export class SegmentedControlProps { accessibilityLabel?: string; }
+export class SegmentItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
+export class TimelineProps { density?: ListDensity; treatment?: SurfaceTreatment; }
+export class TimelineItemProps { title: string = ""; subtitle: string = ""; trailing: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; onClick?: Action; accessibilityLabel?: string; }
+export class KeyValueGroupProps { columns: int = 2; minimumCellWidth: int = 160; spacing?: Space; balance?: VisualBalance; }
+export class KeyValueItemProps { label: string = ""; value: string = ""; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class InsetBannerProps { title: string = ""; message: string = ""; icon: string = "info"; tone?: SemanticTone; emphasis?: Emphasis; actionText: string = ""; onAction?: Action; accessibilityLabel?: string; }
+export class ListGroupProps { title: string = ""; subtitle: string = ""; density?: ListDensity; treatment?: SurfaceTreatment; spacing?: Space; }
+export class GridItemProps { span?: ColumnSpan; }
+export class ImageProps { url: string = ""; description: string = ""; ratioWidth: int = 16; ratioHeight: int = 9; fit: string = "cover"; }
+export class EmptyStateProps { title: string = ""; message: string = ""; icon: string = "info"; actionText: string = ""; onAction?: Action; accessibilityLabel?: string; }
+export class SnackbarProps { visible: boolean = false; message: string = ""; actionText: string = ""; onAction?: Action; onDismiss?: Action; accessibilityLabel?: string; }
+export class TopBarProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; treatment?: SurfaceTreatment; }
+export class CheckboxProps { checked: boolean = false; label: string = ""; supporting: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class StepperProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; decrementLabel: string = "Decrease"; incrementLabel: string = "Increase"; onChange?: Action; }
+export class TabsProps { accessibilityLabel?: string; }
+export class TabItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
+export class NavigationProps { accessibilityLabel?: string; }
+export class NavigationItemProps { label: string = ""; icon: string = "info"; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
+export class ChartProps { series: int[] = []; maximum: int = 100; label: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class AvatarProps { url: string = ""; initials: string = ""; description: string = ""; size: int = 48; }
+export class VisibilityProps { visible: boolean = true; }
+export class ClockProps { intervalMillis: int = 60000; onTick?: Action; }
+export class PointerPayload { x: int = 0; y: int = 0; phase: int = 0; }
+export class PointerProps { coordinateWidth: int = 1000; coordinateHeight: int = 600; onPointer?: Action; accessibilityLabel?: string; }
+export class CanvasProps { width: int = 1000; height: int = 600; background: string = "#FFFFFF"; accessibilityLabel?: string; }
+export class ShapeProps { x: int = 0; y: int = 0; width: int = 0; height: int = 0; color: string = "#000000"; stroke: string = ""; label: string = ""; layer: int = 0; }
+export class RouteProps { route: string = ""; activeRoute: string = ""; }
+export class OverlayProps { visible: boolean = false; onDismiss?: Action; accessibilityLabel?: string; }
+export class MenuProps { visible: boolean = false; onDismiss?: Action; accessibilityLabel?: string; }
+export class MenuItemProps { text: string = ""; icon: string = ""; enabled: boolean = true; onClick?: Action; accessibilityLabel?: string; }
+export class CapabilityProps { name: string = ""; available: boolean = false; explanation: string = ""; onRequest?: Action; accessibilityLabel?: string; }
+
+export component AppTheme(props: AppThemeProps): View { children optional; capability "renderer.android.theme"; }
+export component Widget(props: EmptyProps): View { children optional; capability "renderer.android.widget"; }
+export component Root(props: RootProps): View { children optional; token spacing; capability "renderer.android.root"; }
+export component Column(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.column"; }
+export component Row(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.row"; }
+export component Stack(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.stack"; }
+export component Frame(props: FrameProps): View { children optional; capability "renderer.android.frame"; }
+export component Grid(props: GridProps): View { children optional; token spacing; capability "renderer.android.grid"; }
+export component Scroll(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.scroll"; }
+export component Card(props: CardProps): View { children optional; event onClick; accessibility accessibilityLabel; token spacing; capability "renderer.android.card"; }
+export component Section(props: SectionProps): View { children optional; token spacing; capability "renderer.android.section"; }
+export component Hero(props: HeroProps): View { children optional; token treatment; capability "renderer.android.hero"; }
+export component MetricGroup(props: MetricGroupProps): View { children required Stat | IntStat | NumberStat; token spacing; capability "renderer.android.metric-group"; }
+export component ActionBar(props: ActionBarProps): View { children required Button | IconButton; token spacing; capability "renderer.android.action-bar"; }
+export component Header(props: HeaderProps): View { children optional; capability "renderer.android.header"; }
+export component SectionHeader(props: SectionHeaderProps): View { children optional; capability "renderer.android.section-header"; }
+export component SegmentedControl(props: SegmentedControlProps): View { children required SegmentItem; accessibility accessibilityLabel; capability "renderer.android.segmented-control"; }
+export component SegmentItem(props: SegmentItemProps): View { parent required SegmentedControl; event onClick; accessibility accessibilityLabel; capability "renderer.android.segment-item"; }
+export component Timeline(props: TimelineProps): View { children required TimelineItem; capability "renderer.android.timeline"; }
+export component TimelineItem(props: TimelineItemProps): View { parent required Timeline; event onClick; accessibility accessibilityLabel; capability "renderer.android.timeline-item"; }
+export component KeyValueGroup(props: KeyValueGroupProps): View { children required KeyValueItem; token spacing; capability "renderer.android.key-value-group"; }
+export component KeyValueItem(props: KeyValueItemProps): View { parent required KeyValueGroup; capability "renderer.android.key-value-item"; }
+export component InsetBanner(props: InsetBannerProps): View { event onAction; accessibility accessibilityLabel; capability "renderer.android.inset-banner"; }
+export component ListGroup(props: ListGroupProps): View { children required ListItem | IntListItem; token spacing; capability "renderer.android.list-group"; }
+export component GridItem(props: GridItemProps): View { children optional; parent required Grid; capability "renderer.android.grid-item"; }
+export component Text(props: TextProps): View { capability "renderer.android.text"; }
+export component IntText(props: IntTextProps): View { capability "renderer.android.int-text"; }
+export component NumberText(props: NumberTextProps): View { capability "renderer.android.number-text"; }
+export component Icon(props: IconProps): View { accessibility description; capability "renderer.android.icon"; }
+export component IconButton(props: IconButtonProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.icon-button"; }
+export component Button(props: ButtonProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.button"; }
+export component Tile(props: TileProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.tile"; }
+export component ProgressBar(props: ProgressProps): View { capability "renderer.android.progress-bar"; }
+export component ProgressRing(props: ProgressProps): View { capability "renderer.android.progress-ring"; }
+export component NumberProgressBar(props: NumberProgressProps): View { capability "renderer.android.number-progress-bar"; }
+export component NumberProgressRing(props: NumberProgressProps): View { capability "renderer.android.number-progress-ring"; }
+export component TextField(props: TextFieldProps): View { event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.text-field"; }
+export component IntField(props: IntFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.int-field"; }
+export component NumberField(props: NumberFieldProps): View { event onChange(payload: number); accessibility accessibilityLabel; capability "renderer.android.number-field"; }
+export component TimeField(props: TimeFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.time-field"; }
+export component Toggle(props: ToggleProps): View { event onChange(payload: boolean); accessibility accessibilityLabel; capability "renderer.android.toggle"; }
+export component Choice(props: ChoiceProps): View { children required ChoiceItem; accessibility accessibilityLabel; capability "renderer.android.choice"; }
+export component ChoiceItem(props: ChoiceItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.choice-item"; }
+export component Slider(props: SliderProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.slider"; }
+export component Spacer(props: SpacerProps): View { token size; capability "renderer.android.spacer"; }
+export component Badge(props: BadgeProps): View { capability "renderer.android.badge"; }
+export component Stat(props: StatProps): View { capability "renderer.android.stat"; }
+export component IntStat(props: IntStatProps): View { capability "renderer.android.int-stat"; }
+export component NumberStat(props: NumberStatProps): View { capability "renderer.android.number-stat"; }
+export component ListItem(props: ListItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.list-item"; }
+export component IntListItem(props: IntListItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.int-list-item"; }
+export component Image(props: ImageProps): View { accessibility description; capability "renderer.android.image.https"; }
+export component EmptyState(props: EmptyStateProps): View { event onAction; accessibility accessibilityLabel; capability "renderer.android.empty-state"; }
+export component Snackbar(props: SnackbarProps): View { event onAction; event onDismiss; accessibility accessibilityLabel; capability "renderer.android.snackbar"; }
+export component TopBar(props: TopBarProps): View { children optional; capability "renderer.android.top-bar"; }
+export component Checkbox(props: CheckboxProps): View { event onChange(payload: boolean); accessibility accessibilityLabel; capability "renderer.android.checkbox"; }
+export component Stepper(props: StepperProps): View { event onChange(payload: int); capability "renderer.android.stepper"; }
+export component Tabs(props: TabsProps): View { children required TabItem; accessibility accessibilityLabel; capability "renderer.android.tabs"; }
+export component TabItem(props: TabItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.tab-item"; }
+export component NavigationBar(props: NavigationProps): View { children required NavigationItem; accessibility accessibilityLabel; capability "renderer.android.navigation"; }
+export component NavigationItem(props: NavigationItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.navigation-item"; }
+export component BarChart(props: ChartProps): View { accessibility label; capability "renderer.android.chart.bar"; }
+export component Sparkline(props: ChartProps): View { accessibility label; capability "renderer.android.chart.sparkline"; }
+export component Avatar(props: AvatarProps): View { accessibility description; capability "renderer.android.avatar.https"; }
+export component AnimatedVisibility(props: VisibilityProps): View { children optional; capability "renderer.android.animated-visibility"; }
+export component Divider(props: EmptyProps): View { capability "renderer.android.divider"; }
+export component FrameClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.frame"; }
+export component MinuteClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.minute"; }
+export component PointerSurface(props: PointerProps): View { children optional; event onPointer(payload: PointerPayload); accessibility accessibilityLabel; capability "host.pointer"; }
+export component Canvas(props: CanvasProps): View { children required Rectangle | RoundRectangle | Circle | Line | CanvasText; accessibility accessibilityLabel; capability "renderer.android.canvas"; }
+export component Rectangle(props: ShapeProps): View { parent required Canvas; capability "renderer.android.shape.rectangle"; }
+export component RoundRectangle(props: ShapeProps): View { parent required Canvas; capability "renderer.android.shape.round-rectangle"; }
+export component Circle(props: ShapeProps): View { parent required Canvas; capability "renderer.android.shape.circle"; }
+export component Line(props: ShapeProps): View { parent required Canvas; capability "renderer.android.shape.line"; }
+export component CanvasText(props: ShapeProps): View { parent required Canvas; capability "renderer.android.shape.text"; }
+export component Route(props: RouteProps): View { children optional; capability "renderer.android.route"; }
+export component Modal(props: OverlayProps): View { children optional; event onDismiss; accessibility accessibilityLabel; capability "renderer.android.modal"; }
+export component Dialog(props: OverlayProps): View { children optional; event onDismiss; accessibility accessibilityLabel; capability "renderer.android.dialog"; }
+export component BottomSheet(props: OverlayProps): View { children optional; event onDismiss; accessibility accessibilityLabel; capability "renderer.android.bottom-sheet"; }
+export component Menu(props: MenuProps): View { children required MenuItem; event onDismiss; accessibility accessibilityLabel; capability "renderer.android.menu"; }
+export component MenuItem(props: MenuItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.menu-item"; }
+export component CapabilityNotice(props: CapabilityProps): View { event onRequest; accessibility accessibilityLabel; capability "renderer.android.capability-notice"; }
+
+export token spaceXs: Space = { value: 4 };
+export token spaceSm: Space = { value: 8 };
+export token spaceMd: Space = { value: 16 };
+export token spaceLg: Space = { value: 24 };
+export token textCaption: TextStyle = { value: "caption" };
+export token textBody: TextStyle = { value: "body" };
+export token textTitle: TextStyle = { value: "title" };
+export token textHeadline: TextStyle = { value: "headline" };
+export token textMetric: TextStyle = { value: "metric" };
+export token textDisplay: TextStyle = { value: "display" };
+export token themeClean: ThemeStyle = { value: "clean" };
+export token themeSoft: ThemeStyle = { value: "soft" };
+export token themeExpressive: ThemeStyle = { value: "expressive" };
+export token themeEditorial: ThemeStyle = { value: "editorial" };
+export token themeTechnical: ThemeStyle = { value: "technical" };
+export token themePlayful: ThemeStyle = { value: "playful" };
+export token shapeGeometric: ShapeStyle = { value: "geometric" };
+export token shapeRounded: ShapeStyle = { value: "rounded" };
+export token shapeSoft: ShapeStyle = { value: "soft" };
+export token shapePillControls: ShapeStyle = { value: "pill-controls" };
+export token densityCompact: DensityStyle = { value: "compact" };
+export token densityComfortable: DensityStyle = { value: "comfortable" };
+export token densitySpacious: DensityStyle = { value: "spacious" };
+export token surfaceFlat: SurfaceStyle = { value: "flat" };
+export token surfaceTonal: SurfaceStyle = { value: "tonal" };
+export token surfaceOutlined: SurfaceStyle = { value: "outlined" };
+export token surfaceLayered: SurfaceStyle = { value: "layered" };
+export token typographyNeutral: TypographyStyle = { value: "neutral" };
+export token typographyEditorial: TypographyStyle = { value: "editorial" };
+export token typographyTechnical: TypographyStyle = { value: "technical" };
+export token typographyFriendly: TypographyStyle = { value: "friendly" };
+export token typographyExpressive: TypographyStyle = { value: "expressive" };
+export token contrastStandard: ContrastStyle = { value: "standard" };
+export token contrastHigh: ContrastStyle = { value: "high" };
+export token backgroundSolid: BackgroundStyle = { value: "solid" };
+export token backgroundTonal: BackgroundStyle = { value: "tonal" };
+export token backgroundAtmospheric: BackgroundStyle = { value: "atmospheric" };
+export token motionNone: MotionStyle = { value: "none" };
+export token motionRestrained: MotionStyle = { value: "restrained" };
+export token motionExpressive: MotionStyle = { value: "expressive" };
+export token toneDefault: SemanticTone = { value: "default" };
+export token toneMuted: SemanticTone = { value: "muted" };
+export token toneAccent: SemanticTone = { value: "accent" };
+export token tonePositive: SemanticTone = { value: "positive" };
+export token toneWarning: SemanticTone = { value: "warning" };
+export token toneDanger: SemanticTone = { value: "danger" };
+export token emphasisLow: Emphasis = { value: "low" };
+export token emphasisMedium: Emphasis = { value: "medium" };
+export token emphasisHigh: Emphasis = { value: "high" };
+export token sectionHero: SectionRole = { value: "hero" };
+export token sectionSummary: SectionRole = { value: "summary" };
+export token sectionContent: SectionRole = { value: "content" };
+export token sectionSupporting: SectionRole = { value: "supporting" };
+export token sectionWarning: SectionRole = { value: "warning" };
+export token cardContent: CardRole = { value: "content" };
+export token cardSummary: CardRole = { value: "summary" };
+export token cardMetric: CardRole = { value: "metric" };
+export token cardSelection: CardRole = { value: "selection" };
+export token cardEditor: CardRole = { value: "editor" };
+export token buttonPrimary: ButtonHierarchy = { value: "primary" };
+export token buttonSecondary: ButtonHierarchy = { value: "secondary" };
+export token buttonQuiet: ButtonHierarchy = { value: "quiet" };
+export token buttonDestructive: ButtonHierarchy = { value: "destructive" };
+export token treatmentPlain: SurfaceTreatment = { value: "plain" };
+export token treatmentTonal: SurfaceTreatment = { value: "tonal" };
+export token treatmentOutlined: SurfaceTreatment = { value: "outlined" };
+export token treatmentElevated: SurfaceTreatment = { value: "elevated" };
+export token contentCompact: ContentWidth = { value: "compact" };
+export token contentStandard: ContentWidth = { value: "standard" };
+export token contentWide: ContentWidth = { value: "wide" };
+export token contentFull: ContentWidth = { value: "full" };
+export token sectionSpacingTight: SectionSpacing = { value: "tight" };
+export token sectionSpacingRegular: SectionSpacing = { value: "regular" };
+export token sectionSpacingRelaxed: SectionSpacing = { value: "relaxed" };
+export token itemCompact: ItemSize = { value: "compact" };
+export token itemStandard: ItemSize = { value: "standard" };
+export token itemProminent: ItemSize = { value: "prominent" };
+export token spanOne: ColumnSpan = { value: "one" };
+export token spanTwo: ColumnSpan = { value: "two" };
+export token spanFull: ColumnSpan = { value: "full" };
+export token balanceContentFirst: VisualBalance = { value: "content-first" };
+export token balanceBalanced: VisualBalance = { value: "balanced" };
+export token balanceMetricFirst: VisualBalance = { value: "metric-first" };
+export token edgeNone: EdgeTreatment = { value: "none" };
+export token edgeInset: EdgeTreatment = { value: "inset" };
+export token edgeFullBleed: EdgeTreatment = { value: "full-bleed" };
+export token listCompact: ListDensity = { value: "compact" };
+export token listComfortable: ListDensity = { value: "comfortable" };
+export token heroCompact: HeroHeight = { value: "compact" };
+export token heroStandard: HeroHeight = { value: "standard" };
+export token heroExpanded: HeroHeight = { value: "expanded" };
+export token cardVertical: CardOrientation = { value: "vertical" };
+export token cardHorizontal: CardOrientation = { value: "horizontal" };
+export token collapseWrap: CollapseBehavior = { value: "wrap" };
+export token collapseStack: CollapseBehavior = { value: "stack" };

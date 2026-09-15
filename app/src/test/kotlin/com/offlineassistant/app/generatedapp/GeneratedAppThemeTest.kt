@@ -1,5 +1,7 @@
 package com.offlineassistant.app.generatedapp
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -94,7 +96,7 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `v14 structural diagnostics reject nested cards hero misuse and duplicate route heroes`() {
+    fun `v15 structural diagnostics reject nested cards hero misuse and duplicate route heroes`() {
         val nestedCard = call("Card", call("Card"))
         val heroInCard = call("Card", call("Hero"))
         val duplicateHeroes = call("Hero") + "," + call("Hero")
@@ -120,7 +122,7 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `widget projection accepts semantic v14 content and rejects unsupported input controls`() {
+    fun `widget projection accepts semantic v15 content and rejects unsupported input controls`() {
         CanonicalDealUiParser.parse(
             structureIr(call("Widget", call("MetricGroup", call("IntStat"))))
         )
@@ -130,6 +132,50 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(call("Widget", call("TextField"))))
             }.message
         )
+    }
+
+    @Test
+    fun `v15 closed values and structural collections fail deterministically`() {
+        val wrongWidth = callWithArguments("Section", "\"contentWidth\":${literal("tablet")}")
+        assertEquals(
+            "Section.contentWidth has unsupported value 'tablet'",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongWidth)) }.message
+        )
+        val mixedGrid = call("Grid", call("GridItem", call("Text")) + "," + call("Text"))
+        assertEquals(
+            "Grid cannot mix direct children with GridItem children",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(mixedGrid)) }.message
+        )
+        val oneSegment = call("SegmentedControl", callWithArguments("SegmentItem", "\"selected\":${booleanLiteral(true)}"))
+        assertEquals(
+            "SegmentedControl requires two to four SegmentItem children",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(oneSegment)) }.message
+        )
+        val noSelection = call(
+            "SegmentedControl",
+            callWithArguments("SegmentItem", "\"selected\":${booleanLiteral(false)}", "segment-a") + "," +
+                callWithArguments("SegmentItem", "\"selected\":${booleanLiteral(false)}", "segment-b")
+        )
+        assertEquals(
+            "SegmentedControl requires exactly one statically selected SegmentItem",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(noSelection)) }.message
+        )
+    }
+
+    @Test
+    fun `six styles materialize distinct coherent visual systems`() {
+        val systems = GeneratedAppThemeSpec.STYLES.associateWith { style -> GeneratedAppThemeSpec(style = style).materializedStyle() }
+        assertEquals("outlined", systems.getValue("clean").surface)
+        assertEquals("friendly", systems.getValue("soft").typography)
+        assertEquals("atmospheric", systems.getValue("expressive").background)
+        assertEquals("editorial", systems.getValue("editorial").typography)
+        assertEquals("compact", systems.getValue("technical").density)
+        assertEquals("pill-controls", systems.getValue("playful").shape)
+        assertEquals(6, systems.values.map { listOf(it.typography, it.density, it.surface, it.background, it.motion, it.shape) }.toSet().size)
+        assertEquals(480.dp, contentWidthLimit("compact"))
+        assertEquals(680.dp, contentWidthLimit("standard"))
+        assertEquals(840.dp, contentWidthLimit("wide"))
+        assertEquals(Dp.Infinity, contentWidthLimit("full"))
     }
 
     private fun ir(nodes: String): String = """
@@ -192,6 +238,8 @@ class GeneratedAppThemeTest {
 
     private fun literal(value: String): String = """{"kind":"literal","value":"$value"}"""
 
+    private fun booleanLiteral(value: Boolean): String = """{"kind":"literal","value":$value}"""
+
     private fun structureIr(rootChildren: String): String = ir(
         """
         {
@@ -206,5 +254,9 @@ class GeneratedAppThemeTest {
 
     private fun call(name: String, children: String = ""): String = """
         {"kind":"call","name":"ui.$name","identity":"${name.lowercase()}","arguments":{},"children":[$children]}
+    """.trimIndent()
+
+    private fun callWithArguments(name: String, arguments: String, identity: String = name.lowercase()): String = """
+        {"kind":"call","name":"ui.$name","identity":"$identity","arguments":{$arguments},"children":[]}
     """.trimIndent()
 }

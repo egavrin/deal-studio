@@ -1,0 +1,2515 @@
+{
+  "version": "deal-studio-agent-semantics-v1",
+  "packVersion": "deal-studio-dealui-pack-v15",
+  "themeTokens": [
+    "themeClean",
+    "themeSoft",
+    "themeExpressive",
+    "themeEditorial",
+    "themeTechnical",
+    "themePlayful",
+    "shapeGeometric",
+    "shapeRounded",
+    "shapeSoft",
+    "shapePillControls",
+    "densityCompact",
+    "densityComfortable",
+    "densitySpacious",
+    "surfaceFlat",
+    "surfaceTonal",
+    "surfaceOutlined",
+    "surfaceLayered",
+    "typographyNeutral",
+    "typographyEditorial",
+    "typographyTechnical",
+    "typographyFriendly",
+    "typographyExpressive",
+    "contrastStandard",
+    "contrastHigh",
+    "backgroundSolid",
+    "backgroundTonal",
+    "backgroundAtmospheric",
+    "motionNone",
+    "motionRestrained",
+    "motionExpressive",
+    "toneDefault",
+    "toneMuted",
+    "toneAccent",
+    "tonePositive",
+    "toneWarning",
+    "toneDanger",
+    "emphasisLow",
+    "emphasisMedium",
+    "emphasisHigh",
+    "sectionHero",
+    "sectionSummary",
+    "sectionContent",
+    "sectionSupporting",
+    "sectionWarning",
+    "cardContent",
+    "cardSummary",
+    "cardMetric",
+    "cardSelection",
+    "cardEditor",
+    "buttonPrimary",
+    "buttonSecondary",
+    "buttonQuiet",
+    "buttonDestructive",
+    "treatmentPlain",
+    "treatmentTonal",
+    "treatmentOutlined",
+    "treatmentElevated",
+    "contentCompact",
+    "contentStandard",
+    "contentWide",
+    "contentFull",
+    "sectionSpacingTight",
+    "sectionSpacingRegular",
+    "sectionSpacingRelaxed",
+    "itemCompact",
+    "itemStandard",
+    "itemProminent",
+    "spanOne",
+    "spanTwo",
+    "spanFull",
+    "balanceContentFirst",
+    "balanceBalanced",
+    "balanceMetricFirst",
+    "edgeNone",
+    "edgeInset",
+    "edgeFullBleed",
+    "listCompact",
+    "listComfortable",
+    "heroCompact",
+    "heroStandard",
+    "heroExpanded",
+    "cardVertical",
+    "cardHorizontal",
+    "collapseWrap",
+    "collapseStack"
+  ],
+  "components": {
+    "AppTheme": {
+      "purpose": "Select exported typed theme tokens; primary and secondary are the only raw hex theme inputs.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": [],
+      "microExample": "ui.AppTheme(primary: \"#2563EB\", secondary: \"#0F766E\", style: ui.themeClean)"
+    },
+    "Widget": {
+      "purpose": "Use Widget only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Root": {
+      "purpose": "Use Root only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Column": {
+      "purpose": "Use Column only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Row": {
+      "purpose": "Use Row only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Stack": {
+      "purpose": "Use Stack only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Frame": {
+      "purpose": "Use Frame only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Grid": {
+      "purpose": "Use Grid only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Scroll": {
+      "purpose": "Use Scroll only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Card": {
+      "purpose": "Create one cohesive bounded surface whose contents need a shared background, outline, or elevation.",
+      "preferWhen": ["a small group must read as one selectable, metric, summary, content, or editor surface"],
+      "avoidWhen": ["the goal is only spacing, a section heading, a list row, or visual separation"],
+      "visualWeight": "medium",
+      "commonSiblings": ["SectionHeader", "ListGroup", "Divider"],
+      "constraints": ["Never nest Card inside Card", "Keep Cards scarce; do not wrap every section or row"]
+    },
+    "Section": {
+      "purpose": "Use Section only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Hero": {
+      "purpose": "Use once at most per root or route for the leading identity and primary status. Never place under Card.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "high",
+      "commonSiblings": [],
+      "constraints": [],
+      "microExample": "ui.Hero(treatment: ui.treatmentTonal, alignment: \"start\") { ui.Text(value: state.title, style: ui.textDisplay) }"
+    },
+    "MetricGroup": {
+      "purpose": "Group only Stat, IntStat, or NumberStat children; columns is a maximum and minimumCellWidth controls adaptation.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "high",
+      "commonSiblings": [],
+      "constraints": [],
+      "microExample": "ui.MetricGroup(columns: 3, minimumCellWidth: 128, spacing: ui.spaceSm) { ui.IntStat(label: \"Items\", value: state.count) }"
+    },
+    "ActionBar": {
+      "purpose": "Group only action-capable Button or IconButton controls and keep one clear primary hierarchy.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": [],
+      "microExample": "ui.ActionBar(alignment: \"end\", spacing: ui.spaceSm) { ui.Button(text: \"Save\", hierarchy: ui.buttonPrimary, onClick: Save()) }"
+    },
+    "Header": {
+      "purpose": "Establish the app-owned title, identity, and concise supporting context as the dominant opening surface.",
+      "preferWhen": ["starting an ordinary root or route surface"],
+      "avoidWhen": ["a section-level heading is sufficient", "host navigation chrome already supplies the same title"],
+      "visualWeight": "high",
+      "commonSiblings": ["MetricGroup", "InsetBanner", "SectionHeader", "ActionBar"],
+      "constraints": ["At most one Button or IconButton child", "Do not pair with a duplicate TopBar title"],
+      "microExample": "ui.Header(title: state.title, supporting: state.status, leadingIcon: \"home\")"
+    },
+    "SectionHeader": {
+      "purpose": "Introduce a content section without creating another Card or surface container.",
+      "preferWhen": ["a section needs a title, count, badge, subtitle, or one trailing action"],
+      "avoidWhen": ["the text is the app's dominant title", "no section boundary is needed"],
+      "visualWeight": "medium",
+      "commonSiblings": ["ListGroup", "KeyValueGroup", "Timeline", "Divider"],
+      "constraints": ["At most one Button or IconButton child", "Does not create its own Card"]
+    },
+    "SegmentedControl": {
+      "purpose": "Use SegmentedControl through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "SegmentItem": {
+      "purpose": "Use SegmentItem through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Timeline": {
+      "purpose": "Use Timeline through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "TimelineItem": {
+      "purpose": "Use TimelineItem through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "KeyValueGroup": {
+      "purpose": "Use KeyValueGroup through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "KeyValueItem": {
+      "purpose": "Use KeyValueItem through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "InsetBanner": {
+      "purpose": "Show persistent contextual status, guidance, warning, or outcome inside the current page hierarchy.",
+      "preferWhen": ["a visible message should remain available while the user works"],
+      "avoidWhen": ["feedback is transient", "the message is merely a section heading"],
+      "visualWeight": "high",
+      "commonSiblings": ["Header", "ActionBar", "SectionHeader"],
+      "constraints": ["Children are forbidden", "Use semantic tone rather than raw colour"],
+      "microExample": "ui.InsetBanner(title: \"Needs attention\", message: state.status, icon: \"info\", tone: ui.toneWarning, emphasis: ui.emphasisMedium)"
+    },
+    "ListGroup": {
+      "purpose": "Present related list rows with renderer-owned separators, density, and grouped shape.",
+      "preferWhen": ["two or more related ListItem or IntListItem rows form one collection"],
+      "avoidWhen": ["content is a free-form section", "items are chronological TimelineItem entries"],
+      "visualWeight": "medium",
+      "commonSiblings": ["SectionHeader", "EmptyState", "ActionBar"],
+      "constraints": ["Only ListItem and IntListItem children are allowed", "Do not wrap each child in Card"],
+      "microExample": "ui.ListGroup(treatment: ui.treatmentPlain, density: ui.listComfortable) { ui.ListItem(title: state.label) }"
+    },
+    "GridItem": {
+      "purpose": "Use GridItem through its checked typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Text": {
+      "purpose": "Use Text only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "IntText": {
+      "purpose": "Use IntText only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NumberText": {
+      "purpose": "Use NumberText only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Icon": {
+      "purpose": "Use Icon only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "IconButton": {
+      "purpose": "Apply the same hierarchy semantics as Button and always provide accessibilityLabel.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Button": {
+      "purpose": "Use buttonPrimary for the main action, buttonSecondary for alternatives, buttonQuiet for low emphasis, and buttonDestructive only for destructive actions.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": [],
+      "microExample": "ui.Button(text: \"Continue\", hierarchy: ui.buttonPrimary, onClick: Continue())"
+    },
+    "Tile": {
+      "purpose": "Use Tile only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "ProgressBar": {
+      "purpose": "Use ProgressBar only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "ProgressRing": {
+      "purpose": "Use ProgressRing only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NumberProgressBar": {
+      "purpose": "Use NumberProgressBar only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NumberProgressRing": {
+      "purpose": "Use NumberProgressRing only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "TextField": {
+      "purpose": "Use TextField only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "IntField": {
+      "purpose": "Use IntField only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NumberField": {
+      "purpose": "Use NumberField only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "TimeField": {
+      "purpose": "Use TimeField only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Toggle": {
+      "purpose": "Use Toggle only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Choice": {
+      "purpose": "Use Choice only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "ChoiceItem": {
+      "purpose": "Use ChoiceItem only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Slider": {
+      "purpose": "Use Slider only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Spacer": {
+      "purpose": "Use Spacer only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Badge": {
+      "purpose": "Use Badge only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Stat": {
+      "purpose": "Use Stat only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "IntStat": {
+      "purpose": "Use IntStat only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NumberStat": {
+      "purpose": "Use NumberStat only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "ListItem": {
+      "purpose": "Use ListItem only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "IntListItem": {
+      "purpose": "Use IntListItem only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Image": {
+      "purpose": "Use Image only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "EmptyState": {
+      "purpose": "Use EmptyState only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Snackbar": {
+      "purpose": "Use Snackbar only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "TopBar": {
+      "purpose": "Use TopBar only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Checkbox": {
+      "purpose": "Use Checkbox only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Stepper": {
+      "purpose": "Use Stepper only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Tabs": {
+      "purpose": "Use Tabs only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "TabItem": {
+      "purpose": "Use TabItem only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NavigationBar": {
+      "purpose": "Use NavigationBar only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "NavigationItem": {
+      "purpose": "Use NavigationItem only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "BarChart": {
+      "purpose": "Use BarChart only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Sparkline": {
+      "purpose": "Use Sparkline only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Avatar": {
+      "purpose": "Use Avatar only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "AnimatedVisibility": {
+      "purpose": "Use AnimatedVisibility only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Divider": {
+      "purpose": "Use Divider only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "FrameClock": {
+      "purpose": "Use FrameClock only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "MinuteClock": {
+      "purpose": "Use MinuteClock only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "PointerSurface": {
+      "purpose": "Use PointerSurface only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Canvas": {
+      "purpose": "Use Canvas only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Rectangle": {
+      "purpose": "Use Rectangle only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "RoundRectangle": {
+      "purpose": "Use RoundRectangle only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Circle": {
+      "purpose": "Use Circle only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Line": {
+      "purpose": "Use Line only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "CanvasText": {
+      "purpose": "Use CanvasText only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Route": {
+      "purpose": "Use Route only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Modal": {
+      "purpose": "Use Modal only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Dialog": {
+      "purpose": "Use Dialog only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "BottomSheet": {
+      "purpose": "Use BottomSheet only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "Menu": {
+      "purpose": "Use Menu only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "MenuItem": {
+      "purpose": "Use MenuItem only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    },
+    "CapabilityNotice": {
+      "purpose": "Use CapabilityNotice only for its declared typed contract.",
+      "preferWhen": [],
+      "avoidWhen": [],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": []
+    }
+  },
+  "types": {
+    "Space": {
+      "purpose": "Typed Space contract used by the component pack."
+    },
+    "ColorToken": {
+      "purpose": "Typed ColorToken contract used by the component pack."
+    },
+    "TextStyle": {
+      "purpose": "Typed TextStyle contract used by the component pack."
+    },
+    "ThemeStyle": {
+      "purpose": "Typed ThemeStyle contract used by the component pack."
+    },
+    "ShapeStyle": {
+      "purpose": "Typed ShapeStyle contract used by the component pack."
+    },
+    "DensityStyle": {
+      "purpose": "Typed DensityStyle contract used by the component pack."
+    },
+    "SurfaceStyle": {
+      "purpose": "Typed SurfaceStyle contract used by the component pack."
+    },
+    "TypographyStyle": {
+      "purpose": "Typed TypographyStyle contract used by the component pack."
+    },
+    "ContrastStyle": {
+      "purpose": "Typed ContrastStyle contract used by the component pack."
+    },
+    "BackgroundStyle": {
+      "purpose": "Typed BackgroundStyle contract used by the component pack."
+    },
+    "MotionStyle": {
+      "purpose": "Typed MotionStyle contract used by the component pack."
+    },
+    "SemanticTone": {
+      "purpose": "Typed SemanticTone contract used by the component pack."
+    },
+    "Emphasis": {
+      "purpose": "Typed Emphasis contract used by the component pack."
+    },
+    "SectionRole": {
+      "purpose": "Typed SectionRole contract used by the component pack."
+    },
+    "CardRole": {
+      "purpose": "Typed CardRole contract used by the component pack."
+    },
+    "ButtonHierarchy": {
+      "purpose": "Typed ButtonHierarchy contract used by the component pack."
+    },
+    "SurfaceTreatment": {
+      "purpose": "Typed SurfaceTreatment contract used by the component pack."
+    },
+    "ContentWidth": {
+      "purpose": "Typed ContentWidth contract used by the component pack."
+    },
+    "SectionSpacing": {
+      "purpose": "Typed SectionSpacing contract used by the component pack."
+    },
+    "ItemSize": {
+      "purpose": "Typed ItemSize contract used by the component pack."
+    },
+    "ColumnSpan": {
+      "purpose": "Typed ColumnSpan contract used by the component pack."
+    },
+    "VisualBalance": {
+      "purpose": "Typed VisualBalance contract used by the component pack."
+    },
+    "EdgeTreatment": {
+      "purpose": "Typed EdgeTreatment contract used by the component pack."
+    },
+    "ListDensity": {
+      "purpose": "Typed ListDensity contract used by the component pack."
+    },
+    "HeroHeight": {
+      "purpose": "Typed HeroHeight contract used by the component pack."
+    },
+    "CardOrientation": {
+      "purpose": "Typed CardOrientation contract used by the component pack."
+    },
+    "CollapseBehavior": {
+      "purpose": "Typed CollapseBehavior contract used by the component pack."
+    },
+    "AppThemeProps": {
+      "purpose": "Typed AppThemeProps contract used by the component pack."
+    },
+    "EmptyProps": {
+      "purpose": "Typed EmptyProps contract used by the component pack."
+    },
+    "LayoutProps": {
+      "purpose": "Typed LayoutProps contract used by the component pack."
+    },
+    "RootProps": {
+      "purpose": "Typed RootProps contract used by the component pack."
+    },
+    "FrameProps": {
+      "purpose": "Typed FrameProps contract used by the component pack."
+    },
+    "GridProps": {
+      "purpose": "Typed GridProps contract used by the component pack."
+    },
+    "CardProps": {
+      "purpose": "Typed CardProps contract used by the component pack."
+    },
+    "TextProps": {
+      "purpose": "Typed TextProps contract used by the component pack."
+    },
+    "IntTextProps": {
+      "purpose": "Typed IntTextProps contract used by the component pack."
+    },
+    "NumberTextProps": {
+      "purpose": "Typed NumberTextProps contract used by the component pack."
+    },
+    "IconProps": {
+      "purpose": "Typed IconProps contract used by the component pack."
+    },
+    "IconButtonProps": {
+      "purpose": "Typed IconButtonProps contract used by the component pack."
+    },
+    "ButtonProps": {
+      "purpose": "Typed ButtonProps contract used by the component pack."
+    },
+    "TileProps": {
+      "purpose": "Typed TileProps contract used by the component pack."
+    },
+    "ProgressProps": {
+      "purpose": "Typed ProgressProps contract used by the component pack."
+    },
+    "NumberProgressProps": {
+      "purpose": "Typed NumberProgressProps contract used by the component pack."
+    },
+    "TextFieldProps": {
+      "purpose": "Typed TextFieldProps contract used by the component pack."
+    },
+    "IntFieldProps": {
+      "purpose": "Typed IntFieldProps contract used by the component pack."
+    },
+    "NumberFieldProps": {
+      "purpose": "Typed NumberFieldProps contract used by the component pack."
+    },
+    "TimeFieldProps": {
+      "purpose": "Typed TimeFieldProps contract used by the component pack."
+    },
+    "ToggleProps": {
+      "purpose": "Typed ToggleProps contract used by the component pack."
+    },
+    "ChoiceProps": {
+      "purpose": "Typed ChoiceProps contract used by the component pack."
+    },
+    "ChoiceItemProps": {
+      "purpose": "Typed ChoiceItemProps contract used by the component pack."
+    },
+    "SliderProps": {
+      "purpose": "Typed SliderProps contract used by the component pack."
+    },
+    "SpacerProps": {
+      "purpose": "Typed SpacerProps contract used by the component pack."
+    },
+    "BadgeProps": {
+      "purpose": "Typed BadgeProps contract used by the component pack."
+    },
+    "StatProps": {
+      "purpose": "Typed StatProps contract used by the component pack."
+    },
+    "IntStatProps": {
+      "purpose": "Typed IntStatProps contract used by the component pack."
+    },
+    "NumberStatProps": {
+      "purpose": "Typed NumberStatProps contract used by the component pack."
+    },
+    "ListItemProps": {
+      "purpose": "Typed ListItemProps contract used by the component pack."
+    },
+    "IntListItemProps": {
+      "purpose": "Typed IntListItemProps contract used by the component pack."
+    },
+    "SectionProps": {
+      "purpose": "Typed SectionProps contract used by the component pack."
+    },
+    "HeroProps": {
+      "purpose": "Typed HeroProps contract used by the component pack."
+    },
+    "MetricGroupProps": {
+      "purpose": "Typed MetricGroupProps contract used by the component pack."
+    },
+    "ActionBarProps": {
+      "purpose": "Typed ActionBarProps contract used by the component pack."
+    },
+    "HeaderProps": {
+      "purpose": "Typed HeaderProps contract used by the component pack."
+    },
+    "SectionHeaderProps": {
+      "purpose": "Typed SectionHeaderProps contract used by the component pack."
+    },
+    "SegmentedControlProps": {
+      "purpose": "Typed SegmentedControlProps contract used by the component pack."
+    },
+    "SegmentItemProps": {
+      "purpose": "Typed SegmentItemProps contract used by the component pack."
+    },
+    "TimelineProps": {
+      "purpose": "Typed TimelineProps contract used by the component pack."
+    },
+    "TimelineItemProps": {
+      "purpose": "Typed TimelineItemProps contract used by the component pack."
+    },
+    "KeyValueGroupProps": {
+      "purpose": "Typed KeyValueGroupProps contract used by the component pack."
+    },
+    "KeyValueItemProps": {
+      "purpose": "Typed KeyValueItemProps contract used by the component pack."
+    },
+    "InsetBannerProps": {
+      "purpose": "Typed InsetBannerProps contract used by the component pack."
+    },
+    "ListGroupProps": {
+      "purpose": "Typed ListGroupProps contract used by the component pack."
+    },
+    "GridItemProps": {
+      "purpose": "Typed GridItemProps contract used by the component pack."
+    },
+    "ImageProps": {
+      "purpose": "Typed ImageProps contract used by the component pack."
+    },
+    "EmptyStateProps": {
+      "purpose": "Typed EmptyStateProps contract used by the component pack."
+    },
+    "SnackbarProps": {
+      "purpose": "Typed SnackbarProps contract used by the component pack."
+    },
+    "TopBarProps": {
+      "purpose": "Typed TopBarProps contract used by the component pack."
+    },
+    "CheckboxProps": {
+      "purpose": "Typed CheckboxProps contract used by the component pack."
+    },
+    "StepperProps": {
+      "purpose": "Typed StepperProps contract used by the component pack."
+    },
+    "TabsProps": {
+      "purpose": "Typed TabsProps contract used by the component pack."
+    },
+    "TabItemProps": {
+      "purpose": "Typed TabItemProps contract used by the component pack."
+    },
+    "NavigationProps": {
+      "purpose": "Typed NavigationProps contract used by the component pack."
+    },
+    "NavigationItemProps": {
+      "purpose": "Typed NavigationItemProps contract used by the component pack."
+    },
+    "ChartProps": {
+      "purpose": "Typed ChartProps contract used by the component pack."
+    },
+    "AvatarProps": {
+      "purpose": "Typed AvatarProps contract used by the component pack."
+    },
+    "VisibilityProps": {
+      "purpose": "Typed VisibilityProps contract used by the component pack."
+    },
+    "ClockProps": {
+      "purpose": "Typed ClockProps contract used by the component pack."
+    },
+    "PointerPayload": {
+      "purpose": "Typed PointerPayload contract used by the component pack."
+    },
+    "PointerProps": {
+      "purpose": "Typed PointerProps contract used by the component pack."
+    },
+    "CanvasProps": {
+      "purpose": "Typed CanvasProps contract used by the component pack."
+    },
+    "ShapeProps": {
+      "purpose": "Typed ShapeProps contract used by the component pack."
+    },
+    "RouteProps": {
+      "purpose": "Typed RouteProps contract used by the component pack."
+    },
+    "OverlayProps": {
+      "purpose": "Typed OverlayProps contract used by the component pack."
+    },
+    "MenuProps": {
+      "purpose": "Typed MenuProps contract used by the component pack."
+    },
+    "MenuItemProps": {
+      "purpose": "Typed MenuItemProps contract used by the component pack."
+    },
+    "CapabilityProps": {
+      "purpose": "Typed CapabilityProps contract used by the component pack."
+    }
+  },
+  "tokens": {
+    "spaceXs": {
+      "purpose": "Typed spaceXs token exported by the component pack."
+    },
+    "spaceSm": {
+      "purpose": "Typed spaceSm token exported by the component pack."
+    },
+    "spaceMd": {
+      "purpose": "Typed spaceMd token exported by the component pack."
+    },
+    "spaceLg": {
+      "purpose": "Typed spaceLg token exported by the component pack."
+    },
+    "textCaption": {
+      "purpose": "Typed textCaption token exported by the component pack."
+    },
+    "textBody": {
+      "purpose": "Typed textBody token exported by the component pack."
+    },
+    "textTitle": {
+      "purpose": "Typed textTitle token exported by the component pack."
+    },
+    "textHeadline": {
+      "purpose": "Typed textHeadline token exported by the component pack."
+    },
+    "textMetric": {
+      "purpose": "Typed textMetric token exported by the component pack."
+    },
+    "textDisplay": {
+      "purpose": "Typed textDisplay token exported by the component pack."
+    },
+    "themeClean": {
+      "purpose": "Typed themeClean token exported by the component pack."
+    },
+    "themeSoft": {
+      "purpose": "Typed themeSoft token exported by the component pack."
+    },
+    "themeExpressive": {
+      "purpose": "Typed themeExpressive token exported by the component pack."
+    },
+    "themeEditorial": {
+      "purpose": "Typed themeEditorial token exported by the component pack."
+    },
+    "themeTechnical": {
+      "purpose": "Typed themeTechnical token exported by the component pack."
+    },
+    "themePlayful": {
+      "purpose": "Typed themePlayful token exported by the component pack."
+    },
+    "shapeGeometric": {
+      "purpose": "Typed shapeGeometric token exported by the component pack."
+    },
+    "shapeRounded": {
+      "purpose": "Typed shapeRounded token exported by the component pack."
+    },
+    "shapeSoft": {
+      "purpose": "Typed shapeSoft token exported by the component pack."
+    },
+    "shapePillControls": {
+      "purpose": "Typed shapePillControls token exported by the component pack."
+    },
+    "densityCompact": {
+      "purpose": "Typed densityCompact token exported by the component pack."
+    },
+    "densityComfortable": {
+      "purpose": "Typed densityComfortable token exported by the component pack."
+    },
+    "densitySpacious": {
+      "purpose": "Typed densitySpacious token exported by the component pack."
+    },
+    "surfaceFlat": {
+      "purpose": "Typed surfaceFlat token exported by the component pack."
+    },
+    "surfaceTonal": {
+      "purpose": "Typed surfaceTonal token exported by the component pack."
+    },
+    "surfaceOutlined": {
+      "purpose": "Typed surfaceOutlined token exported by the component pack."
+    },
+    "surfaceLayered": {
+      "purpose": "Typed surfaceLayered token exported by the component pack."
+    },
+    "typographyNeutral": {
+      "purpose": "Typed typographyNeutral token exported by the component pack."
+    },
+    "typographyEditorial": {
+      "purpose": "Typed typographyEditorial token exported by the component pack."
+    },
+    "typographyTechnical": {
+      "purpose": "Typed typographyTechnical token exported by the component pack."
+    },
+    "typographyFriendly": {
+      "purpose": "Typed typographyFriendly token exported by the component pack."
+    },
+    "typographyExpressive": {
+      "purpose": "Typed typographyExpressive token exported by the component pack."
+    },
+    "contrastStandard": {
+      "purpose": "Typed contrastStandard token exported by the component pack."
+    },
+    "contrastHigh": {
+      "purpose": "Typed contrastHigh token exported by the component pack."
+    },
+    "backgroundSolid": {
+      "purpose": "Typed backgroundSolid token exported by the component pack."
+    },
+    "backgroundTonal": {
+      "purpose": "Typed backgroundTonal token exported by the component pack."
+    },
+    "backgroundAtmospheric": {
+      "purpose": "Typed backgroundAtmospheric token exported by the component pack."
+    },
+    "motionNone": {
+      "purpose": "Typed motionNone token exported by the component pack."
+    },
+    "motionRestrained": {
+      "purpose": "Typed motionRestrained token exported by the component pack."
+    },
+    "motionExpressive": {
+      "purpose": "Typed motionExpressive token exported by the component pack."
+    },
+    "toneDefault": {
+      "purpose": "Typed toneDefault token exported by the component pack."
+    },
+    "toneMuted": {
+      "purpose": "Typed toneMuted token exported by the component pack."
+    },
+    "toneAccent": {
+      "purpose": "Typed toneAccent token exported by the component pack."
+    },
+    "tonePositive": {
+      "purpose": "Typed tonePositive token exported by the component pack."
+    },
+    "toneWarning": {
+      "purpose": "Typed toneWarning token exported by the component pack."
+    },
+    "toneDanger": {
+      "purpose": "Typed toneDanger token exported by the component pack."
+    },
+    "emphasisLow": {
+      "purpose": "Typed emphasisLow token exported by the component pack."
+    },
+    "emphasisMedium": {
+      "purpose": "Typed emphasisMedium token exported by the component pack."
+    },
+    "emphasisHigh": {
+      "purpose": "Typed emphasisHigh token exported by the component pack."
+    },
+    "sectionHero": {
+      "purpose": "Typed sectionHero token exported by the component pack."
+    },
+    "sectionSummary": {
+      "purpose": "Typed sectionSummary token exported by the component pack."
+    },
+    "sectionContent": {
+      "purpose": "Typed sectionContent token exported by the component pack."
+    },
+    "sectionSupporting": {
+      "purpose": "Typed sectionSupporting token exported by the component pack."
+    },
+    "sectionWarning": {
+      "purpose": "Typed sectionWarning token exported by the component pack."
+    },
+    "cardContent": {
+      "purpose": "Typed cardContent token exported by the component pack."
+    },
+    "cardSummary": {
+      "purpose": "Typed cardSummary token exported by the component pack."
+    },
+    "cardMetric": {
+      "purpose": "Typed cardMetric token exported by the component pack."
+    },
+    "cardSelection": {
+      "purpose": "Typed cardSelection token exported by the component pack."
+    },
+    "cardEditor": {
+      "purpose": "Typed cardEditor token exported by the component pack."
+    },
+    "buttonPrimary": {
+      "purpose": "Typed buttonPrimary token exported by the component pack."
+    },
+    "buttonSecondary": {
+      "purpose": "Typed buttonSecondary token exported by the component pack."
+    },
+    "buttonQuiet": {
+      "purpose": "Typed buttonQuiet token exported by the component pack."
+    },
+    "buttonDestructive": {
+      "purpose": "Typed buttonDestructive token exported by the component pack."
+    },
+    "treatmentPlain": {
+      "purpose": "Typed treatmentPlain token exported by the component pack."
+    },
+    "treatmentTonal": {
+      "purpose": "Typed treatmentTonal token exported by the component pack."
+    },
+    "treatmentOutlined": {
+      "purpose": "Typed treatmentOutlined token exported by the component pack."
+    },
+    "treatmentElevated": {
+      "purpose": "Typed treatmentElevated token exported by the component pack."
+    },
+    "contentCompact": {
+      "purpose": "Typed contentCompact token exported by the component pack."
+    },
+    "contentStandard": {
+      "purpose": "Typed contentStandard token exported by the component pack."
+    },
+    "contentWide": {
+      "purpose": "Typed contentWide token exported by the component pack."
+    },
+    "contentFull": {
+      "purpose": "Typed contentFull token exported by the component pack."
+    },
+    "sectionSpacingTight": {
+      "purpose": "Typed sectionSpacingTight token exported by the component pack."
+    },
+    "sectionSpacingRegular": {
+      "purpose": "Typed sectionSpacingRegular token exported by the component pack."
+    },
+    "sectionSpacingRelaxed": {
+      "purpose": "Typed sectionSpacingRelaxed token exported by the component pack."
+    },
+    "itemCompact": {
+      "purpose": "Typed itemCompact token exported by the component pack."
+    },
+    "itemStandard": {
+      "purpose": "Typed itemStandard token exported by the component pack."
+    },
+    "itemProminent": {
+      "purpose": "Typed itemProminent token exported by the component pack."
+    },
+    "spanOne": {
+      "purpose": "Typed spanOne token exported by the component pack."
+    },
+    "spanTwo": {
+      "purpose": "Typed spanTwo token exported by the component pack."
+    },
+    "spanFull": {
+      "purpose": "Typed spanFull token exported by the component pack."
+    },
+    "balanceContentFirst": {
+      "purpose": "Typed balanceContentFirst token exported by the component pack."
+    },
+    "balanceBalanced": {
+      "purpose": "Typed balanceBalanced token exported by the component pack."
+    },
+    "balanceMetricFirst": {
+      "purpose": "Typed balanceMetricFirst token exported by the component pack."
+    },
+    "edgeNone": {
+      "purpose": "Typed edgeNone token exported by the component pack."
+    },
+    "edgeInset": {
+      "purpose": "Typed edgeInset token exported by the component pack."
+    },
+    "edgeFullBleed": {
+      "purpose": "Typed edgeFullBleed token exported by the component pack."
+    },
+    "listCompact": {
+      "purpose": "Typed listCompact token exported by the component pack."
+    },
+    "listComfortable": {
+      "purpose": "Typed listComfortable token exported by the component pack."
+    },
+    "heroCompact": {
+      "purpose": "Typed heroCompact token exported by the component pack."
+    },
+    "heroStandard": {
+      "purpose": "Typed heroStandard token exported by the component pack."
+    },
+    "heroExpanded": {
+      "purpose": "Typed heroExpanded token exported by the component pack."
+    },
+    "cardVertical": {
+      "purpose": "Typed cardVertical token exported by the component pack."
+    },
+    "cardHorizontal": {
+      "purpose": "Typed cardHorizontal token exported by the component pack."
+    },
+    "collapseWrap": {
+      "purpose": "Typed collapseWrap token exported by the component pack."
+    },
+    "collapseStack": {
+      "purpose": "Typed collapseStack token exported by the component pack."
+    }
+  },
+  "props": {
+    "AppTheme.primary": {
+      "purpose": "Checked primary property for AppTheme."
+    },
+    "AppTheme.secondary": {
+      "purpose": "Checked secondary property for AppTheme."
+    },
+    "AppTheme.style": {
+      "purpose": "Checked style property for AppTheme."
+    },
+    "AppTheme.shape": {
+      "purpose": "Checked shape property for AppTheme."
+    },
+    "AppTheme.density": {
+      "purpose": "Checked density property for AppTheme."
+    },
+    "AppTheme.surface": {
+      "purpose": "Checked surface property for AppTheme."
+    },
+    "AppTheme.typography": {
+      "purpose": "Checked typography property for AppTheme."
+    },
+    "AppTheme.contrast": {
+      "purpose": "Checked contrast property for AppTheme."
+    },
+    "AppTheme.background": {
+      "purpose": "Checked background property for AppTheme."
+    },
+    "AppTheme.motion": {
+      "purpose": "Checked motion property for AppTheme."
+    },
+    "Root.spacing": {
+      "purpose": "Checked spacing property for Root."
+    },
+    "Root.padding": {
+      "purpose": "Checked padding property for Root."
+    },
+    "Root.horizontal": {
+      "purpose": "Checked horizontal property for Root."
+    },
+    "Root.vertical": {
+      "purpose": "Checked vertical property for Root."
+    },
+    "Root.wrap": {
+      "purpose": "Checked wrap property for Root."
+    },
+    "Root.contentWidth": {
+      "purpose": "Checked contentWidth property for Root."
+    },
+    "Column.spacing": {
+      "purpose": "Checked spacing property for Column."
+    },
+    "Column.padding": {
+      "purpose": "Checked padding property for Column."
+    },
+    "Column.horizontal": {
+      "purpose": "Checked horizontal property for Column."
+    },
+    "Column.vertical": {
+      "purpose": "Checked vertical property for Column."
+    },
+    "Column.wrap": {
+      "purpose": "Checked wrap property for Column."
+    },
+    "Row.spacing": {
+      "purpose": "Checked spacing property for Row."
+    },
+    "Row.padding": {
+      "purpose": "Checked padding property for Row."
+    },
+    "Row.horizontal": {
+      "purpose": "Checked horizontal property for Row."
+    },
+    "Row.vertical": {
+      "purpose": "Checked vertical property for Row."
+    },
+    "Row.wrap": {
+      "purpose": "Checked wrap property for Row."
+    },
+    "Stack.spacing": {
+      "purpose": "Checked spacing property for Stack."
+    },
+    "Stack.padding": {
+      "purpose": "Checked padding property for Stack."
+    },
+    "Stack.horizontal": {
+      "purpose": "Checked horizontal property for Stack."
+    },
+    "Stack.vertical": {
+      "purpose": "Checked vertical property for Stack."
+    },
+    "Stack.wrap": {
+      "purpose": "Checked wrap property for Stack."
+    },
+    "Frame.ratioWidth": {
+      "purpose": "Checked ratioWidth property for Frame."
+    },
+    "Frame.ratioHeight": {
+      "purpose": "Checked ratioHeight property for Frame."
+    },
+    "Frame.maxWidth": {
+      "purpose": "Checked maxWidth property for Frame."
+    },
+    "Frame.maxHeight": {
+      "purpose": "Checked maxHeight property for Frame."
+    },
+    "Frame.viewportHeightFraction": {
+      "purpose": "Checked viewportHeightFraction property for Frame."
+    },
+    "Grid.columns": {
+      "purpose": "Checked columns property for Grid."
+    },
+    "Grid.minimumCellWidth": {
+      "purpose": "Checked minimumCellWidth property for Grid."
+    },
+    "Grid.cellAspectRatio": {
+      "purpose": "Checked cellAspectRatio property for Grid."
+    },
+    "Grid.spacing": {
+      "purpose": "Checked spacing property for Grid."
+    },
+    "Grid.padding": {
+      "purpose": "Checked padding property for Grid."
+    },
+    "Scroll.spacing": {
+      "purpose": "Checked spacing property for Scroll."
+    },
+    "Scroll.padding": {
+      "purpose": "Checked padding property for Scroll."
+    },
+    "Scroll.horizontal": {
+      "purpose": "Checked horizontal property for Scroll."
+    },
+    "Scroll.vertical": {
+      "purpose": "Checked vertical property for Scroll."
+    },
+    "Scroll.wrap": {
+      "purpose": "Checked wrap property for Scroll."
+    },
+    "Card.role": {
+      "purpose": "Checked role property for Card."
+    },
+    "Card.treatment": {
+      "purpose": "Checked treatment property for Card."
+    },
+    "Card.emphasis": {
+      "purpose": "Checked emphasis property for Card."
+    },
+    "Card.spacing": {
+      "purpose": "Checked spacing property for Card."
+    },
+    "Card.padding": {
+      "purpose": "Checked padding property for Card."
+    },
+    "Card.orientation": {
+      "purpose": "Checked orientation property for Card."
+    },
+    "Card.size": {
+      "purpose": "Checked size property for Card."
+    },
+    "Card.onClick": {
+      "purpose": "Checked onClick property for Card."
+    },
+    "Card.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Card."
+    },
+    "Section.title": {
+      "purpose": "Checked title property for Section."
+    },
+    "Section.subtitle": {
+      "purpose": "Checked subtitle property for Section."
+    },
+    "Section.role": {
+      "purpose": "Checked role property for Section."
+    },
+    "Section.treatment": {
+      "purpose": "Checked treatment property for Section."
+    },
+    "Section.spacing": {
+      "purpose": "Checked spacing property for Section."
+    },
+    "Section.contentWidth": {
+      "purpose": "Checked contentWidth property for Section."
+    },
+    "Section.sectionSpacing": {
+      "purpose": "Checked sectionSpacing property for Section."
+    },
+    "Section.edge": {
+      "purpose": "Checked edge property for Section."
+    },
+    "Hero.treatment": {
+      "purpose": "Checked treatment property for Hero."
+    },
+    "Hero.alignment": {
+      "purpose": "Checked alignment property for Hero."
+    },
+    "Hero.height": {
+      "purpose": "Checked height property for Hero."
+    },
+    "Hero.contentWidth": {
+      "purpose": "Checked contentWidth property for Hero."
+    },
+    "MetricGroup.columns": {
+      "purpose": "Checked columns property for MetricGroup."
+    },
+    "MetricGroup.minimumCellWidth": {
+      "purpose": "Checked minimumCellWidth property for MetricGroup."
+    },
+    "MetricGroup.spacing": {
+      "purpose": "Checked spacing property for MetricGroup."
+    },
+    "MetricGroup.balance": {
+      "purpose": "Checked balance property for MetricGroup."
+    },
+    "ActionBar.alignment": {
+      "purpose": "Checked alignment property for ActionBar."
+    },
+    "ActionBar.spacing": {
+      "purpose": "Checked spacing property for ActionBar."
+    },
+    "ActionBar.collapseBehavior": {
+      "purpose": "Checked collapseBehavior property for ActionBar."
+    },
+    "Header.title": {
+      "purpose": "Checked title property for Header."
+    },
+    "Header.eyebrow": {
+      "purpose": "Checked eyebrow property for Header."
+    },
+    "Header.supporting": {
+      "purpose": "Checked supporting property for Header."
+    },
+    "Header.leadingIcon": {
+      "purpose": "Checked leadingIcon property for Header."
+    },
+    "Header.treatment": {
+      "purpose": "Checked treatment property for Header."
+    },
+    "Header.contentWidth": {
+      "purpose": "Checked contentWidth property for Header."
+    },
+    "SectionHeader.title": {
+      "purpose": "Checked title property for SectionHeader."
+    },
+    "SectionHeader.subtitle": {
+      "purpose": "Checked subtitle property for SectionHeader."
+    },
+    "SectionHeader.count": {
+      "purpose": "Checked count property for SectionHeader."
+    },
+    "SectionHeader.badge": {
+      "purpose": "Checked badge property for SectionHeader."
+    },
+    "SectionHeader.emphasis": {
+      "purpose": "Checked emphasis property for SectionHeader."
+    },
+    "SegmentedControl.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for SegmentedControl."
+    },
+    "SegmentItem.label": {
+      "purpose": "Checked label property for SegmentItem."
+    },
+    "SegmentItem.selected": {
+      "purpose": "Checked selected property for SegmentItem."
+    },
+    "SegmentItem.onClick": {
+      "purpose": "Checked onClick property for SegmentItem."
+    },
+    "SegmentItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for SegmentItem."
+    },
+    "Timeline.density": {
+      "purpose": "Checked density property for Timeline."
+    },
+    "Timeline.treatment": {
+      "purpose": "Checked treatment property for Timeline."
+    },
+    "TimelineItem.title": {
+      "purpose": "Checked title property for TimelineItem."
+    },
+    "TimelineItem.subtitle": {
+      "purpose": "Checked subtitle property for TimelineItem."
+    },
+    "TimelineItem.trailing": {
+      "purpose": "Checked trailing property for TimelineItem."
+    },
+    "TimelineItem.icon": {
+      "purpose": "Checked icon property for TimelineItem."
+    },
+    "TimelineItem.tone": {
+      "purpose": "Checked tone property for TimelineItem."
+    },
+    "TimelineItem.emphasis": {
+      "purpose": "Checked emphasis property for TimelineItem."
+    },
+    "TimelineItem.onClick": {
+      "purpose": "Checked onClick property for TimelineItem."
+    },
+    "TimelineItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for TimelineItem."
+    },
+    "KeyValueGroup.columns": {
+      "purpose": "Checked columns property for KeyValueGroup."
+    },
+    "KeyValueGroup.minimumCellWidth": {
+      "purpose": "Checked minimumCellWidth property for KeyValueGroup."
+    },
+    "KeyValueGroup.spacing": {
+      "purpose": "Checked spacing property for KeyValueGroup."
+    },
+    "KeyValueGroup.balance": {
+      "purpose": "Checked balance property for KeyValueGroup."
+    },
+    "KeyValueItem.label": {
+      "purpose": "Checked label property for KeyValueItem."
+    },
+    "KeyValueItem.value": {
+      "purpose": "Checked value property for KeyValueItem."
+    },
+    "KeyValueItem.supporting": {
+      "purpose": "Checked supporting property for KeyValueItem."
+    },
+    "KeyValueItem.icon": {
+      "purpose": "Checked icon property for KeyValueItem."
+    },
+    "KeyValueItem.tone": {
+      "purpose": "Checked tone property for KeyValueItem."
+    },
+    "KeyValueItem.emphasis": {
+      "purpose": "Checked emphasis property for KeyValueItem."
+    },
+    "InsetBanner.title": {
+      "purpose": "Checked title property for InsetBanner."
+    },
+    "InsetBanner.message": {
+      "purpose": "Checked message property for InsetBanner."
+    },
+    "InsetBanner.icon": {
+      "purpose": "Checked icon property for InsetBanner."
+    },
+    "InsetBanner.tone": {
+      "purpose": "Checked tone property for InsetBanner."
+    },
+    "InsetBanner.emphasis": {
+      "purpose": "Checked emphasis property for InsetBanner."
+    },
+    "InsetBanner.actionText": {
+      "purpose": "Checked actionText property for InsetBanner."
+    },
+    "InsetBanner.onAction": {
+      "purpose": "Checked onAction property for InsetBanner."
+    },
+    "InsetBanner.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for InsetBanner."
+    },
+    "ListGroup.title": {
+      "purpose": "Checked title property for ListGroup."
+    },
+    "ListGroup.subtitle": {
+      "purpose": "Checked subtitle property for ListGroup."
+    },
+    "ListGroup.density": {
+      "purpose": "Checked density property for ListGroup."
+    },
+    "ListGroup.treatment": {
+      "purpose": "Checked treatment property for ListGroup."
+    },
+    "ListGroup.spacing": {
+      "purpose": "Checked spacing property for ListGroup."
+    },
+    "GridItem.span": {
+      "purpose": "Checked span property for GridItem."
+    },
+    "Text.value": {
+      "purpose": "Checked value property for Text."
+    },
+    "Text.style": {
+      "purpose": "Checked style property for Text."
+    },
+    "Text.tone": {
+      "purpose": "Checked tone property for Text."
+    },
+    "IntText.value": {
+      "purpose": "Checked value property for IntText."
+    },
+    "IntText.prefix": {
+      "purpose": "Checked prefix property for IntText."
+    },
+    "IntText.suffix": {
+      "purpose": "Checked suffix property for IntText."
+    },
+    "IntText.minimumDigits": {
+      "purpose": "Checked minimumDigits property for IntText."
+    },
+    "IntText.style": {
+      "purpose": "Checked style property for IntText."
+    },
+    "IntText.tone": {
+      "purpose": "Checked tone property for IntText."
+    },
+    "NumberText.value": {
+      "purpose": "Checked value property for NumberText."
+    },
+    "NumberText.prefix": {
+      "purpose": "Checked prefix property for NumberText."
+    },
+    "NumberText.suffix": {
+      "purpose": "Checked suffix property for NumberText."
+    },
+    "NumberText.fractionDigits": {
+      "purpose": "Checked fractionDigits property for NumberText."
+    },
+    "NumberText.style": {
+      "purpose": "Checked style property for NumberText."
+    },
+    "NumberText.tone": {
+      "purpose": "Checked tone property for NumberText."
+    },
+    "Icon.name": {
+      "purpose": "Checked name property for Icon."
+    },
+    "Icon.description": {
+      "purpose": "Checked description property for Icon."
+    },
+    "Icon.tone": {
+      "purpose": "Checked tone property for Icon."
+    },
+    "IconButton.icon": {
+      "purpose": "Checked icon property for IconButton."
+    },
+    "IconButton.onClick": {
+      "purpose": "Checked onClick property for IconButton."
+    },
+    "IconButton.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for IconButton."
+    },
+    "IconButton.hierarchy": {
+      "purpose": "Checked hierarchy property for IconButton."
+    },
+    "Button.text": {
+      "purpose": "Checked text property for Button."
+    },
+    "Button.icon": {
+      "purpose": "Checked icon property for Button."
+    },
+    "Button.onClick": {
+      "purpose": "Checked onClick property for Button."
+    },
+    "Button.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Button."
+    },
+    "Button.hierarchy": {
+      "purpose": "Checked hierarchy property for Button."
+    },
+    "Tile.glyph": {
+      "purpose": "Checked glyph property for Tile."
+    },
+    "Tile.supporting": {
+      "purpose": "Checked supporting property for Tile."
+    },
+    "Tile.icon": {
+      "purpose": "Checked icon property for Tile."
+    },
+    "Tile.tone": {
+      "purpose": "Checked tone property for Tile."
+    },
+    "Tile.selected": {
+      "purpose": "Checked selected property for Tile."
+    },
+    "Tile.highlighted": {
+      "purpose": "Checked highlighted property for Tile."
+    },
+    "Tile.onClick": {
+      "purpose": "Checked onClick property for Tile."
+    },
+    "Tile.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Tile."
+    },
+    "ProgressBar.value": {
+      "purpose": "Checked value property for ProgressBar."
+    },
+    "ProgressBar.maximum": {
+      "purpose": "Checked maximum property for ProgressBar."
+    },
+    "ProgressBar.label": {
+      "purpose": "Checked label property for ProgressBar."
+    },
+    "ProgressRing.value": {
+      "purpose": "Checked value property for ProgressRing."
+    },
+    "ProgressRing.maximum": {
+      "purpose": "Checked maximum property for ProgressRing."
+    },
+    "ProgressRing.label": {
+      "purpose": "Checked label property for ProgressRing."
+    },
+    "NumberProgressBar.value": {
+      "purpose": "Checked value property for NumberProgressBar."
+    },
+    "NumberProgressBar.maximum": {
+      "purpose": "Checked maximum property for NumberProgressBar."
+    },
+    "NumberProgressBar.label": {
+      "purpose": "Checked label property for NumberProgressBar."
+    },
+    "NumberProgressRing.value": {
+      "purpose": "Checked value property for NumberProgressRing."
+    },
+    "NumberProgressRing.maximum": {
+      "purpose": "Checked maximum property for NumberProgressRing."
+    },
+    "NumberProgressRing.label": {
+      "purpose": "Checked label property for NumberProgressRing."
+    },
+    "TextField.value": {
+      "purpose": "Checked value property for TextField."
+    },
+    "TextField.label": {
+      "purpose": "Checked label property for TextField."
+    },
+    "TextField.placeholder": {
+      "purpose": "Checked placeholder property for TextField."
+    },
+    "TextField.onChange": {
+      "purpose": "Checked onChange property for TextField."
+    },
+    "TextField.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for TextField."
+    },
+    "IntField.value": {
+      "purpose": "Checked value property for IntField."
+    },
+    "IntField.label": {
+      "purpose": "Checked label property for IntField."
+    },
+    "IntField.placeholder": {
+      "purpose": "Checked placeholder property for IntField."
+    },
+    "IntField.onChange": {
+      "purpose": "Checked onChange property for IntField."
+    },
+    "IntField.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for IntField."
+    },
+    "NumberField.value": {
+      "purpose": "Checked value property for NumberField."
+    },
+    "NumberField.label": {
+      "purpose": "Checked label property for NumberField."
+    },
+    "NumberField.placeholder": {
+      "purpose": "Checked placeholder property for NumberField."
+    },
+    "NumberField.fractionDigits": {
+      "purpose": "Checked fractionDigits property for NumberField."
+    },
+    "NumberField.onChange": {
+      "purpose": "Checked onChange property for NumberField."
+    },
+    "NumberField.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for NumberField."
+    },
+    "TimeField.valueMinutes": {
+      "purpose": "Checked valueMinutes property for TimeField."
+    },
+    "TimeField.label": {
+      "purpose": "Checked label property for TimeField."
+    },
+    "TimeField.onChange": {
+      "purpose": "Checked onChange property for TimeField."
+    },
+    "TimeField.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for TimeField."
+    },
+    "Toggle.checked": {
+      "purpose": "Checked checked property for Toggle."
+    },
+    "Toggle.label": {
+      "purpose": "Checked label property for Toggle."
+    },
+    "Toggle.onChange": {
+      "purpose": "Checked onChange property for Toggle."
+    },
+    "Toggle.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Toggle."
+    },
+    "Choice.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Choice."
+    },
+    "ChoiceItem.label": {
+      "purpose": "Checked label property for ChoiceItem."
+    },
+    "ChoiceItem.selected": {
+      "purpose": "Checked selected property for ChoiceItem."
+    },
+    "ChoiceItem.onClick": {
+      "purpose": "Checked onClick property for ChoiceItem."
+    },
+    "ChoiceItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for ChoiceItem."
+    },
+    "Slider.value": {
+      "purpose": "Checked value property for Slider."
+    },
+    "Slider.minimum": {
+      "purpose": "Checked minimum property for Slider."
+    },
+    "Slider.maximum": {
+      "purpose": "Checked maximum property for Slider."
+    },
+    "Slider.label": {
+      "purpose": "Checked label property for Slider."
+    },
+    "Slider.onChange": {
+      "purpose": "Checked onChange property for Slider."
+    },
+    "Slider.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Slider."
+    },
+    "Spacer.size": {
+      "purpose": "Checked size property for Spacer."
+    },
+    "Badge.text": {
+      "purpose": "Checked text property for Badge."
+    },
+    "Badge.tone": {
+      "purpose": "Checked tone property for Badge."
+    },
+    "Badge.icon": {
+      "purpose": "Checked icon property for Badge."
+    },
+    "Stat.label": {
+      "purpose": "Checked label property for Stat."
+    },
+    "Stat.value": {
+      "purpose": "Checked value property for Stat."
+    },
+    "Stat.supporting": {
+      "purpose": "Checked supporting property for Stat."
+    },
+    "Stat.icon": {
+      "purpose": "Checked icon property for Stat."
+    },
+    "Stat.tone": {
+      "purpose": "Checked tone property for Stat."
+    },
+    "Stat.emphasis": {
+      "purpose": "Checked emphasis property for Stat."
+    },
+    "IntStat.label": {
+      "purpose": "Checked label property for IntStat."
+    },
+    "IntStat.value": {
+      "purpose": "Checked value property for IntStat."
+    },
+    "IntStat.prefix": {
+      "purpose": "Checked prefix property for IntStat."
+    },
+    "IntStat.suffix": {
+      "purpose": "Checked suffix property for IntStat."
+    },
+    "IntStat.minimumDigits": {
+      "purpose": "Checked minimumDigits property for IntStat."
+    },
+    "IntStat.supporting": {
+      "purpose": "Checked supporting property for IntStat."
+    },
+    "IntStat.icon": {
+      "purpose": "Checked icon property for IntStat."
+    },
+    "IntStat.tone": {
+      "purpose": "Checked tone property for IntStat."
+    },
+    "IntStat.emphasis": {
+      "purpose": "Checked emphasis property for IntStat."
+    },
+    "NumberStat.label": {
+      "purpose": "Checked label property for NumberStat."
+    },
+    "NumberStat.value": {
+      "purpose": "Checked value property for NumberStat."
+    },
+    "NumberStat.prefix": {
+      "purpose": "Checked prefix property for NumberStat."
+    },
+    "NumberStat.suffix": {
+      "purpose": "Checked suffix property for NumberStat."
+    },
+    "NumberStat.fractionDigits": {
+      "purpose": "Checked fractionDigits property for NumberStat."
+    },
+    "NumberStat.supporting": {
+      "purpose": "Checked supporting property for NumberStat."
+    },
+    "NumberStat.icon": {
+      "purpose": "Checked icon property for NumberStat."
+    },
+    "NumberStat.tone": {
+      "purpose": "Checked tone property for NumberStat."
+    },
+    "NumberStat.emphasis": {
+      "purpose": "Checked emphasis property for NumberStat."
+    },
+    "ListItem.title": {
+      "purpose": "Checked title property for ListItem."
+    },
+    "ListItem.subtitle": {
+      "purpose": "Checked subtitle property for ListItem."
+    },
+    "ListItem.leadingIcon": {
+      "purpose": "Checked leadingIcon property for ListItem."
+    },
+    "ListItem.trailing": {
+      "purpose": "Checked trailing property for ListItem."
+    },
+    "ListItem.tone": {
+      "purpose": "Checked tone property for ListItem."
+    },
+    "ListItem.emphasis": {
+      "purpose": "Checked emphasis property for ListItem."
+    },
+    "ListItem.size": {
+      "purpose": "Checked size property for ListItem."
+    },
+    "ListItem.onClick": {
+      "purpose": "Checked onClick property for ListItem."
+    },
+    "ListItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for ListItem."
+    },
+    "IntListItem.title": {
+      "purpose": "Checked title property for IntListItem."
+    },
+    "IntListItem.subtitle": {
+      "purpose": "Checked subtitle property for IntListItem."
+    },
+    "IntListItem.leadingIcon": {
+      "purpose": "Checked leadingIcon property for IntListItem."
+    },
+    "IntListItem.trailingValue": {
+      "purpose": "Checked trailingValue property for IntListItem."
+    },
+    "IntListItem.trailingPrefix": {
+      "purpose": "Checked trailingPrefix property for IntListItem."
+    },
+    "IntListItem.trailingSuffix": {
+      "purpose": "Checked trailingSuffix property for IntListItem."
+    },
+    "IntListItem.minimumDigits": {
+      "purpose": "Checked minimumDigits property for IntListItem."
+    },
+    "IntListItem.tone": {
+      "purpose": "Checked tone property for IntListItem."
+    },
+    "IntListItem.emphasis": {
+      "purpose": "Checked emphasis property for IntListItem."
+    },
+    "IntListItem.size": {
+      "purpose": "Checked size property for IntListItem."
+    },
+    "IntListItem.onClick": {
+      "purpose": "Checked onClick property for IntListItem."
+    },
+    "IntListItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for IntListItem."
+    },
+    "Image.url": {
+      "purpose": "Checked url property for Image."
+    },
+    "Image.description": {
+      "purpose": "Checked description property for Image."
+    },
+    "Image.ratioWidth": {
+      "purpose": "Checked ratioWidth property for Image."
+    },
+    "Image.ratioHeight": {
+      "purpose": "Checked ratioHeight property for Image."
+    },
+    "Image.fit": {
+      "purpose": "Checked fit property for Image."
+    },
+    "EmptyState.title": {
+      "purpose": "Checked title property for EmptyState."
+    },
+    "EmptyState.message": {
+      "purpose": "Checked message property for EmptyState."
+    },
+    "EmptyState.icon": {
+      "purpose": "Checked icon property for EmptyState."
+    },
+    "EmptyState.actionText": {
+      "purpose": "Checked actionText property for EmptyState."
+    },
+    "EmptyState.onAction": {
+      "purpose": "Checked onAction property for EmptyState."
+    },
+    "EmptyState.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for EmptyState."
+    },
+    "Snackbar.visible": {
+      "purpose": "Checked visible property for Snackbar."
+    },
+    "Snackbar.message": {
+      "purpose": "Checked message property for Snackbar."
+    },
+    "Snackbar.actionText": {
+      "purpose": "Checked actionText property for Snackbar."
+    },
+    "Snackbar.onAction": {
+      "purpose": "Checked onAction property for Snackbar."
+    },
+    "Snackbar.onDismiss": {
+      "purpose": "Checked onDismiss property for Snackbar."
+    },
+    "Snackbar.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Snackbar."
+    },
+    "TopBar.title": {
+      "purpose": "Checked title property for TopBar."
+    },
+    "TopBar.subtitle": {
+      "purpose": "Checked subtitle property for TopBar."
+    },
+    "TopBar.leadingIcon": {
+      "purpose": "Checked leadingIcon property for TopBar."
+    },
+    "TopBar.treatment": {
+      "purpose": "Checked treatment property for TopBar."
+    },
+    "Checkbox.checked": {
+      "purpose": "Checked checked property for Checkbox."
+    },
+    "Checkbox.label": {
+      "purpose": "Checked label property for Checkbox."
+    },
+    "Checkbox.supporting": {
+      "purpose": "Checked supporting property for Checkbox."
+    },
+    "Checkbox.onChange": {
+      "purpose": "Checked onChange property for Checkbox."
+    },
+    "Checkbox.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Checkbox."
+    },
+    "Stepper.value": {
+      "purpose": "Checked value property for Stepper."
+    },
+    "Stepper.minimum": {
+      "purpose": "Checked minimum property for Stepper."
+    },
+    "Stepper.maximum": {
+      "purpose": "Checked maximum property for Stepper."
+    },
+    "Stepper.label": {
+      "purpose": "Checked label property for Stepper."
+    },
+    "Stepper.decrementLabel": {
+      "purpose": "Checked decrementLabel property for Stepper."
+    },
+    "Stepper.incrementLabel": {
+      "purpose": "Checked incrementLabel property for Stepper."
+    },
+    "Stepper.onChange": {
+      "purpose": "Checked onChange property for Stepper."
+    },
+    "Tabs.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Tabs."
+    },
+    "TabItem.label": {
+      "purpose": "Checked label property for TabItem."
+    },
+    "TabItem.selected": {
+      "purpose": "Checked selected property for TabItem."
+    },
+    "TabItem.onClick": {
+      "purpose": "Checked onClick property for TabItem."
+    },
+    "TabItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for TabItem."
+    },
+    "NavigationBar.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for NavigationBar."
+    },
+    "NavigationItem.label": {
+      "purpose": "Checked label property for NavigationItem."
+    },
+    "NavigationItem.icon": {
+      "purpose": "Checked icon property for NavigationItem."
+    },
+    "NavigationItem.selected": {
+      "purpose": "Checked selected property for NavigationItem."
+    },
+    "NavigationItem.onClick": {
+      "purpose": "Checked onClick property for NavigationItem."
+    },
+    "NavigationItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for NavigationItem."
+    },
+    "BarChart.series": {
+      "purpose": "Checked series property for BarChart."
+    },
+    "BarChart.maximum": {
+      "purpose": "Checked maximum property for BarChart."
+    },
+    "BarChart.label": {
+      "purpose": "Checked label property for BarChart."
+    },
+    "BarChart.tone": {
+      "purpose": "Checked tone property for BarChart."
+    },
+    "BarChart.emphasis": {
+      "purpose": "Checked emphasis property for BarChart."
+    },
+    "Sparkline.series": {
+      "purpose": "Checked series property for Sparkline."
+    },
+    "Sparkline.maximum": {
+      "purpose": "Checked maximum property for Sparkline."
+    },
+    "Sparkline.label": {
+      "purpose": "Checked label property for Sparkline."
+    },
+    "Sparkline.tone": {
+      "purpose": "Checked tone property for Sparkline."
+    },
+    "Sparkline.emphasis": {
+      "purpose": "Checked emphasis property for Sparkline."
+    },
+    "Avatar.url": {
+      "purpose": "Checked url property for Avatar."
+    },
+    "Avatar.initials": {
+      "purpose": "Checked initials property for Avatar."
+    },
+    "Avatar.description": {
+      "purpose": "Checked description property for Avatar."
+    },
+    "Avatar.size": {
+      "purpose": "Checked size property for Avatar."
+    },
+    "AnimatedVisibility.visible": {
+      "purpose": "Checked visible property for AnimatedVisibility."
+    },
+    "FrameClock.intervalMillis": {
+      "purpose": "Checked intervalMillis property for FrameClock."
+    },
+    "FrameClock.onTick": {
+      "purpose": "Checked onTick property for FrameClock."
+    },
+    "MinuteClock.intervalMillis": {
+      "purpose": "Checked intervalMillis property for MinuteClock."
+    },
+    "MinuteClock.onTick": {
+      "purpose": "Checked onTick property for MinuteClock."
+    },
+    "PointerSurface.coordinateWidth": {
+      "purpose": "Checked coordinateWidth property for PointerSurface."
+    },
+    "PointerSurface.coordinateHeight": {
+      "purpose": "Checked coordinateHeight property for PointerSurface."
+    },
+    "PointerSurface.onPointer": {
+      "purpose": "Checked onPointer property for PointerSurface."
+    },
+    "PointerSurface.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for PointerSurface."
+    },
+    "Canvas.width": {
+      "purpose": "Checked width property for Canvas."
+    },
+    "Canvas.height": {
+      "purpose": "Checked height property for Canvas."
+    },
+    "Canvas.background": {
+      "purpose": "Checked background property for Canvas."
+    },
+    "Canvas.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Canvas."
+    },
+    "Rectangle.x": {
+      "purpose": "Checked x property for Rectangle."
+    },
+    "Rectangle.y": {
+      "purpose": "Checked y property for Rectangle."
+    },
+    "Rectangle.width": {
+      "purpose": "Checked width property for Rectangle."
+    },
+    "Rectangle.height": {
+      "purpose": "Checked height property for Rectangle."
+    },
+    "Rectangle.color": {
+      "purpose": "Checked color property for Rectangle."
+    },
+    "Rectangle.stroke": {
+      "purpose": "Checked stroke property for Rectangle."
+    },
+    "Rectangle.label": {
+      "purpose": "Checked label property for Rectangle."
+    },
+    "Rectangle.layer": {
+      "purpose": "Checked layer property for Rectangle."
+    },
+    "RoundRectangle.x": {
+      "purpose": "Checked x property for RoundRectangle."
+    },
+    "RoundRectangle.y": {
+      "purpose": "Checked y property for RoundRectangle."
+    },
+    "RoundRectangle.width": {
+      "purpose": "Checked width property for RoundRectangle."
+    },
+    "RoundRectangle.height": {
+      "purpose": "Checked height property for RoundRectangle."
+    },
+    "RoundRectangle.color": {
+      "purpose": "Checked color property for RoundRectangle."
+    },
+    "RoundRectangle.stroke": {
+      "purpose": "Checked stroke property for RoundRectangle."
+    },
+    "RoundRectangle.label": {
+      "purpose": "Checked label property for RoundRectangle."
+    },
+    "RoundRectangle.layer": {
+      "purpose": "Checked layer property for RoundRectangle."
+    },
+    "Circle.x": {
+      "purpose": "Checked x property for Circle."
+    },
+    "Circle.y": {
+      "purpose": "Checked y property for Circle."
+    },
+    "Circle.width": {
+      "purpose": "Checked width property for Circle."
+    },
+    "Circle.height": {
+      "purpose": "Checked height property for Circle."
+    },
+    "Circle.color": {
+      "purpose": "Checked color property for Circle."
+    },
+    "Circle.stroke": {
+      "purpose": "Checked stroke property for Circle."
+    },
+    "Circle.label": {
+      "purpose": "Checked label property for Circle."
+    },
+    "Circle.layer": {
+      "purpose": "Checked layer property for Circle."
+    },
+    "Line.x": {
+      "purpose": "Checked x property for Line."
+    },
+    "Line.y": {
+      "purpose": "Checked y property for Line."
+    },
+    "Line.width": {
+      "purpose": "Checked width property for Line."
+    },
+    "Line.height": {
+      "purpose": "Checked height property for Line."
+    },
+    "Line.color": {
+      "purpose": "Checked color property for Line."
+    },
+    "Line.stroke": {
+      "purpose": "Checked stroke property for Line."
+    },
+    "Line.label": {
+      "purpose": "Checked label property for Line."
+    },
+    "Line.layer": {
+      "purpose": "Checked layer property for Line."
+    },
+    "CanvasText.x": {
+      "purpose": "Checked x property for CanvasText."
+    },
+    "CanvasText.y": {
+      "purpose": "Checked y property for CanvasText."
+    },
+    "CanvasText.width": {
+      "purpose": "Checked width property for CanvasText."
+    },
+    "CanvasText.height": {
+      "purpose": "Checked height property for CanvasText."
+    },
+    "CanvasText.color": {
+      "purpose": "Checked color property for CanvasText."
+    },
+    "CanvasText.stroke": {
+      "purpose": "Checked stroke property for CanvasText."
+    },
+    "CanvasText.label": {
+      "purpose": "Checked label property for CanvasText."
+    },
+    "CanvasText.layer": {
+      "purpose": "Checked layer property for CanvasText."
+    },
+    "Route.route": {
+      "purpose": "Checked route property for Route."
+    },
+    "Route.activeRoute": {
+      "purpose": "Checked activeRoute property for Route."
+    },
+    "Modal.visible": {
+      "purpose": "Checked visible property for Modal."
+    },
+    "Modal.onDismiss": {
+      "purpose": "Checked onDismiss property for Modal."
+    },
+    "Modal.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Modal."
+    },
+    "Dialog.visible": {
+      "purpose": "Checked visible property for Dialog."
+    },
+    "Dialog.onDismiss": {
+      "purpose": "Checked onDismiss property for Dialog."
+    },
+    "Dialog.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Dialog."
+    },
+    "BottomSheet.visible": {
+      "purpose": "Checked visible property for BottomSheet."
+    },
+    "BottomSheet.onDismiss": {
+      "purpose": "Checked onDismiss property for BottomSheet."
+    },
+    "BottomSheet.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for BottomSheet."
+    },
+    "Menu.visible": {
+      "purpose": "Checked visible property for Menu."
+    },
+    "Menu.onDismiss": {
+      "purpose": "Checked onDismiss property for Menu."
+    },
+    "Menu.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for Menu."
+    },
+    "MenuItem.text": {
+      "purpose": "Checked text property for MenuItem."
+    },
+    "MenuItem.icon": {
+      "purpose": "Checked icon property for MenuItem."
+    },
+    "MenuItem.enabled": {
+      "purpose": "Checked enabled property for MenuItem."
+    },
+    "MenuItem.onClick": {
+      "purpose": "Checked onClick property for MenuItem."
+    },
+    "MenuItem.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for MenuItem."
+    },
+    "CapabilityNotice.name": {
+      "purpose": "Checked name property for CapabilityNotice."
+    },
+    "CapabilityNotice.available": {
+      "purpose": "Checked available property for CapabilityNotice."
+    },
+    "CapabilityNotice.explanation": {
+      "purpose": "Checked explanation property for CapabilityNotice."
+    },
+    "CapabilityNotice.onRequest": {
+      "purpose": "Checked onRequest property for CapabilityNotice."
+    },
+    "CapabilityNotice.accessibilityLabel": {
+      "purpose": "Checked accessibilityLabel property for CapabilityNotice."
+    }
+  },
+  "globalRules": [
+    "Use only exported typed tokens and checked component properties.",
+    "Compose portable hierarchy from compiler-declared parent and child contracts.",
+    "Keep presentation adaptive, accessible, and independent of application vocabulary.",
+    "Choose one coherent theme preset and use it for typography, rhythm, surfaces, metrics, controls, icons, and background—not only seed colour.",
+    "Use one dominant Header and one primary action per surface; do not make every element high emphasis.",
+    "Keep Cards scarce: prefer SectionHeader for headings and ListGroup for related rows.",
+    "Do not duplicate an app-owned Header with TopBar or host chrome."
+  ]
+}

@@ -274,9 +274,12 @@ internal object CanonicalDealUiSyntaxCard {
         export view App(state: app.AppState): View {
           ui.AppTheme(primary: "#2563EB", secondary: "#0F766E", style: ui.themeClean) {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
-              ui.TopBar(title: "Product name")
+              ui.Header(title: "Product name", supporting: "A concise statement of the current purpose", leadingIcon: "home")
               When(state.hasItems) {
-                ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
+                ui.SectionHeader(title: "Current items", emphasis: ui.emphasisMedium)
+                ui.ListGroup(treatment: ui.treatmentPlain, density: ui.listComfortable) {
+                  ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
+                }
               } Else {
                 ui.EmptyState(title: "Nothing here yet", message: "Use the primary action to begin", icon: "info")
               }
@@ -305,6 +308,8 @@ internal object CanonicalDealUiSyntaxCard {
           ui.Button(text: "Primary", hierarchy: ui.buttonPrimary, onClick: action app.PrimaryAction {})
           ui.Button(text: "Secondary", hierarchy: ui.buttonSecondary, onClick: action app.SecondaryAction {})
         }
+        ui.InsetBanner(title: "Needs attention", message: state.status, icon: "info", tone: ui.toneWarning,
+          emphasis: ui.emphasisMedium)
         For a repeated interactive item, render its changing state and bind its stable id on every branch:
         ForEach(state.items, item: app.Item, key: item.id) {
           When(item.done) {
@@ -319,7 +324,8 @@ internal object CanonicalDealUiSyntaxCard {
         text. Put two to four related metrics in an adaptive Grid rather than stacking full-width Stat components.
         Use one primary Button; use secondary or quiet hierarchy for alternatives and destructive only for destructive
         actions. Use EmptyState for an absent collection. A Card may group one cohesive surface, but never put a Card
-        inside another Card.
+        inside another Card. Prefer Header over TopBar for the app's main identity, SectionHeader over a Card used only
+        to hold a heading, and ListGroup over one Card per row.
 
         Before returning source, lint the embedded view mechanically: every component has an argument list, including
         `ui.Card() { ... }`; conditional presentation uses `When(condition) { ... } Else { ... }`, never `?:`; and a

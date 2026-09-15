@@ -92,7 +92,7 @@ internal fun restoreCanonicalGeneratedApp(
         "Saved app uses unsupported component pack ${record.componentPackVersion}; regenerate the app with ${CanonicalDealUiPack.VERSION}"
     }
     require(record.componentPackSha256 == CanonicalDealUiPack.SHA256) {
-        "Saved v14 component pack digest mismatch; regenerate the app"
+        "Saved v15 component pack digest mismatch; regenerate the app"
     }
     val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
     val extractedInterface = toolchain.extractAppInterface(record.dealSource)

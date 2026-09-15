@@ -35,8 +35,8 @@ class CanonicalV14OnlyRestoreDeviceTest {
                     dealUiSourceSha256 = dealUi.sha256(),
                     dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
                     dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
-                    componentPackVersion = "unsupported-pack",
-                    componentPackSha256 = "unsupported-digest",
+                    componentPackVersion = "deal-studio-dealui-pack-v14",
+                    componentPackSha256 = "7afa503ece69b39dcc94db1d73beb74521a8ff4896dc9672a201f3582f8133e6",
                     toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
                     dealModelId = "fixture",
                     dealUiModelId = "fixture",
@@ -55,6 +55,7 @@ class CanonicalV14OnlyRestoreDeviceTest {
             library.restore(id, CanonicalDealToolchain(context))
         }
         assertTrue(failure.message.orEmpty().contains("unsupported component pack"))
+        assertTrue(failure.message.orEmpty().contains("v14"))
         assertTrue(failure.message.orEmpty().contains("regenerate"))
         assertFalse(appDirectory.exists())
         val quarantined = File(root, "quarantine").listFiles().orEmpty().single { it.isDirectory }

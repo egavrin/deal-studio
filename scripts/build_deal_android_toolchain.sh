@@ -19,7 +19,8 @@ fi
 # shellcheck source=/dev/null
 source "$LOCK"
 
-PACK="$ROOT/tooling/deal-ui-pack/deal-studio-v13.dealui-pack"
+PACK_SUFFIX=${COMPONENT_PACK_VERSION#deal-studio-dealui-pack-}
+PACK="$ROOT/tooling/deal-ui-pack/deal-studio-$PACK_SUFFIX.dealui-pack"
 [[ -f "$PACK" ]] || { printf 'Pinned component pack is unavailable: %s\n' "$PACK" >&2; exit 1; }
 ACTUAL_PACK_VERSION=$(sed -n 's/^pack version "\([^"]*\)";.*/\1/p' "$PACK")
 ACTUAL_PACK_DIGEST=$(shasum -a 256 "$PACK" | awk '{print $1}')
@@ -106,6 +107,7 @@ javac --release "$JAVAC_RELEASE" \
   -d "$CLASSES" \
   "$DEAL_REPO/deal/compiler/CompilerProtocol.java" \
   "$DEAL_REPO/deal/compiler/CompilerProtocolJson.java" \
+  "$DEAL_REPO/deal/compiler/ConstructionProjection.java" \
   "$DEAL_REPO/deal/compiler/DealConstruction.java" \
   "$DEAL_REPO/deal/compiler/ConstructionRepairWorkspace.java" \
   "$DEAL_REPO/deal/compiler/RepairWorkspaceProtocol.java" \
