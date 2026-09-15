@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 import java.security.MessageDigest
 import java.util.Properties
 
@@ -51,6 +52,15 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
     @get:org.gradle.api.tasks.InputFiles
     abstract val packFiles: org.gradle.api.file.ConfigurableFileCollection
 
+    @get:org.gradle.api.tasks.InputFiles
+    abstract val manifestFiles: org.gradle.api.file.ConfigurableFileCollection
+
+    @get:org.gradle.api.tasks.InputFile
+    abstract val toolchainLockFile: org.gradle.api.file.RegularFileProperty
+
+    @get:org.gradle.api.tasks.InputFile
+    abstract val releaseGateFile: org.gradle.api.file.RegularFileProperty
+
     @get:org.gradle.api.tasks.OutputDirectory
     abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
 
@@ -66,7 +76,8 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
     )
 
     private val mobileCoreComponents = linkedSetOf(
-        "AppTheme", "Root", "Column", "Row", "Stack", "Scroll", "Grid", "Card", "Section", "TopBar",
+        "AppTheme", "Root", "Column", "Row", "Stack", "Scroll", "Grid", "Card", "Section", "Hero",
+        "MetricGroup", "ActionBar", "TopBar",
         "Text", "IntText", "NumberText", "Icon", "Button", "IconButton", "TextField", "IntField",
         "NumberField", "TimeField", "Toggle", "Checkbox", "Choice", "ChoiceItem", "Slider", "ProgressBar",
         "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Divider", "Badge", "Stat",
@@ -183,7 +194,9 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
     private fun buildGenerationContract(
         metadata: PackContractMetadata,
         packVersion: String,
-        selectedComponents: Set<String> = metadata.componentContracts.keys
+        selectedComponents: Set<String> = metadata.componentContracts.keys,
+        semanticHints: Map<String, String> = emptyMap(),
+        globalRules: List<String> = emptyList()
     ): String = buildString {
         val components = componentClosure(selectedComponents, metadata.componentDependencies)
         val types = components.mapTo(linkedSetOf()) { metadata.componentPropTypes.getValue(it) }
@@ -207,6 +220,15 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         metadata.tokenContracts.forEach { (name, contract) ->
             if (metadata.tokenTypes.getValue(name) in types) appendLine(contract)
         }
+        if (globalRules.isNotEmpty()) {
+            appendLine("Semantic rules:")
+            globalRules.forEach { appendLine("- $it") }
+        }
+        val selectedHints = semanticHints.filterKeys { it in components }
+        if (selectedHints.isNotEmpty()) {
+            appendLine("Component usage:")
+            selectedHints.forEach { (name, hint) -> appendLine("$name: $hint") }
+        }
     }.trimEnd()
 
     private fun String.kotlinString(): String = "\"" +
@@ -223,6 +245,31 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 
     @org.gradle.api.tasks.TaskAction
     fun generate() {
+        val toolchainProperties = toolchainLockFile.get().asFile.readLines()
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+            .associate { line ->
+                val separator = line.indexOf('=')
+                require(separator > 0) { "Invalid toolchain lock entry: $line" }
+                line.substring(0, separator) to line.substring(separator + 1)
+            }
+        val currentPackVersion = "deal-studio-dealui-pack-v14"
+        require(toolchainProperties["COMPONENT_PACK_VERSION"] == currentPackVersion) {
+            "toolchain.lock component pack must be $currentPackVersion"
+        }
+        val releaseLedger = JsonSlurper().parse(releaseGateFile.get().asFile) as Map<*, *>
+        require(releaseLedger["schemaVersion"] == "deal-studio-pack-release-gates-v1") {
+            "Invalid Pack v14 release-gate schema"
+        }
+        require(releaseLedger["packVersion"] == currentPackVersion) { "Release-gate packVersion mismatch" }
+        val promotionStatus = releaseLedger["promotionStatus"]?.toString()
+        val gateStatuses = (releaseLedger["gates"] as? Map<*, *>)?.values?.map(Any?::toString).orEmpty()
+        require(gateStatuses.isNotEmpty() && gateStatuses.all { it in setOf("PASS", "FAIL", "PENDING") }) {
+            "Release gates must use PASS, FAIL, or PENDING"
+        }
+        require(promotionStatus in setOf("PASS", "FAIL", "PENDING")) { "Invalid promotionStatus" }
+        require(promotionStatus != "PASS" || gateStatuses.all { it == "PASS" }) {
+            "Pack v14 cannot be promoted while any required gate is not PASS"
+        }
         packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
             val packSource = sourceFile.readText()
             val version = requireNotNull(Regex("pack version \\\"[^\\\"]*v(\\d+)\\\";").find(packSource)) {
@@ -231,13 +278,74 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(sourceFile.readBytes())
                 .joinToString("") { byte -> "%02x".format(byte) }
+            if (version == "14") {
+                require(toolchainProperties["COMPONENT_PACK_SHA256"] == digest) {
+                    "toolchain.lock component pack digest is stale: expected $digest"
+                }
+            }
+            val manifestFile = manifestFiles.files.singleOrNull { it.name == "deal-studio-v$version.agent.json" }
+            val manifest = manifestFile?.let { JsonSlurper().parse(it) as Map<*, *> }
             val destination = outputDirectory.get().file(
                 "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV$version.kt"
             ).asFile
             destination.parentFile.mkdirs()
             val contractMetadata = parseContractMetadata(packSource)
+            val manifestDigest = manifestFile?.let {
+                MessageDigest.getInstance("SHA-256").digest(it.readBytes())
+                    .joinToString("") { byte -> "%02x".format(byte) }
+            }.orEmpty()
+            val bundleDigest = MessageDigest.getInstance("SHA-256")
+                .digest("$digest:$manifestDigest".encodeToByteArray())
+                .joinToString("") { byte -> "%02x".format(byte) }
+            val semanticHints = (manifest?.get("components") as? Map<*, *>)?.map { (name, entry) ->
+                val values = entry as? Map<*, *> ?: error("Manifest component $name must be an object")
+                name.toString() to listOfNotNull(values["usage"]?.toString(), values["example"]?.toString())
+                    .joinToString(" Example: ")
+            }?.toMap().orEmpty()
+            val globalRules = (manifest?.get("globalRules") as? List<*>)?.map { it.toString() }.orEmpty()
+            if (version == "14") {
+                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") { "Invalid v14 agent manifest version" }
+                require(manifest["packVersion"] == "deal-studio-dealui-pack-v14") { "Agent manifest packVersion mismatch" }
+                require(semanticHints.keys == contractMetadata.componentContracts.keys) {
+                    "Agent manifest component coverage differs from pack: missing=${contractMetadata.componentContracts.keys - semanticHints.keys}, extra=${semanticHints.keys - contractMetadata.componentContracts.keys}"
+                }
+                val packTokens = contractMetadata.tokenContracts.keys
+                val manifestTokenEntries = (manifest["themeTokens"] as? List<*>)?.map { it.toString() }.orEmpty()
+                require(manifestTokenEntries.size == manifestTokenEntries.toSet().size) {
+                    "Agent manifest themeTokens contains duplicates"
+                }
+                val manifestTokens = manifestTokenEntries.toSet()
+                val semanticTokenTypes = setOf(
+                    "ThemeStyle", "ShapeStyle", "DensityStyle", "SurfaceStyle", "TypographyStyle",
+                    "ContrastStyle", "BackgroundStyle", "MotionStyle", "SemanticTone", "Emphasis",
+                    "SectionRole", "CardRole", "ButtonHierarchy", "SurfaceTreatment"
+                )
+                val requiredManifestTokens = contractMetadata.tokenTypes
+                    .filterValues { it in semanticTokenTypes }
+                    .keys
+                require(manifestTokens == requiredManifestTokens) {
+                    "Agent manifest typed token coverage differs from pack: " +
+                        "missing=${requiredManifestTokens - manifestTokens}, extra=${manifestTokens - requiredManifestTokens}"
+                }
+                require(packTokens.containsAll(manifestTokens)) { "Agent manifest has invalid token references" }
+                val componentEntries = manifest["components"] as? Map<*, *> ?: error("Manifest components must be an object")
+                componentEntries.forEach { (name, rawEntry) ->
+                    val entry = rawEntry as? Map<*, *> ?: error("Manifest component $name must be an object")
+                    require(entry.keys.all { it == "usage" || it == "example" }) {
+                        "Manifest component $name has unsupported fields"
+                    }
+                    require(entry["usage"]?.toString()?.isNotBlank() == true) {
+                        "Manifest component $name must have a non-empty usage hint"
+                    }
+                }
+                require(globalRules.isNotEmpty() && globalRules.all(String::isNotBlank)) {
+                    "Agent manifest globalRules must be non-empty strings"
+                }
+                val domainWords = Regex("(?i)\\b(medication|chess|weather|todo|dose|workout|arkanoid)\\b")
+                require(!domainWords.containsMatchIn(manifestFile.readText())) { "Agent manifest must remain domain-neutral" }
+            }
             val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys
-            if (version == "13") {
+            if (version == "14") {
                 require(missingCoreComponents.isEmpty()) {
                     "Mobile core components missing from ${sourceFile.name}: ${missingCoreComponents.joinToString()}"
                 }
@@ -250,14 +358,21 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                     .replace("$", "\\$")
                 "        \"$escaped\""
             }
+            val encodedManifestLines = manifestFile?.readText()?.lines()?.joinToString(",\n") { line ->
+                "        ${line.kotlinString()}"
+            }.orEmpty().ifEmpty { "        \"\"" }
             val generationContract = buildGenerationContract(
                 metadata = contractMetadata,
-                packVersion = "deal-studio-dealui-pack-v$version"
+                packVersion = "deal-studio-dealui-pack-v$version",
+                semanticHints = semanticHints,
+                globalRules = globalRules
             )
             val mobileCoreGenerationContract = buildGenerationContract(
                 metadata = contractMetadata,
                 packVersion = "deal-studio-dealui-pack-v$version mobile-core",
-                selectedComponents = availableMobileCoreComponents
+                selectedComponents = availableMobileCoreComponents,
+                semanticHints = semanticHints,
+                globalRules = globalRules
             )
             val encodedContractLines = generationContract.lines().joinToString(",\n") { line ->
                 val escaped = line
@@ -275,6 +390,11 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 
                     internal object GeneratedCanonicalDealUiPackV$version {
                         const val SHA256: String = "$digest"
+                        const val MANIFEST_SHA256: String = "$manifestDigest"
+                        const val BUNDLE_SHA256: String = "$bundleDigest"
+                        val AGENT_MANIFEST_SOURCE: String = listOf(
+                    $encodedManifestLines
+                        ).joinToString("\n")
                         val SOURCE: String = listOf(
                     $encodedLines
                         ).joinToString("\n")
@@ -311,6 +431,9 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                         val TOKEN_TYPES: Map<String, String> = mapOf(
                     ${contractMetadata.tokenTypes.kotlinStringMap()}
                         )
+                        val SEMANTIC_HINTS: Map<String, String> = mapOf(
+                    ${semanticHints.kotlinStringMap()}
+                        )
                     }
                 """.trimIndent() + "\n"
             )
@@ -320,9 +443,11 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 
 val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
     packFiles.from(
-        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v12.dealui-pack"),
-        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v13.dealui-pack")
+        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v14.dealui-pack")
     )
+    manifestFiles.from(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v14.agent.json"))
+    toolchainLockFile.set(rootProject.layout.projectDirectory.file("tooling/deal-android-bridge/toolchain.lock"))
+    releaseGateFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/benchmarks/v14/gate-status.json"))
     outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
 }
 

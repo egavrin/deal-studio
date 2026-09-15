@@ -121,6 +121,30 @@ public final class CanonicalDealToolchainBridge {
                 maxSemanticRepairs).useConstructionApi().withRepairProtocol("repair-workspace-v2");
     }
 
+    public static Object createRefinementSessionWithAgentSemantics(
+            String dealSource,
+            String dealUiSource,
+            String packSource,
+            String agentSemantics,
+            String instruction,
+            int maxRounds,
+            int maxSemanticRepairs) {
+        return ((CanonicalRefinementSession) createRefinementSession(
+                dealSource, dealUiSource, packSource, instruction, maxRounds, maxSemanticRepairs))
+                .withAgentSemantics(agentSemantics);
+    }
+
+    public static Object createGenerationSessionWithAgentSemantics(
+            String packSource,
+            String agentSemantics,
+            String instruction,
+            int maxRounds,
+            int maxSemanticRepairs) {
+        return ((CanonicalRefinementSession) createGenerationSession(
+                packSource, instruction, maxRounds, maxSemanticRepairs))
+                .withAgentSemantics(agentSemantics);
+    }
+
     public static String refinementNextRequest(Object session) {
         return ((CanonicalRefinementSession) session).nextRequestJson();
     }
@@ -135,6 +159,15 @@ public final class CanonicalDealToolchainBridge {
             String dealEffort, String uiEffort) {
         return ((CanonicalRefinementSession) createGenerationSession(
                 packSource, instruction, maxRounds, maxSemanticRepairs))
+                .withReasoningEffort(dealEffort, uiEffort);
+    }
+
+    public static Object createGenerationSessionWithReasoningAndAgentSemantics(
+            String packSource, String agentSemantics, String instruction, int maxRounds, int maxSemanticRepairs,
+            String dealEffort, String uiEffort) {
+        return ((CanonicalRefinementSession) createGenerationSession(
+                packSource, instruction, maxRounds, maxSemanticRepairs))
+                .withAgentSemantics(agentSemantics)
                 .withReasoningEffort(dealEffort, uiEffort);
     }
 

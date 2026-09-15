@@ -381,7 +381,7 @@ class CanonicalDealUiTouchDeviceTest {
               ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
                 ui.Route(route: "main", activeRoute: state.route) {
                   ui.Row(spacing: ui.spaceMd) {
-                    ui.Card(tone: "surface") {
+                    ui.Card(treatment: ui.treatmentPlain) {
                       ui.Grid(columns: 8, cellAspectRatio: 1.0, spacing: ui.spaceXs) {
                         ForEach(state.items, item: app.TileItem, key: item.id) {
                           ui.Tile(

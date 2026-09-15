@@ -107,6 +107,18 @@ class EmbeddedDealUiSourceTest {
     }
 
     @Test
+    fun `full retry requires declared actions to match reachable UI bindings`() {
+        val retry = CanonicalBundlePrompts.fullRetryInput(
+            "Build an app",
+            CanonicalBundlePrompts.failureCategory("UI2006 Update actions are unreachable: TapAction")
+        )
+
+        assertTrue(retry.contains("every declared update action must be reachable from an actual UI event binding"))
+        assertTrue(retry.contains("exported two-parameter handler"))
+        assertTrue(retry.contains("do not invent replacement action names"))
+    }
+
+    @Test
     fun `retry categories preserve actionable cross contract failures`() {
         assertTrue(CanonicalBundlePrompts.failureCategory("error UI2034").contains("both typed state"))
         assertTrue(CanonicalBundlePrompts.failureCategory("error UI2012").contains("absent from the checked pack"))

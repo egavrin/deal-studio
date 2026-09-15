@@ -17,9 +17,8 @@ internal class GeneratedAppRuntimeController(context: Context, private val appId
     private val toolchain = CanonicalDealToolchain(applicationContext)
 
     fun load(): LoadedGeneratedApp {
-        val record = library.loadRecords().firstOrNull { it.id == appId }
-            ?: error("Saved app is no longer available")
-        val entry = restoreCanonicalGeneratedApp(record, toolchain)
+        val entry = library.restore(appId, toolchain)
+        val record = entry.record
         val runtime = toolchain.createRuntime(record.dealSource)
         return LoadedGeneratedApp(entry, runtime, stateStore.restore(record, runtime))
     }

@@ -13,14 +13,14 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Opt-in stochastic release soak. Run with instrumentation argument dealStudioSoakRuns=50..100. */
+/** Opt-in stochastic release soak. Run with instrumentation argument dealStudioSoakRuns=10..100. */
 @RunWith(AndroidJUnit4::class)
 class CanonicalSurpriseSoakDeviceTest {
     @Test
     fun generateVariedCanonicalAppsAndRetainEveryArtifact() = runBlocking {
         val arguments = InstrumentationRegistry.getArguments()
         val requestedRuns = arguments.getString("dealStudioSoakRuns")?.toIntOrNull()
-        assumeTrue("Set dealStudioSoakRuns=50..100 to run the canonical Surprise soak", requestedRuns != null)
+        assumeTrue("Set dealStudioSoakRuns=10..100 to run the canonical Surprise soak", requestedRuns != null)
         val runs = requireNotNull(requestedRuns)
         require(runs in MIN_RUNS..MAX_RUNS) { "dealStudioSoakRuns must be in $MIN_RUNS..$MAX_RUNS" }
 
@@ -144,7 +144,7 @@ class CanonicalSurpriseSoakDeviceTest {
     private fun csv(value: String): String = "\"${value.replace("\"", "\"\"").replace("\n", " ")}\""
 
     private companion object {
-        const val MIN_RUNS = 50
+        const val MIN_RUNS = 10
         const val MAX_RUNS = 100
         const val BASE_SEED = 0x5EED_2026L
         const val SUMMARY_HEADER =

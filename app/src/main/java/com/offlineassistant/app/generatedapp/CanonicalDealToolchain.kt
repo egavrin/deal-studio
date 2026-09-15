@@ -75,17 +75,30 @@ internal class CanonicalDealToolchain(
         maxSemanticRepairs: Int = 2
     ): CanonicalStreamingRefinementSession {
         val bridge = bridgeClass()
+        val semanticMethod = "createRefinementSessionWithAgentSemantics"
+        val supportsSemantics = bridge.methods.any { it.name == semanticMethod }
+        val parameterTypes = buildList<Class<*>> {
+            add(String::class.java)
+            add(String::class.java)
+            add(String::class.java)
+            if (supportsSemantics) add(String::class.java)
+            add(String::class.java)
+            add(Int::class.javaPrimitiveType!!)
+            add(Int::class.javaPrimitiveType!!)
+        }.toTypedArray()
+        val arguments = buildList<Any?> {
+            add(dealSource)
+            add(dealUiSource)
+            add(packSource)
+            if (supportsSemantics) add(CanonicalDealUiPack.agentManifestSource)
+            add(instruction)
+            add(maxRounds)
+            add(maxSemanticRepairs)
+        }.toTypedArray()
         val session = invokeBridge(
-            "createRefinementSession",
-            arrayOf(
-                String::class.java,
-                String::class.java,
-                String::class.java,
-                String::class.java,
-                Int::class.javaPrimitiveType!!,
-                Int::class.javaPrimitiveType!!
-            ),
-            arrayOf(dealSource, dealUiSource, packSource, instruction, maxRounds, maxSemanticRepairs)
+            if (supportsSemantics) semanticMethod else "createRefinementSession",
+            parameterTypes,
+            arguments
         )
         return CanonicalStreamingRefinementSession(bridge, session)
     }
@@ -99,17 +112,30 @@ internal class CanonicalDealToolchain(
         uiReasoningEffort: String = "none"
     ): CanonicalStreamingRefinementSession {
         val bridge = bridgeClass()
+        val semanticMethod = "createGenerationSessionWithReasoningAndAgentSemantics"
+        val supportsSemantics = bridge.methods.any { it.name == semanticMethod }
+        val parameterTypes = buildList<Class<*>> {
+            add(String::class.java)
+            if (supportsSemantics) add(String::class.java)
+            add(String::class.java)
+            add(Int::class.javaPrimitiveType!!)
+            add(Int::class.javaPrimitiveType!!)
+            add(String::class.java)
+            add(String::class.java)
+        }.toTypedArray()
+        val arguments = buildList<Any?> {
+            add(packSource)
+            if (supportsSemantics) add(CanonicalDealUiPack.agentManifestSource)
+            add(instruction)
+            add(maxRounds)
+            add(maxSemanticRepairs)
+            add(dealReasoningEffort)
+            add(uiReasoningEffort)
+        }.toTypedArray()
         val session = invokeBridge(
-            "createGenerationSessionWithReasoning",
-            arrayOf(
-                String::class.java,
-                String::class.java,
-                Int::class.javaPrimitiveType!!,
-                Int::class.javaPrimitiveType!!,
-                String::class.java,
-                String::class.java
-            ),
-            arrayOf(packSource, instruction, maxRounds, maxSemanticRepairs, dealReasoningEffort, uiReasoningEffort)
+            if (supportsSemantics) semanticMethod else "createGenerationSessionWithReasoning",
+            parameterTypes,
+            arguments
         )
         return CanonicalStreamingRefinementSession(bridge, session)
     }

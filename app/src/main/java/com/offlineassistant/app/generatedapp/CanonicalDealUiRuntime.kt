@@ -112,15 +112,18 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Slider
@@ -148,6 +151,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
@@ -296,6 +300,7 @@ internal object CanonicalDealUiParser {
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
+            .also(CanonicalDealUiProgram::validateV14Structure)
     }
 
     private fun metadata(value: JsonObject) = CanonicalDealUiCheckedMetadata(
@@ -389,14 +394,15 @@ private fun CanonicalDealUiProgram.validateAppTheme() {
         require(GeneratedAppThemeSpec.THEME_KEYS.containsAll(theme.arguments.keys)) {
             "AppTheme contains unknown properties"
         }
-        fun literal(name: String): String = theme.themeLiteralOrDefault(name)
+        fun literal(name: String): String = theme.themeLiteralOrDefault(name, tokens)
         GeneratedAppThemeSpec.DEFAULT.withRuntimeValues(
             primary = literal("primary"),
             secondary = literal("secondary"),
             style = literal("style"),
             shape = literal("shape"),
             density = literal("density"),
-            surface = literal("surface")
+            surface = literal("surface"), typography = literal("typography"), contrast = literal("contrast"),
+            background = literal("background"), motion = literal("motion")
         )
     }
 }
@@ -416,18 +422,19 @@ private fun CanonicalUiNode.themeCalls(): List<CanonicalUiNode.Call> = when (thi
 
 internal fun CanonicalDealUiProgram.themeSpec(): GeneratedAppThemeSpec {
     val theme = nodes.flatMap(CanonicalUiNode::themeCalls).singleOrNull() ?: return GeneratedAppThemeSpec.DEFAULT
-    fun literal(name: String): String = theme.themeLiteralOrDefault(name)
+    fun literal(name: String): String = theme.themeLiteralOrDefault(name, tokens)
     return GeneratedAppThemeSpec.DEFAULT.withRuntimeValues(
         primary = literal("primary"),
         secondary = literal("secondary"),
         style = literal("style"),
         shape = literal("shape"),
         density = literal("density"),
-        surface = literal("surface")
+        surface = literal("surface"), typography = literal("typography"), contrast = literal("contrast"),
+        background = literal("background"), motion = literal("motion")
     )
 }
 
-private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String): String {
+private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String, tokens: Map<String, CanonicalUiExpr>): String {
     val defaults = GeneratedAppThemeSpec.DEFAULT
     val expression = arguments[name] ?: return when (name) {
         "primary" -> defaults.primary
@@ -436,11 +443,55 @@ private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String): String {
         "shape" -> defaults.shape
         "density" -> defaults.density
         "surface" -> defaults.surface
+        "typography" -> defaults.typography
+        "contrast" -> defaults.contrast
+        "background" -> defaults.background
+        "motion" -> defaults.motion
         else -> error("Unknown AppTheme property $name")
     }
-    val value = (expression as? CanonicalUiExpr.Literal)?.value as? JsonPrimitive
-    require(value?.isString == true) { "AppTheme $name must be a static string literal" }
-    return value.content
+    val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
+        .getOrElse { throw IllegalArgumentException("AppTheme $name must be a static string literal or exported typed token") }
+    return when (value) {
+        is JsonPrimitive -> value.takeIf { it.isString }?.content
+        is JsonObject -> value["value"]?.asString()
+        else -> null
+    } ?: throw IllegalArgumentException("AppTheme $name must be a static string literal or exported typed token")
+}
+
+private fun CanonicalDealUiProgram.validateV14Structure() {
+    fun countHeroes(nodes: List<CanonicalUiNode>): Int = nodes.sumOf { node ->
+        when (node) {
+            is CanonicalUiNode.Call -> {
+                val component = node.name.substringAfterLast('.')
+                (if (component == "Hero") 1 else 0) +
+                    if (component == "Root" || component == "Route") 0 else countHeroes(node.children)
+            }
+
+            is CanonicalUiNode.When -> countHeroes(node.thenNodes) + countHeroes(node.elseNodes)
+
+            is CanonicalUiNode.ForEach -> countHeroes(node.children)
+
+            is CanonicalUiNode.Scope -> countHeroes(node.children)
+        }
+    }
+    fun walk(node: CanonicalUiNode, insideCard: Boolean): Unit = when (node) {
+        is CanonicalUiNode.Call -> {
+            val component = node.name.substringAfterLast('.')
+            require(!(insideCard && component == "Card")) { "Card may not be nested inside Card" }
+            require(!(insideCard && component == "Hero")) { "Hero may not be nested inside Card" }
+            if (component == "Root" || component == "Route") {
+                require(countHeroes(node.children) <= 1) { "Root or Route may contain at most one Hero" }
+            }
+            node.children.forEach { walk(it, insideCard || component == "Card") }
+        }
+
+        is CanonicalUiNode.When -> (node.thenNodes + node.elseNodes).forEach { walk(it, insideCard) }
+
+        is CanonicalUiNode.ForEach -> node.children.forEach { walk(it, insideCard) }
+
+        is CanonicalUiNode.Scope -> node.children.forEach { walk(it, insideCard) }
+    }
+    nodes.forEach { walk(it, false) }
 }
 
 private fun CanonicalDealUiProgram.validateWidgetSurface() {
@@ -481,20 +532,28 @@ private fun CanonicalUiNode.validateWidgetNode() {
 }
 
 private val WIDGET_COMPONENTS = setOf(
-    "Column", "Row", "Stack", "Grid", "Card", "Section", "Text", "IntText", "NumberText", "Icon",
+    "Column", "Row", "Stack", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "IntText", "NumberText", "Icon",
     "IconButton", "Button", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Badge", "Stat",
     "IntStat", "NumberStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
 )
 
 internal val canonicalRendererComponents = setOf(
-    "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button",
+    "ActionBar", "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button",
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
-    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Icon", "IconButton", "Image", "IntField", "IntStat",
+    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "PointerSurface", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "MetricGroup", "PointerSurface", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
+
+internal fun adaptiveColumnCount(availableWidthDp: Float, maximumColumns: Int, minimumCellWidthDp: Int): Int {
+    val maximum = maximumColumns.coerceIn(1, 64)
+    if (minimumCellWidthDp <= 0) return maximum
+    return (availableWidthDp.coerceAtLeast(0f) / minimumCellWidthDp)
+        .toInt()
+        .coerceIn(1, maximum)
+}
 
 internal data class CanonicalUiAction(
     val type: String,
@@ -625,10 +684,14 @@ private fun RenderCall(
             val theme = fallback.withRuntimeValues(
                 primary = value("primary").asString().ifBlank { fallback.primary },
                 secondary = value("secondary").asString().ifBlank { fallback.secondary },
-                style = value("style").asString().ifBlank { fallback.style },
-                shape = value("shape").asString().ifBlank { fallback.shape },
-                density = value("density").asString().ifBlank { fallback.density },
-                surface = value("surface").asString().ifBlank { fallback.surface }
+                style = value("style").typedTokenString().ifBlank { fallback.style },
+                shape = value("shape").typedTokenString().ifBlank { fallback.shape },
+                density = value("density").typedTokenString().ifBlank { fallback.density },
+                surface = value("surface").typedTokenString().ifBlank { fallback.surface },
+                typography = value("typography").typedTokenString().ifBlank { fallback.typography },
+                contrast = value("contrast").typedTokenString().ifBlank { fallback.contrast },
+                background = value("background").typedTokenString().ifBlank { fallback.background },
+                motion = value("motion").typedTokenString().ifBlank { fallback.motion }
             )
             GeneratedAppTheme(theme) {
                 Surface(
@@ -647,6 +710,15 @@ private fun RenderCall(
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = maximumContentWidth)
+                        .then(
+                            if (visuals.atmosphericBackground) {
+                                Modifier.background(
+                                    Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.secondaryContainer))
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
                         .then(
                             if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
                                 Modifier.verticalScroll(rememberScrollState())
@@ -761,11 +833,7 @@ private fun RenderCall(
             val minimumCellWidth = value("minimumCellWidth").asInt().coerceAtLeast(0)
             val cellAspectRatio = value("cellAspectRatio").asFloat().takeIf { it > 0f }
                 ?: if (call.children.all { it.containsOnlyTileContent() }) 1f else null
-            val columns = if (minimumCellWidth > 0) {
-                (maxWidth.value / minimumCellWidth).toInt().coerceIn(1, maximumColumns)
-            } else {
-                maximumColumns
-            }
+            val columns = adaptiveColumnCount(maxWidth.value, maximumColumns, minimumCellWidth)
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 maxItemsInEachRow = columns,
@@ -795,47 +863,92 @@ private fun RenderCall(
             }
         }
 
-        "Card" -> Card(
-            modifier = modifier
-                .fillMaxWidth()
-                .then(
-                    if (action("onClick") != null) {
-                        Modifier
-                            .clickable { emit("onClick", null) }
-                            .semantics {
-                                contentDescription = value("accessibilityLabel").asString()
-                            }
-                    } else {
-                        Modifier
-                    }
-                ),
-            shape = MaterialTheme.shapes.medium,
-            colors = CardDefaults.cardColors(containerColor = toneColor(value("tone").asString())),
-            border = BorderStroke(1.dp, cardBorder(value("tone").asString())),
-            elevation = CardDefaults.cardElevation(defaultElevation = visuals.cardElevation)
+        "Card" -> {
+            val role = value("role").typedTokenString()
+            val emphasis = value("emphasis").typedTokenString()
+            val treatment = value("treatment").typedTokenString().ifBlank { defaultTreatmentForRole(role) }
+            Card(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (action("onClick") != null) {
+                            Modifier
+                                .clickable { emit("onClick", null) }
+                                .semantics {
+                                    contentDescription = value("accessibilityLabel").asString()
+                                }
+                        } else {
+                            Modifier
+                        }
+                    ),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = treatmentColor(treatment)),
+                border = BorderStroke(if (emphasis == "high") 2.dp else 1.dp, cardBorder(treatment)),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (treatment == "elevated" || emphasis == "high") 2.dp else visuals.cardElevation)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(
+                        padding.coerceAtLeast(DealStudioSpacing.Md * visuals.densityScale)
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
+                ) { children(Modifier.fillMaxWidth()) }
+            }
+        }
+
+        "Section" -> Surface(
+            modifier = modifier.fillMaxWidth(),
+            color = treatmentColor(value("treatment").typedTokenString())
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(
-                    padding.coerceAtLeast(DealStudioSpacing.Md * visuals.densityScale)
-                ),
+                Modifier.fillMaxWidth().padding(if (value("treatment").typedTokenString().isBlank()) 0.dp else DealStudioSpacing.Md),
                 verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
+            ) {
+                val role = value("role").typedTokenString()
+                Text(
+                    value("title").asString(),
+                    style = if (role == "hero") MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
+                    color = if (role == "warning") LocalGeneratedAppSemanticColors.current.warning else MaterialTheme.colorScheme.onSurface
+                )
+                value("subtitle").asString().takeIf(String::isNotBlank)?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                children(Modifier.fillMaxWidth())
+            }
+        }
+
+        "Hero" -> Surface(
+            modifier = modifier.fillMaxWidth(),
+            color = treatmentColor(value("treatment").typedTokenString())
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(DealStudioSpacing.Lg),
+                horizontalAlignment = horizontalAlignment(value("alignment").asString()),
+                verticalArrangement = Arrangement.spacedBy(DealStudioSpacing.Md)
             ) { children(Modifier.fillMaxWidth()) }
         }
 
-        "Section" -> Column(
-            modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Md))
-        ) {
-            Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
-            value("subtitle").asString().takeIf(String::isNotBlank)?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            children(Modifier.fillMaxWidth())
+        "MetricGroup" -> BoxWithConstraints(modifier.fillMaxWidth()) {
+            val spacingValue = spacing.coerceAtLeast(DealStudioSpacing.Sm)
+            val maximum = value("columns").asInt().coerceIn(1, 6)
+            val minimum = value("minimumCellWidth").asInt().coerceAtLeast(96)
+            val columns = adaptiveColumnCount(maxWidth.value, maximum, minimum)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                maxItemsInEachRow = columns,
+                horizontalArrangement = Arrangement.spacedBy(spacingValue),
+                verticalArrangement = Arrangement.spacedBy(spacingValue)
+            ) { children(Modifier.weight(1f).widthIn(min = minimum.dp)) }
         }
+
+        "ActionBar" -> FlowRow(
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = horizontalArrangement(value("alignment").asString(), spacing.coerceAtLeast(DealStudioSpacing.Sm)),
+            verticalArrangement = Arrangement.spacedBy(spacing.coerceAtLeast(DealStudioSpacing.Sm))
+        ) { children(Modifier) }
 
         "Text" -> Text(
             text = value("value").displayString(),
-            color = textTone(value("tone").asString()),
+            color = textTone(value("tone").typedTokenString()),
             style = textStyle(value("style").tokenString())
         )
 
@@ -843,7 +956,7 @@ private fun RenderCall(
             text = value("prefix").asString() +
                 value("value").asInt().toString().padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
                 value("suffix").asString(),
-            color = textTone(value("tone").asString()),
+            color = textTone(value("tone").typedTokenString()),
             style = textStyle(value("style").tokenString())
         )
 
@@ -851,24 +964,39 @@ private fun RenderCall(
             text = value("prefix").asString() +
                 formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
                 value("suffix").asString(),
-            color = textTone(value("tone").asString()),
+            color = textTone(value("tone").typedTokenString()),
             style = textStyle(value("style").tokenString())
         )
 
         "Icon" -> Icon(
             imageVector = icon(value("name").asString()),
             contentDescription = value("description").asString(),
-            tint = textTone(value("tone").asString()),
+            tint = textTone(value("tone").typedTokenString()),
             modifier = modifier.size(24.dp)
         )
 
-        "IconButton" -> IconButton(
-            onClick = { emit("onClick", null) },
-            modifier = modifier
-                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+        "IconButton" -> {
+            val click = {
+                emit("onClick", null)
+                Unit
+            }
+            val buttonModifier = modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                 .semantics { contentDescription = value("accessibilityLabel").asString() }
-        ) {
-            Icon(icon(value("icon").asString()), contentDescription = null)
+            val content: @Composable () -> Unit = { Icon(icon(value("icon").asString()), contentDescription = null) }
+            when (normalizedButtonHierarchy(value("hierarchy").typedTokenString())) {
+                "secondary" -> OutlinedIconButton(onClick = click, modifier = buttonModifier, content = content)
+
+                "quiet" -> IconButton(onClick = click, modifier = buttonModifier, content = content)
+
+                "destructive" -> FilledIconButton(
+                    onClick = click,
+                    modifier = buttonModifier,
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+                    content = content
+                )
+
+                else -> FilledIconButton(onClick = click, modifier = buttonModifier, content = content)
+            }
         }
 
         "Button" -> {
@@ -885,15 +1013,15 @@ private fun RenderCall(
                 }
                 Text(label)
             }
-            when (value("style").asString()) {
-                "outlined" -> OutlinedButton(
+            when (normalizedButtonHierarchy(value("hierarchy").typedTokenString())) {
+                "secondary" -> OutlinedButton(
                     onClick = click,
                     modifier = modifier.defaultMinSize(minHeight = 48.dp),
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
 
-                "danger" -> Button(
+                "destructive" -> Button(
                     onClick = click,
                     modifier = modifier.defaultMinSize(minHeight = 48.dp),
                     shape = MaterialTheme.shapes.small,
@@ -904,7 +1032,7 @@ private fun RenderCall(
                     content = content
                 )
 
-                "text" -> TextButton(
+                "quiet" -> TextButton(
                     onClick = click,
                     modifier = modifier.defaultMinSize(minHeight = 48.dp),
                     shape = MaterialTheme.shapes.small,
@@ -923,7 +1051,7 @@ private fun RenderCall(
         "Tile" -> {
             val selected = value("selected").asBoolean()
             val highlighted = value("highlighted").asBoolean()
-            val tone = value("tone").asString()
+            val tone = value("tone").typedTokenString()
             val label = value("accessibilityLabel").asString()
             val clickAction = action("onClick")
             val compactThreshold = with(LocalDensity.current) { 80.dp.roundToPx() }
@@ -1174,8 +1302,8 @@ private fun RenderCall(
 
         "Badge" -> Surface(
             shape = RoundedCornerShape(50),
-            color = toneColor(value("tone").asString()),
-            contentColor = textTone(value("tone").asString())
+            color = toneColor(value("tone").typedTokenString()),
+            contentColor = textTone(value("tone").typedTokenString())
         ) {
             Row(
                 Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1189,88 +1317,106 @@ private fun RenderCall(
             }
         }
 
-        "Stat", "IntStat", "NumberStat" -> Surface(
-            modifier = modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-            color = toneColor(value("tone").asString()),
-            border = BorderStroke(1.dp, cardBorder(value("tone").asString()))
-        ) {
-            Column(
-                Modifier.padding(DealStudioSpacing.Md * visuals.densityScale),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+        "Stat", "IntStat", "NumberStat" -> {
+            val palette = generatedTonePalette(value("tone").typedTokenString())
+            Surface(
+                modifier = modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = palette.container,
+                contentColor = palette.content,
+                border = BorderStroke(1.dp, palette.border)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    value("icon").asString().takeIf(String::isNotBlank)?.let {
-                        Icon(icon(it), contentDescription = null, Modifier.size(18.dp), tint = textTone(value("tone").asString()))
+                Column(
+                    Modifier.padding(DealStudioSpacing.Md * visuals.densityScale),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        value("icon").asString().takeIf(String::isNotBlank)?.let {
+                            Icon(icon(it), contentDescription = null, Modifier.size(18.dp), tint = palette.content)
+                        }
+                        Text(
+                            value("label").asString(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = palette.content
+                        )
+                    }
+                    val statValue = when (name) {
+                        "IntStat" -> value("prefix").asString() +
+                            value("value").asInt().toString()
+                                .padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
+                            value("suffix").asString()
+
+                        "NumberStat" -> value("prefix").asString() +
+                            formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
+                            value("suffix").asString()
+
+                        else -> value("value").asString()
                     }
                     Text(
-                        value("label").asString(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        statValue,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = palette.content,
+                        fontWeight = emphasisWeight(value("emphasis").typedTokenString())
                     )
-                }
-                val statValue = when (name) {
-                    "IntStat" -> value("prefix").asString() +
-                        value("value").asInt().toString()
-                            .padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
-                        value("suffix").asString()
-
-                    "NumberStat" -> value("prefix").asString() +
-                        formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
-                        value("suffix").asString()
-
-                    else -> value("value").asString()
-                }
-                Text(statValue, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                value("supporting").asString().takeIf(String::isNotBlank)?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    value("supporting").asString().takeIf(String::isNotBlank)?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = palette.content)
+                    }
                 }
             }
         }
 
-        "ListItem", "IntListItem" -> Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .then(if (action("onClick") != null) Modifier.clickable { emit("onClick", null) } else Modifier)
-                .semantics { contentDescription = value("accessibilityLabel").asString() },
-            color = if (value("tone").asString() == "surface") Color.Transparent else toneColor(value("tone").asString())
-        ) {
-            Column {
-                Row(
-                    Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    value("leadingIcon").asString().takeIf(String::isNotBlank)?.let {
-                        Surface(
-                            modifier = Modifier.size(36.dp),
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(icon(it), contentDescription = null, Modifier.size(20.dp), tint = textTone("accent"))
+        "ListItem", "IntListItem" -> {
+            val palette = generatedTonePalette(value("tone").typedTokenString())
+            Surface(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .then(if (action("onClick") != null) Modifier.clickable { emit("onClick", null) } else Modifier)
+                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                color = palette.container,
+                contentColor = palette.content
+            ) {
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        value("leadingIcon").asString().takeIf(String::isNotBlank)?.let {
+                            Surface(
+                                modifier = Modifier.size(36.dp),
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(icon(it), contentDescription = null, Modifier.size(20.dp), tint = palette.content)
+                                }
                             }
                         }
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(value("title").asString(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                        value("subtitle").asString().takeIf(String::isNotBlank)?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                value("title").asString(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = palette.content,
+                                fontWeight = emphasisWeight(value("emphasis").typedTokenString())
+                            )
+                            value("subtitle").asString().takeIf(String::isNotBlank)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = palette.content)
+                            }
+                        }
+                        val trailingText = if (name == "IntListItem") {
+                            value("trailingPrefix").asString() +
+                                value("trailingValue").asInt().toString()
+                                    .padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
+                                value("trailingSuffix").asString()
+                        } else {
+                            value("trailing").asString()
+                        }
+                        trailingText.takeIf(String::isNotBlank)?.let {
+                            Text(it, style = MaterialTheme.typography.labelMedium, color = palette.content)
                         }
                     }
-                    val trailingText = if (name == "IntListItem") {
-                        value("trailingPrefix").asString() +
-                            value("trailingValue").asInt().toString()
-                                .padStart(value("minimumDigits").asInt().coerceIn(1, 8), '0') +
-                            value("trailingSuffix").asString()
-                    } else {
-                        value("trailing").asString()
-                    }
-                    trailingText.takeIf(String::isNotBlank)?.let {
-                        Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    androidx.compose.material3.HorizontalDivider(color = palette.border)
                 }
-                androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
 
@@ -1330,7 +1476,7 @@ private fun RenderCall(
 
         "TopBar" -> Surface(
             modifier = modifier.fillMaxWidth(),
-            color = if (value("tone").asString() == "surface") Color.Transparent else toneColor(value("tone").asString())
+            color = treatmentColor(normalizedSurfaceTreatment(value("treatment").typedTokenString()))
         ) {
             Row(
                 Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(vertical = 8.dp),
@@ -1468,7 +1614,7 @@ private fun RenderCall(
         "BarChart" -> {
             val values = value("series").asIntList()
             val maximum = value("maximum").asInt().coerceAtLeast(values.maxOrNull()?.coerceAtLeast(1) ?: 1)
-            val chartColor = textTone(value("tone").asString())
+            val chartColor = textTone(value("tone").typedTokenString())
             Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 value("label").asString().takeIf(String::isNotBlank)?.let {
                     Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1498,7 +1644,7 @@ private fun RenderCall(
         "Sparkline" -> {
             val values = value("series").asIntList()
             val maximum = value("maximum").asInt().coerceAtLeast(values.maxOrNull()?.coerceAtLeast(1) ?: 1)
-            val chartColor = textTone(value("tone").asString())
+            val chartColor = textTone(value("tone").typedTokenString())
             Canvas(
                 modifier
                     .fillMaxWidth()
@@ -1542,8 +1688,14 @@ private fun RenderCall(
             }
         }
 
-        "AnimatedVisibility" -> AnimatedVisibility(visible = value("visible").asBoolean(default = true)) {
-            Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
+        "AnimatedVisibility" -> if (!visuals.motionEnabled) {
+            if (value("visible").asBoolean(default = true)) {
+                Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
+            }
+        } else {
+            AnimatedVisibility(visible = value("visible").asBoolean(default = true)) {
+                Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
+            }
         }
 
         "Divider" -> androidx.compose.material3.HorizontalDivider(
@@ -2043,6 +2195,13 @@ internal fun JsonElement?.asBoolean(default: Boolean = false): Boolean = (this a
 private fun JsonElement?.asIntList(): List<Int> = (this as? JsonArray).orEmpty().map(JsonElement::asInt)
 private fun JsonElement?.tokenInt(): Int = (this as? JsonObject)?.get("value").asInt()
 private fun JsonElement?.tokenString(): String = (this as? JsonObject)?.get("value").asString()
+
+/** Resolves both v14 typed token objects and legacy primitive string values. */
+private fun JsonElement?.typedTokenString(): String = when (this) {
+    is JsonObject -> get("value").asString()
+    is JsonPrimitive -> contentOrNull.orEmpty()
+    else -> ""
+}
 private fun JsonElement.toPlatformValue(): Any? = when (this) {
     JsonNull -> null
 
@@ -2096,37 +2255,57 @@ private fun textStyle(value: String) = when (value) {
     else -> MaterialTheme.typography.bodyLarge
 }
 
+internal data class GeneratedTonePalette(val container: Color, val content: Color, val border: Color)
+
 @Composable
-private fun toneColor(tone: String): Color = when (tone) {
-    "accent" -> MaterialTheme.colorScheme.primaryContainer
-    "positive" -> LocalGeneratedAppSemanticColors.current.positiveContainer
-    "warning" -> LocalGeneratedAppSemanticColors.current.warningContainer
-    "danger" -> MaterialTheme.colorScheme.errorContainer
-    "dark" -> MaterialTheme.colorScheme.inverseSurface
-    "muted" -> MaterialTheme.colorScheme.surfaceVariant
-    else -> MaterialTheme.colorScheme.surface
+internal fun generatedTonePalette(tone: String): GeneratedTonePalette {
+    val scheme = MaterialTheme.colorScheme
+    val semantic = LocalGeneratedAppSemanticColors.current
+    return when (tone) {
+        "accent" -> GeneratedTonePalette(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.primary)
+        "positive" -> GeneratedTonePalette(semantic.positiveContainer, semantic.onPositiveContainer, semantic.positive)
+        "warning" -> GeneratedTonePalette(semantic.warningContainer, semantic.onWarningContainer, semantic.warning)
+        "danger" -> GeneratedTonePalette(scheme.errorContainer, scheme.onErrorContainer, scheme.error)
+        "dark" -> GeneratedTonePalette(scheme.inverseSurface, scheme.inverseOnSurface, scheme.outline)
+        "muted" -> GeneratedTonePalette(scheme.surfaceVariant, scheme.onSurfaceVariant, scheme.outlineVariant)
+        else -> GeneratedTonePalette(scheme.surface, scheme.onSurface, scheme.outlineVariant)
+    }
 }
 
 @Composable
-private fun textTone(tone: String): Color = when (tone) {
-    "muted" -> MaterialTheme.colorScheme.onSurfaceVariant
-    "positive" -> LocalGeneratedAppSemanticColors.current.onPositiveContainer
-    "warning" -> LocalGeneratedAppSemanticColors.current.onWarningContainer
-    "danger" -> MaterialTheme.colorScheme.onErrorContainer
-    "accent" -> MaterialTheme.colorScheme.onPrimaryContainer
-    "dark" -> MaterialTheme.colorScheme.inverseOnSurface
-    else -> MaterialTheme.colorScheme.onSurface
-}
+private fun toneColor(tone: String): Color = generatedTonePalette(tone).container
 
 @Composable
-private fun cardBorder(tone: String): Color = when (tone) {
-    "accent" -> MaterialTheme.colorScheme.primary.copy(alpha = LocalGeneratedAppVisuals.current.borderAlpha)
-    "positive" -> LocalGeneratedAppSemanticColors.current.positive.copy(alpha = 0.2f)
-    "warning" -> LocalGeneratedAppSemanticColors.current.warning.copy(alpha = 0.2f)
-    "danger" -> MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
-    "dark" -> MaterialTheme.colorScheme.inverseSurface
-    else -> MaterialTheme.colorScheme.outlineVariant
+private fun treatmentColor(treatment: String): Color = when (treatment) {
+    "tonal" -> MaterialTheme.colorScheme.surfaceVariant
+    "outlined" -> MaterialTheme.colorScheme.surface
+    "elevated" -> MaterialTheme.colorScheme.surface
+    else -> Color.Transparent
 }
+
+internal fun defaultTreatmentForRole(role: String): String = when (role) {
+    "summary", "metric", "selection" -> "tonal"
+    "editor" -> "outlined"
+    else -> "plain"
+}
+
+internal fun emphasisWeight(emphasis: String): FontWeight = when (emphasis) {
+    "low" -> FontWeight.Normal
+    "high" -> FontWeight.Bold
+    else -> FontWeight.Medium
+}
+
+internal fun normalizedSurfaceTreatment(treatment: String): String = treatment.takeIf { it in setOf("plain", "tonal", "outlined", "elevated") } ?: "plain"
+
+internal fun normalizedButtonHierarchy(hierarchy: String): String = hierarchy.takeIf { it in setOf("primary", "secondary", "quiet", "destructive") } ?: "primary"
+
+@Composable
+private fun textTone(tone: String): Color = generatedTonePalette(tone).content
+
+@Composable
+private fun cardBorder(tone: String): Color = generatedTonePalette(tone).border.copy(
+    alpha = if (tone.isBlank() || tone == "default") 1f else LocalGeneratedAppVisuals.current.borderAlpha.coerceAtLeast(0.2f)
+)
 
 private fun parseColor(value: String, fallback: Color): Color = runCatching {
     Color(value.toColorInt())

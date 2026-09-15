@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,12 +46,15 @@ class GeneratedAppActivity : ComponentActivity() {
             return
         }
         enableEdgeToEdge()
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
-        }
         setContent {
-            DealStudioTheme(darkTheme = false) {
+            val darkTheme = isSystemInDarkTheme()
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
+            }
+            DealStudioTheme(darkTheme = darkTheme) {
                 GeneratedAppHost(
                     appId = appId,
                     onClose = ::finish,
@@ -70,6 +75,14 @@ class GeneratedAppActivity : ComponentActivity() {
     }
 }
 
+internal enum class GeneratedAppStoreKind { Canonical, Js, Unknown }
+
+internal fun generatedAppStoreKind(appId: String): GeneratedAppStoreKind = when {
+    appId.startsWith("canonical-") -> GeneratedAppStoreKind.Canonical
+    appId.matches(Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}")) -> GeneratedAppStoreKind.Js
+    else -> GeneratedAppStoreKind.Unknown
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> Unit) {
@@ -81,13 +94,20 @@ private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> U
     var jsApp by remember(appId) { mutableStateOf<SavedJsGeneratedApp?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(controller) {
-        runCatching { withContext(Dispatchers.Default) { controller.load() } }
-            .onSuccess { loaded = it }
-            .onFailure {
+        when (generatedAppStoreKind(appId)) {
+            GeneratedAppStoreKind.Canonical -> runCatching {
+                withContext(Dispatchers.Default) { controller.load() }
+            }.onSuccess { loaded = it }.onFailure {
+                error = it.message ?: "Could not open the canonical generated app"
+            }
+
+            GeneratedAppStoreKind.Js ->
                 runCatching { withContext(Dispatchers.IO) { jsLibrary.load(appId) } }
                     .onSuccess { jsApp = it }
                     .onFailure { error = it.message ?: "Could not open the generated app" }
-            }
+
+            GeneratedAppStoreKind.Unknown -> error = "Unknown generated app identifier"
+        }
     }
     Scaffold(
         topBar = {

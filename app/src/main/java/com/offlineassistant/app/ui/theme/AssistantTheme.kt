@@ -7,11 +7,14 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.offlineassistant.app.generatedapp.GeneratedAppHostAppearance
+import com.offlineassistant.app.generatedapp.LocalGeneratedAppHostAppearance
 
 /** Host-owned colors. Generated applications use semantic roles rather than raw values. */
 object DealStudioColors {
@@ -212,12 +215,16 @@ fun DealStudioTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DealStudioDarkScheme else DealStudioLightScheme,
-        typography = DealStudioTypography,
-        shapes = DealStudioShapes,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalGeneratedAppHostAppearance provides if (darkTheme) GeneratedAppHostAppearance.Dark else GeneratedAppHostAppearance.Light
+    ) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DealStudioDarkScheme else DealStudioLightScheme,
+            typography = DealStudioTypography,
+            shapes = DealStudioShapes,
+            content = content
+        )
+    }
 }
 
 @Composable

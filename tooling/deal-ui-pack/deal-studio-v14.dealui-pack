@@ -1,27 +1,45 @@
-pack version "deal-studio-dealui-pack-v13";
+pack version "deal-studio-dealui-pack-v14";
 
 export class Space { value: int = 0; }
 export class ColorToken { value: string = ""; }
 export class TextStyle { value: string = "body"; }
+export class ThemeStyle { value: string = "clean"; }
+export class ShapeStyle { value: string = "rounded"; }
+export class DensityStyle { value: string = "comfortable"; }
+export class SurfaceStyle { value: string = "tonal"; }
+export class TypographyStyle { value: string = "neutral"; }
+export class ContrastStyle { value: string = "standard"; }
+export class BackgroundStyle { value: string = "solid"; }
+export class MotionStyle { value: string = "restrained"; }
+export class SemanticTone { value: string = "default"; }
+export class Emphasis { value: string = "medium"; }
+export class SectionRole { value: string = "content"; }
+export class CardRole { value: string = "content"; }
+export class ButtonHierarchy { value: string = "primary"; }
+export class SurfaceTreatment { value: string = "plain"; }
 export class AppThemeProps {
   primary: string = "#2563EB";
   secondary: string = "#0F766E";
-  style: string = "clean";
-  shape: string = "rounded";
-  density: string = "comfortable";
-  surface: string = "tonal";
+  style?: ThemeStyle;
+  shape?: ShapeStyle;
+  density?: DensityStyle;
+  surface?: SurfaceStyle;
+  typography?: TypographyStyle;
+  contrast?: ContrastStyle;
+  background?: BackgroundStyle;
+  motion?: MotionStyle;
 }
 export class EmptyProps {}
 export class LayoutProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; }
 export class FrameProps { ratioWidth: int = 0; ratioHeight: int = 0; maxWidth: int = 0; maxHeight: int = 0; viewportHeightFraction: number = 0.0; }
 export class GridProps { columns: int = 1; minimumCellWidth: int = 0; cellAspectRatio: number = 0.0; spacing?: Space; padding?: Space; }
-export class CardProps { tone: string = "surface"; spacing?: Space; padding?: Space; onClick?: Action; accessibilityLabel?: string; }
-export class TextProps { value: string = ""; style?: TextStyle; tone: string = "default"; }
-export class IntTextProps { value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; style?: TextStyle; tone: string = "default"; }
-export class NumberTextProps { value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; style?: TextStyle; tone: string = "default"; }
+export class CardProps { role?: CardRole; treatment?: SurfaceTreatment; emphasis?: Emphasis; spacing?: Space; padding?: Space; onClick?: Action; accessibilityLabel?: string; }
+export class TextProps { value: string = ""; style?: TextStyle; tone?: SemanticTone; }
+export class IntTextProps { value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
+export class NumberTextProps { value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
 export class IconProps { name: string = "info"; description: string = ""; tone: string = "default"; }
-export class IconButtonProps { icon: string = "info"; onClick?: Action; accessibilityLabel: string = ""; style: string = "tonal"; }
-export class ButtonProps { text: string = ""; icon: string = ""; onClick?: Action; accessibilityLabel?: string; style: string = "filled"; }
+export class IconButtonProps { icon: string = "info"; onClick?: Action; accessibilityLabel: string = ""; hierarchy?: ButtonHierarchy; }
+export class ButtonProps { text: string = ""; icon: string = ""; onClick?: Action; accessibilityLabel?: string; hierarchy?: ButtonHierarchy; }
 export class TileProps { glyph: string; supporting: string = ""; icon: string = ""; tone: string; selected: boolean = false; highlighted: boolean = false; onClick?: Action; accessibilityLabel: string; }
 export class ProgressProps { value: int = 0; maximum: int = 100; label: string = ""; }
 export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; }
@@ -35,23 +53,26 @@ export class ChoiceItemProps { label: string = ""; selected: boolean = false; on
 export class SliderProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class SpacerProps { size?: Space; }
 export class BadgeProps { text: string = ""; tone: string = "neutral"; icon: string = ""; }
-export class StatProps { label: string = ""; value: string = ""; supporting: string = ""; icon: string = ""; tone: string = "accent"; }
-export class IntStatProps { label: string = ""; value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; supporting: string = ""; icon: string = ""; tone: string = "accent"; }
-export class NumberStatProps { label: string = ""; value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; supporting: string = ""; icon: string = ""; tone: string = "accent"; }
-export class ListItemProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; trailing: string = ""; tone: string = "surface"; onClick?: Action; accessibilityLabel?: string; }
-export class IntListItemProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; trailingValue: int = 0; trailingPrefix: string = ""; trailingSuffix: string = ""; minimumDigits: int = 1; tone: string = "surface"; onClick?: Action; accessibilityLabel?: string; }
-export class SectionProps { title: string = ""; subtitle: string = ""; spacing?: Space; }
+export class StatProps { label: string = ""; value: string = ""; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class IntStatProps { label: string = ""; value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class NumberStatProps { label: string = ""; value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
+export class ListItemProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; trailing: string = ""; tone?: SemanticTone; emphasis?: Emphasis; onClick?: Action; accessibilityLabel?: string; }
+export class IntListItemProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; trailingValue: int = 0; trailingPrefix: string = ""; trailingSuffix: string = ""; minimumDigits: int = 1; tone?: SemanticTone; emphasis?: Emphasis; onClick?: Action; accessibilityLabel?: string; }
+export class SectionProps { title: string = ""; subtitle: string = ""; role?: SectionRole; treatment?: SurfaceTreatment; spacing?: Space; }
+export class HeroProps { treatment?: SurfaceTreatment; alignment: string = "start"; }
+export class MetricGroupProps { columns: int = 3; minimumCellWidth: int = 128; spacing?: Space; }
+export class ActionBarProps { alignment: string = "end"; spacing?: Space; }
 export class ImageProps { url: string = ""; description: string = ""; ratioWidth: int = 16; ratioHeight: int = 9; fit: string = "cover"; }
 export class EmptyStateProps { title: string = ""; message: string = ""; icon: string = "info"; actionText: string = ""; onAction?: Action; accessibilityLabel?: string; }
 export class SnackbarProps { visible: boolean = false; message: string = ""; actionText: string = ""; onAction?: Action; onDismiss?: Action; accessibilityLabel?: string; }
-export class TopBarProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; tone: string = "surface"; }
+export class TopBarProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; treatment?: SurfaceTreatment; }
 export class CheckboxProps { checked: boolean = false; label: string = ""; supporting: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class StepperProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; decrementLabel: string = "Decrease"; incrementLabel: string = "Increase"; onChange?: Action; }
 export class TabsProps { accessibilityLabel?: string; }
 export class TabItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
 export class NavigationProps { accessibilityLabel?: string; }
 export class NavigationItemProps { label: string = ""; icon: string = "info"; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
-export class ChartProps { series: int[] = []; maximum: int = 100; label: string = ""; tone: string = "accent"; }
+export class ChartProps { series: int[] = []; maximum: int = 100; label: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
 export class AvatarProps { url: string = ""; initials: string = ""; description: string = ""; size: int = 48; }
 export class VisibilityProps { visible: boolean = true; }
 export class ClockProps { intervalMillis: int = 60000; onTick?: Action; }
@@ -76,6 +97,9 @@ export component Grid(props: GridProps): View { children optional; token spacing
 export component Scroll(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.scroll"; }
 export component Card(props: CardProps): View { children optional; event onClick; accessibility accessibilityLabel; token spacing; capability "renderer.android.card"; }
 export component Section(props: SectionProps): View { children optional; token spacing; capability "renderer.android.section"; }
+export component Hero(props: HeroProps): View { children optional; token treatment; capability "renderer.android.hero"; }
+export component MetricGroup(props: MetricGroupProps): View { children required Stat | IntStat | NumberStat; token spacing; capability "renderer.android.metric-group"; }
+export component ActionBar(props: ActionBarProps): View { children required Button | IconButton; token spacing; capability "renderer.android.action-bar"; }
 export component Text(props: TextProps): View { capability "renderer.android.text"; }
 export component IntText(props: IntTextProps): View { capability "renderer.android.int-text"; }
 export component NumberText(props: NumberTextProps): View { capability "renderer.android.number-text"; }
@@ -144,3 +168,60 @@ export token textTitle: TextStyle = { value: "title" };
 export token textHeadline: TextStyle = { value: "headline" };
 export token textMetric: TextStyle = { value: "metric" };
 export token textDisplay: TextStyle = { value: "display" };
+export token themeClean: ThemeStyle = { value: "clean" };
+export token themeSoft: ThemeStyle = { value: "soft" };
+export token themeExpressive: ThemeStyle = { value: "expressive" };
+export token themeEditorial: ThemeStyle = { value: "editorial" };
+export token themeTechnical: ThemeStyle = { value: "technical" };
+export token themePlayful: ThemeStyle = { value: "playful" };
+export token shapeGeometric: ShapeStyle = { value: "geometric" };
+export token shapeRounded: ShapeStyle = { value: "rounded" };
+export token shapeSoft: ShapeStyle = { value: "soft" };
+export token shapePillControls: ShapeStyle = { value: "pill-controls" };
+export token densityCompact: DensityStyle = { value: "compact" };
+export token densityComfortable: DensityStyle = { value: "comfortable" };
+export token densitySpacious: DensityStyle = { value: "spacious" };
+export token surfaceFlat: SurfaceStyle = { value: "flat" };
+export token surfaceTonal: SurfaceStyle = { value: "tonal" };
+export token surfaceOutlined: SurfaceStyle = { value: "outlined" };
+export token surfaceLayered: SurfaceStyle = { value: "layered" };
+export token typographyNeutral: TypographyStyle = { value: "neutral" };
+export token typographyEditorial: TypographyStyle = { value: "editorial" };
+export token typographyTechnical: TypographyStyle = { value: "technical" };
+export token typographyFriendly: TypographyStyle = { value: "friendly" };
+export token typographyExpressive: TypographyStyle = { value: "expressive" };
+export token contrastStandard: ContrastStyle = { value: "standard" };
+export token contrastHigh: ContrastStyle = { value: "high" };
+export token backgroundSolid: BackgroundStyle = { value: "solid" };
+export token backgroundTonal: BackgroundStyle = { value: "tonal" };
+export token backgroundAtmospheric: BackgroundStyle = { value: "atmospheric" };
+export token motionNone: MotionStyle = { value: "none" };
+export token motionRestrained: MotionStyle = { value: "restrained" };
+export token motionExpressive: MotionStyle = { value: "expressive" };
+export token toneDefault: SemanticTone = { value: "default" };
+export token toneMuted: SemanticTone = { value: "muted" };
+export token toneAccent: SemanticTone = { value: "accent" };
+export token tonePositive: SemanticTone = { value: "positive" };
+export token toneWarning: SemanticTone = { value: "warning" };
+export token toneDanger: SemanticTone = { value: "danger" };
+export token emphasisLow: Emphasis = { value: "low" };
+export token emphasisMedium: Emphasis = { value: "medium" };
+export token emphasisHigh: Emphasis = { value: "high" };
+export token sectionHero: SectionRole = { value: "hero" };
+export token sectionSummary: SectionRole = { value: "summary" };
+export token sectionContent: SectionRole = { value: "content" };
+export token sectionSupporting: SectionRole = { value: "supporting" };
+export token sectionWarning: SectionRole = { value: "warning" };
+export token cardContent: CardRole = { value: "content" };
+export token cardSummary: CardRole = { value: "summary" };
+export token cardMetric: CardRole = { value: "metric" };
+export token cardSelection: CardRole = { value: "selection" };
+export token cardEditor: CardRole = { value: "editor" };
+export token buttonPrimary: ButtonHierarchy = { value: "primary" };
+export token buttonSecondary: ButtonHierarchy = { value: "secondary" };
+export token buttonQuiet: ButtonHierarchy = { value: "quiet" };
+export token buttonDestructive: ButtonHierarchy = { value: "destructive" };
+export token treatmentPlain: SurfaceTreatment = { value: "plain" };
+export token treatmentTonal: SurfaceTreatment = { value: "tonal" };
+export token treatmentOutlined: SurfaceTreatment = { value: "outlined" };
+export token treatmentElevated: SurfaceTreatment = { value: "elevated" };

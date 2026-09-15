@@ -226,7 +226,7 @@ internal object CanonicalDealUiSyntaxCard {
         }
         // @ui-root
         export view App(state: app.AppState): View {
-          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E", style: ui.themeClean) {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
               When(state.count > 0) { ui.Text(value: "Ready", style: ui.textTitle) } Else { ui.Text(value: "Empty") }
               ui.Button(text: "Increment", onClick: action app.IncrementAction { amount: 1 }, accessibilityLabel: "Increment")
@@ -248,7 +248,7 @@ internal object CanonicalDealUiSyntaxCard {
         }
         // @ui-root
         export view App(state: app.AppState): View {
-          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E", style: ui.themeClean) {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
               When(state.count > 0) { ui.Text(value: "Ready", style: ui.textTitle) } Else { ui.Text(value: "Empty") }
               ui.Button(text: "Increment", onClick: action app.IncrementAction { amount: 1 }, accessibilityLabel: "Increment")
@@ -272,7 +272,7 @@ internal object CanonicalDealUiSyntaxCard {
         or ui: the compiler supplies the current app module as `app` and the checked pack as `ui`.
         // @ui-root
         export view App(state: app.AppState): View {
-          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E", style: ui.themeClean) {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
               ui.TopBar(title: "Product name")
               When(state.hasItems) {
@@ -296,35 +296,35 @@ internal object CanonicalDealUiSyntaxCard {
           ui.ChoiceItem(label: "First", selected: state.firstSelected, onClick: action app.SelectFirstAction {})
           ui.ChoiceItem(label: "Second", selected: state.secondSelected, onClick: action app.SelectSecondAction {})
         }
-        ui.Grid(columns: 3, minimumCellWidth: 104, spacing: ui.spaceSm) {
-          ui.IntStat(label: "Total", value: state.total, icon: "list", tone: "accent")
-          ui.IntStat(label: "Complete", value: state.complete, icon: "check", tone: "success")
-          ui.IntStat(label: "Remaining", value: state.remaining, icon: "schedule", tone: "warning")
+        ui.MetricGroup(columns: 3, minimumCellWidth: 104, spacing: ui.spaceSm) {
+          ui.IntStat(label: "Total", value: state.total, icon: "list", tone: ui.toneAccent)
+          ui.IntStat(label: "Complete", value: state.complete, icon: "check", tone: ui.tonePositive)
+          ui.IntStat(label: "Remaining", value: state.remaining, icon: "schedule", tone: ui.toneWarning)
         }
-        ui.Row(spacing: ui.spaceSm, wrap: true) {
-          ui.Button(text: "Primary", style: "filled", onClick: action app.PrimaryAction {})
-          ui.Button(text: "Secondary", style: "outlined", onClick: action app.SecondaryAction {})
+        ui.ActionBar(alignment: "end", spacing: ui.spaceSm) {
+          ui.Button(text: "Primary", hierarchy: ui.buttonPrimary, onClick: action app.PrimaryAction {})
+          ui.Button(text: "Secondary", hierarchy: ui.buttonSecondary, onClick: action app.SecondaryAction {})
         }
         For a repeated interactive item, render its changing state and bind its stable id on every branch:
         ForEach(state.items, item: app.Item, key: item.id) {
           When(item.done) {
-            ui.Button(text: "Selected", style: "outlined", onClick: action app.SelectItemAction { id: item.id })
+            ui.Button(text: "Selected", hierarchy: ui.buttonSecondary, onClick: action app.SelectItemAction { id: item.id })
           } Else {
-            ui.Button(text: "Available", style: "outlined", onClick: action app.SelectItemAction { id: item.id })
+            ui.Button(text: "Available", hierarchy: ui.buttonSecondary, onClick: action app.SelectItemAction { id: item.id })
           }
         }
 
         Use TimeField for a clock time stored as minutes; never expose `0-1439` or another internal encoding in an
         IntField. Use Choice for a small closed set, Toggle or Checkbox for boolean state, and TextField only for real
         text. Put two to four related metrics in an adaptive Grid rather than stacking full-width Stat components.
-        Use one filled primary Button; use outlined or text style for secondary actions and danger only for destructive
+        Use one primary Button; use secondary or quiet hierarchy for alternatives and destructive only for destructive
         actions. Use EmptyState for an absent collection. A Card may group one cohesive surface, but never put a Card
         inside another Card.
 
         Before returning source, lint the embedded view mechanically: every component has an argument list, including
         `ui.Card() { ... }`; conditional presentation uses `When(condition) { ... } Else { ... }`, never `?:`; and a
         Text style is a typed token (`ui.textCaption`, `ui.textBody`, `ui.textTitle`, `ui.textHeadline`,
-        `ui.textMetric`, or `ui.textDisplay`), never a string. Button style is the separate string property shown above.
+        `ui.textMetric`, or `ui.textDisplay`), never a string. Button hierarchy is an exported typed token.
         Never use `+` to assemble presentation text inside a view, even when one operand is a string. Maintain each
         complete user-facing display label as a string field in AppState and pass that field directly to the UI.
 
@@ -354,14 +354,14 @@ internal object CanonicalDealUiSyntaxCard {
 
         // @ui-root
         export view App(state: app.AppState): View {
-          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E", style: ui.themeClean) {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
               ui.TopBar(title: "Product name")
-              ui.Grid(columns: 2, minimumCellWidth: 104, spacing: ui.spaceSm) {
-                ui.IntStat(label: "Total", value: state.count, tone: "accent")
-                ui.IntStat(label: "Current", value: state.count, tone: "success")
+              ui.MetricGroup(columns: 2, minimumCellWidth: 104, spacing: ui.spaceSm) {
+                ui.IntStat(label: "Total", value: state.count, tone: ui.toneAccent)
+                ui.IntStat(label: "Current", value: state.count, tone: ui.tonePositive)
               }
-              ui.Button(text: "Increase", style: "filled", onClick: action app.IncreaseAction {}, accessibilityLabel: "Increase total")
+              ui.Button(text: "Increase", hierarchy: ui.buttonPrimary, onClick: action app.IncreaseAction {}, accessibilityLabel: "Increase total")
               When(state.hasItems) {
                 ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
               } Else {
@@ -534,6 +534,10 @@ internal object CanonicalBundlePrompts {
 
         previousFailure.contains("string formatting") ->
             "remove conversion helpers and render labels and typed numbers as separate UI nodes"
+
+        previousFailure.contains("action surface", ignoreCase = true) ||
+            previousFailure.contains("UI bindings", ignoreCase = true) ->
+            "declare only actions used by the product; every declared update action must be reachable from an actual UI event binding, and every binding must target its declared action and exported two-parameter handler; do not invent replacement action names"
 
         else -> "do not repeat the rejected grammar, type, component, or binding shape"
     }
