@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "deal-studio-pack-release-gates-v1",
+  "packVersion": "deal-studio-dealui-pack-v14",
+  "promotionStatus": "PENDING",
+  "gates": {
+    "deterministicContracts": "PENDING",
+    "unsupportedRecordQuarantine": "PENDING",
+    "rendererMatrix": "PENDING",
+    "deviceRuntime": "PENDING",
+    "cloudUtilityMatrix": "PENDING",
+    "heldOutCompositional": "PENDING",
+    "visualAccessibilityReview": "PENDING"
+  },
+  "evidence": []
+}

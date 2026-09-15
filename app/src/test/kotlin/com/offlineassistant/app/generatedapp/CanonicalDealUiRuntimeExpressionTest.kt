@@ -63,4 +63,12 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals("12.35", formatCanonicalNumber(12.345, 2))
         assertEquals("12.345679", formatCanonicalNumber(12.3456789, 20))
     }
+
+    @Test
+    fun `adaptive groups reduce columns at compact widths and respect their maximum`() {
+        assertEquals(1, adaptiveColumnCount(120f, maximumColumns = 3, minimumCellWidthDp = 128))
+        assertEquals(2, adaptiveColumnCount(320f, maximumColumns = 3, minimumCellWidthDp = 128))
+        assertEquals(3, adaptiveColumnCount(900f, maximumColumns = 3, minimumCellWidthDp = 128))
+        assertEquals(4, adaptiveColumnCount(120f, maximumColumns = 4, minimumCellWidthDp = 0))
+    }
 }

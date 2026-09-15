@@ -1,0 +1,289 @@
+{
+  "version": "deal-studio-agent-semantics-v1",
+  "packVersion": "deal-studio-dealui-pack-v14",
+  "themeTokens": [
+    "themeClean",
+    "themeSoft",
+    "themeExpressive",
+    "themeEditorial",
+    "themeTechnical",
+    "themePlayful",
+    "shapeGeometric",
+    "shapeRounded",
+    "shapeSoft",
+    "shapePillControls",
+    "densityCompact",
+    "densityComfortable",
+    "densitySpacious",
+    "surfaceFlat",
+    "surfaceTonal",
+    "surfaceOutlined",
+    "surfaceLayered",
+    "typographyNeutral",
+    "typographyEditorial",
+    "typographyTechnical",
+    "typographyFriendly",
+    "typographyExpressive",
+    "contrastStandard",
+    "contrastHigh",
+    "backgroundSolid",
+    "backgroundTonal",
+    "backgroundAtmospheric",
+    "motionNone",
+    "motionRestrained",
+    "motionExpressive",
+    "toneDefault",
+    "toneMuted",
+    "toneAccent",
+    "tonePositive",
+    "toneWarning",
+    "toneDanger",
+    "emphasisLow",
+    "emphasisMedium",
+    "emphasisHigh",
+    "sectionHero",
+    "sectionSummary",
+    "sectionContent",
+    "sectionSupporting",
+    "sectionWarning",
+    "cardContent",
+    "cardSummary",
+    "cardMetric",
+    "cardSelection",
+    "cardEditor",
+    "buttonPrimary",
+    "buttonSecondary",
+    "buttonQuiet",
+    "buttonDestructive",
+    "treatmentPlain",
+    "treatmentTonal",
+    "treatmentOutlined",
+    "treatmentElevated"
+  ],
+  "components": {
+    "AppTheme": {
+      "usage": "Select exported typed theme tokens; primary and secondary are the only raw hex theme inputs.",
+      "example": "ui.AppTheme(primary: \"#2563EB\", secondary: \"#0F766E\", style: ui.themeClean)"
+    },
+    "Widget": {
+      "usage": "Use Widget only for its declared typed contract."
+    },
+    "Root": {
+      "usage": "Use Root only for its declared typed contract."
+    },
+    "Column": {
+      "usage": "Use Column only for its declared typed contract."
+    },
+    "Row": {
+      "usage": "Use Row only for its declared typed contract."
+    },
+    "Stack": {
+      "usage": "Use Stack only for its declared typed contract."
+    },
+    "Frame": {
+      "usage": "Use Frame only for its declared typed contract."
+    },
+    "Grid": {
+      "usage": "Use Grid only for its declared typed contract."
+    },
+    "Scroll": {
+      "usage": "Use Scroll only for its declared typed contract."
+    },
+    "Card": {
+      "usage": "Use Card only for its declared typed contract."
+    },
+    "Section": {
+      "usage": "Use Section only for its declared typed contract."
+    },
+    "Hero": {
+      "usage": "Use once at most per root or route for the leading identity and primary status. Never place under Card.",
+      "example": "ui.Hero(treatment: ui.treatmentTonal, alignment: \"start\") { ui.Text(value: state.title, style: ui.textDisplay) }"
+    },
+    "MetricGroup": {
+      "usage": "Group only Stat, IntStat, or NumberStat children; columns is a maximum and minimumCellWidth controls adaptation.",
+      "example": "ui.MetricGroup(columns: 3, minimumCellWidth: 128, spacing: ui.spaceSm) { ui.IntStat(label: \"Items\", value: state.count) }"
+    },
+    "ActionBar": {
+      "usage": "Group only action-capable Button or IconButton controls and keep one clear primary hierarchy.",
+      "example": "ui.ActionBar(alignment: \"end\", spacing: ui.spaceSm) { ui.Button(text: \"Save\", hierarchy: ui.buttonPrimary, onClick: Save()) }"
+    },
+    "Text": {
+      "usage": "Use Text only for its declared typed contract."
+    },
+    "IntText": {
+      "usage": "Use IntText only for its declared typed contract."
+    },
+    "NumberText": {
+      "usage": "Use NumberText only for its declared typed contract."
+    },
+    "Icon": {
+      "usage": "Use Icon only for its declared typed contract."
+    },
+    "IconButton": {
+      "usage": "Apply the same hierarchy semantics as Button and always provide accessibilityLabel."
+    },
+    "Button": {
+      "usage": "Use buttonPrimary for the main action, buttonSecondary for alternatives, buttonQuiet for low emphasis, and buttonDestructive only for destructive actions.",
+      "example": "ui.Button(text: \"Continue\", hierarchy: ui.buttonPrimary, onClick: Continue())"
+    },
+    "Tile": {
+      "usage": "Use Tile only for its declared typed contract."
+    },
+    "ProgressBar": {
+      "usage": "Use ProgressBar only for its declared typed contract."
+    },
+    "ProgressRing": {
+      "usage": "Use ProgressRing only for its declared typed contract."
+    },
+    "NumberProgressBar": {
+      "usage": "Use NumberProgressBar only for its declared typed contract."
+    },
+    "NumberProgressRing": {
+      "usage": "Use NumberProgressRing only for its declared typed contract."
+    },
+    "TextField": {
+      "usage": "Use TextField only for its declared typed contract."
+    },
+    "IntField": {
+      "usage": "Use IntField only for its declared typed contract."
+    },
+    "NumberField": {
+      "usage": "Use NumberField only for its declared typed contract."
+    },
+    "TimeField": {
+      "usage": "Use TimeField only for its declared typed contract."
+    },
+    "Toggle": {
+      "usage": "Use Toggle only for its declared typed contract."
+    },
+    "Choice": {
+      "usage": "Use Choice only for its declared typed contract."
+    },
+    "ChoiceItem": {
+      "usage": "Use ChoiceItem only for its declared typed contract."
+    },
+    "Slider": {
+      "usage": "Use Slider only for its declared typed contract."
+    },
+    "Spacer": {
+      "usage": "Use Spacer only for its declared typed contract."
+    },
+    "Badge": {
+      "usage": "Use Badge only for its declared typed contract."
+    },
+    "Stat": {
+      "usage": "Use Stat only for its declared typed contract."
+    },
+    "IntStat": {
+      "usage": "Use IntStat only for its declared typed contract."
+    },
+    "NumberStat": {
+      "usage": "Use NumberStat only for its declared typed contract."
+    },
+    "ListItem": {
+      "usage": "Use ListItem only for its declared typed contract."
+    },
+    "IntListItem": {
+      "usage": "Use IntListItem only for its declared typed contract."
+    },
+    "Image": {
+      "usage": "Use Image only for its declared typed contract."
+    },
+    "EmptyState": {
+      "usage": "Use EmptyState only for its declared typed contract."
+    },
+    "Snackbar": {
+      "usage": "Use Snackbar only for its declared typed contract."
+    },
+    "TopBar": {
+      "usage": "Use TopBar only for its declared typed contract."
+    },
+    "Checkbox": {
+      "usage": "Use Checkbox only for its declared typed contract."
+    },
+    "Stepper": {
+      "usage": "Use Stepper only for its declared typed contract."
+    },
+    "Tabs": {
+      "usage": "Use Tabs only for its declared typed contract."
+    },
+    "TabItem": {
+      "usage": "Use TabItem only for its declared typed contract."
+    },
+    "NavigationBar": {
+      "usage": "Use NavigationBar only for its declared typed contract."
+    },
+    "NavigationItem": {
+      "usage": "Use NavigationItem only for its declared typed contract."
+    },
+    "BarChart": {
+      "usage": "Use BarChart only for its declared typed contract."
+    },
+    "Sparkline": {
+      "usage": "Use Sparkline only for its declared typed contract."
+    },
+    "Avatar": {
+      "usage": "Use Avatar only for its declared typed contract."
+    },
+    "AnimatedVisibility": {
+      "usage": "Use AnimatedVisibility only for its declared typed contract."
+    },
+    "Divider": {
+      "usage": "Use Divider only for its declared typed contract."
+    },
+    "FrameClock": {
+      "usage": "Use FrameClock only for its declared typed contract."
+    },
+    "MinuteClock": {
+      "usage": "Use MinuteClock only for its declared typed contract."
+    },
+    "PointerSurface": {
+      "usage": "Use PointerSurface only for its declared typed contract."
+    },
+    "Canvas": {
+      "usage": "Use Canvas only for its declared typed contract."
+    },
+    "Rectangle": {
+      "usage": "Use Rectangle only for its declared typed contract."
+    },
+    "RoundRectangle": {
+      "usage": "Use RoundRectangle only for its declared typed contract."
+    },
+    "Circle": {
+      "usage": "Use Circle only for its declared typed contract."
+    },
+    "Line": {
+      "usage": "Use Line only for its declared typed contract."
+    },
+    "CanvasText": {
+      "usage": "Use CanvasText only for its declared typed contract."
+    },
+    "Route": {
+      "usage": "Use Route only for its declared typed contract."
+    },
+    "Modal": {
+      "usage": "Use Modal only for its declared typed contract."
+    },
+    "Dialog": {
+      "usage": "Use Dialog only for its declared typed contract."
+    },
+    "BottomSheet": {
+      "usage": "Use BottomSheet only for its declared typed contract."
+    },
+    "Menu": {
+      "usage": "Use Menu only for its declared typed contract."
+    },
+    "MenuItem": {
+      "usage": "Use MenuItem only for its declared typed contract."
+    },
+    "CapabilityNotice": {
+      "usage": "Use CapabilityNotice only for its declared typed contract."
+    }
+  },
+  "globalRules": [
+    "Use only exported typed tokens; do not write CSS, arbitrary variants, or low-level pixel styles.",
+    "Do not nest Card in Card. Hero is forbidden under Card and limited to one per Root or Route.",
+    "Card radii never exceed 8dp; pill geometry is reserved for controls.",
+    "Keep presentation domain-neutral and adaptive across compact and expanded widths."
+  ]
+}

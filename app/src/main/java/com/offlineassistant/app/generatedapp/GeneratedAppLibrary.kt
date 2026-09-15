@@ -8,13 +8,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 
 @Serializable
 internal data class SavedCanonicalGeneratedAppRecord(
@@ -95,13 +88,13 @@ internal fun restoreCanonicalGeneratedApp(
     require(record.toolchainSha256 == CanonicalDealToolchain.ARTIFACT_SHA256) {
         "Required canonical toolchain is unavailable"
     }
-    val packSource = requireNotNull(CanonicalDealUiPack.sourceFor(record.componentPackVersion)) {
-        "Required component pack ${record.componentPackVersion} is unavailable"
+    require(record.componentPackVersion == CanonicalDealUiPack.VERSION) {
+        "Saved app uses unsupported component pack ${record.componentPackVersion}; regenerate the app with ${CanonicalDealUiPack.VERSION}"
     }
-    require(CanonicalDealUiPack.digestFor(record.componentPackVersion) == record.componentPackSha256) {
-        "Saved component pack digest mismatch"
+    require(record.componentPackSha256 == CanonicalDealUiPack.SHA256) {
+        "Saved v14 component pack digest mismatch; regenerate the app"
     }
-    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, packSource)
+    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
     val extractedInterface = toolchain.extractAppInterface(record.dealSource)
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
@@ -166,7 +159,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
     init {
         appsDirectory.mkdirs()
         quarantineDirectory.mkdirs()
-        migrateV1Records()
+        quarantineLegacyIndex()
     }
 
     fun loadRecords(): List<SavedCanonicalGeneratedAppRecord> = appsDirectory.listFiles()
@@ -183,6 +176,15 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
                     null
                 }
         }
+
+    fun restore(id: String, toolchain: CanonicalDealToolchain): CanonicalGeneratedAppLibraryEntry {
+        val record = loadRecords().firstOrNull { it.id == id }
+            ?: error("Saved app is no longer available")
+        return runCatching { restoreCanonicalGeneratedApp(record, toolchain) }.getOrElse { failure ->
+            quarantine(record.id, failure.message ?: "Canonical restore failed")
+            throw failure
+        }
+    }
 
     fun save(
         bundle: CanonicalGeneratedAppBundle,
@@ -321,66 +323,14 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         if (source.renameTo(target)) File(target, "reason.txt").writeText(reason)
     }
 
-    private fun migrateV1Records() {
+    private fun quarantineLegacyIndex() {
         val legacy = File(directory, V1_INDEX_FILE)
         if (!legacy.isFile) return
-        val migrated = File(directory, "$V1_INDEX_FILE.migrated")
-        runCatching {
-            JSON_COMPAT.parseToJsonElement(legacy.readText()).jsonArray.forEach { value ->
-                val item = value.jsonObject
-                val dealSource = item.string("dealSource")
-                val dealUiSource = item.string("dealUiSource")
-                val version = item.stringOrNull("componentPackVersion") ?: CanonicalDealUiPack.LEGACY_VERSION
-                val id = item.string("id")
-                if (!File(appsDirectory, id).exists()) {
-                    writeRecord(
-                        SavedCanonicalGeneratedAppRecord(
-                            id = id,
-                            title = item.string("title"),
-                            request = item.string("request"),
-                            dealSourceSha256 = dealSource.sha256(),
-                            dealUiSourceSha256 = dealUiSource.sha256(),
-                            dealCompilerRevision = CanonicalDealToolchain.DEAL_REVISION,
-                            dealUiCompilerRevision = CanonicalDealToolchain.DEAL_UI_REVISION,
-                            componentPackVersion = version,
-                            componentPackSha256 = requireNotNull(CanonicalDealUiPack.digestFor(version)),
-                            toolchainSha256 = CanonicalDealToolchain.ARTIFACT_SHA256,
-                            dealModelId = item.stringOrNull("logicBackend") ?: "DEEPSEEK_FLASH",
-                            dealUiModelId = item.stringOrNull("uiBackend") ?: "DEEPSEEK_FLASH",
-                            promptDigest = "legacy-v1",
-                            dealLatencyMs = item.long("dealLatencyMs"),
-                            dealUiLatencyMs = item.long("dealUiLatencyMs"),
-                            wallLatencyMs = item.long("wallLatencyMs"),
-                            dealTimeToFirstPatchMs = item.longOrNull("dealTimeToFirstPatchMs"),
-                            dealUiTimeToFirstTokenMs = item.longOrNull("dealUiTimeToFirstTokenMs"),
-                            validationLatencyMs = item.long("validationLatencyMs"),
-                            repairLatencyMs = item.long("repairLatencyMs"),
-                            repairPasses = item.int("repairPasses"),
-                            dealGraphRounds = item.int("dealGraphRounds"),
-                            dealUiGraphRounds = item.int("dealUiGraphRounds"),
-                            dealAcceptedPatches = item.int("dealAcceptedPatches"),
-                            dealRejectedPatches = item.int("dealRejectedPatches"),
-                            dealTypedHoles = item.int("dealTypedHoles"),
-                            dealInputTokens = item.int("dealInputTokens"),
-                            dealCachedInputTokens = item.int("dealCachedInputTokens"),
-                            dealOutputTokens = item.int("dealOutputTokens"),
-                            dealUiRejectedPatches = item.int("dealUiRejectedPatches"),
-                            dealUiInputTokens = item.int("dealUiInputTokens"),
-                            dealUiCachedInputTokens = item.int("dealUiCachedInputTokens"),
-                            dealUiOutputTokens = item.int("dealUiOutputTokens"),
-                            dealUiAcceptedPatches = item.int("dealUiAcceptedPatches"),
-                            firstInteractivePreviewMs = item.longOrNull("firstInteractivePreviewMs"),
-                            createdAtEpochMs = item.long("createdAtEpochMs"),
-                            updatedAtEpochMs = item.longOrNull("updatedAtEpochMs")
-                                ?: item.long("createdAtEpochMs"),
-                            revision = item.int("revision").coerceAtLeast(1),
-                            dealSource = dealSource,
-                            dealUiSource = dealUiSource
-                        )
-                    )
-                }
-            }
-            require(legacy.renameTo(migrated)) { "Could not mark v1 canonical index as migrated" }
+        val target = File(quarantineDirectory, "$V1_INDEX_FILE-${System.currentTimeMillis()}")
+        if (legacy.renameTo(target)) {
+            File(quarantineDirectory, "$V1_INDEX_FILE-reason.txt").writeText(
+                "Legacy saved apps use an unsupported component pack; regenerate them with ${CanonicalDealUiPack.VERSION}"
+            )
         }
     }
 
@@ -397,22 +347,9 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         const val DEAL_UI_FILE = "app.dealui"
         const val METADATA_FILE = "metadata.json"
         val JSON = Json { ignoreUnknownKeys = false }
-        val JSON_COMPAT = Json { ignoreUnknownKeys = true }
     }
 }
 
 private fun String.sha256(): String = MessageDigest.getInstance("SHA-256")
     .digest(encodeToByteArray())
     .joinToString("") { byte -> "%02x".format(byte) }
-
-private fun JsonObject.string(name: String): String = requireNotNull(stringOrNull(name)) {
-    "Missing string metadata field $name"
-}
-
-private fun JsonObject.stringOrNull(name: String): String? = get(name)?.jsonPrimitive?.contentOrNull
-
-private fun JsonObject.long(name: String): Long = longOrNull(name) ?: 0L
-
-private fun JsonObject.longOrNull(name: String): Long? = get(name)?.jsonPrimitive?.longOrNull
-
-private fun JsonObject.int(name: String): Int = get(name)?.jsonPrimitive?.intOrNull ?: 0

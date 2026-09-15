@@ -165,7 +165,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             addAll(snapshot.savedApps.map { it.record.title })
             snapshot.runnable?.let { add(it.program.displayTitle(it.state, "")) }
         }
-        val request = SurpriseAppPromptFactory.create(titles)
+        val profile = snapshot.generationMode.surpriseCapabilityProfile()
+        val request = SurpriseAppPromptFactory.create(titles, profile = profile)
         mutableState.update { it.copy(prompt = request) }
         generateSelectedRequest(request)
     }
@@ -519,8 +520,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     fun openSaved(id: String) {
         if (state.value.isBusy || saveJob?.isActive == true) return
         viewModelScope.launch(Dispatchers.IO) {
-            val record = library.loadRecords().firstOrNull { it.id == id } ?: return@launch
-            val entry = restoreCanonicalGeneratedApp(record, toolchain)
+            val entry = library.restore(id, toolchain)
+            val record = entry.record
             val runtime = toolchain.createRuntime(record.dealSource)
             val restoredState = stateStore.restore(record, runtime)
             mutableState.update {

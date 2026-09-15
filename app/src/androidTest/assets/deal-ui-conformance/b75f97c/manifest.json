@@ -2,14 +2,14 @@
   "upstreamRepository": "https://github.com/arkts-dev/deal-ui",
   "upstreamCommit": "b75f97cc4a004feec79f0d6cfd18af1500cc7950",
   "upstreamTree": "https://github.com/arkts-dev/deal-ui/tree/b75f97cc4a004feec79f0d6cfd18af1500cc7950",
-  "fixtureCharacterization": "Local derived conformance fixtures adapted to the Android v13 component pack; they are not verbatim upstream copies.",
+  "fixtureCharacterization": "Local derived conformance fixtures adapted to the current Android component pack; they are not verbatim upstream copies.",
   "fixtures": [
     {
       "id": "valid-composition",
       "deal": "valid/composition.deal",
       "dealUi": "valid/composition.dealui",
       "sourceLocation": "https://github.com/arkts-dev/deal-ui/blob/b75f97cc4a004feec79f0d6cfd18af1500cc7950/examples/museum/gallery.dealui#L1-L39",
-      "derivation": "Adapted from the upstream museum composition to use the Android v13 pack's AppTheme, Root, TextField, and ListItem components.",
+      "derivation": "Adapted from the upstream museum composition to use the current Android pack's AppTheme, Root, TextField, and ListItem components.",
       "rule": "full AppTheme/Root app, pure view, When, keyed ForEach with explicit item, and typed event payload",
       "expected": "valid"
     },

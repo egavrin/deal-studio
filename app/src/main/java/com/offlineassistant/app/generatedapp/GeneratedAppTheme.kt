@@ -1,13 +1,16 @@
 package com.offlineassistant.app.generatedapp
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -21,22 +24,21 @@ internal data class GeneratedAppThemeSpec(
     val style: String = DEFAULT_STYLE,
     val shape: String = DEFAULT_SHAPE,
     val density: String = DEFAULT_DENSITY,
-    val surface: String = DEFAULT_SURFACE
+    val surface: String = DEFAULT_SURFACE,
+    val typography: String = DEFAULT_TYPOGRAPHY,
+    val contrast: String = DEFAULT_CONTRAST,
+    val background: String = DEFAULT_BACKGROUND,
+    val motion: String = DEFAULT_MOTION
 ) {
     fun asDealUiArguments(): String = buildString {
         append("primary: \"")
         append(primary)
         append("\", secondary: \"")
         append(secondary)
-        append("\", style: \"")
-        append(style)
-        append("\", shape: \"")
-        append(shape)
-        append("\", density: \"")
-        append(density)
-        append("\", surface: \"")
-        append(surface)
-        append('"')
+        append("\", style: ui.theme${style.tokenSuffix()}, shape: ui.shape${shape.tokenSuffix()}, ")
+        append("density: ui.density${density.tokenSuffix()}, surface: ui.surface${surface.tokenSuffix()}, ")
+        append("typography: ui.typography${typography.tokenSuffix()}, contrast: ui.contrast${contrast.tokenSuffix()}, ")
+        append("background: ui.background${background.tokenSuffix()}, motion: ui.motion${motion.tokenSuffix()}")
     }
 
     companion object {
@@ -46,13 +48,23 @@ internal data class GeneratedAppThemeSpec(
         const val DEFAULT_SHAPE = "rounded"
         const val DEFAULT_DENSITY = "comfortable"
         const val DEFAULT_SURFACE = "tonal"
+        const val DEFAULT_TYPOGRAPHY = "neutral"
+        const val DEFAULT_CONTRAST = "standard"
+        const val DEFAULT_BACKGROUND = "solid"
+        const val DEFAULT_MOTION = "restrained"
 
         val DEFAULT = GeneratedAppThemeSpec()
-        val THEME_KEYS = setOf("primary", "secondary", "style", "shape", "density", "surface")
-        val STYLES = setOf("clean", "soft", "expressive")
-        val SHAPES = setOf("geometric", "rounded", "pill")
+        val THEME_KEYS = setOf("primary", "secondary", "style", "shape", "density", "surface", "typography", "contrast", "background", "motion")
+        val STYLES = setOf("clean", "soft", "expressive", "editorial", "technical", "playful")
+
+        // Preserve narrow runtime input aliases so previously checked in-memory IR fails softly during rollout.
+        val SHAPES = setOf("geometric", "rounded", "soft", "pill-controls", "pill")
         val DENSITIES = setOf("compact", "comfortable", "spacious")
-        val SURFACES = setOf("flat", "tonal", "elevated")
+        val SURFACES = setOf("flat", "tonal", "outlined", "layered", "elevated")
+        val TYPOGRAPHIES = setOf("neutral", "editorial", "technical", "friendly", "expressive")
+        val CONTRASTS = setOf("standard", "high")
+        val BACKGROUNDS = setOf("solid", "tonal", "atmospheric")
+        val MOTIONS = setOf("none", "restrained", "expressive")
 
         fun fromTool(value: JsonObject): GeneratedAppThemeSpec = validated(
             primary = value.string("primary"),
@@ -60,7 +72,8 @@ internal data class GeneratedAppThemeSpec(
             style = value.string("style"),
             shape = value.string("shape"),
             density = value.string("density"),
-            surface = value.string("surface")
+            surface = value.string("surface"), typography = value.string("typography"),
+            contrast = value.string("contrast"), background = value.string("background"), motion = value.string("motion")
         )
 
         fun validated(
@@ -69,7 +82,11 @@ internal data class GeneratedAppThemeSpec(
             style: String,
             shape: String,
             density: String,
-            surface: String
+            surface: String,
+            typography: String = DEFAULT_TYPOGRAPHY,
+            contrast: String = DEFAULT_CONTRAST,
+            background: String = DEFAULT_BACKGROUND,
+            motion: String = DEFAULT_MOTION
         ): GeneratedAppThemeSpec {
             require(primary.matches(HEX_COLOR)) { "Theme primary must be a six-digit hex colour" }
             require(secondary.matches(HEX_COLOR)) { "Theme secondary must be a six-digit hex colour" }
@@ -77,13 +94,17 @@ internal data class GeneratedAppThemeSpec(
             require(shape in SHAPES) { "Unsupported generated-app theme shape: $shape" }
             require(density in DENSITIES) { "Unsupported generated-app theme density: $density" }
             require(surface in SURFACES) { "Unsupported generated-app surface treatment: $surface" }
+            require(typography in TYPOGRAPHIES) { "Unsupported generated-app typography: $typography" }
+            require(contrast in CONTRASTS) { "Unsupported generated-app contrast: $contrast" }
+            require(background in BACKGROUNDS) { "Unsupported generated-app background: $background" }
+            require(motion in MOTIONS) { "Unsupported generated-app motion: $motion" }
             return GeneratedAppThemeSpec(
                 primary = primary.uppercase(),
                 secondary = secondary.uppercase(),
                 style = style,
                 shape = shape,
                 density = density,
-                surface = surface
+                surface = surface, typography = typography, contrast = contrast, background = background, motion = motion
             )
         }
 
@@ -91,12 +112,29 @@ internal data class GeneratedAppThemeSpec(
     }
 }
 
+private fun String.tokenSuffix(): String = when (this) {
+    "pill" -> "PillControls"
+    "elevated" -> "Layered"
+    else -> split('-').joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
+}
+
 internal data class GeneratedAppVisuals(
     val densityScale: Float,
     val cardElevation: Dp,
     val borderAlpha: Float,
-    val minimumRootPadding: Dp
+    val minimumRootPadding: Dp,
+    val atmosphericBackground: Boolean,
+    val motionEnabled: Boolean,
+    val motionDurationMillis: Int
 )
+
+internal data class GeneratedMotionPolicy(val enabled: Boolean, val durationMillis: Int)
+
+internal fun generatedMotionPolicy(motion: String): GeneratedMotionPolicy = when (motion) {
+    "none" -> GeneratedMotionPolicy(false, 0)
+    "expressive" -> GeneratedMotionPolicy(true, 360)
+    else -> GeneratedMotionPolicy(true, 220)
+}
 
 internal data class GeneratedAppSemanticColors(
     val positive: Color,
@@ -109,12 +147,25 @@ internal data class GeneratedAppSemanticColors(
     val onWarningContainer: Color
 )
 
+internal enum class GeneratedAppHostAppearance { System, Light, Dark }
+
+internal val LocalGeneratedAppHostAppearance = staticCompositionLocalOf { GeneratedAppHostAppearance.System }
+
+internal fun resolveGeneratedAppDark(appearance: GeneratedAppHostAppearance, systemDark: Boolean): Boolean = when (appearance) {
+    GeneratedAppHostAppearance.System -> systemDark
+    GeneratedAppHostAppearance.Light -> false
+    GeneratedAppHostAppearance.Dark -> true
+}
+
 internal val LocalGeneratedAppVisuals = staticCompositionLocalOf {
     GeneratedAppVisuals(
         densityScale = 1f,
         cardElevation = 0.dp,
         borderAlpha = 0.12f,
-        minimumRootPadding = 20.dp
+        minimumRootPadding = 20.dp,
+        atmosphericBackground = false,
+        motionEnabled = true,
+        motionDurationMillis = 220
     )
 }
 
@@ -132,18 +183,22 @@ internal fun GeneratedAppTheme(
     val containerBlend = when (spec.style) {
         "soft" -> 0.82f
         "expressive" -> 0.74f
+        "editorial" -> 0.9f
+        "technical" -> 0.94f
+        "playful" -> 0.7f
         else -> 0.88f
     }
-    val background = when (spec.surface) {
-        "flat" -> Color(0xFFF8F9FC)
-        "elevated" -> mix(primary, Color.White, 0.975f)
-        else -> mix(primary, Color.White, 0.955f)
+    val background = when (spec.background) {
+        "solid" -> Color(0xFFF8F9FC)
+        "atmospheric" -> mix(primary, Color.White, 0.94f)
+        else -> mix(primary, Color.White, 0.965f)
     }
     val surface = when (spec.surface) {
         "tonal" -> mix(primary, Color.White, 0.985f)
         else -> Color.White
     }
-    val scheme = lightColorScheme(
+    val dark = resolveGeneratedAppDark(LocalGeneratedAppHostAppearance.current, isSystemInDarkTheme())
+    val lightScheme = lightColorScheme(
         primary = primary,
         onPrimary = Color.White,
         primaryContainer = mix(primary, Color.White, containerBlend),
@@ -162,7 +217,7 @@ internal fun GeneratedAppTheme(
         onSurface = INK,
         surfaceVariant = mix(secondary, Color.White, 0.92f),
         onSurfaceVariant = MUTED_INK,
-        outline = mix(primary, NEUTRAL, 0.82f),
+        outline = if (spec.contrast == "high") mix(primary, Color.Black, 0.55f) else mix(primary, NEUTRAL, 0.82f),
         outlineVariant = mix(primary, Color.White, 0.88f),
         error = ERROR,
         onError = Color.White,
@@ -172,7 +227,46 @@ internal fun GeneratedAppTheme(
         inverseOnSurface = Color.White,
         inversePrimary = mix(primary, Color.White, 0.35f)
     )
-    val typography = when (spec.style) {
+    val scheme = if (dark) {
+        darkColorScheme(
+            primary = mix(primary, Color.White, 0.28f),
+            onPrimary = Color.Black,
+            primaryContainer = mix(primary, Color.Black, 0.38f),
+            onPrimaryContainer = Color.White,
+            secondary = mix(secondary, Color.White, 0.28f),
+            onSecondary = Color.Black,
+            secondaryContainer = mix(secondary, Color.Black, 0.4f),
+            onSecondaryContainer = Color.White,
+            background = when (spec.background) {
+                "solid" -> Color(0xFF101216)
+                "atmospheric" -> mix(primary, Color.Black, 0.82f)
+                else -> Color(0xFF151820)
+            },
+            onBackground = Color(0xFFF3F4F7),
+            surface = Color(0xFF171A20),
+            onSurface = Color(0xFFF3F4F7),
+            surfaceVariant = Color(0xFF242832),
+            onSurfaceVariant = Color(0xFFC8CCD6),
+            error = Color(0xFFFFB4AB),
+            onError = Color(0xFF690005),
+            outline = if (spec.contrast == "high") Color(0xFFE2E5ED) else Color(0xFF8E929D)
+        )
+    } else {
+        lightScheme
+    }
+    val typography = when (spec.typography) {
+        "technical" -> MaterialTheme.typography.copy(
+            bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+            bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            labelMedium = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace)
+        )
+
+        "editorial" -> MaterialTheme.typography.copy(
+            displaySmall = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Serif),
+            headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Serif),
+            headlineMedium = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif)
+        )
+
         "expressive" -> MaterialTheme.typography.copy(
             displaySmall = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
             headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
@@ -181,13 +275,19 @@ internal fun GeneratedAppTheme(
             titleLarge = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
         )
 
+        "friendly" -> MaterialTheme.typography.copy(
+            headlineMedium = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+            titleLarge = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+            bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
+        )
+
         else -> MaterialTheme.typography
     }
     val shapes = generatedShapes(spec.shape)
     val visuals = generatedVisuals(spec)
     CompositionLocalProvider(
         LocalGeneratedAppVisuals provides visuals,
-        LocalGeneratedAppSemanticColors provides generatedSemanticColors()
+        LocalGeneratedAppSemanticColors provides generatedSemanticColors(dark)
     ) {
         MaterialTheme(
             colorScheme = scheme,
@@ -204,9 +304,13 @@ internal fun GeneratedAppThemeSpec.withRuntimeValues(
     style: String,
     shape: String,
     density: String,
-    surface: String
+    surface: String,
+    typography: String = this.typography,
+    contrast: String = this.contrast,
+    background: String = this.background,
+    motion: String = this.motion
 ): GeneratedAppThemeSpec = runCatching {
-    GeneratedAppThemeSpec.validated(primary, secondary, style, shape, density, surface)
+    GeneratedAppThemeSpec.validated(primary, secondary, style, shape, density, surface, typography, contrast, background, motion)
 }.getOrDefault(this)
 
 private fun generatedShapes(shape: String): Shapes = when (shape) {
@@ -218,9 +322,17 @@ private fun generatedShapes(shape: String): Shapes = when (shape) {
         extraLarge = RoundedCornerShape(8.dp)
     )
 
-    "pill" -> Shapes(
+    "pill-controls", "pill" -> Shapes(
         extraSmall = RoundedCornerShape(8.dp),
         small = RoundedCornerShape(50),
+        medium = RoundedCornerShape(8.dp),
+        large = RoundedCornerShape(8.dp),
+        extraLarge = RoundedCornerShape(8.dp)
+    )
+
+    "soft" -> Shapes(
+        extraSmall = RoundedCornerShape(8.dp),
+        small = RoundedCornerShape(8.dp),
         medium = RoundedCornerShape(8.dp),
         large = RoundedCornerShape(8.dp),
         extraLarge = RoundedCornerShape(8.dp)
@@ -236,18 +348,21 @@ private fun generatedShapes(shape: String): Shapes = when (shape) {
 }
 
 private fun generatedVisuals(spec: GeneratedAppThemeSpec): GeneratedAppVisuals {
+    val motion = generatedMotionPolicy(spec.motion)
     val densityScale = when (spec.density) {
         "compact" -> 0.82f
         "spacious" -> 1.18f
         else -> 1f
     }
     val elevation = when (spec.surface) {
-        "elevated" -> 2.dp
+        "layered", "elevated" -> 2.dp
+        "outlined" -> 0.dp
         else -> 0.dp
     }
     val borderAlpha = when (spec.surface) {
         "flat" -> 0.16f
-        "elevated" -> 0.08f
+        "layered", "elevated" -> 0.08f
+        "outlined" -> 0.3f
         else -> 0.11f
     }
     return GeneratedAppVisuals(
@@ -258,23 +373,32 @@ private fun generatedVisuals(spec: GeneratedAppThemeSpec): GeneratedAppVisuals {
             "compact" -> 16.dp
             "spacious" -> 24.dp
             else -> 20.dp
-        }
+        },
+        atmosphericBackground = spec.background == "atmospheric",
+        motionEnabled = motion.enabled,
+        motionDurationMillis = motion.durationMillis
     )
 }
 
-private fun generatedSemanticColors() = GeneratedAppSemanticColors(
+internal fun generatedSemanticColors(dark: Boolean = false) = GeneratedAppSemanticColors(
     positive = POSITIVE,
     onPositive = Color.White,
-    positiveContainer = mix(POSITIVE, Color.White, 0.84f),
-    onPositiveContainer = mix(POSITIVE, Color.Black, 0.2f),
+    positiveContainer = if (dark) mix(POSITIVE, Color.Black, 0.55f) else mix(POSITIVE, Color.White, 0.84f),
+    onPositiveContainer = if (dark) mix(POSITIVE, Color.White, 0.78f) else mix(POSITIVE, Color.Black, 0.2f),
     warning = WARNING,
     onWarning = Color.White,
-    warningContainer = mix(WARNING, Color.White, 0.82f),
-    onWarningContainer = mix(WARNING, Color.Black, 0.28f)
+    warningContainer = if (dark) mix(WARNING, Color.Black, 0.62f) else mix(WARNING, Color.White, 0.82f),
+    onWarningContainer = if (dark) mix(WARNING, Color.White, 0.78f) else mix(WARNING, Color.Black, 0.36f)
 )
 
-private fun JsonObject.string(key: String): String = getValue(key).jsonPrimitive.contentOrNull
-    ?: error("Theme $key must be a string")
+private fun JsonObject.string(key: String): String = get(key)?.jsonPrimitive?.contentOrNull
+    ?: when (key) {
+        "typography" -> GeneratedAppThemeSpec.DEFAULT_TYPOGRAPHY
+        "contrast" -> GeneratedAppThemeSpec.DEFAULT_CONTRAST
+        "background" -> GeneratedAppThemeSpec.DEFAULT_BACKGROUND
+        "motion" -> GeneratedAppThemeSpec.DEFAULT_MOTION
+        else -> error("Theme $key must be a string")
+    }
 
 private fun parseHex(value: String): Color {
     val rgb = value.removePrefix("#").toLong(16)
@@ -295,7 +419,7 @@ private fun ensureWhiteTextContrast(input: Color): Color {
     return result
 }
 
-private fun contrastRatio(first: Color, second: Color): Float {
+internal fun contrastRatio(first: Color, second: Color): Float {
     val bright = maxOf(relativeLuminance(first), relativeLuminance(second))
     val dark = minOf(relativeLuminance(first), relativeLuminance(second))
     return (bright + 0.05f) / (dark + 0.05f)
