@@ -98,12 +98,12 @@ internal object CanonicalBundleProtocol {
 internal data class CanonicalSourceBundle(val deal: String, val dealUi: String)
 
 /**
- * Studio accepts a compact one-file model response, but the checked runtime, persistence and refinement
- * contracts remain the upstream pair of a DEAL module plus a Deal UI module. Keep this conversion mechanical:
- * the model owns the embedded view source; Studio supplies only the two imports required by that view.
+ * The model writes one compact source. Studio owns this strictly mechanical projection to the
+ * upstream canonical pair, so the model never synchronizes imports or cross-file names itself.
  */
 internal object EmbeddedDealUiSource {
     private const val ROOT_MARKER = "// @ui-root"
+    private const val GENERATED_UI_PREFIX_LINES = 3
 
     fun split(source: String): CanonicalSourceBundle {
         val marker = source.indexOf(ROOT_MARKER)
@@ -118,8 +118,21 @@ internal object EmbeddedDealUiSource {
         return CanonicalSourceBundle(
             deal = deal,
             dealUi = "import * as app from \"./app.deal\";\n" +
-                "import * as ui from \"./platform-ui.dealui-pack\";\n\n" +
-                view.trimEnd() + "\n"
+                "import * as ui from \"./platform-ui.dealui-pack\";\n\n" + view.trimEnd() + "\n"
+        )
+    }
+
+    /** Maps diagnostics from the generated UI module back to the model-authored one-file source. */
+    fun remapDiagnostic(source: String, diagnostic: String): String {
+        val markerLine = source.lines().indexOfFirst { it.trim() == ROOT_MARKER } + 1
+        if (markerLine <= 0 || !diagnostic.contains("app.dealui")) return diagnostic
+        val location = Regex("app\\.dealui:(\\d+):(\\d+)").find(diagnostic) ?: return diagnostic
+        val generatedLine = location.groupValues[1].toIntOrNull() ?: return diagnostic
+        val sourceLine = markerLine + generatedLine - GENERATED_UI_PREFIX_LINES - 1
+        if (sourceLine < markerLine) return diagnostic
+        return diagnostic.replaceRange(
+            location.range,
+            "app.deal:$sourceLine:${location.groupValues[2]}"
         )
     }
 }
@@ -149,34 +162,16 @@ internal object CanonicalDealSyntaxCard {
     /** Compiled by the device conformance test; TEXT is derived from this source shape. */
     val FIXTURE_SOURCE = """
         export class Item { id: int = 0; title: string = ""; done: boolean = false; }
-        export class AppState { count: int = 0; items: Item[] = []; }
-        export class IncrementAction { amount: int = 0; }
-        export class OpenAction {}
-        export class SelectItem { id: int = 0; }
+        export class AppState { count: int = 0; hasItems: boolean = false; items: Item[] = []; }
+        export class IncreaseAction {}
         export function initialState(): AppState {
           let items: Item[] = [];
-          return {count: 0, items: items};
+          return {count: 0, hasItems: false, items: items};
         }
         // @ui-update
-        export function increment(state: AppState, action: IncrementAction): AppState {
-          let next: int = state.count + action.amount;
-          if (next > 0) { return {count: next, items: state.items}; } else { return {count: 0, items: state.items}; }
+        export function increase(state: AppState, action: IncreaseAction): AppState {
+          return {count: state.count + 1, hasItems: state.hasItems, items: state.items};
         }
-        // An action with no payload still has the required second parameter.
-        // @ui-update
-        export function open(state: AppState, action: OpenAction): AppState { return state; }
-        export function copyWithNewItem(state: AppState): AppState {
-          let nextItems: Item[] = [];
-          let index: int = 0;
-          while (index < state.items.length) {
-            nextItems[nextItems.length] = state.items[index];
-            index = index + 1;
-          }
-          nextItems[nextItems.length] = {id: state.count + 1, title: "New item", done: false};
-          return {count: state.count + 1, items: nextItems};
-        }
-        // @ui-update
-        export function selectItem(state: AppState, action: SelectItem): AppState { return state; }
         export function main(): null { return null; }
     """.trimIndent()
 
@@ -184,21 +179,17 @@ internal object CanonicalDealSyntaxCard {
         DEAL is a restricted, statically typed TypeScript-shaped language; it is not TypeScript or JavaScript.
         Copy these checked shapes exactly:
         export class Item { id: int = 0; title: string = ""; done: boolean = false; }
-        export class AppState { count: int = 0; items: Item[] = []; }
-        export class IncrementAction { amount: int = 0; }
-        export class OpenAction {}
+        export class AppState { count: int = 0; hasItems: boolean = false; items: Item[] = []; }
+        export class IncreaseAction {}
         export function initialState(): AppState {
           let items: Item[] = [];
-          return {count: 0, items: items};
+          return {count: 0, hasItems: false, items: items};
         }
         // @ui-update
-        export function increment(state: AppState, action: IncrementAction): AppState {
-          let next: int = state.count + action.amount;
-          if (next > 0) { return {count: next, items: state.items}; } else { return {count: 0, items: state.items}; }
+        export function increase(state: AppState, action: IncreaseAction): AppState {
+          return {count: state.count + 1, hasItems: state.hasItems, items: state.items};
         }
-        // An action with no payload still has the required second parameter.
-        // @ui-update
-        export function open(state: AppState, action: OpenAction): AppState { return state; }
+        Empty actions still require the typed second handler parameter. Every handler returns every AppState field.
         To copy or append an array, use this checked bounded loop; do not invent an append helper:
         let nextItems: Item[] = [];
         let index: int = 0;
@@ -211,7 +202,7 @@ internal object CanonicalDealSyntaxCard {
         For an empty text field use `value === ""`; model missing data with typed nullable fields and compare against
         `null`.
         Every `// @ui-update` handler must be exported with exactly two typed parameters, even for an empty action:
-        `(state: AppState, action: OpenAction): AppState`.
+        `(state: AppState, action: IncreaseAction): AppState`.
         Return a complete AppState record directly and never mutate `state`, `action`, or a local `next: AppState`.
         In particular, never assign `state.field = ...` or `next.field = ...`; calculate locals first, then return
         `{field: value, ...}` with every root-state field. DEAL behavior code has no rendering helpers: never call
@@ -284,35 +275,77 @@ internal object CanonicalDealUiSyntaxCard {
           ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
               ui.TopBar(title: "Product name")
-              ui.Section(title: "Today") {
-                ui.Button(text: "Primary action", onClick: action app.PrimaryAction {})
+              When(state.hasItems) {
+                ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
+              } Else {
+                ui.EmptyState(title: "Nothing here yet", message: "Use the primary action to begin", icon: "info")
               }
-              ui.Button(text: "Secondary", onClick: action app.SecondaryAction {})
-              ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
             }
           }
         }
-        UI is declarative: use only checked components, When, ForEach, typed fields and action bindings. Do not use
-        statements, helpers, collection indexing, map/filter/reduce, formatting helpers or mutations inside a view.
-        Event bindings receive the declared primitive as `payload`, never `event.value`. Copy these exact shapes:
+
+        This root is syntax, not a layout template. Compose a hierarchy appropriate to the request from the checked
+        pack. Prefer the semantic control matching the value instead of exposing its storage representation. These
+        are independent checked call shapes; use only those supported by declared state and actions:
         ui.TextField(value: state.nameDraft, label: "Name", onChange: action app.SetNameDraftAction { nameDraft: payload })
+        ui.TimeField(valueMinutes: state.timeDraft, label: "Time", onChange: action app.SetTimeDraftAction { timeDraft: payload })
         ui.IntField(value: state.goalDraft, label: "Goal", onChange: action app.SetGoalDraftAction { goalDraft: payload })
         ui.Stepper(value: state.goalDraft, label: "Goal", onChange: action app.SetGoalDraftAction { goalDraft: payload })
-        The action field type must match the component event payload exactly. Use TextField only for string, IntField
-        or Stepper only for int, and NumberField only for number. Do not invent `Metric`, and do not use `event`,
-        `event.value`, a missing action payload, or a NumberField for an int.
+        ui.Toggle(checked: state.enabled, label: "Enabled", onChange: action app.SetEnabledAction { enabled: payload })
+        ui.Choice(accessibilityLabel: "Choose an option") {
+          ui.ChoiceItem(label: "First", selected: state.firstSelected, onClick: action app.SelectFirstAction {})
+          ui.ChoiceItem(label: "Second", selected: state.secondSelected, onClick: action app.SelectSecondAction {})
+        }
+        ui.Grid(columns: 3, minimumCellWidth: 104, spacing: ui.spaceSm) {
+          ui.IntStat(label: "Total", value: state.total, icon: "list", tone: "accent")
+          ui.IntStat(label: "Complete", value: state.complete, icon: "check", tone: "success")
+          ui.IntStat(label: "Remaining", value: state.remaining, icon: "schedule", tone: "warning")
+        }
+        ui.Row(spacing: ui.spaceSm, wrap: true) {
+          ui.Button(text: "Primary", style: "filled", onClick: action app.PrimaryAction {})
+          ui.Button(text: "Secondary", style: "outlined", onClick: action app.SecondaryAction {})
+        }
+        For a repeated interactive item, render its changing state and bind its stable id on every branch:
+        ForEach(state.items, item: app.Item, key: item.id) {
+          When(item.done) {
+            ui.Button(text: "Selected", style: "outlined", onClick: action app.SelectItemAction { id: item.id })
+          } Else {
+            ui.Button(text: "Available", style: "outlined", onClick: action app.SelectItemAction { id: item.id })
+          }
+        }
+
+        Use TimeField for a clock time stored as minutes; never expose `0-1439` or another internal encoding in an
+        IntField. Use Choice for a small closed set, Toggle or Checkbox for boolean state, and TextField only for real
+        text. Put two to four related metrics in an adaptive Grid rather than stacking full-width Stat components.
+        Use one filled primary Button; use outlined or text style for secondary actions and danger only for destructive
+        actions. Use EmptyState for an absent collection. A Card may group one cohesive surface, but never put a Card
+        inside another Card.
+
+        Before returning source, lint the embedded view mechanically: every component has an argument list, including
+        `ui.Card() { ... }`; conditional presentation uses `When(condition) { ... } Else { ... }`, never `?:`; and a
+        Text style is a typed token (`ui.textCaption`, `ui.textBody`, `ui.textTitle`, `ui.textHeadline`,
+        `ui.textMetric`, or `ui.textDisplay`), never a string. Button style is the separate string property shown above.
+        Never use `+` to assemble presentation text inside a view, even when one operand is a string. Maintain each
+        complete user-facing display label as a string field in AppState and pass that field directly to the UI.
+
+        UI is declarative: use only checked components, When, ForEach, typed fields and action bindings. Do not use
+        statements, helpers, collection indexing, map/filter/reduce, formatting helpers or mutations inside a view.
+        Event bindings receive the declared primitive as `payload`, never `event.value`. The action field type must
+        match the component payload exactly: TextField emits string; TimeField, IntField and Stepper emit int;
+        NumberField emits number; Toggle and Checkbox emit boolean. Do not invent `Metric`, properties, components,
+        `event.value`, or missing action payloads.
         ui.Text uses `value`, never `text`. `ui.ListItem.title`, `subtitle`, and `trailing` are string-only. Do not
         pass an int, boolean, or number to a text prop and do not invent `minutesText`, `countText`, or conversion
-        helpers. Render an int with `ui.IntStat(label: "Minutes", value: recipe.minutes)` or `ui.IntText(value: ...)`
-        in the same Section/Card; render a string only in Text/ListItem props.
+        helpers. Render numbers with IntStat, NumberStat, IntText, NumberText or IntListItem; render strings only in
+        Text, Stat or ListItem string props.
         Never write `state.cards[state.index]`, `items[index]`, or `.length` in a view. For a selected/current item,
-        DEAL must maintain typed scalar projections such as `hasCurrentCard`, `currentWord`, and `currentMeaning` and
-        update them in the same action as the selected index. The only allowed direct array UI use is
+        DEAL must maintain the required typed scalar projections and update them with the selected index. The only
+        allowed direct array UI use is
         `ForEach(state.items, item: app.Item, key: item.id) { ... }`.
         Do not render internal ids, draft plumbing, coordinates or cached implementation values unless they are an
         intentional user-facing value. Put the primary product outcome before secondary actions and long collections.
-        For a realtime scene, make the surface explicit with ui.Frame(...) { ui.PointerSurface(...) { ui.Canvas(...) } }
-        and bind FrameClock, PointerSurface and Canvas actions to the exact declared DEAL actions.
+        Never invent Canvas drawing children. Use Canvas only when its exact checked contract is present in the pack
+        contract supplied with this prompt; otherwise compose the interaction from checked layout components.
     """.trimIndent()
 
     /** A whole one-file fixture: behavior precedes the view and bridge-provided imports remain implicit. */
@@ -324,15 +357,18 @@ internal object CanonicalDealUiSyntaxCard {
           ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
             ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
               ui.TopBar(title: "Product name")
-              When(state.count > 0) { ui.Text(value: "Ready", style: ui.textTitle) } Else { ui.Text(value: "Empty") }
-              ui.Button(text: "Increment", onClick: action app.IncrementAction { amount: 1 })
-              ui.Button(text: "Open", onClick: action app.OpenAction {})
-              ForEach(state.items, item: app.Item, key: item.id) { When(item.done) { ItemRow(item: item) } }
+              ui.Grid(columns: 2, minimumCellWidth: 104, spacing: ui.spaceSm) {
+                ui.IntStat(label: "Total", value: state.count, tone: "accent")
+                ui.IntStat(label: "Current", value: state.count, tone: "success")
+              }
+              ui.Button(text: "Increase", style: "filled", onClick: action app.IncreaseAction {}, accessibilityLabel: "Increase total")
+              When(state.hasItems) {
+                ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
+              } Else {
+                ui.EmptyState(title: "Nothing here yet", message: "Use the primary action to begin", icon: "info")
+              }
             }
           }
-        }
-        view ItemRow(item: app.Item): View {
-          ui.ListItem(title: item.title, onClick: action app.SelectItem { id: item.id })
         }
     """.trimIndent()
 }
@@ -346,14 +382,14 @@ internal object CanonicalBundlePrompts {
 
         Studio validates the embedded checked Deal UI declaration at the end of app.deal. Write exactly one
         `// @ui-root export view App(...)` after the logic declarations. Do not write imports: `app` and `ui` are
-        compiler-provided aliases inside that view. This is the only UI source; Studio does not infer a layout from
-        AppState field order.
-        Finish the framed DEAL source within the 16,384-token output cap. Prefer direct local state transitions over unnecessary helpers. Never
-        use recursion, self-calling helpers, generated helper chains, unbounded generated lists, or host-independent
-        infinite work. A requested realtime interaction may use an explicit bounded time-step action from FrameClock.
-        An incomplete framed bundle is rejected without a runnable app.
+        compiler-provided aliases inside that view. Studio mechanically projects it into canonical app.deal and
+        app.dealui; it never infers a layout from AppState field order.
+        Finish the framed DEAL source within the 16,384-token output cap. Prefer direct state transitions and a
+        compact, intentionally composed UI. An incomplete framed source is rejected without a runnable app.
 
         ${GeneratedProductGuide.TEXT}
+
+        ${StudioDesignLanguage.TEXT}
 
         ${CanonicalDealSyntaxCard.TEXT}
 
@@ -361,22 +397,18 @@ internal object CanonicalBundlePrompts {
 
         ${GenerationCapabilityContracts.prompt}
 
-        The embedded UI can expose zero-payload actions and single primitive `Set...` actions. For editable forms,
-        model draft fields plus one typed Set action per draft field and one zero-payload submit action. For a list
-        empty state, include an authoritative boolean projection such as `hasItems` beside `items` and
-        update both together. Keep routes, counts, empty-state booleans, display labels, statuses and aggregates in
-        AppState. Never invent demo records.
+        Keep presentation-ready values in AppState and update related collections, counts, status, and empty-state
+        booleans in the same transition. Editable values use typed Set actions; the primary commit is one cohesive
+        action. Prefer the smallest state and action surface that completes the request.
     """.trimIndent()
 
     fun initialInput(request: String): String = """
-        app.deal contains typed state, pure computations, typed actions, then one embedded declarative UI view.
-        `ui.*` calls are allowed only inside that final `// @ui-root export view`; never call UI components from a
-        DEAL function or use presentation/formatting helpers in behavior code.
-        UI non-negotiables: every component call has parentheses, including `ui.Card() { ... }`; Text uses
-        `value:`, never `text:`; never use `ui.Metric`; input events bind their value as `payload`, never
-        `event.value`; use `When(condition) { ... } Else { ... }` with capital `Else`, never JavaScript `else`;
-        and a view may not index an array. Use only direct ForEach for arrays and typed scalar
-        projections prepared in AppState for a current/selected item.
+        Build the requested product as typed state and actions followed by one embedded declarative UI. Work silently
+        in this order: minimal state and actions; neutral initial state; complete primary transition; semantic controls;
+        concise visual hierarchy. Before returning, check exactly five things: every requested flow is present; no
+        user event or data is pre-created; every event/action/handler chain has matching payload types and an exported
+        two-parameter handler; the embedded UI contains no `+` or `?:` and behavior never joins strings with numbers;
+        and the primary action, summary, content, and empty state are visually distinct.
         Do not declare keyboard, storage.private, notifications, camera.capture, vision.ocr, health.read or
         focus.control merely because the product has forms, reminders, reports, history or a health-related topic.
         Declare such a host capability only when the user explicitly asks for that platform operation; a declaration
@@ -386,13 +418,12 @@ internal object CanonicalBundlePrompts {
         $request
     """.trimIndent()
 
-    fun fullRetryInput(request: String): String = """
-        Generate a fresh complete DEAL source for this request. The previous candidate was rejected after
-        compiler-directed local patches. Do not explain or patch it: emit a new DEAL-only source using the exact raw
-        framing from the instructions. Preserve the requested product outcome and choose only checked APIs.
-        app.deal must include one checked embedded UI view, but behavior functions never call UI components or
-        formatting helpers. Do not declare optional host
-        capabilities unless the user explicitly asks for the corresponding platform operation.
+    fun fullRetryInput(request: String, previousFailure: String): String = """
+        Generate a fresh complete embedded DEAL source using the exact framing from the system instructions. Do not
+        patch or explain the rejected candidate. The previous attempt failed this contract: $previousFailure.
+        Required correction: ${retryConstraint(previousFailure)}. Rebuild the smallest faithful state/action/UI flow,
+        then perform the same five final checks required for initial generation. Use only checked APIs and declare an
+        optional host capability only when the request explicitly requires that platform operation.
 
         User request:
         $request
@@ -406,12 +437,11 @@ internal object CanonicalBundlePrompts {
         appInterface: String? = null
     ): String = buildString {
         val start = "<<<PATCH:${target.fileName}>>>"
-        appendLine("The pinned compiler rejected only ${target.fileName}. Return exactly one local source patch.")
-        appendLine("The OLD text must occur exactly once in the supplied source window; do not rewrite the file.")
-        appendLine("OLD and NEW must differ. Locate the exact compiler-reported line inside the source window and include")
-        appendLine("that line in OLD. A no-op patch, a patch for another line, or a guessed replacement is rejected.")
-        appendLine("This is a true local hunk: NEW may grow by at most 4 lines or 640 bytes. Do not insert a new")
-        appendLine("nested view, ForEach, action, route, or duplicate block. Replace only the compiler-reported expression or call.")
+        val reportedSourceLine = rejectedSource.reportedSourceLine(diagnostic)
+        appendLine("Repair only the compiler-reported defect in ${target.fileName}; do not redesign the product.")
+        appendLine("OLD must occur exactly once and include the reported line. NEW must differ and may grow by at most")
+        appendLine("4 lines or 640 bytes. Do not add state, actions, views, routes, collections, or sibling changes.")
+        appendLine("Preserve the existing binding-to-handler flow and all unrelated source.")
         appendLine("Return raw patch only, framed exactly as:")
         appendLine(start)
         appendLine(CanonicalBundleProtocol.PATCH_OLD)
@@ -419,18 +449,20 @@ internal object CanonicalBundlePrompts {
         appendLine(CanonicalBundleProtocol.PATCH_NEW)
         appendLine("replacement fragment")
         appendLine(CanonicalBundleProtocol.PATCH_END)
-        appendLine("Do not return the sibling file, a bundle, full source, Markdown or prose.")
+        appendLine("Return only this raw patch; no sibling file, full source, Markdown, or prose.")
         appendLine()
         appendLine("User request:")
         appendLine(request)
         appendLine()
         appendLine("Compiler diagnostic:")
         appendLine(diagnostic.take(8_000))
-        if (diagnostic.contains("UI1009: Expected '('")) {
+        reportedSourceLine?.let { reported ->
             appendLine()
-            appendLine("This diagnostic means the reported UI component call is missing its invocation parentheses.")
-            appendLine("For example, repair `ui.Card {` to `ui.Card() {` on the diagnostic line; do not alter another call.")
+            appendLine("Exact compiler-reported source line (replace this expression or call):")
+            appendLine(reported)
         }
+        appendLine()
+        appendLine("Repair rule: ${repairRule(diagnostic, reportedSourceLine)}")
         appendLine()
         appendLine("Source digest: ${rejectedSource.sha256()}")
         appendLine("Relevant ${target.fileName} source window:")
@@ -442,19 +474,100 @@ internal object CanonicalBundlePrompts {
             appendLine()
             appendLine("Exact typed Deal UI component contract:")
             appendLine(CanonicalDealUiPack.repairGenerationContract(rejectedSource, diagnostic))
-            appendLine()
-            appendLine(CanonicalDealUiSyntaxCard.TEXT)
         } else {
             appendLine()
-            appendLine(CanonicalDealSyntaxCard.TEXT)
-            appendLine()
-            appendLine("The rejected fragment may be the embedded UI section of app.deal. Follow this exact UI binding contract:")
-            appendLine(CanonicalDealUiSyntaxCard.EMBEDDED_TEXT)
-            appendLine()
-            appendLine("Checked mobile component contract for this local repair:")
+            appendLine("Exact checked contract relevant to this local repair:")
             appendLine(CanonicalDealUiPack.repairGenerationContract(rejectedSource, diagnostic))
         }
     }.trimEnd()
+
+    fun failureCategory(diagnostic: String): String = when {
+        diagnostic.contains("UI1015") ->
+            "the embedded UI used a conditional expression instead of checked When/Else presentation"
+
+        diagnostic.contains("UI2020") || diagnostic.contains("Invalid operand types for '+'") ->
+            "presentation joined values with `+`; Deal UI has no coercion and behavior cannot format numbers as strings"
+
+        diagnostic.contains("UI2034") ->
+            "a UI-bound update handler was not exported with both typed state and matching action parameters"
+
+        diagnostic.contains("UI2012") -> "the UI invented a component or view absent from the checked pack"
+
+        diagnostic.contains("Expected int, got string") || diagnostic.contains("Expected string, got int") ->
+            "a semantic control, state field, and action payload used inconsistent primitive types"
+
+        diagnostic.contains("intText") || diagnostic.contains("numberText") ->
+            "behavior attempted unsupported string formatting instead of keeping typed presentation values"
+
+        diagnostic.contains("Undeclared identifier") -> "the source referenced an undeclared value or unsupported helper"
+
+        diagnostic.contains("Expected '('") -> "a Deal UI call or conditional used the wrong invocation syntax"
+
+        diagnostic.contains("style", ignoreCase = true) -> "a UI property used a value of the wrong declared type"
+
+        diagnostic.contains("payload", ignoreCase = true) -> "an event payload did not match its action field type"
+
+        diagnostic.contains("reachable", ignoreCase = true) || diagnostic.contains("unused", ignoreCase = true) ->
+            "the declared action surface did not match the final UI bindings"
+
+        diagnostic.contains("app.dealui") || diagnostic.contains("UI") ->
+            "the embedded UI violated its checked component or presentation contract"
+
+        else -> "the DEAL source violated the pinned grammar or type contract"
+    }
+
+    private fun retryConstraint(previousFailure: String): String = when {
+        previousFailure.contains("`+`") ->
+            "use no `+` after `// @ui-root`; show labels and typed numeric values in separate UI nodes"
+
+        previousFailure.contains("conditional expression") ->
+            "replace every UI ternary with `When(condition) { ... } Else { ... }`"
+
+        previousFailure.contains("both typed state") ->
+            "give every exported update handler both `(state, action)` parameters with its declared action class"
+
+        previousFailure.contains("absent from the checked pack") ->
+            "use only exact component names and properties present in the supplied checked pack contract"
+
+        previousFailure.contains("inconsistent primitive types") ->
+            "choose each semantic control first, then give its state field and action payload the matching primitive type"
+
+        previousFailure.contains("string formatting") ->
+            "remove conversion helpers and render labels and typed numbers as separate UI nodes"
+
+        else -> "do not repeat the rejected grammar, type, component, or binding shape"
+    }
+
+    private fun repairRule(diagnostic: String, reportedSourceLine: String?): String = when {
+        diagnostic.contains("UI2034") ->
+            "give the reported exported update handler exactly `(state: AppState, action: ItsAction): AppState`"
+
+        diagnostic.contains("UI2012") ->
+            "replace the invented component with one exact checked component from the supplied contract"
+
+        diagnostic.contains("Expected int, got string") || diagnostic.contains("Expected string, got int") ->
+            "make the reported component accept the existing field type; never alternate between two equally mismatched controls"
+
+        diagnostic.contains("UI1009: Expected '('") && reportedSourceLine?.trim() == "} else {" ->
+            "replace lowercase `else` with the case-sensitive Deal UI `Else` keyword"
+
+        diagnostic.contains("UI1009: Expected '('") ->
+            "invoke the reported component with parentheses, for example `ui.Card() { ... }`"
+
+        diagnostic.contains("style", ignoreCase = true) ->
+            "use the exact declared property type; Text style uses a typed `ui.text*` token"
+
+        diagnostic.contains("payload", ignoreCase = true) ->
+            "bind `payload` to one action field whose primitive type exactly matches the component event"
+
+        diagnostic.contains("reachable", ignoreCase = true) || diagnostic.contains("unused", ignoreCase = true) ->
+            "remove only the reported unused declaration or bind it only if that interaction already exists in the request"
+
+        diagnostic.contains("incompatible", ignoreCase = true) || diagnostic.contains("expected", ignoreCase = true) ->
+            "replace the reported value with one of the exact declared type; do not coerce or concatenate in Deal UI"
+
+        else -> "apply the smallest syntax- or type-correct replacement indicated by the diagnostic"
+    }
 
     private fun String.repairWindow(diagnostic: String): String {
         val reportedLine = Regex("(?:^|:)\\s*(\\d+):(\\d+)").find(diagnostic)?.groupValues?.getOrNull(1)?.toIntOrNull()
@@ -465,7 +578,7 @@ internal object CanonicalBundlePrompts {
         val marker = lines.indexOfFirst { it.trim() == "// @ui-root" }
         val line = if (
             reportedLine != null && marker >= 0 &&
-            (diagnostic.contains("app.dealui") || diagnostic.contains("UI"))
+            diagnostic.contains("app.dealui")
         ) {
             marker + reportedLine - 3
         } else {
@@ -475,6 +588,16 @@ internal object CanonicalBundlePrompts {
         val first = (line - 11).coerceAtLeast(1)
         val last = (line + 10).coerceAtMost(lines.size)
         return lines.subList(first - 1, last).joinToString("\n")
+    }
+
+    private fun String.reportedSourceLine(diagnostic: String): String? {
+        val reportedLine = Regex("(?:^|:)\\s*(\\d+):(\\d+)")
+            .find(diagnostic)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: return null
+        return lines().getOrNull(reportedLine - 1)
     }
 }
 

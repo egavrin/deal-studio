@@ -2,10 +2,10 @@ package com.offlineassistant.app.generatedapp
 
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 
-/** Explicitly separate from the canonical DEAL artifact and persistence model. */
+/** Two first-class generation runtimes. JS stays isolated from the canonical DEAL toolchain. */
 internal enum class StudioGenerationMode {
     CANONICAL,
-    EXPERIMENTAL_HTML5
+    JS
 }
 
 internal data class ExperimentalHtml5Result(
@@ -15,7 +15,9 @@ internal data class ExperimentalHtml5Result(
     val timeToFirstTokenMs: Long?,
     val inputTokens: Int?,
     val cachedInputTokens: Int?,
-    val outputTokens: Int?
+    val outputTokens: Int?,
+    val stateJson: String? = null,
+    val savedApp: SavedJsGeneratedApp? = null
 ) {
     /** A comparable volume indicator only; it deliberately does not estimate currency. */
     val tokenCountCostProxy: Int?
@@ -46,21 +48,33 @@ internal val ExperimentalHtml5Session.result: ExperimentalHtml5Result?
         is ExperimentalHtml5Session.Failed -> previousResult
     }
 
-internal object ExperimentalHtml5Prompt {
+internal object JsAppPrompt {
     val INSTRUCTIONS: String = """
-        Create one experimental HTML5 comparison artifact for the requested product outcome.
+        Create one complete JavaScript application for the requested product outcome.
         Return exactly one complete, standalone, mobile-first HTML5 document with inline CSS and JavaScript.
         Return raw HTML only: no Markdown fences, commentary, external assets, external scripts, or network calls.
-        Make the result usable by touch, responsive, accessible, and polished on a compact phone.
+        Make the result usable by touch, responsive, accessible, and polished on compact and ordinary phones.
 
         ${GeneratedProductGuide.TEXT.prependIndent("        ")}
 
-        Implement requested status classification and other rules in the in-memory application behavior.
-        The document runs offline in a sandbox, so persist nothing outside its in-memory JavaScript state.
+        ${StudioDesignLanguage.TEXT.prependIndent("        ")}
+
+        Express time/date, boolean, and small closed choices with their native semantic HTML controls. Use responsive
+        CSS Grid for compact metrics. Verify the complete primary interaction from event through state to rendered
+        feedback before returning the document.
+
+        Implement requested status classification and other rules in application state. The document runs offline in
+        a sandbox with no network, file, content, Android or native API access.
+
+        Define both functions exactly. They are the only persistence contract with DEAL Studio:
+        `window.__dealStudioExportState = function () { return JSON.stringify(state); }`
+        `window.__dealStudioImportState = function (snapshot) { state = snapshot || initialState; render(); }`
+        Export only JSON-compatible data; tolerate missing and newly added fields during import. Do not use
+        localStorage, indexedDB, cookies, fetch, WebSocket, native bridges or external assets.
     """.trimIndent()
 
     fun input(request: String): String {
-        require(request.isNotBlank()) { "HTML5 baseline request is empty" }
+        require(request.isNotBlank()) { "JS application request is empty" }
         return "Build this requested product outcome faithfully:\n\n${request.trim()}"
     }
 }
@@ -100,9 +114,9 @@ internal fun normalizeExperimentalHtml(output: String): String {
         html = html.substring(0, documentEnd.range.last + 1)
     }
 
-    require(html.isNotBlank()) { "The HTML5 baseline returned an empty document." }
+    require(html.isNotBlank()) { "The JS application returned an empty document." }
     require(Regex("<html(?:\\s|>)", RegexOption.IGNORE_CASE).containsMatchIn(html)) {
-        "The HTML5 baseline did not return a standalone HTML document."
+        "The JS application did not return a standalone HTML document."
     }
 
     val head = Regex("<head(?:\\s[^>]*)?>", RegexOption.IGNORE_CASE).find(html)

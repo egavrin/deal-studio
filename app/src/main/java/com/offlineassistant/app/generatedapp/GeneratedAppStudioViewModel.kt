@@ -22,9 +22,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     private val settings = DealStudioSettingsRepository(application)
     private val toolchain = CanonicalDealToolchain(application)
     private val library = CanonicalGeneratedAppLibrary(application)
-    private val legacyLibrary = LegacyGeneratedAppRequestLibrary(application)
+    private val jsLibrary = JsGeneratedAppLibrary(application)
     private val stateStore = CanonicalGeneratedAppStateStore(application)
-    private val runCaptureStore = GenerationRunCaptureStore(application)
     private val compiler = CanonicalGeneratedAppCloudCompiler(
         application,
         settings::deepSeekApiKeyOrNull,
@@ -60,9 +59,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
+            clearPreSimplificationStudioData(application)
             val saved = library.restoreAll(toolchain)
-            val legacy = legacyLibrary.loadAll()
-            mutableState.update { it.copy(savedApps = saved, legacyRequests = legacy) }
+            mutableState.update { it.copy(savedApps = saved, savedJsApps = jsLibrary.list()) }
         }
     }
 
@@ -75,7 +74,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     }
 
     fun selectExample(value: String) {
-        mutableState.update { it.copy(prompt = value, pendingLegacyRebuildId = null) }
+        mutableState.update { it.copy(prompt = value) }
     }
 
     fun selectArtifact(artifact: GeneratedArtifact) {
@@ -156,7 +155,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     }
 
     fun generate() {
-        generateSelectedRequest(state.value.prompt.trim(), pendingLegacyId = state.value.pendingLegacyRebuildId)
+        generateSelectedRequest(state.value.prompt.trim())
     }
 
     fun generateSurprise() {
@@ -167,53 +166,18 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             snapshot.runnable?.let { add(it.program.displayTitle(it.state, "")) }
         }
         val request = SurpriseAppPromptFactory.create(titles)
-        mutableState.update { it.copy(prompt = request, pendingLegacyRebuildId = null) }
-        generateSelectedRequest(request, pendingLegacyId = null)
+        mutableState.update { it.copy(prompt = request) }
+        generateSelectedRequest(request)
     }
 
-    /** Generates the exact current prompt through both paths; unlike two Surprise clicks it is comparable. */
-    fun generateMatchedComparison() {
-        val snapshot = state.value
-        val request = snapshot.prompt.trim()
-        if (request.isBlank() || snapshot.isBusy || !snapshot.selectedProviderKeysConfigured) return
-        mutableState.update { it.copy(pendingComparisonRequest = request, pendingLegacyRebuildId = null) }
-        generateCanonicalRequest(request, pendingLegacyId = null)
-    }
-
-    fun generateSurpriseMatchedComparison() {
-        val snapshot = state.value
-        if (!snapshot.canGenerateSurprise) return
-        val titles = buildList {
-            addAll(snapshot.savedApps.map { it.record.title })
-            snapshot.runnable?.let { add(it.program.displayTitle(it.state, "")) }
-        }
-        val request = SurpriseAppPromptFactory.create(titles)
-        mutableState.update {
-            it.copy(prompt = request, pendingComparisonRequest = request, pendingLegacyRebuildId = null)
-        }
-        generateCanonicalRequest(request, pendingLegacyId = null)
-    }
-
-    fun rebuildLegacy(id: String) {
-        val legacy = state.value.legacyRequests.firstOrNull { it.id == id } ?: return
-        mutableState.update {
-            it.copy(
-                prompt = legacy.request,
-                pendingLegacyRebuildId = id,
-                generationMode = StudioGenerationMode.CANONICAL
-            )
-        }
-        generateCanonicalRequest(legacy.request, pendingLegacyId = id)
-    }
-
-    private fun generateSelectedRequest(request: String, pendingLegacyId: String?) {
+    private fun generateSelectedRequest(request: String) {
         when (state.value.generationMode) {
-            StudioGenerationMode.CANONICAL -> generateCanonicalRequest(request, pendingLegacyId)
-            StudioGenerationMode.EXPERIMENTAL_HTML5 -> generateExperimentalHtml5(request)
+            StudioGenerationMode.CANONICAL -> generateCanonicalRequest(request)
+            StudioGenerationMode.JS -> generateExperimentalHtml5(request)
         }
     }
 
-    private fun generateCanonicalRequest(request: String, pendingLegacyId: String?) {
+    private fun generateCanonicalRequest(request: String) {
         val snapshot = state.value
         if (request.isBlank() || snapshot.isBusy || saveJob?.isActive == true || !snapshot.selectedProviderKeysConfigured) return
         val previous = snapshot.runnable
@@ -227,8 +191,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 ),
                 selectedArtifact = GeneratedArtifact.PREVIEW,
                 isPreviewExpanded = false,
-                currentSavedAppId = null,
-                pendingLegacyRebuildId = pendingLegacyId
+                currentSavedAppId = null
             )
         }
         activeJob = viewModelScope.launch {
@@ -277,22 +240,14 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     state = runtime.snapshot()
                 )
             }.onSuccess { runnable ->
-                runCaptureStore.writeCanonical(request, runnable.bundle)
-                var runHtml5FollowUp = false
                 mutableState.update { current ->
                     if (runToken != generationRunToken) return@update current
-                    runHtml5FollowUp = current.pendingComparisonRequest == request
                     current.copy(
                         session = CanonicalStudioSession.Runnable(runnable),
                         selectedArtifact = GeneratedArtifact.PREVIEW,
-                        currentSavedAppId = null,
-                        canonicalComparisonRequest = request,
-                        pendingComparisonRequest = null
+                        currentSavedAppId = null
                     )
                 }
-                // `cancel()` invalidates the run token and clears the pending comparison.
-                // Do not start a second billed request after that cancellation boundary.
-                if (runHtml5FollowUp && runToken == generationRunToken) generateExperimentalHtml5(request)
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
                 mutableState.update { current ->
@@ -313,8 +268,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                             previousRunnable = previousRunnable,
                             userMessage = userMessage,
                             technicalTrace = failure.stackTraceToString()
-                        ),
-                        pendingComparisonRequest = null
+                        )
                     )
                 }
             }
@@ -344,8 +298,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     experimentalHtml5Client.generate(
                         DeepSeekGenerationRequest(
                             model = snapshot.dealModel,
-                            instructions = ExperimentalHtml5Prompt.INSTRUCTIONS,
-                            input = ExperimentalHtml5Prompt.input(request),
+                            instructions = JsAppPrompt.INSTRUCTIONS,
+                            input = JsAppPrompt.input(request),
                             maxOutputTokens = 16_384,
                             temperature = 0.1
                         )
@@ -362,11 +316,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     outputTokens = generated.outputTokens
                 )
             }.onSuccess { result ->
-                runCaptureStore.writeHtml5(request, result)
                 mutableState.update { current ->
                     if (runToken != generationRunToken) return@update current
                     current.copy(experimentalHtml5Session = ExperimentalHtml5Session.Ready(result))
-                        .copy(html5ComparisonRequest = request)
                 }
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
@@ -375,7 +327,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                     current.copy(
                         experimentalHtml5Session = ExperimentalHtml5Session.Failed(
                             previousResult = previous,
-                            userMessage = "The experimental HTML5 baseline could not be generated.",
+                            userMessage = "The JS application could not be generated.",
                             technicalTrace = failure.stackTraceToString()
                         )
                     )
@@ -387,6 +339,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     fun refine() {
         val snapshot = state.value
+        if (snapshot.generationMode == StudioGenerationMode.JS) {
+            refineJs(snapshot)
+            return
+        }
         val previous = snapshot.runnable ?: return
         val request = snapshot.refinementPrompt.trim()
         if (!snapshot.canRefine || request.isBlank() || saveJob?.isActive == true) return
@@ -429,7 +385,6 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 )
                 savedRecord?.let {
                     stateStore.save(it, nextState)
-                    GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), it.id)
                 }
                 val saved = withContext(Dispatchers.IO) { library.restoreAll(toolchain) }
                 mutableState.update { current ->
@@ -459,31 +414,103 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
     }
 
+    private fun refineJs(snapshot: GeneratedAppStudioState) {
+        val previous = snapshot.experimentalHtml5Session.result ?: return
+        val request = snapshot.refinementPrompt.trim()
+        if (request.isBlank() || snapshot.isBusy || !snapshot.selectedProviderKeysConfigured) return
+        val runToken = ++generationRunToken
+        mutableState.update { it.copy(experimentalHtml5Session = ExperimentalHtml5Session.Generating(previous)) }
+        activeJob = viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    experimentalHtml5Client.generate(
+                        DeepSeekGenerationRequest(
+                            model = snapshot.dealModel,
+                            instructions = JsAppPrompt.INSTRUCTIONS,
+                            input = """Update this complete JS application for the requested change. Return a complete replacement HTML document only. Preserve the JSON state contract.\n\nCurrent document:\n${previous.html}\n\nRequested change:\n$request""",
+                            maxOutputTokens = 16_384,
+                            temperature = 0.1
+                        )
+                    )
+                }
+            }.mapCatching { generated ->
+                previous.copy(
+                    html = normalizeExperimentalHtml(generated.output),
+                    wallLatencyMs = generated.latencyMs,
+                    timeToFirstTokenMs = generated.timeToFirstTokenMs,
+                    inputTokens = generated.inputTokens,
+                    cachedInputTokens = generated.cachedInputTokens,
+                    outputTokens = generated.outputTokens
+                )
+            }.onSuccess { next ->
+                val saved = next.savedApp?.let { jsLibrary.update(it, next.html, next.stateJson) }
+                mutableState.update { current ->
+                    if (runToken != generationRunToken) {
+                        current
+                    } else {
+                        current.copy(
+                            experimentalHtml5Session = ExperimentalHtml5Session.Ready(next.copy(savedApp = saved)),
+                            refinementPrompt = "",
+                            lastRefinement = request,
+                            savedJsApps = jsLibrary.list()
+                        )
+                    }
+                }
+            }.onFailure { failure ->
+                if (failure !is CancellationException) {
+                    mutableState.update { current ->
+                        if (runToken != generationRunToken) {
+                            current
+                        } else {
+                            current.copy(
+                                experimentalHtml5Session = ExperimentalHtml5Session.Failed(
+                                    previous,
+                                    "The change was not applied. Your previous JS app is still available.",
+                                    failure.stackTraceToString()
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            if (runToken == generationRunToken) activeJob = null
+        }
+    }
+
     fun saveCurrent() {
         if (saveJob?.isActive == true) return
         val snapshot = state.value
-        if (snapshot.isBusy || snapshot.generationMode != StudioGenerationMode.CANONICAL) return
+        if (snapshot.isBusy) return
+        if (snapshot.generationMode == StudioGenerationMode.JS) {
+            val result = snapshot.experimentalHtml5Session.result ?: return
+            val job = viewModelScope.launch(Dispatchers.IO) {
+                val saved = result.savedApp?.let { jsLibrary.update(it, result.html, result.stateJson) }
+                    ?: jsLibrary.save(snapshot.prompt, "JavaScript app", result.model.name, result.html, result.stateJson)
+                mutableState.update { current ->
+                    current.copy(
+                        experimentalHtml5Session = ExperimentalHtml5Session.Ready(result.copy(savedApp = saved)),
+                        savedJsApps = jsLibrary.list()
+                    )
+                }
+            }
+            saveJob = job
+            job.invokeOnCompletion { if (saveJob === job) saveJob = null }
+            return
+        }
         val app = snapshot.runnable ?: return
         val job = viewModelScope.launch(Dispatchers.IO) {
             val title = app.program.displayTitle(app.state, "Generated app")
             val record = app.savedRecord?.let { library.update(it.id, app.bundle, title) }
                 ?: library.save(app.bundle, title)
             stateStore.save(record, app.state)
-            snapshot.pendingLegacyRebuildId?.let {
-                legacyLibrary.remove(it)
-            }
             val saved = library.restoreAll(toolchain)
-            val legacy = legacyLibrary.loadAll()
             mutableState.update { current ->
                 current.copy(
                     session = CanonicalStudioSession.Runnable(app.copy(savedRecord = record)),
                     savedApps = saved,
-                    legacyRequests = legacy,
-                    pendingLegacyRebuildId = null,
                     currentSavedAppId = record.id
                 )
             }
-            GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), record.id)
         }
         saveJob = job
         job.invokeOnCompletion { if (saveJob === job) saveJob = null }
@@ -504,9 +531,44 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         CanonicalRunnableApp(entry.bundle, entry.program, runtime, restoredState, record)
                     ),
                     selectedArtifact = GeneratedArtifact.PREVIEW,
-                    currentSavedAppId = id,
-                    pendingLegacyRebuildId = null
+                    currentSavedAppId = id
                 )
+            }
+        }
+    }
+
+    fun openSavedJs(id: String) {
+        if (state.value.isBusy || saveJob?.isActive == true) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val saved = jsLibrary.load(id)
+            val result = ExperimentalHtml5Result(
+                html = saved.html,
+                model = state.value.dealModel,
+                wallLatencyMs = 0,
+                timeToFirstTokenMs = null,
+                inputTokens = null,
+                cachedInputTokens = null,
+                outputTokens = null,
+                stateJson = saved.record.stateJson,
+                savedApp = saved
+            )
+            mutableState.update { it.copy(generationMode = StudioGenerationMode.JS, experimentalHtml5Session = ExperimentalHtml5Session.Ready(result)) }
+        }
+    }
+
+    fun deleteSavedJs(id: String) {
+        jsLibrary.delete(id)
+        mutableState.update { it.copy(savedJsApps = jsLibrary.list()) }
+    }
+
+    fun updateJsState(rawWebViewResult: String) {
+        val stateJson = runCatching { JsAppStateContract.normalizeExport(rawWebViewResult) }.getOrNull() ?: return
+        mutableState.update { current ->
+            val result = current.experimentalHtml5Session.result ?: return@update current
+            if (result.stateJson == stateJson) {
+                current
+            } else {
+                current.copy(experimentalHtml5Session = ExperimentalHtml5Session.Ready(result.copy(stateJson = stateJson)))
             }
         }
     }
@@ -528,7 +590,6 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 currentSavedAppId = it.currentSavedAppId.takeUnless { currentId -> currentId == id }
             )
         }
-        GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), id)
     }
 
     fun dispatchCanonical(action: CanonicalUiAction) {
@@ -552,7 +613,6 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
         val updated = app.copy(state = next)
         mutableState.update { current -> current.withRunnable(updated) }
-        app.savedRecord?.let { GeneratedAppWidgetProvider.updateAppWidgets(getApplication(), it.id) }
     }
 
     fun cancel() {
@@ -568,8 +628,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             current.copy(
                 session = previous?.let(CanonicalStudioSession::Runnable) ?: CanonicalStudioSession.Empty,
                 experimentalHtml5Session = previousHtml?.let(ExperimentalHtml5Session::Ready)
-                    ?: ExperimentalHtml5Session.Empty,
-                pendingComparisonRequest = null
+                    ?: ExperimentalHtml5Session.Empty
             )
         }
     }

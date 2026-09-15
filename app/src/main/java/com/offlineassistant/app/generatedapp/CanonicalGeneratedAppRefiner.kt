@@ -257,12 +257,7 @@ internal class CanonicalGeneratedAppRefiner(
     }
 }
 
-/** Converts pre-split saved embedded apps at the refinement boundary without changing their stored revision. */
-private fun CanonicalGeneratedAppBundle.refinementSourcePair(): CanonicalSourceBundle = if (dealUiSource.isNotBlank()) {
-    CanonicalSourceBundle(dealSource, dealUiSource)
-} else {
-    EmbeddedDealUiSource.split(dealSource)
-}
+private fun CanonicalGeneratedAppBundle.refinementSourcePair(): CanonicalSourceBundle = CanonicalSourceBundle(dealSource, dealUiSource)
 
 internal enum class Artifact { DEAL, DEAL_UI }
 

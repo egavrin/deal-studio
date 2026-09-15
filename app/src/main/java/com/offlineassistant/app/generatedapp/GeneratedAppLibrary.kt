@@ -60,12 +60,6 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val agentSurfaceEstimatedTokens: Int = 0,
     @EncodeDefault val generationModelCalls: Int = dealGraphRounds + dealUiGraphRounds,
     @EncodeDefault val compilerRepairCalls: Int = repairPasses,
-    /** Present only for DEAL-only records. Legacy pairs keep this blank and remain runnable unchanged. */
-    val autoUiCompilerVersion: String = "",
-    val autoUiSynthesisLatencyMs: Long = 0,
-    val autoUiSourceBytes: Int = 0,
-    /** New Studio records keep their declarative view inside app.deal. */
-    val embeddedUi: Boolean = false,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -85,9 +79,7 @@ internal fun restoreCanonicalGeneratedApp(
     toolchain: CanonicalDealToolchain
 ): CanonicalGeneratedAppLibraryEntry {
     require(record.dealSource.sha256() == record.dealSourceSha256) { "Saved app.deal digest mismatch" }
-    if (!record.embeddedUi) {
-        require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
-    }
+    require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
     require(record.dealCompilerRevision == CanonicalDealToolchain.DEAL_REVISION) {
         "Required DEAL compiler revision is unavailable"
     }
@@ -109,11 +101,7 @@ internal fun restoreCanonicalGeneratedApp(
     require(CanonicalDealUiPack.digestFor(record.componentPackVersion) == record.componentPackSha256) {
         "Saved component pack digest mismatch"
     }
-    val checkedIr = if (record.embeddedUi) {
-        toolchain.compileEmbeddedPortable(record.dealSource, packSource)
-    } else {
-        toolchain.compilePortable(record.dealSource, record.dealUiSource, packSource)
-    }
+    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, packSource)
     val extractedInterface = toolchain.extractAppInterface(record.dealSource)
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
@@ -153,10 +141,7 @@ internal fun restoreCanonicalGeneratedApp(
         agentSurfaceBytes = record.agentSurfaceBytes,
         agentSurfaceEstimatedTokens = record.agentSurfaceEstimatedTokens,
         generationModelCalls = record.generationModelCalls,
-        compilerRepairCalls = record.compilerRepairCalls,
-        autoUiCompilerVersion = record.autoUiCompilerVersion,
-        autoUiSynthesisLatencyMs = record.autoUiSynthesisLatencyMs,
-        autoUiSourceBytes = record.autoUiSourceBytes
+        compilerRepairCalls = record.compilerRepairCalls
     )
     val program = CanonicalDealUiParser.parse(checkedIr)
     val initialState = toolchain.createRuntime(record.dealSource).snapshot()
@@ -290,10 +275,6 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         agentSurfaceEstimatedTokens = bundle.agentSurfaceEstimatedTokens,
         generationModelCalls = bundle.generationModelCalls,
         compilerRepairCalls = bundle.compilerRepairCalls,
-        autoUiCompilerVersion = bundle.autoUiCompilerVersion,
-        autoUiSynthesisLatencyMs = bundle.autoUiSynthesisLatencyMs,
-        autoUiSourceBytes = bundle.autoUiSourceBytes,
-        embeddedUi = bundle.compilerProtocolVersion == "embedded-deal-ui-v1",
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = System.currentTimeMillis(),
         revision = revision,
@@ -308,7 +289,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             it.mkdirs()
         }
         File(temporary, DEAL_FILE).writeText(record.dealSource)
-        if (!record.embeddedUi) File(temporary, DEAL_UI_FILE).writeText(record.dealUiSource)
+        File(temporary, DEAL_UI_FILE).writeText(record.dealUiSource)
         File(temporary, METADATA_FILE).writeText(JSON.encodeToString(record))
         val backup = File(appsDirectory, ".${record.id}.backup").also(File::deleteRecursively)
         if (target.exists()) require(target.renameTo(backup)) { "Could not stage existing canonical app" }
@@ -435,48 +416,3 @@ private fun JsonObject.long(name: String): Long = longOrNull(name) ?: 0L
 private fun JsonObject.longOrNull(name: String): Long? = get(name)?.jsonPrimitive?.longOrNull
 
 private fun JsonObject.int(name: String): Int = get(name)?.jsonPrimitive?.intOrNull ?: 0
-
-/** Legacy code is never executed. Only its original request survives as a rebuild affordance. */
-internal class LegacyGeneratedAppRequestLibrary private constructor(private val indexFile: File) {
-    constructor(context: Context) : this(File(File(context.filesDir, DIRECTORY), INDEX_FILE))
-
-    internal constructor(file: File, useDirectFile: Boolean) : this(
-        if (useDirectFile) file else File(File(file, DIRECTORY), INDEX_FILE)
-    )
-
-    fun loadAll(): List<LegacyGeneratedAppRequest> = if (!indexFile.isFile) {
-        emptyList()
-    } else {
-        runCatching {
-            JSON.parseToJsonElement(indexFile.readText()).jsonArray.map { value ->
-                val item = value.jsonObject
-                LegacyGeneratedAppRequest(
-                    id = item.string("id"),
-                    title = item.string("title"),
-                    request = item.string("request"),
-                    createdAtEpochMs = item.long("createdAtEpochMs")
-                )
-            }.sortedByDescending(LegacyGeneratedAppRequest::createdAtEpochMs)
-        }.getOrDefault(emptyList())
-    }
-
-    fun remove(id: String) {
-        if (!indexFile.isFile) return
-        val remaining = JSON.parseToJsonElement(indexFile.readText()).jsonArray
-            .filterNot { it.jsonObject.stringOrNull("id") == id }
-        val temporary = File(indexFile.parentFile, "${indexFile.name}.tmp")
-        temporary.writeText(kotlinx.serialization.json.JsonArray(remaining).toString())
-        require(
-            temporary.renameTo(indexFile) || run {
-                indexFile.delete()
-                temporary.renameTo(indexFile)
-            }
-        ) { "Could not update legacy request index" }
-    }
-
-    private companion object {
-        const val DIRECTORY = "generated-app-library"
-        const val INDEX_FILE = "apps-v1.json"
-        val JSON = Json { ignoreUnknownKeys = true }
-    }
-}

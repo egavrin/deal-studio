@@ -21,9 +21,7 @@ import kotlinx.serialization.json.put
 internal data class ValidatedCanonicalBundle(
     val bundle: CanonicalSourceBundle,
     val checkedUiIr: String,
-    val appInterface: String,
-    val autoUiSynthesisLatencyMs: Long = 0,
-    val autoUiSourceBytes: Int = bundle.dealUi.encodeToByteArray().size
+    val appInterface: String
 )
 
 internal data class CanonicalGeneratedAppBundle(
@@ -68,11 +66,7 @@ internal data class CanonicalGeneratedAppBundle(
     /** Ephemeral diagnostics for this accepted run; deliberately not part of persisted canonical source. */
     val patchTelemetry: List<CanonicalPatchTelemetry> = emptyList(),
     val attemptTelemetry: List<CanonicalGenerationAttemptTelemetry> = emptyList(),
-    val usedCapabilities: Set<String> = emptySet(),
-    /** Studio-owned deterministic UI synthesis; no model output is counted here. */
-    val autoUiSynthesisLatencyMs: Long = 0,
-    val autoUiSourceBytes: Int = 0,
-    val autoUiCompilerVersion: String = ""
+    val usedCapabilities: Set<String> = emptySet()
 )
 
 internal data class CanonicalPatchTelemetry(
@@ -240,6 +234,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
         try {
             var accepted: ValidatedCanonicalBundle? = null
             var acceptedAttempt: CanonicalGenerationAttempt? = null
+            var previousFailure: String? = null
             for (attempt in CanonicalGenerationAttempt.entries) {
                 onProgress(
                     if (attempt == CanonicalGenerationAttempt.INITIAL) CanonicalGenerationPhase.DEAL else CanonicalGenerationPhase.RETRYING,
@@ -250,7 +245,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     if (attempt == CanonicalGenerationAttempt.INITIAL) {
                         CanonicalBundlePrompts.initialInput(request)
                     } else {
-                        CanonicalBundlePrompts.fullRetryInput(request)
+                        CanonicalBundlePrompts.fullRetryInput(request, requireNotNull(previousFailure))
                     }
                 ) {
                     onProgress(
@@ -348,6 +343,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     acceptedAttempt = attempt
                     break
                 }
+                previousFailure = CanonicalBundlePrompts.failureCategory(
+                    (checked as CandidateValidation.Rejected).diagnostic
+                )
             }
             val acceptedBundle = requireNotNull(accepted) {
                 "Canonical bundle failed after one full generation retry and ${patchTelemetry.size} eligible local patches"
@@ -406,10 +404,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 compilerRepairCalls = patchTelemetry.size,
                 patchTelemetry = patchTelemetry.toList(),
                 attemptTelemetry = attemptTelemetry.toList(),
-                usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet(),
-                autoUiSynthesisLatencyMs = acceptedBundle.autoUiSynthesisLatencyMs,
-                autoUiSourceBytes = acceptedBundle.autoUiSourceBytes,
-                autoUiCompilerVersion = "embedded-deal-ui-split-v1"
+                usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet()
             )
         } catch (failure: Exception) {
             val artifact = failureStore.write(
@@ -494,7 +489,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 appInterface = null
             )
         }
-        val embeddedUiStarted = System.nanoTime()
         val ui = runCatching {
             compileDealUi(sourcePair, requireNotNull(appInterface)).also {
                 GenerationCapabilityContracts.validate(requireNotNull(appInterface), it)
@@ -503,7 +497,10 @@ internal class CanonicalGeneratedAppCloudCompiler(
         if (ui.isFailure) {
             return CandidateValidation.Rejected(
                 target = CanonicalRepairTarget.DEAL,
-                diagnostic = ui.exceptionOrNull()?.message.orEmpty(),
+                diagnostic = EmbeddedDealUiSource.remapDiagnostic(
+                    bundle.deal,
+                    ui.exceptionOrNull()?.message.orEmpty()
+                ),
                 appInterface = appInterface
             )
         }
@@ -511,9 +508,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             ValidatedCanonicalBundle(
                 sourcePair,
                 requireNotNull(ui.getOrNull()),
-                requireNotNull(appInterface),
-                autoUiSynthesisLatencyMs = (System.nanoTime() - embeddedUiStarted) / 1_000_000,
-                autoUiSourceBytes = sourcePair.dealUi.encodeToByteArray().size
+                requireNotNull(appInterface)
             )
         )
     }
