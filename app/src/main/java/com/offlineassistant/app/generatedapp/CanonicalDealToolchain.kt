@@ -344,10 +344,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "70ac2f50187c0166d3e3f23ce7280932522bdfe5e88cd5c1d4b2379aa4b904f5"
+        const val ARTIFACT_SHA256 = "fea3a2b4fab6c42e35e294132c1518217d33e04244863d8a1e2457633fe5235f"
         const val DEAL_REVISION = "fde98e7bd6e33cc0c41c1a321ab0bffb7b621db2"
         const val DEAL_UI_REVISION = "6b749dc8ace270e19f81987f28a58919572c48a5"
-        const val STREAMING_COMPILER_REVISION = "c5987131934f67a943e7f4baf699d0018dd4a187"
+        const val STREAMING_COMPILER_REVISION = "ce0375371d3bb109d09fc64f19a767edebf27de3"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val PRIOR_V15_ASSET_NAME = "deal-android-toolchain-v15-pr41.dex"
