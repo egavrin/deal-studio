@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fails when removed assistant subsystems leak back into the core product."""
+"""Fails when removed assistant subsystems leak back into DEAL Studio."""
 
 from pathlib import Path
 import re
@@ -7,51 +7,13 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_INTENTS = {
-    "GET_CURRENT_TIME",
-    "GET_WEATHER",
-    "SET_TIMER",
-    "SET_ALARM",
-    "CREATE_REMINDER",
-    "CREATE_NOTE",
-    "CALCULATE",
-    "OPEN_APP",
-    "DIAL_PHONE",
-    "COMPOSE_MESSAGE",
-    "COMPOSE_EMAIL",
-    "START_NAVIGATION",
-    "CREATE_CALENDAR_EVENT",
-    "CONTROL_MEDIA",
-    "SET_VOLUME",
-    "OPEN_SETTING",
-    "OPEN_URL",
-    "HELP",
-    "WEB_SEARCH",
-    "WEB_RESEARCH",
-    "UNKNOWN",
-}
-EXPECTED_WIDGETS = {
-    "WEATHER_CARD",
-    "TIMER_CARD",
-    "ALARM_CARD",
-    "REMINDER_CARD",
-    "NOTE_CARD",
-    "CALCULATOR_CARD",
-    "OPEN_APP_CARD",
-    "HELP_CARD",
-    "CLARIFICATION_CARD",
-    "PERMISSION_CARD",
-    "ERROR_CARD",
-    "RESEARCH_CARD",
-    "ACTION_CONFIRMATION_CARD",
-}
 EXPECTED_MODULES = {
     ":app",
-    ":benchmark",
-    ":core",
     ":deepseek-connector",
 }
 FORBIDDEN_PATHS = (
+    "benchmark",
+    "core",
     "appfunctions-experiment",
     "cloud-widget-connector",
     "third_party/whisper.cpp",
@@ -73,21 +35,23 @@ FORBIDDEN_BUILD_TERMS = re.compile(
 )
 
 
-def constants(path: Path, prefix: str) -> set[str]:
-    text = path.read_text(encoding="utf-8")
-    return set(re.findall(rf"const val ({prefix}[A-Z0-9_]*)\s*=", text))
+def contains_source(path: Path) -> bool:
+    if path.is_file():
+        return True
+    return any(
+        candidate.is_file() and "build" not in candidate.relative_to(path).parts
+        for candidate in path.rglob("*")
+    )
 
 
 def main() -> int:
     failures: list[str] = []
     for relative in FORBIDDEN_PATHS:
-        if (ROOT / relative).exists():
+        if contains_source(ROOT / relative):
             failures.append(f"forbidden path exists: {relative}")
 
     production_roots = (
         ROOT / "app/src/main/java",
-        ROOT / "core/src/main/kotlin",
-        ROOT / "training/rubert",
     )
     for source_root in production_roots:
         for path in source_root.rglob("*"):
@@ -119,7 +83,6 @@ def main() -> int:
         ROOT / "settings.gradle.kts",
         ROOT / "build.gradle.kts",
         ROOT / "app/build.gradle.kts",
-        ROOT / "core/build.gradle.kts",
         ROOT / "deepseek-connector/build.gradle.kts",
         ROOT / "gradle/libs.versions.toml",
         ROOT / "app/proguard-rules.pro",
@@ -145,56 +108,6 @@ def main() -> int:
                 f"packaged model assets mismatch: expected=['rubert', 'tone_ru'] "
                 f"actual={sorted(actual_model_directories)}"
             )
-
-    intent_file = ROOT / "core/src/main/kotlin/com/offlineassistant/core/nlu/NluModels.kt"
-    actual_intents = constants(intent_file, "")
-    actual_intents = {
-        value
-        for value in actual_intents
-        if value not in {"RUBERT_TINY2", "STUB", "UNAVAILABLE"}
-    }
-    if actual_intents != EXPECTED_INTENTS:
-        failures.append(
-            f"intent allowlist mismatch: expected={sorted(EXPECTED_INTENTS)} "
-            f"actual={sorted(actual_intents)}"
-        )
-
-    widget_file = ROOT / "core/src/main/kotlin/com/offlineassistant/core/contracts/WidgetTypes.kt"
-    actual_widgets = constants(widget_file, "")
-    if actual_widgets != EXPECTED_WIDGETS:
-        failures.append(
-            f"widget allowlist mismatch: expected={sorted(EXPECTED_WIDGETS)} "
-            f"actual={sorted(actual_widgets)}"
-        )
-
-    labels = ROOT / "models/generated/rubert/intent_labels.txt"
-    if labels.exists():
-        actual_labels = set(labels.read_text(encoding="utf-8").splitlines())
-        expected_labels = {
-            "get_current_time",
-            "get_weather",
-            "set_timer",
-            "set_alarm",
-            "create_reminder",
-            "create_note",
-            "calculate",
-            "open_app",
-            "dial_phone",
-            "compose_message",
-            "compose_email",
-            "start_navigation",
-            "create_calendar_event",
-            "control_media",
-            "set_volume",
-            "open_setting",
-            "open_url",
-            "help",
-            "web_search",
-            "web_research",
-            "unknown",
-        }
-        if actual_labels != expected_labels:
-            failures.append("generated RuBERT bundle contains labels outside the core allowlist")
 
     if failures:
         print("Core scope check failed:", file=sys.stderr)

@@ -19,8 +19,6 @@ jobs:
     name: verification scope
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    outputs:
-      training: ${{ steps.scope.outputs.training }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -39,12 +37,6 @@ jobs:
           else
             changed="$(git diff-tree --no-commit-id --name-only --root -r HEAD)"
           fi
-          training=false
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || \
-             printf '%s\n' "$changed" | grep -Eq '^(training/|\.github/workflows/pr\.yml$)'; then
-            training=true
-          fi
-          printf 'training=%s\n' "$training" >> "$GITHUB_OUTPUT"
           git diff --check
 
   quality:
@@ -79,12 +71,11 @@ jobs:
       - name: Check narrow architecture
         run: |
           python3 scripts/check_core_scope.py
-          python3 scripts/check_nlu_eval_manifest.py
           python3 scripts/check_release_contract.py
       - name: Unit, static and AndroidTest compilation
         run: >-
           ./gradlew --no-daemon --stacktrace
-          testDebugUnitTest :core:test :deepseek-connector:testDebugUnitTest
+          :app:testDebugUnitTest :deepseek-connector:testDebugUnitTest
           :app:compileDebugAndroidTestKotlin
           ktlintCheck detekt lintDebug
       - name: Upload reports
@@ -97,7 +88,6 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
-            core/build/reports/
             deepseek-connector/build/reports/
 
   apk:
@@ -125,7 +115,7 @@ jobs:
         run: ./gradlew --no-daemon --stacktrace assembleDebug
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: offline-assistant-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          name: deal-studio-debug-${{ github.run_id }}-${{ github.run_attempt }}
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
@@ -158,42 +148,6 @@ jobs:
           path: app/build/outputs/bundle/release/app-release.aab
           retention-days: 7
 
-  rubert-training:
-    name: Training contracts
-    needs: scope
-    if: needs.scope.outputs.training == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          lfs: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            training/rubert/requirements.txt
-            training/generated_ui/requirements.txt
-      - name: Install pinned training stack
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r training/rubert/requirements.txt
-          python -m pip install -r training/generated_ui/requirements.txt
-          python -m pip check
-      - name: Validate training code and ONNX contract
-        run: |
-          for test_script in training/test_*.py; do
-            PYTHONPATH=. python "$test_script"
-          done
-          python training/generated_ui/build_artifacts.py --check
-          python training/rubert/ci_export_smoke.py --output-dir build/rubert-ci
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: rubert-contract-${{ github.run_id }}-${{ github.run_attempt }}
-          path: build/rubert-ci/
-          retention-days: 7
-
   quality-gate:
     name: quality
     if: always()
@@ -201,7 +155,6 @@ jobs:
       - quality
       - apk
       - release-like
-      - rubert-training
     runs-on: ubuntu-latest
     steps:
       - name: Require successful checks
@@ -209,9 +162,7 @@ jobs:
           QUALITY: ${{ needs.quality.result }}
           APK: ${{ needs.apk.result }}
           RELEASE_LIKE: ${{ needs.release-like.result }}
-          RUBERT: ${{ needs.rubert-training.result }}
         run: |
           test "$QUALITY" = success
           test "$APK" = success
           test "$RELEASE_LIKE" = success
-          test "$RUBERT" = success -o "$RUBERT" = skipped

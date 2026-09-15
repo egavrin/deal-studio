@@ -165,7 +165,7 @@ Run focused connected checks after installing both APKs:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w -r \
-  -e class 'com.offlineassistant.app.generatedapp.CanonicalDealToolchainDeviceTest,com.offlineassistant.app.generatedapp.CanonicalDealUiTouchDeviceTest' \
+  -e class 'com.offlineassistant.app.generatedapp.CanonicalDealUiTouchDeviceTest' \
   com.dealstudio.app.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
