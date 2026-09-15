@@ -186,6 +186,16 @@ internal class CanonicalDealToolchain(
         packSource: String
     ): String = compilePortable("compilePortablePreview", dealSource, dealUiSource, packSource)
 
+    /** Compiles a single Studio `app.deal` containing its checked embedded Deal UI view. */
+    fun compileEmbeddedPortable(dealSource: String, packSource: String): String {
+        check(BuildConfig.DEBUG) { "The embedded Deal toolchain is available only in internal builds" }
+        return invokeBridge(
+            "compileEmbeddedPortable",
+            arrayOf(String::class.java, String::class.java),
+            arrayOf(dealSource, packSource)
+        ) as String
+    }
+
     private fun compilePortable(
         method: String,
         dealSource: String,
@@ -261,7 +271,7 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "8c955ed12709b641724abfe5ce8344dab3ccdfe2304ccd9b669758ce70d2202d"
+        const val ARTIFACT_SHA256 = "f624ae2fa0bc1a0bc2467892da5c910eb17a4883ba02482d0aa2e111b9ec1c46"
         const val DEAL_REVISION = "df8395e145c36cbe0590219a47d3a39f69a5ea6a"
         const val DEAL_UI_REVISION = "18150c97dd519b771fc2e1b2f1ee25c344e64f52"
         const val STREAMING_COMPILER_REVISION = "f6dc95e0d8890bc333876e70a01af56ccfa96df0"

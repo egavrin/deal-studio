@@ -34,6 +34,36 @@ class CanonicalDealToolchainDeviceTest {
     }
 
     @Test
+    fun embeddedUiSectionCompilesFromOneAuthoredDealSource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val source = CanonicalDealUiSyntaxCard.EMBEDDED_FIXTURE_SOURCE
+
+        toolchain.validateDealForUi(source)
+        val checkedIr = toolchain.compileEmbeddedPortable(source, CanonicalDealUiPack.source)
+
+        assertEquals("AppState", CanonicalDealUiParser.parse(checkedIr).rootStateType)
+        assertTrue(checkedIr.contains("TopBar"))
+    }
+
+    @Test
+    fun embeddedUiDiagnosticPointsBackToTheAuthoredDealSource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val invalid = CanonicalDealUiSyntaxCard.EMBEDDED_FIXTURE_SOURCE.replace(
+            "action app.OpenAction {}",
+            "action app.MissingAction {}"
+        )
+
+        val failure = runCatching {
+            toolchain.compileEmbeddedPortable(invalid, CanonicalDealUiPack.source)
+        }.exceptionOrNull()
+
+        assertTrue(failure?.message.orEmpty().contains("/generated/app.deal:"))
+        assertTrue(!failure?.message.orEmpty().contains("/generated/app.dealui:"))
+    }
+
+    @Test
     fun autoUiCompilerDerivesCheckedDealUiFromDealOnlySource() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)

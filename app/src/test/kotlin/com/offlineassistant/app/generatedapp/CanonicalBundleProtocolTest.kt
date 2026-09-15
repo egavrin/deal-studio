@@ -115,7 +115,7 @@ class CanonicalBundleProtocolTest {
     }
 
     @Test
-    fun `prompts contain DEAL-only framing and compact syntax card`() {
+    fun `prompts contain one-file embedded UI framing and compact syntax cards`() {
         val prompt = CanonicalBundlePrompts.instructions
         assertTrue(prompt.contains(CanonicalBundleProtocol.DEAL_START))
         assertTrue(prompt.contains(CanonicalBundleProtocol.DEAL_END))
@@ -128,7 +128,7 @@ class CanonicalBundleProtocolTest {
         assertTrue(prompt.contains("never access `string.length`"))
         assertTrue(prompt.contains("exactly two typed parameters"))
         assertTrue(prompt.contains("never assign `state.field = ...` or `next.field = ...`"))
-        assertTrue(prompt.contains("never call `intText`,"))
+        assertTrue(prompt.contains("`intText`, `numberText`, `text`, `format`"))
         assertTrue(prompt.contains("Never invent demo records"))
         assertTrue(prompt.contains("REALTIME CANVAS CAPABILITY"))
         assertTrue(prompt.contains("bounded time-step"))
@@ -136,22 +136,24 @@ class CanonicalBundleProtocolTest {
         assertFalse(prompt.contains("do not use simulation/game loop"))
         assertFalse(prompt.contains("submit_canonical_bundle"))
         assertFalse(prompt.contains("typed hole"))
-        assertTrue(prompt.contains("Studio generates checked Deal UI automatically"))
-        assertFalse(prompt.contains("full app.dealui"))
+        assertTrue(prompt.contains("embedded checked Deal UI declaration"))
+        assertTrue(prompt.contains("Studio does not infer a layout from"))
+        assertTrue(prompt.contains("AppState field order"))
+        assertTrue(prompt.contains("compiler-provided aliases inside that view"))
+        assertFalse(prompt.contains(CanonicalBundleProtocol.DEAL_UI_START))
         assertFalse(prompt.contains("Full exact typed Deal UI component contract"))
     }
 
     @Test
-    fun `initial and full retry inputs never expose Deal UI contract`() {
+    fun `initial and full retry inputs distinguish behavior code from embedded UI`() {
         val initial = CanonicalBundlePrompts.initialInput("Build a game")
         val retry = CanonicalBundlePrompts.fullRetryInput("Build a game")
 
         listOf(initial, retry).forEach { input ->
-            assertFalse(input.contains("FrameClock(ClockProps)"))
-            assertFalse(input.contains("PointerSurface(PointerProps)"))
-            assertFalse(input.contains("Canvas(CanvasProps)"))
+            assertTrue(input.contains("embedded"))
+            assertTrue(input.contains("behavior functions never call UI components") || input.contains("never call UI components from a"))
         }
-        assertTrue(initial.contains("Never write `ui.`, `Text`, `IntText`"))
+        assertTrue(initial.contains("`ui.*` calls are allowed only inside that final"))
         assertTrue(initial.contains("Do not declare keyboard, storage.private, notifications"))
     }
 

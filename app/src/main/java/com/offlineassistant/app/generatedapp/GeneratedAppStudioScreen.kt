@@ -798,7 +798,13 @@ private fun RunnableResult(
                 RefinementBox(state, actions)
             }
 
-            GeneratedArtifact.DEAL_UI -> SourcePanel("Generated app.dealui", app.bundle.dealUiSource)
+            GeneratedArtifact.DEAL_UI -> {
+                val embedded = app.bundle.usesEmbeddedUi()
+                SourcePanel(
+                    if (embedded) "Embedded UI section in app.deal" else "Generated app.dealui",
+                    if (embedded) app.bundle.embeddedUiSource() else app.bundle.dealUiSource
+                )
+            }
 
             GeneratedArtifact.DEAL -> SourcePanel("app.deal", app.bundle.dealSource)
         }
@@ -818,7 +824,7 @@ private fun ArtifactTabs(selected: GeneratedArtifact, onSelected: (GeneratedArti
                     Text(
                         when (artifact) {
                             GeneratedArtifact.PREVIEW -> "Preview"
-                            GeneratedArtifact.DEAL_UI -> "Generated UI"
+                            GeneratedArtifact.DEAL_UI -> "UI"
                             GeneratedArtifact.DEAL -> "DEAL"
                         }
                     )
@@ -963,15 +969,36 @@ private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modif
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Interface", style = MaterialTheme.typography.titleMedium)
-            Text("Studio-derived Deal UI", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text(
+                if (bundle.usesEmbeddedUi()) "Embedded, compiler-checked Deal UI" else "Studio-derived Deal UI",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GenerationFact("Model tokens", "0", Modifier.weight(1f))
-                GenerationFact("Synthesis", formatGenerationDuration(bundle.autoUiSynthesisLatencyMs), Modifier.weight(1f))
-                GenerationFact("Source", formatGenerationBytes(bundle.autoUiSourceBytes), Modifier.weight(1f))
+                GenerationFact(
+                    if (bundle.usesEmbeddedUi()) "Authored with DEAL" else "Model tokens",
+                    if (bundle.usesEmbeddedUi()) formatGenerationTokens(bundle.dealOutputTokens) else "0",
+                    Modifier.weight(1f)
+                )
+                GenerationFact("Check", formatGenerationDuration(bundle.autoUiSynthesisLatencyMs), Modifier.weight(1f))
+                GenerationFact(
+                    "Source",
+                    if (bundle.usesEmbeddedUi()) formatGenerationBytes(bundle.embeddedUiSource().encodeToByteArray().size)
+                    else formatGenerationBytes(bundle.autoUiSourceBytes),
+                    Modifier.weight(1f)
+                )
             }
         }
     }
 }
+
+private fun CanonicalGeneratedAppBundle.usesEmbeddedUi(): Boolean =
+    compilerProtocolVersion == "embedded-deal-ui-v1"
+
+private fun CanonicalGeneratedAppBundle.embeddedUiSource(): String =
+    dealSource.substringAfter("// @ui-root", missingDelimiterValue = "").let { source ->
+        if (source.isBlank()) "No embedded UI declaration was found." else "// @ui-root$source"
+    }
 
 @Composable
 private fun GenerationStageCard(

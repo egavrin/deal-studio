@@ -64,6 +64,8 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val autoUiCompilerVersion: String = "",
     val autoUiSynthesisLatencyMs: Long = 0,
     val autoUiSourceBytes: Int = 0,
+    /** New Studio records keep their declarative view inside app.deal. */
+    val embeddedUi: Boolean = false,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long = createdAtEpochMs,
     val revision: Int = 1,
@@ -83,7 +85,9 @@ internal fun restoreCanonicalGeneratedApp(
     toolchain: CanonicalDealToolchain
 ): CanonicalGeneratedAppLibraryEntry {
     require(record.dealSource.sha256() == record.dealSourceSha256) { "Saved app.deal digest mismatch" }
-    require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
+    if (!record.embeddedUi) {
+        require(record.dealUiSource.sha256() == record.dealUiSourceSha256) { "Saved app.dealui digest mismatch" }
+    }
     require(record.dealCompilerRevision == CanonicalDealToolchain.DEAL_REVISION) {
         "Required DEAL compiler revision is unavailable"
     }
@@ -105,11 +109,11 @@ internal fun restoreCanonicalGeneratedApp(
     require(CanonicalDealUiPack.digestFor(record.componentPackVersion) == record.componentPackSha256) {
         "Saved component pack digest mismatch"
     }
-    val checkedIr = toolchain.compilePortable(
-        record.dealSource,
-        record.dealUiSource,
-        packSource
-    )
+    val checkedIr = if (record.embeddedUi) {
+        toolchain.compileEmbeddedPortable(record.dealSource, packSource)
+    } else {
+        toolchain.compilePortable(record.dealSource, record.dealUiSource, packSource)
+    }
     val extractedInterface = toolchain.extractAppInterface(record.dealSource)
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
@@ -289,6 +293,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         autoUiCompilerVersion = bundle.autoUiCompilerVersion,
         autoUiSynthesisLatencyMs = bundle.autoUiSynthesisLatencyMs,
         autoUiSourceBytes = bundle.autoUiSourceBytes,
+        embeddedUi = bundle.compilerProtocolVersion == "embedded-deal-ui-v1",
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = System.currentTimeMillis(),
         revision = revision,
@@ -303,7 +308,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
             it.mkdirs()
         }
         File(temporary, DEAL_FILE).writeText(record.dealSource)
-        File(temporary, DEAL_UI_FILE).writeText(record.dealUiSource)
+        if (!record.embeddedUi) File(temporary, DEAL_UI_FILE).writeText(record.dealUiSource)
         File(temporary, METADATA_FILE).writeText(JSON.encodeToString(record))
         val backup = File(appsDirectory, ".${record.id}.backup").also(File::deleteRecursively)
         if (target.exists()) require(target.renameTo(backup)) { "Could not stage existing canonical app" }
@@ -321,7 +326,7 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         require(metadata.id == appDirectory.name) { "Canonical metadata id does not match its directory" }
         metadata.copy(
             dealSource = File(appDirectory, DEAL_FILE).readText(),
-            dealUiSource = File(appDirectory, DEAL_UI_FILE).readText()
+            dealUiSource = File(appDirectory, DEAL_UI_FILE).takeIf(File::isFile)?.readText().orEmpty()
         )
     }.getOrElse {
         quarantine(appDirectory.name, it.message ?: "Unreadable canonical record")

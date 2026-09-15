@@ -44,6 +44,26 @@ class GeneratedAppLibraryTest {
     }
 
     @Test
+    fun `embedded UI revision persists one authored DEAL source only`() {
+        val directory = Files.createTempDirectory("embedded-generated-app-library").toFile()
+        val library = CanonicalGeneratedAppLibrary(directory, useDirectDirectory = true)
+        val embedded = bundle().copy(
+            dealSource = "export class State { count: int = 0; }\n// @ui-root\nexport view App(): View {}",
+            dealUiSource = "",
+            compilerProtocolVersion = "embedded-deal-ui-v1"
+        )
+
+        val saved = library.save(embedded, "Counter")
+        val appDirectory = directory.resolve("canonical-v2/${saved.id}")
+        val restored = CanonicalGeneratedAppLibrary(directory, useDirectDirectory = true).loadRecords().single()
+
+        assertEquals(setOf("app.deal", "metadata.json"), appDirectory.list()!!.toSet())
+        assertTrue(restored.embeddedUi)
+        assertEquals(embedded.dealSource, restored.dealSource)
+        assertEquals("", restored.dealUiSource)
+    }
+
+    @Test
     fun `legacy index is exposed only as natural language rebuild requests`() {
         val root = Files.createTempDirectory("legacy-generated-app-library").toFile()
         val directory = root.resolve("generated-app-library").also { it.mkdirs() }

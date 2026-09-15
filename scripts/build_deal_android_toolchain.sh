@@ -38,7 +38,7 @@ require_clean_revision() {
   local repository=$1
   local expected=$2
   local label=$3
-  [[ -d "$repository/.git" ]] || { printf '%s is not a Git checkout: %s\n' "$label" "$repository" >&2; exit 1; }
+  [[ -e "$repository/.git" ]] || { printf '%s is not a Git checkout: %s\n' "$label" "$repository" >&2; exit 1; }
   [[ -z "$(git -C "$repository" status --porcelain)" ]] || {
     printf '%s checkout is dirty: %s\n' "$label" "$repository" >&2
     exit 1
@@ -93,7 +93,14 @@ KOTLIN_TOOLCHAIN="$ROOT/app/src/main/java/com/offlineassistant/app/generatedapp/
 rm -rf "$OUT"
 mkdir -p "$CLASSES" "$(dirname "$ASSET")"
 
-(cd "$DEAL_REPO" && javac --release "$JAVAC_RELEASE" -d "$CLASSES" @build/prod-sources.txt)
+(
+  cd "$DEAL_REPO"
+  # The upstream manifest is the source-list authority. Fresh worktrees deliberately do not
+  # carry a generated build/prod-sources.txt, so never depend on another checkout's build output.
+  source tools/gate-manifest.sh
+  shopt -s nullglob
+  javac --release "$JAVAC_RELEASE" -proc:none -d "$CLASSES" ${PROD_SOURCES[@]}
+)
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \

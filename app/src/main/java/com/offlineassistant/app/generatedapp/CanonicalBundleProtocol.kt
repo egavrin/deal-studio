@@ -1,6 +1,6 @@
 package com.offlineassistant.app.generatedapp
 
-/** The only model-facing framing for the two canonical source files. */
+/** The model-facing raw framing. New Studio candidates contain one authored app.deal source. */
 internal object CanonicalBundleProtocol {
     const val DEAL_START = "<<<DEAL:app.deal>>>"
     const val DEAL_END = "<<<END_DEAL>>>"
@@ -186,10 +186,11 @@ internal object CanonicalDealSyntaxCard {
         `(state: AppState, action: OpenAction): AppState`.
         Return a complete AppState record directly and never mutate `state`, `action`, or a local `next: AppState`.
         In particular, never assign `state.field = ...` or `next.field = ...`; calculate locals first, then return
-        `{field: value, ...}` with every root-state field. DEAL has no rendering helpers: never call `intText`,
-        `numberText`, `text`, `format`, `ui.*`, or a component name from DEAL. Keep raw typed values in state and let
-        Deal UI render them with the typed pack. Never use any `*ToText`, `*Text`, `format*`, or string-conversion
-        helper in DEAL: this restricted language has none. Never use recursion, self-calling helpers,
+        `{field: value, ...}` with every root-state field. DEAL behavior code has no rendering helpers: never call
+        `intText`, `numberText`, `text`, `format`, `ui.*`, or a component name from an initial-state function,
+        update handler, or helper. The final embedded `@ui-root` view is the declarative-only exception. Keep raw
+        typed values in state and let that typed view render them. Never use any `*ToText`, `*Text`, `format*`, or
+        string-conversion helper in DEAL behavior code: this restricted language has none. Never use recursion, self-calling helpers,
         or a helper chain to copy an array: one local bounded `while` loop is the only collection-copy pattern.
         Do not use JavaScript/TypeScript methods,
         lambdas, ternaries, switch, spreading, map/filter/reduce, implicit coercion, dynamic properties, push,
@@ -246,6 +247,51 @@ internal object CanonicalDealUiSyntaxCard {
         statuses, aggregates, and selection state in DEAL;
         do not call helpers, transform collections, index arrays, mutate state, or write statements in Deal UI.
     """.trimIndent()
+
+    val EMBEDDED_TEXT = """
+        Studio embedded Deal UI is written at the end of app.deal, after every class and function. Do not import app
+        or ui: the compiler supplies the current app module as `app` and the checked pack as `ui`.
+        // @ui-root
+        export view App(state: app.AppState): View {
+          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+            ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+              ui.TopBar(title: "Product name")
+              ui.Section(title: "Today") {
+                ui.Button(text: "Primary action", onClick: action app.PrimaryAction {})
+              }
+              ui.Button(text: "Secondary", onClick: action app.SecondaryAction {})
+              ForEach(state.items, item: app.Item, key: item.id) { ui.ListItem(title: item.title) }
+            }
+          }
+        }
+        UI is declarative: use only checked components, When, ForEach, typed fields and action bindings. Do not use
+        statements, helpers, collection indexing, map/filter/reduce, formatting helpers or mutations inside a view.
+        Do not render internal ids, draft plumbing, coordinates or cached implementation values unless they are an
+        intentional user-facing value. Put the primary product outcome before secondary actions and long collections.
+        For a realtime scene, make the surface explicit with ui.Frame(...) { ui.PointerSurface(...) { ui.Canvas(...) } }
+        and bind FrameClock, PointerSurface and Canvas actions to the exact declared DEAL actions.
+    """.trimIndent()
+
+    /** A whole one-file fixture: behavior precedes the view and bridge-provided imports remain implicit. */
+    val EMBEDDED_FIXTURE_SOURCE = """
+        ${CanonicalDealSyntaxCard.FIXTURE_SOURCE}
+
+        // @ui-root
+        export view App(state: app.AppState): View {
+          ui.AppTheme(primary: "#2563EB", secondary: "#0F766E") {
+            ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd) {
+              ui.TopBar(title: "Product name")
+              When(state.count > 0) { ui.Text(value: "Ready", style: ui.textTitle) } Else { ui.Text(value: "Empty") }
+              ui.Button(text: "Increment", onClick: action app.IncrementAction { amount: 1 })
+              ui.Button(text: "Open", onClick: action app.OpenAction {})
+              ForEach(state.items, item: app.Item, key: item.id) { When(item.done) { ItemRow(item: item) } }
+            }
+          }
+        }
+        view ItemRow(item: app.Item): View {
+          ui.ListItem(title: item.title, onClick: action app.SelectItem { id: item.id })
+        }
+    """.trimIndent()
 }
 
 internal object CanonicalBundlePrompts {
@@ -255,8 +301,10 @@ internal object CanonicalBundlePrompts {
         full app.deal
         ${CanonicalBundleProtocol.DEAL_END}
 
-        Studio generates checked Deal UI automatically from the checked DEAL AppInterface. Never write Deal UI imports,
-        `ui.*`, view declarations, component names, layout, Canvas calls, action literals, or presentation helpers.
+        Studio validates the embedded checked Deal UI declaration at the end of app.deal. Write exactly one
+        `// @ui-root export view App(...)` after the logic declarations. Do not write imports: `app` and `ui` are
+        compiler-provided aliases inside that view. This is the only UI source; Studio does not infer a layout from
+        AppState field order.
         Finish the framed DEAL source within the 16,384-token output cap. Prefer direct local state transitions over unnecessary helpers. Never
         use recursion, self-calling helpers, generated helper chains, unbounded generated lists, or host-independent
         infinite work. A requested realtime interaction may use an explicit bounded time-step action from FrameClock.
@@ -266,9 +314,11 @@ internal object CanonicalBundlePrompts {
 
         ${CanonicalDealSyntaxCard.TEXT}
 
+        ${CanonicalDealUiSyntaxCard.EMBEDDED_TEXT}
+
         ${GenerationCapabilityContracts.prompt}
 
-        The generated UI can expose zero-payload actions and single primitive `Set...` actions. For editable forms,
+        The embedded UI can expose zero-payload actions and single primitive `Set...` actions. For editable forms,
         model draft fields plus one typed Set action per draft field and one zero-payload submit action. For a list
         empty state, include an authoritative boolean projection such as `hasMedications` beside `medications` and
         update both together. Keep routes, counts, empty-state booleans, display labels, statuses and aggregates in
@@ -276,9 +326,9 @@ internal object CanonicalBundlePrompts {
     """.trimIndent()
 
     fun initialInput(request: String): String = """
-        Non-negotiable source boundary: app.deal contains only typed state, pure computations and typed actions.
-        Never write `ui.`, `Text`, `IntText`, `NumberText`, `intText`, `numberText`, `intToText`, `format`, or any
-        presentation/component call in app.deal. Deal UI alone renders components.
+        app.deal contains typed state, pure computations, typed actions, then one embedded declarative UI view.
+        `ui.*` calls are allowed only inside that final `// @ui-root export view`; never call UI components from a
+        DEAL function or use presentation/formatting helpers in behavior code.
         Do not declare keyboard, storage.private, notifications, camera.capture, vision.ocr, health.read or
         focus.control merely because the product has forms, reminders, reports, history or a health-related topic.
         Declare such a host capability only when the user explicitly asks for that platform operation; a declaration
@@ -292,7 +342,8 @@ internal object CanonicalBundlePrompts {
         Generate a fresh complete DEAL source for this request. The previous candidate was rejected after
         compiler-directed local patches. Do not explain or patch it: emit a new DEAL-only source using the exact raw
         framing from the instructions. Preserve the requested product outcome and choose only checked APIs.
-        app.deal is never allowed to call UI components or formatting helpers. Do not declare optional host
+        app.deal must include one checked embedded UI view, but behavior functions never call UI components or
+        formatting helpers. Do not declare optional host
         capabilities unless the user explicitly asks for the corresponding platform operation.
 
         User request:

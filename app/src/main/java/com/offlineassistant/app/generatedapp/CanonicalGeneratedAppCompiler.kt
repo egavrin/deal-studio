@@ -362,10 +362,10 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealUiAcceptedPatches = 0,
             firstInteractivePreviewMs = wallLatencyMs,
             dealModelId = dealModel.name,
-            dealUiModelId = "studio-auto-ui",
+            dealUiModelId = "embedded-deal-ui",
             promptDigest = sha256(CanonicalBundlePrompts.instructions),
-            compilerProtocolVersion = "deal-only-auto-ui-v1",
-            agentSurfaceVersion = "deal-only-auto-ui-v1",
+            compilerProtocolVersion = "embedded-deal-ui-v1",
+            agentSurfaceVersion = "embedded-deal-ui-v1",
             agentSurfaceBytes = CanonicalBundlePrompts.instructions.encodeToByteArray().size,
             agentSurfaceEstimatedTokens = CanonicalBundlePrompts.instructions.length / 4,
             generationModelCalls = attemptTelemetry.size + patchTelemetry.size,
@@ -375,7 +375,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             usedCapabilities = AppInterfaceCompiler.parse(acceptedBundle.appInterface).capabilities.toSet(),
             autoUiSynthesisLatencyMs = acceptedBundle.autoUiSynthesisLatencyMs,
             autoUiSourceBytes = acceptedBundle.autoUiSourceBytes,
-            autoUiCompilerVersion = CanonicalAutoUiCompiler.VERSION
+            autoUiCompilerVersion = "embedded-deal-ui-v1"
             )
         } catch (failure: Exception) {
             val artifact = failureStore.write(
@@ -461,17 +461,9 @@ internal class CanonicalGeneratedAppCloudCompiler(
             diagnostic = deal.exceptionOrNull()?.message.orEmpty(),
             appInterface = null
         )
-        val autoUiStarted = System.nanoTime()
-        val derived = runCatching { CanonicalAutoUiCompiler.synthesize(AppInterfaceCompiler.parse(requireNotNull(appInterface))) }
-        val autoUiSynthesisLatencyMs = (System.nanoTime() - autoUiStarted) / 1_000_000
-        if (derived.isFailure) return CandidateValidation.Rejected(
-            target = CanonicalRepairTarget.DEAL,
-            diagnostic = derived.exceptionOrNull()?.message.orEmpty(),
-            appInterface = appInterface
-        )
-        val derivedBundle = bundle.copy(dealUi = requireNotNull(derived.getOrNull()))
+        val embeddedUiStarted = System.nanoTime()
         val ui = runCatching {
-            compileDealUi(derivedBundle, requireNotNull(appInterface)).also {
+            toolchain.compileEmbeddedPortable(bundle.deal, CanonicalDealUiPack.source).also {
                 GenerationCapabilityContracts.validate(requireNotNull(appInterface), it)
             }
         }
@@ -482,11 +474,11 @@ internal class CanonicalGeneratedAppCloudCompiler(
         )
         return CandidateValidation.Accepted(
             ValidatedCanonicalBundle(
-                derivedBundle,
+                bundle.copy(dealUi = ""),
                 requireNotNull(ui.getOrNull()),
                 requireNotNull(appInterface),
-                autoUiSynthesisLatencyMs = autoUiSynthesisLatencyMs,
-                autoUiSourceBytes = derivedBundle.dealUi.encodeToByteArray().size
+                autoUiSynthesisLatencyMs = (System.nanoTime() - embeddedUiStarted) / 1_000_000,
+                autoUiSourceBytes = 0
             )
         )
     }
