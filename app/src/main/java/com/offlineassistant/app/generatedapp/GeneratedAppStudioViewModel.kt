@@ -123,6 +123,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     fun saveGenerationSettings(
         dealModel: DeepSeekGenerationModel,
+        @Suppress("UnusedParameter")
         dealUiModel: DeepSeekGenerationModel,
         deepSeekApiKey: String,
         cerebrasApiKey: String

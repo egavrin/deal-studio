@@ -186,7 +186,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
     context: Context,
     apiKeyProvider: () -> String?,
     cerebrasApiKeyProvider: () -> String? = { null },
-    private val dealReasoningEffort: String = "low",
+    @Suppress("UnusedPrivateProperty") private val dealReasoningEffort: String = "low",
     private val compilerToolTrace: (String) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
@@ -197,13 +197,13 @@ internal class CanonicalGeneratedAppCloudCompiler(
     suspend fun generate(
         request: String,
         dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
+        @Suppress("UnusedParameter")
         dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
         onProgress: (CanonicalGenerationPhase, String) -> Unit = { _, _ -> },
         onUiPreview: (CanonicalDealUiPreview) -> Unit = {}
     ): CanonicalGeneratedAppBundle = generateCanonicalBundle(
         request = request,
         dealModel = dealModel,
-        dealUiModel = dealUiModel,
         onProgress = onProgress,
         onUiPreview = onUiPreview
     )
@@ -211,7 +211,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
     private suspend fun generateCanonicalBundle(
         request: String,
         dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
-        dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
         onProgress: (CanonicalGenerationPhase, String) -> Unit = { _, _ -> },
         onUiPreview: (CanonicalDealUiPreview) -> Unit = {}
     ): CanonicalGeneratedAppBundle = withContext(Dispatchers.IO) {
@@ -473,18 +472,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
         return checkedUiIr
     }
 
-    private fun validateBundle(bundle: CanonicalSourceBundle): ValidatedCanonicalBundle {
-        toolchain.validateDealForUi(bundle.deal)
-        val appInterface = toolchain.extractAppInterface(bundle.deal)
-        val checkedUiIr = compileDealUi(bundle, appInterface)
-        GenerationCapabilityContracts.validate(appInterface, checkedUiIr)
-        return ValidatedCanonicalBundle(
-            bundle = bundle,
-            checkedUiIr = checkedUiIr,
-            appInterface = appInterface
-        )
-    }
-
     private fun validateCandidate(bundle: CanonicalSourceBundle): CandidateValidation {
         val separated = runCatching { EmbeddedDealUiSource.split(bundle.deal) }
         if (separated.isFailure) {
@@ -529,12 +516,6 @@ internal class CanonicalGeneratedAppCloudCompiler(
                 autoUiSourceBytes = sourcePair.dealUi.encodeToByteArray().size
             )
         )
-    }
-
-    /** The pair checker may report a DEAL declaration error while checking Deal UI bindings. */
-    private fun repairTargetFor(diagnostic: String): CanonicalRepairTarget = when {
-        diagnostic.contains("app.deal:") || diagnostic.contains("/app.deal:") -> CanonicalRepairTarget.DEAL
-        else -> CanonicalRepairTarget.DEAL_UI
     }
 
     fun cancel() {
