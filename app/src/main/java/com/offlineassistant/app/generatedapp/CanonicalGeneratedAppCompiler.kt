@@ -215,6 +215,10 @@ internal class CanonicalGeneratedAppCloudCompiler(
         val patchTelemetry = mutableListOf<CanonicalPatchTelemetry>()
         val attemptTelemetry = mutableListOf<CanonicalGenerationAttemptTelemetry>()
         var validationLatencyMs = 0L
+        // The preview callback synchronously creates the runtime, parses the checked UI,
+        // and publishes the accepted state. Measure after that boundary rather than when
+        // the raw source merely arrives.
+        var firstInteractivePreviewMs: Long? = null
         fun <T> validating(block: () -> T): T {
             val validationStarted = System.nanoTime()
             return try { block() } finally {
@@ -336,6 +340,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
                     committedSections = 1
                 )
             )
+            firstInteractivePreviewMs = (System.nanoTime() - started) / 1_000_000
             CanonicalGeneratedAppBundle(
             request = request,
             appInterface = acceptedBundle.appInterface,
@@ -368,7 +373,7 @@ internal class CanonicalGeneratedAppCloudCompiler(
             dealUiCachedInputTokens = 0,
             dealUiOutputTokens = 0,
             dealUiAcceptedPatches = 0,
-            firstInteractivePreviewMs = wallLatencyMs,
+            firstInteractivePreviewMs = firstInteractivePreviewMs,
             dealModelId = dealModel.name,
             dealUiModelId = "embedded-deal-ui",
             promptDigest = sha256(CanonicalBundlePrompts.instructions),

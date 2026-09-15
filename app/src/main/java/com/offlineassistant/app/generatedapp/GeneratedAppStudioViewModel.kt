@@ -277,9 +277,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                 )
             }.onSuccess { runnable ->
                 runCaptureStore.writeCanonical(request, runnable.bundle)
-                val runHtml5FollowUp = state.value.pendingComparisonRequest == request
+                var runHtml5FollowUp = false
                 mutableState.update { current ->
                     if (runToken != generationRunToken) return@update current
+                    runHtml5FollowUp = current.pendingComparisonRequest == request
                     current.copy(
                         session = CanonicalStudioSession.Runnable(runnable),
                         selectedArtifact = GeneratedArtifact.PREVIEW,
@@ -288,7 +289,9 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         pendingComparisonRequest = null
                     )
                 }
-                if (runHtml5FollowUp) generateExperimentalHtml5(request)
+                // `cancel()` invalidates the run token and clears the pending comparison.
+                // Do not start a second billed request after that cancellation boundary.
+                if (runHtml5FollowUp && runToken == generationRunToken) generateExperimentalHtml5(request)
             }.onFailure { failure ->
                 if (failure is CancellationException) return@onFailure
                 mutableState.update { current ->
@@ -564,7 +567,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
             current.copy(
                 session = previous?.let(CanonicalStudioSession::Runnable) ?: CanonicalStudioSession.Empty,
                 experimentalHtml5Session = previousHtml?.let(ExperimentalHtml5Session::Ready)
-                    ?: ExperimentalHtml5Session.Empty
+                    ?: ExperimentalHtml5Session.Empty,
+                pendingComparisonRequest = null
             )
         }
     }
