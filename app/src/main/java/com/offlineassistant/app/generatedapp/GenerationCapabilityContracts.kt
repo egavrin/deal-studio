@@ -19,11 +19,13 @@ internal object GenerationCapabilityContracts {
         prompt = """
             TIMED CAPABILITY. Use only when the requested product needs periodic minute updates:
             // generated-capability: clock.minute
-            export class MinuteTickAction { deltaMs: int = 0; }
+            export class MinuteTickAction { epochMinute: int = 0; }
             // @ui-update
             export function onMinuteTick(state: AppState, action: MinuteTickAction): AppState { return state; }
             In the final embedded `// @ui-root` view, bind the exact action with:
-            `ui.MinuteClock(onTick: action app.MinuteTickAction { deltaMs: payload })`.
+            `ui.MinuteClock(onTick: action app.MinuteTickAction { epochMinute: payload })`.
+            `payload` is the absolute Unix epoch minute, not an elapsed duration. Compare it to a retained prior
+            epoch minute when a product needs elapsed time or countdown behavior.
             The action must update authoritative state when a tick matters to the product. A tick action that is
             declared but not bound from this reachable view is rejected as unreachable.
         """.trimIndent()
@@ -157,7 +159,7 @@ internal object GenerationCapabilityContracts {
         }
         if ("clock.minute" in capabilities) {
             require("MinuteClock" in components) { "clock.minute requires ui.MinuteClock" }
-            actionsFor("MinuteClock", "onTick").forEach { requireAction(it.name, setOf("deltaMs")) }
+            actionsFor("MinuteClock", "onTick").forEach { requireAction(it.name, setOf("epochMinute")) }
             require(actionsFor("MinuteClock", "onTick").isNotEmpty()) { "MinuteClock requires an onTick action" }
         }
     }

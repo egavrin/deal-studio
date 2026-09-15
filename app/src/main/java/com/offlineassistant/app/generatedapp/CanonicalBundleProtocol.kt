@@ -457,8 +457,20 @@ internal object CanonicalBundlePrompts {
     }.trimEnd()
 
     private fun String.repairWindow(diagnostic: String): String {
-        val line = Regex("(?:^|:)\\s*(\\d+):(\\d+)").find(diagnostic)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val reportedLine = Regex("(?:^|:)\\s*(\\d+):(\\d+)").find(diagnostic)?.groupValues?.getOrNull(1)?.toIntOrNull()
         val lines = lines()
+        // The checked UI module has two imports plus a blank line before the
+        // embedded `// @ui-root` section. Translate its virtual source line back
+        // to the one-file model response before selecting a local repair window.
+        val marker = lines.indexOfFirst { it.trim() == "// @ui-root" }
+        val line = if (
+            reportedLine != null && marker >= 0 &&
+            (diagnostic.contains("app.dealui") || diagnostic.contains("UI"))
+        ) {
+            marker + reportedLine - 3
+        } else {
+            reportedLine
+        }
         if (line == null || line !in lines.indices.map { it + 1 }) return lines.take(40).joinToString("\n")
         val first = (line - 11).coerceAtLeast(1)
         val last = (line + 10).coerceAtMost(lines.size)

@@ -970,21 +970,21 @@ private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modif
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Interface", style = MaterialTheme.typography.titleMedium)
             Text(
-                if (bundle.usesEmbeddedUi()) "Embedded, compiler-checked Deal UI" else "Studio-derived Deal UI",
+                if (bundle.isModelAuthoredUi()) "Model-authored, compiler-checked Deal UI" else "Studio-derived Deal UI",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GenerationFact(
-                    if (bundle.usesEmbeddedUi()) "Authored with DEAL" else "Model tokens",
-                    if (bundle.usesEmbeddedUi()) formatGenerationTokens(bundle.dealOutputTokens) else "0",
+                    if (bundle.isModelAuthoredUi()) "Model tokens" else "Model tokens",
+                    if (bundle.isModelAuthoredUi()) formatGenerationTokens(bundle.dealOutputTokens) else "0",
                     Modifier.weight(1f)
                 )
                 GenerationFact("Check", formatGenerationDuration(bundle.autoUiSynthesisLatencyMs), Modifier.weight(1f))
                 GenerationFact(
                     "Source",
-                    if (bundle.usesEmbeddedUi()) {
-                        formatGenerationBytes(bundle.embeddedUiSource().encodeToByteArray().size)
+                    if (bundle.isModelAuthoredUi()) {
+                        formatGenerationBytes(bundle.modelAuthoredUiSource().encodeToByteArray().size)
                     } else {
                         formatGenerationBytes(bundle.autoUiSourceBytes)
                     },
@@ -996,6 +996,10 @@ private fun AutoUiStageCard(bundle: CanonicalGeneratedAppBundle, modifier: Modif
 }
 
 private fun CanonicalGeneratedAppBundle.usesEmbeddedUi(): Boolean = compilerProtocolVersion == "embedded-deal-ui-v1"
+
+private fun CanonicalGeneratedAppBundle.isModelAuthoredUi(): Boolean = compilerProtocolVersion == "embedded-deal-ui-v1" || compilerProtocolVersion == "embedded-deal-ui-split-v1"
+
+private fun CanonicalGeneratedAppBundle.modelAuthoredUiSource(): String = if (usesEmbeddedUi()) embeddedUiSource() else dealUiSource
 
 private fun CanonicalGeneratedAppBundle.embeddedUiSource(): String = dealSource.substringAfter("// @ui-root", missingDelimiterValue = "").let { source ->
     if (source.isBlank()) "No embedded UI declaration was found." else "// @ui-root$source"
