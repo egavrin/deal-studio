@@ -72,6 +72,7 @@ jobs:
         run: |
           python3 scripts/check_core_scope.py
           python3 scripts/check_release_contract.py
+          python3 scripts/check_ui_catalog.py
       - name: Unit, static and AndroidTest compilation
         run: >-
           ./gradlew --no-daemon --stacktrace
