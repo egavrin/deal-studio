@@ -112,4 +112,25 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(320, canonicalSkeletonDimension(320, 160))
         assertEquals(840, canonicalSkeletonDimension(1200, 160))
     }
+
+    @Test
+    fun `progress normalization handles boundaries and non finite values`() {
+        assertEquals(0f, progress(-1, 100))
+        assertEquals(0.65f, progress(65, 100))
+        assertEquals(1f, progress(120, 100))
+        assertEquals(0f, progress(10, 0))
+        assertEquals(0f, progress(Double.NaN, 1.0))
+        assertEquals(0f, progress(Double.POSITIVE_INFINITY, 1.0))
+        assertEquals(0f, progress(0.5, Double.NaN))
+        assertEquals(0.5f, progress(0.5, 1.0))
+        assertEquals(1f, progress(2.0, 1.0))
+    }
+
+    @Test
+    fun `progress height uses bounded native dp`() {
+        assertEquals(4, canonicalProgressHeight(0))
+        assertEquals(4, canonicalProgressHeight(-1))
+        assertEquals(8, canonicalProgressHeight(8))
+        assertEquals(24, canonicalProgressHeight(40))
+    }
 }

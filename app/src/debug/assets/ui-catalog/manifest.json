@@ -73,6 +73,24 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/shadcn.Skeleton.shapes/app.deal",
       "dealUi": "ui-catalog/shadcn.Skeleton.shapes/app.dealui"
+    },
+    {
+      "id": "shadcn.Progress.boundaries",
+      "origin": "shadcn",
+      "component": "Progress",
+      "targetComponent": "NumberProgressBar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Progress.boundaries/app.deal",
+      "dealUi": "ui-catalog/shadcn.Progress.boundaries/app.dealui"
+    },
+    {
+      "id": "react-native.ProgressBar.fractional",
+      "origin": "react-native",
+      "component": "ProgressBar",
+      "targetComponent": "NumberProgressBar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.ProgressBar.fractional/app.deal",
+      "dealUi": "ui-catalog/react-native.ProgressBar.fractional/app.dealui"
     }
   ]
 }

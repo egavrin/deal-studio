@@ -54,6 +54,18 @@
       "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
       "viewport": "device",
       "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Progress.boundaries",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.ProgressBar.fractional",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
     }
   ]
 }

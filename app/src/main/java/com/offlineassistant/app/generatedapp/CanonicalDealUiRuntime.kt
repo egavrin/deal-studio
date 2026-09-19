@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -124,7 +125,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
@@ -156,6 +156,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -1556,8 +1557,44 @@ private fun RenderCall(
             } else {
                 progress(value("value").asInt(), value("maximum").asInt())
             }
-            value("label").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
-            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            val label = value("label").asString()
+            label.takeIf(String::isNotBlank)?.let {
+                Text(
+                    it,
+                    modifier = Modifier.clearAndSetSemantics {},
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+            val tone = value("tone").typedTokenString()
+            val trackTone = value("trackTone").typedTokenString()
+            val progressColor = progressColor(tone)
+            val trackColor = progressTrackColor(trackTone)
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(canonicalProgressHeight(value("heightDp").asInt()).dp)
+                    .progressSemantics(progress)
+                    .then(
+                        if (label.isNotBlank()) {
+                            Modifier.semantics { contentDescription = label }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                val radius = size.height / 2f
+                drawRoundRect(
+                    color = trackColor,
+                    cornerRadius = CornerRadius(radius, radius)
+                )
+                if (progress > 0f) {
+                    drawRoundRect(
+                        color = progressColor,
+                        size = Size(size.width * progress, size.height),
+                        cornerRadius = CornerRadius(radius, radius)
+                    )
+                }
+            }
         }
 
         "ProgressRing", "NumberProgressRing" -> Box(modifier.size(112.dp), contentAlignment = Alignment.Center) {
@@ -2659,9 +2696,28 @@ private fun JsonElement.toPlatformValue(): Any? = when (this) {
     else -> toString()
 }
 
-private fun progress(value: Int, maximum: Int): Float = if (maximum <= 0) 0f else value.toFloat().div(maximum).coerceIn(0f, 1f)
+internal fun progress(value: Int, maximum: Int): Float = if (maximum <= 0) 0f else value.toFloat().div(maximum).coerceIn(0f, 1f)
 
-private fun progress(value: Double, maximum: Double): Float = if (maximum <= 0.0) 0f else value.div(maximum).coerceIn(0.0, 1.0).toFloat()
+internal fun progress(value: Double, maximum: Double): Float = when {
+    !value.isFinite() || !maximum.isFinite() || maximum <= 0.0 -> 0f
+    else -> value.div(maximum).coerceIn(0.0, 1.0).toFloat()
+}
+
+internal fun canonicalProgressHeight(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(24) ?: 4
+
+@Composable
+private fun progressColor(tone: String): Color = if (tone.isBlank() || tone == "default") {
+    MaterialTheme.colorScheme.primary
+} else {
+    generatedTonePalette(tone).border
+}
+
+@Composable
+private fun progressTrackColor(tone: String): Color = if (tone.isBlank() || tone == "default") {
+    MaterialTheme.colorScheme.primaryContainer
+} else {
+    generatedTonePalette(tone).container
+}
 
 private fun horizontalAlignment(value: String): Alignment.Horizontal = when (value) {
     "center" -> Alignment.CenterHorizontally

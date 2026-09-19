@@ -59,6 +59,8 @@ export class SkeletonProps { widthDp: int = 160; heightDp: int = 20; rounded: bo
 export class TileProps { glyph: string; supporting: string = ""; icon: string = ""; tone: string; selected: boolean = false; highlighted: boolean = false; onClick?: Action; accessibilityLabel: string; }
 export class ProgressProps { value: int = 0; maximum: int = 100; label: string = ""; }
 export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; }
+export class ProgressBarProps { value: int = 0; maximum: int = 100; label: string = ""; heightDp: int = 4; tone?: SemanticTone; trackTone?: SemanticTone; }
+export class NumberProgressBarProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; heightDp: int = 4; tone?: SemanticTone; trackTone?: SemanticTone; }
 export class TextFieldProps { value: string = ""; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class IntFieldProps { value: int = 0; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class NumberFieldProps { value: number = 0.0; label: string = ""; placeholder: string = ""; fractionDigits: int = 1; onChange?: Action; accessibilityLabel?: string; }
@@ -148,9 +150,9 @@ export component Pressable(props: PressableProps): View { children optional; eve
 export component Spinner(props: SpinnerProps): View { capability "renderer.android.spinner"; }
 export component Skeleton(props: SkeletonProps): View { accessibility accessibilityLabel; capability "renderer.android.skeleton"; }
 export component Tile(props: TileProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.tile"; }
-export component ProgressBar(props: ProgressProps): View { capability "renderer.android.progress-bar"; }
+export component ProgressBar(props: ProgressBarProps): View { capability "renderer.android.progress-bar"; }
 export component ProgressRing(props: ProgressProps): View { capability "renderer.android.progress-ring"; }
-export component NumberProgressBar(props: NumberProgressProps): View { capability "renderer.android.number-progress-bar"; }
+export component NumberProgressBar(props: NumberProgressBarProps): View { capability "renderer.android.number-progress-bar"; }
 export component NumberProgressRing(props: NumberProgressProps): View { capability "renderer.android.number-progress-ring"; }
 export component TextField(props: TextFieldProps): View { event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.text-field"; }
 export component IntField(props: IntFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.int-field"; }

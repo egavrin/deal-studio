@@ -384,12 +384,12 @@
       "constraints": []
     },
     "ProgressBar": {
-      "purpose": "Use ProgressBar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Show determinate integer progress with an explicit positive maximum.",
+      "preferWhen": ["Progress is represented by integer units"],
+      "avoidWhen": ["Completion is unknown; use Spinner instead"],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": ["Values are visually clamped to 0..maximum", "maximum <= 0 renders zero progress"]
     },
     "ProgressRing": {
       "purpose": "Use ProgressRing only for its declared typed contract.",
@@ -400,12 +400,12 @@
       "constraints": []
     },
     "NumberProgressBar": {
-      "purpose": "Use NumberProgressBar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Show determinate fractional progress. Use maximum 1.0 for React Native source progress and 100.0 for percentage contracts.",
+      "preferWhen": ["Progress is fractional or requires a non-integer maximum"],
+      "avoidWhen": ["Completion is unknown; use Spinner instead"],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": ["NaN and infinity normalize to zero", "Values are visually clamped to 0..maximum", "Raw source colors adapt to semantic tones"]
     },
     "NumberProgressRing": {
       "purpose": "Use NumberProgressRing only for its declared typed contract.",
@@ -928,6 +928,12 @@
     },
     "NumberProgressProps": {
       "purpose": "Typed NumberProgressProps contract used by the component pack."
+    },
+    "ProgressBarProps": {
+      "purpose": "Typed ProgressBarProps contract used by the component pack."
+    },
+    "NumberProgressBarProps": {
+      "purpose": "Typed NumberProgressBarProps contract used by the component pack."
     },
     "TextFieldProps": {
       "purpose": "Typed TextFieldProps contract used by the component pack."
@@ -1938,6 +1944,15 @@
     "ProgressBar.label": {
       "purpose": "Checked label property for ProgressBar."
     },
+    "ProgressBar.heightDp": {
+      "purpose": "Bounded native indicator height in dp."
+    },
+    "ProgressBar.tone": {
+      "purpose": "Semantic foreground adaptation for source color."
+    },
+    "ProgressBar.trackTone": {
+      "purpose": "Semantic track adaptation for source trackColor."
+    },
     "ProgressRing.value": {
       "purpose": "Checked value property for ProgressRing."
     },
@@ -1955,6 +1970,15 @@
     },
     "NumberProgressBar.label": {
       "purpose": "Checked label property for NumberProgressBar."
+    },
+    "NumberProgressBar.heightDp": {
+      "purpose": "Bounded native indicator height in dp."
+    },
+    "NumberProgressBar.tone": {
+      "purpose": "Semantic foreground adaptation for source color."
+    },
+    "NumberProgressBar.trackTone": {
+      "purpose": "Semantic track adaptation for source trackColor."
     },
     "NumberProgressRing.value": {
       "purpose": "Checked value property for NumberProgressRing."
