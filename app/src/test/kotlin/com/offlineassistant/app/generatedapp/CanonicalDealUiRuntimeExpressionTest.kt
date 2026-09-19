@@ -2,9 +2,11 @@ package com.offlineassistant.app.generatedapp
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class CanonicalDealUiRuntimeExpressionTest {
@@ -70,5 +72,19 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(2, adaptiveColumnCount(320f, maximumColumns = 3, minimumCellWidthDp = 128))
         assertEquals(3, adaptiveColumnCount(900f, maximumColumns = 3, minimumCellWidthDp = 128))
         assertEquals(4, adaptiveColumnCount(120f, maximumColumns = 4, minimumCellWidthDp = 0))
+    }
+
+    @Test
+    fun `foreach keys preserve scalar type and reject composite values`() {
+        assertEquals("1", canonicalForEachKey(JsonPrimitive(1)))
+        assertEquals("\"1\"", canonicalForEachKey(JsonPrimitive("1")))
+        assertEquals("true", canonicalForEachKey(JsonPrimitive(true)))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            canonicalForEachKey(JsonNull)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            canonicalForEachKey(JsonObject(mapOf("id" to JsonPrimitive(1))))
+        }
     }
 }

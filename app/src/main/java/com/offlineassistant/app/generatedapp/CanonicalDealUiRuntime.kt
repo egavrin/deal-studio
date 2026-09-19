@@ -717,7 +717,13 @@ private fun CanonicalNode(
         is CanonicalUiNode.ForEach -> {
             val items = evaluate(node.source, null) as? JsonArray ?: JsonArray(emptyList())
             items.forEach { item ->
-                CanonicalNodes(program, state, scope + (node.item to item), node.children, onAction, modifier)
+                val itemScope = scope + (node.item to item)
+                val itemKey = canonicalForEachKey(
+                    evaluate(node.key, state, itemScope, program.tokens, null)
+                )
+                key(node.identity, itemKey) {
+                    CanonicalNodes(program, state, itemScope, node.children, onAction, modifier)
+                }
             }
         }
 
@@ -2250,6 +2256,13 @@ private fun collectCanvasShapes(
             }
         }
     }
+}
+
+internal fun canonicalForEachKey(value: JsonElement): String {
+    require(value is JsonPrimitive && value !== JsonNull) {
+        "ForEach key must evaluate to a non-null scalar"
+    }
+    return value.toString()
 }
 
 private fun collectTypedItems(
