@@ -1,0 +1,17 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Button", supporting: "shadcn → native Deal UI adaptation")
+      ui.Button(
+        text: "Run action",
+        onClick: action app.PressButton {},
+        accessibilityLabel: "Run action"
+      )
+      ui.IntStat(label: "Event count", value: state.presses)
+    }
+  }
+}

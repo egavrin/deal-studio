@@ -17,6 +17,39 @@ import sys
 
 ALLOWED_STATUS = {"PENDING", "IMPLEMENTED", "VERIFIED", "UNSUPPORTED"}
 REQUIRED_ORIGINS = {"shadcn": 36, "react-native": 26, "jev-playground": 2}
+GALLERY_ROOT = Path("app/src/debug/assets/ui-catalog")
+
+
+def validate_gallery(known_pairs: set[tuple[str, str]]) -> int:
+    manifest_path = GALLERY_ROOT / "manifest.json"
+    if not manifest_path.exists():
+        return 0
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schemaVersion") != "deal-studio-ui-catalog-fixtures-v1":
+        raise ValueError("unsupported UI catalog fixture manifest")
+    cases = manifest.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("UI catalog fixture manifest needs at least one case")
+    ids: set[str] = set()
+    for case in cases:
+        case_id = case.get("id")
+        pair = (case.get("origin"), case.get("component"))
+        if not case_id or case_id in ids:
+            raise ValueError("UI catalog fixture IDs must be non-empty and unique")
+        ids.add(case_id)
+        if pair not in known_pairs:
+            raise ValueError(f"UI catalog fixture {case_id} is outside the frozen denominator")
+        for field in ("deal", "dealUi"):
+            relative = Path(case.get(field, ""))
+            if relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("ui-catalog",):
+                raise ValueError(f"UI catalog fixture {case_id}.{field} is not an allowlisted asset path")
+            target = Path("app/src/debug/assets") / relative
+            if not target.is_file():
+                raise ValueError(f"UI catalog fixture asset is missing: {target}")
+        template = (Path("app/src/debug/assets") / case["dealUi"]).read_text(encoding="utf-8")
+        if template.count("ui.__STYLE__") != 1:
+            raise ValueError(f"UI catalog fixture {case_id} must have exactly one style slot")
+    return len(cases)
 
 
 def main() -> int:
@@ -60,6 +93,7 @@ def main() -> int:
     source = ledger.get("source", {})
     if not source.get("repository") or not source.get("revision"):
         raise ValueError("source repository and revision are required")
+    gallery_cases = validate_gallery(set(pairs)) if args.all else 0
     status_counts = dict(sorted(Counter(row["status"] for row in rows).items()))
     report = {
         "schemaVersion": "deal-studio-ui-catalog-contract-report-v1",
@@ -69,6 +103,7 @@ def main() -> int:
         "requiredRows": expected_rows,
         "origins": dict(sorted(origins.items())),
         "statuses": status_counts,
+        "galleryCases": gallery_cases,
     }
     if args.report:
         args.report.mkdir(parents=True, exist_ok=True)

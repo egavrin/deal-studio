@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "deal-studio-ui-catalog-matrix-v1",
+  "cases": [
+    {
+      "id": "shadcn.Button.default",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    }
+  ]
+}

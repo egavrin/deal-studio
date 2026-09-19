@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "deal-studio-ui-catalog-fixtures-v1",
+  "cases": [
+    {
+      "id": "shadcn.Button.default",
+      "origin": "shadcn",
+      "component": "Button",
+      "deal": "ui-catalog/shadcn.Button.default/app.deal",
+      "dealUi": "ui-catalog/shadcn.Button.default/app.dealui"
+    }
+  ]
+}
