@@ -22,9 +22,19 @@ REQUIRED_ORIGINS = {"shadcn": 36, "react-native": 26, "jev-playground": 2}
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Validate the complete frozen denominator (currently the only supported mode).",
+    )
+    parser.add_argument(
         "--ledger",
         type=Path,
         default=Path("tooling/deal-ui-pack/vercel-ui-coverage-v2.json"),
+    )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        help="Write a deterministic JSON contract report to this directory.",
     )
     args = parser.parse_args()
     ledger = json.loads(args.ledger.read_text(encoding="utf-8"))
@@ -50,10 +60,26 @@ def main() -> int:
     source = ledger.get("source", {})
     if not source.get("repository") or not source.get("revision"):
         raise ValueError("source repository and revision are required")
+    status_counts = dict(sorted(Counter(row["status"] for row in rows).items()))
+    report = {
+        "schemaVersion": "deal-studio-ui-catalog-contract-report-v1",
+        "result": "PASS",
+        "ledger": str(args.ledger),
+        "source": source,
+        "requiredRows": expected_rows,
+        "origins": dict(sorted(origins.items())),
+        "statuses": status_counts,
+    }
+    if args.report:
+        args.report.mkdir(parents=True, exist_ok=True)
+        (args.report / "contract-report.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     print(
         "UI catalog ledger passed: "
         + ", ".join(f"{origin}={origins[origin]}" for origin in sorted(origins))
-        + f", statuses={dict(sorted(Counter(row['status'] for row in rows).items()))}"
+        + f", statuses={status_counts}"
     )
     return 0
 
