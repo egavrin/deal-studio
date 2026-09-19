@@ -26,12 +26,29 @@
       "dealUi": "ui-catalog/react-native.Button.loading/app.dealui"
     },
     {
+      "id": "react-native.Button.icon-loading",
+      "origin": "react-native",
+      "component": "Button",
+      "targetComponent": "IconButton",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Button.icon-loading/app.deal",
+      "dealUi": "ui-catalog/react-native.Button.icon-loading/app.dealui"
+    },
+    {
       "id": "react-native.Pressable.default",
       "origin": "react-native",
       "component": "Pressable",
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Pressable.default/app.deal",
       "dealUi": "ui-catalog/react-native.Pressable.default/app.dealui"
+    },
+    {
+      "id": "react-native.Pressable.disabled",
+      "origin": "react-native",
+      "component": "Pressable",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Pressable.disabled/app.deal",
+      "dealUi": "ui-catalog/react-native.Pressable.disabled/app.dealui"
     }
   ]
 }

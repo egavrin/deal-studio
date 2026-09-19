@@ -1,0 +1,18 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Loading icon button", supporting: "The icon is replaced by progress and dispatch is suppressed")
+      ui.IconButton(
+        icon: "refresh",
+        onClick: action app.PressButton {},
+        accessibilityLabel: "Refresh",
+        loading: true,
+        loadingLabel: "Refreshing"
+      )
+      ui.IntStat(label: "Event count", value: state.presses)
+    }
+  }
+}

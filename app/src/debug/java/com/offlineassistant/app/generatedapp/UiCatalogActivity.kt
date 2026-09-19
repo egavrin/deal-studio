@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.offlineassistant.app.ui.theme.DealStudioTheme
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,7 @@ internal data class CatalogFixture(
     val id: String,
     val origin: String,
     val component: String,
+    val targetComponent: String,
     val packVersion: String,
     val dealPath: String,
     val dealUiPath: String
@@ -89,7 +91,19 @@ private fun UiCatalogScreen(caseId: String, style: String) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("UI Catalog · $caseId · $style") })
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("UI Catalog", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "$caseId · $style",
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            )
         }
     ) { padding ->
         when {
@@ -124,7 +138,13 @@ private fun UiCatalogScreen(caseId: String, style: String) {
                     }
                 )
                 Text(
-                    text = "${fixture.fixture.origin}.${fixture.fixture.component} · events: ${eventLog.size}",
+                    text = buildString {
+                        append("${fixture.fixture.origin}.${fixture.fixture.component}")
+                        if (fixture.fixture.targetComponent != fixture.fixture.component) {
+                            append(" → ${fixture.fixture.targetComponent}")
+                        }
+                        append(" · events: ${eventLog.size}")
+                    },
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.labelMedium
                 )
@@ -153,6 +173,8 @@ internal fun loadUiCatalogFixture(
         id = caseId,
         origin = entry.getValue("origin").jsonPrimitive.content,
         component = entry.getValue("component").jsonPrimitive.content,
+        targetComponent = entry["targetComponent"]?.jsonPrimitive?.content
+            ?: entry.getValue("component").jsonPrimitive.content,
         packVersion = entry.getValue("packVersion").jsonPrimitive.content,
         dealPath = entry.getValue("deal").jsonPrimitive.content,
         dealUiPath = entry.getValue("dealUi").jsonPrimitive.content

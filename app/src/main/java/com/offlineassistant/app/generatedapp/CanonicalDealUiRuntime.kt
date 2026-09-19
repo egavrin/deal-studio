@@ -1275,7 +1275,7 @@ private fun RenderCall(
                 Unit
             }
             val buttonSize = canonicalButtonSize(value("size").typedTokenString())
-            val buttonModifier = modifier.defaultMinSize(minWidth = buttonSize, minHeight = buttonSize)
+            val buttonModifier = Modifier.size(buttonSize).then(modifier)
                 .semantics {
                     contentDescription = if (isLoading) {
                         value("loadingLabel").asString()

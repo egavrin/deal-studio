@@ -1,0 +1,21 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Disabled pressable", supporting: "The composed surface remains readable but cannot dispatch")
+      ui.Pressable(
+        onClick: action app.PressSurface {},
+        accessibilityLabel: "Unavailable summary",
+        disabled: true
+      ) {
+        ui.Card(role: ui.cardSelection, padding: ui.spaceMd) {
+          ui.Text(value: "Unavailable summary", style: ui.textTitle)
+          ui.Text(value: "Disabled interaction must be exposed to accessibility.")
+        }
+      }
+      ui.IntStat(label: "Event count", value: state.presses)
+    }
+  }
+}

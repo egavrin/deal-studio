@@ -33,6 +33,19 @@ class UiCatalogButtonDeviceTest {
     }
 
     @Test
+    fun loadingIconButtonSuppressesDispatch() {
+        assertSuppressed("react-native.Button.icon-loading", "Refreshing")
+        val bounds = composeRule.onNodeWithContentDescription("Refreshing", useUnmergedTree = true)
+            .fetchSemanticsNode().boundsInRoot
+        assertEquals(bounds.width, bounds.height, 1f)
+    }
+
+    @Test
+    fun disabledPressableSuppressesDispatch() {
+        assertSuppressed("react-native.Pressable.disabled", "Unavailable summary")
+    }
+
+    @Test
     fun pressableDispatchesPressAndLongPressSeparately() {
         val loaded = fixture("react-native.Pressable.default")
         val state = mutableStateOf(loaded.initialState)

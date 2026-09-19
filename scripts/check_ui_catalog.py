@@ -39,6 +39,9 @@ def validate_gallery(known_pairs: set[tuple[str, str]]) -> int:
         ids.add(case_id)
         if pair not in known_pairs:
             raise ValueError(f"UI catalog fixture {case_id} is outside the frozen denominator")
+        target_component = case.get("targetComponent", case.get("component"))
+        if not isinstance(target_component, str) or not target_component:
+            raise ValueError(f"UI catalog fixture {case_id} has an invalid targetComponent")
         pack_version = case.get("packVersion", "")
         if not pack_version.startswith("deal-studio-dealui-pack-v"):
             raise ValueError(f"UI catalog fixture {case_id} has an invalid packVersion")

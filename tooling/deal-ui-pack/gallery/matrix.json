@@ -20,7 +20,19 @@
       "fontScale": 1.0
     },
     {
+      "id": "react-native.Button.icon-loading",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
       "id": "react-native.Pressable.default",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.Pressable.disabled",
       "styles": ["technical"],
       "viewport": "device",
       "fontScale": 1.0
