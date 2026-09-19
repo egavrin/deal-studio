@@ -53,15 +53,16 @@ class UiCatalogActivity : ComponentActivity() {
     }
 }
 
-private data class CatalogFixture(
+internal data class CatalogFixture(
     val id: String,
     val origin: String,
     val component: String,
+    val packVersion: String,
     val dealPath: String,
     val dealUiPath: String
 )
 
-private data class LoadedCatalogFixture(
+internal data class LoadedCatalogFixture(
     val fixture: CatalogFixture,
     val program: CanonicalDealUiProgram,
     val runtime: CanonicalDealRuntimeSession,
@@ -78,7 +79,7 @@ private fun UiCatalogScreen(caseId: String, style: String) {
     var eventLog by remember(caseId, style) { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(caseId, style) {
-        runCatching { withContext(Dispatchers.IO) { loadFixture(context, caseId, style) } }
+        runCatching { withContext(Dispatchers.IO) { loadUiCatalogFixture(context, caseId, style) } }
             .onSuccess {
                 loaded = it
                 state = it.initialState
@@ -132,7 +133,11 @@ private fun UiCatalogScreen(caseId: String, style: String) {
     }
 }
 
-private fun loadFixture(context: android.content.Context, caseId: String, style: String): LoadedCatalogFixture {
+internal fun loadUiCatalogFixture(
+    context: android.content.Context,
+    caseId: String,
+    style: String
+): LoadedCatalogFixture {
     val styleToken = requireNotNull(STYLE_TOKENS[style]) { "Unsupported UI catalog style: $style" }
     val manifest = Json.parseToJsonElement(
         context.assets.open("ui-catalog/manifest.json").bufferedReader().use { it.readText() }
@@ -148,6 +153,7 @@ private fun loadFixture(context: android.content.Context, caseId: String, style:
         id = caseId,
         origin = entry.getValue("origin").jsonPrimitive.content,
         component = entry.getValue("component").jsonPrimitive.content,
+        packVersion = entry.getValue("packVersion").jsonPrimitive.content,
         dealPath = entry.getValue("deal").jsonPrimitive.content,
         dealUiPath = entry.getValue("dealUi").jsonPrimitive.content
     )
@@ -157,7 +163,10 @@ private fun loadFixture(context: android.content.Context, caseId: String, style:
     require(dealUiTemplate.split("ui.__STYLE__").size == 2) { "Fixture must contain exactly one style slot" }
     val dealUi = dealUiTemplate.replace("ui.__STYLE__", "ui.$styleToken")
     val toolchain = CanonicalDealToolchain(context)
-    val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, dealUi, CanonicalDealUiPack.source))
+    val packSource = requireNotNull(CanonicalDealUiPack.sourceFor(fixture.packVersion)) {
+        "Unavailable UI catalog pack: ${fixture.packVersion}"
+    }
+    val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, dealUi, packSource))
     val runtime = toolchain.createRuntime(deal)
     return LoadedCatalogFixture(fixture, program, runtime, runtime.snapshot())
 }

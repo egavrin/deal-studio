@@ -39,6 +39,12 @@ def validate_gallery(known_pairs: set[tuple[str, str]]) -> int:
         ids.add(case_id)
         if pair not in known_pairs:
             raise ValueError(f"UI catalog fixture {case_id} is outside the frozen denominator")
+        pack_version = case.get("packVersion", "")
+        if not pack_version.startswith("deal-studio-dealui-pack-v"):
+            raise ValueError(f"UI catalog fixture {case_id} has an invalid packVersion")
+        pack_number = pack_version.rsplit("v", 1)[1]
+        if not Path(f"tooling/deal-ui-pack/deal-studio-v{pack_number}.dealui-pack").is_file():
+            raise ValueError(f"UI catalog fixture {case_id} references an unavailable pack")
         for field in ("deal", "dealUi"):
             relative = Path(case.get(field, ""))
             if relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("ui-catalog",):

@@ -1,0 +1,22 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Pressable", supporting: "Composed content with press and long-press events")
+      ui.Pressable(
+        onClick: action app.PressSurface {},
+        onLongClick: action app.LongPressSurface {},
+        accessibilityLabel: "Interactive summary"
+      ) {
+        ui.Card(role: ui.cardSelection, padding: ui.spaceMd) {
+          ui.Text(value: "Press or hold this surface", style: ui.textTitle)
+          ui.Text(value: "The Card remains presentation; Pressable owns interaction.")
+        }
+      }
+      ui.IntStat(label: "Presses", value: state.presses)
+      ui.IntStat(label: "Long presses", value: state.longPresses)
+    }
+  }
+}

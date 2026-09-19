@@ -1,0 +1,17 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Disabled button", supporting: "Must expose disabled semantics and suppress dispatch")
+      ui.Button(
+        text: "Unavailable action",
+        onClick: action app.PressButton {},
+        accessibilityLabel: "Unavailable action",
+        disabled: true
+      )
+      ui.IntStat(label: "Event count", value: state.presses)
+    }
+  }
+}

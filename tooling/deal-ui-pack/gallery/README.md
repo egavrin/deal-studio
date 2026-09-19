@@ -19,3 +19,5 @@ scripts/verify-ui-catalog.sh --serial "$ANDROID_SERIAL" \
 ```
 
 `compileAndRender: PASS` means the fixture compiled, reached the renderer, and exposed its settled readiness semantic. It does not imply human visual approval; `visualReview` remains `PENDING` until a reviewer signs off. The debug activity accepts only case IDs from its packaged manifest and one of the six existing Studio style tokens. It never accepts executable source through an Intent.
+
+Each fixture names its exact immutable pack version. The evidence report records that version and digest per screenshot, so a candidate-pack fixture is never reported as if it used the active pack from `toolchain.lock`.

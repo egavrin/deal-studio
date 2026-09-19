@@ -320,11 +320,13 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 }.joinToString(" ")
             }?.toMap().orEmpty()
             val globalRules = (manifest?.get("globalRules") as? List<*>)?.map { it.toString() }.orEmpty()
-            if (version == currentPackNumber) {
+            if (version.toInt() >= 15) {
                 require(manifest?.get("version") == "deal-studio-agent-semantics-v1") {
-                    "Invalid active agent manifest version"
+                    "Invalid v$version agent manifest version"
                 }
-                require(manifest["packVersion"] == currentPackVersion) { "Agent manifest packVersion mismatch" }
+                require(manifest["packVersion"] == "deal-studio-dealui-pack-v$version") {
+                    "Agent manifest packVersion mismatch for v$version"
+                }
                 require(semanticHints.keys == contractMetadata.componentContracts.keys) {
                     "Agent manifest component coverage differs from pack: missing=${contractMetadata.componentContracts.keys - semanticHints.keys}, extra=${semanticHints.keys - contractMetadata.componentContracts.keys}"
                 }
@@ -369,7 +371,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 }
             }
             val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys
-            if (version == currentPackNumber) {
+            if (version.toInt() >= 15) {
                 require(missingCoreComponents.isEmpty()) {
                     "Mobile core components missing from ${sourceFile.name}: ${missingCoreComponents.joinToString()}"
                 }

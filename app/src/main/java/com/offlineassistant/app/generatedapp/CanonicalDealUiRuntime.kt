@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
@@ -164,6 +165,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -609,7 +611,7 @@ internal val canonicalRendererComponents = setOf(
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
     "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "MetricGroup", "PointerSurface", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "MetricGroup", "PointerSurface", "Pressable", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
@@ -1265,30 +1267,51 @@ private fun RenderCall(
         )
 
         "IconButton" -> {
+            val isLoading = value("loading").asBoolean()
+            val isDisabled = value("disabled").asBoolean()
+            val enabled = !isLoading && !isDisabled
             val click = {
                 emit("onClick", null)
                 Unit
             }
-            val buttonModifier = modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                .semantics { contentDescription = value("accessibilityLabel").asString() }
-            val content: @Composable () -> Unit = { Icon(icon(value("icon").asString()), contentDescription = null) }
+            val buttonSize = canonicalButtonSize(value("size").typedTokenString())
+            val buttonModifier = modifier.defaultMinSize(minWidth = buttonSize, minHeight = buttonSize)
+                .semantics {
+                    contentDescription = if (isLoading) {
+                        value("loadingLabel").asString()
+                    } else {
+                        value("accessibilityLabel").asString()
+                    }
+                    if (!enabled) disabled()
+                }
+            val content: @Composable () -> Unit = {
+                if (isLoading) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(icon(value("icon").asString()), contentDescription = null)
+                }
+            }
             when (normalizedButtonHierarchy(value("hierarchy").typedTokenString())) {
-                "secondary" -> OutlinedIconButton(onClick = click, modifier = buttonModifier, content = content)
+                "secondary" -> OutlinedIconButton(onClick = click, enabled = enabled, modifier = buttonModifier, content = content)
 
-                "quiet" -> IconButton(onClick = click, modifier = buttonModifier, content = content)
+                "quiet" -> IconButton(onClick = click, enabled = enabled, modifier = buttonModifier, content = content)
 
                 "destructive" -> FilledIconButton(
                     onClick = click,
+                    enabled = enabled,
                     modifier = buttonModifier,
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
                     content = content
                 )
 
-                else -> FilledIconButton(onClick = click, modifier = buttonModifier, content = content)
+                else -> FilledIconButton(onClick = click, enabled = enabled, modifier = buttonModifier, content = content)
             }
         }
 
         "Button" -> {
+            val isLoading = value("loading").asBoolean()
+            val isDisabled = value("disabled").asBoolean()
+            val enabled = !isLoading && !isDisabled
             val click = {
                 emit("onClick", null)
                 Unit
@@ -1296,23 +1319,41 @@ private fun RenderCall(
             val label = value("text").asString()
             val iconName = value("icon").asString()
             val content: @Composable RowScope.() -> Unit = {
-                if (iconName.isNotBlank()) {
+                if (isLoading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                    Text(value("loadingLabel").asString())
+                } else if (iconName.isNotBlank()) {
                     Icon(icon(iconName), contentDescription = null, Modifier.size(18.dp))
                     Spacer(Modifier.size(8.dp))
+                    Text(label)
+                } else {
+                    Text(label)
                 }
-                Text(label)
             }
+            val buttonModifier = modifier
+                .defaultMinSize(minHeight = canonicalButtonSize(value("size").typedTokenString()))
+                .semantics {
+                    contentDescription = if (isLoading) {
+                        value("loadingLabel").asString()
+                    } else {
+                        value("accessibilityLabel").asString().ifBlank { label }
+                    }
+                    if (!enabled) disabled()
+                }
             when (normalizedButtonHierarchy(value("hierarchy").typedTokenString())) {
                 "secondary" -> OutlinedButton(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
 
                 "destructive" -> Button(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
@@ -1323,17 +1364,42 @@ private fun RenderCall(
 
                 "quiet" -> TextButton(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
 
                 else -> Button(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
+            }
+        }
+
+        "Pressable" -> {
+            val clickAction = action("onClick")
+            val longClickAction = action("onLongClick")
+            val enabled = !value("disabled").asBoolean() && (clickAction != null || longClickAction != null)
+            Box(
+                modifier = modifier
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = value("accessibilityLabel").asString()
+                        if (!enabled) disabled()
+                    }
+                    .combinedClickable(
+                        enabled = enabled,
+                        onClickLabel = value("accessibilityLabel").asString(),
+                        onLongClickLabel = value("accessibilityLabel").asString(),
+                        onClick = { if (clickAction != null) emit("onClick", null) },
+                        onLongClick = longClickAction?.let { { emit("onLongClick", null) } }
+                    )
+            ) {
+                children(Modifier.fillMaxWidth())
             }
         }
 
@@ -2605,6 +2671,12 @@ internal fun emphasisWeight(emphasis: String): FontWeight = when (emphasis) {
 internal fun normalizedSurfaceTreatment(treatment: String): String = treatment.takeIf { it in setOf("plain", "tonal", "outlined", "elevated") } ?: "plain"
 
 internal fun normalizedButtonHierarchy(hierarchy: String): String = hierarchy.takeIf { it in setOf("primary", "secondary", "quiet", "destructive") } ?: "primary"
+
+internal fun canonicalButtonSize(size: String): Dp = when (size) {
+    "large" -> 56.dp
+    "small", "medium" -> 48.dp
+    else -> 48.dp
+}
 
 @Composable
 private fun textTone(tone: String): Color = generatedTonePalette(tone).content

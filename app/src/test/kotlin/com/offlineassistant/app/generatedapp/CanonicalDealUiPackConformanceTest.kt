@@ -103,7 +103,7 @@ class CanonicalDealUiPackConformanceTest {
             "app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiPack.kt"
         ).readText()
         assertEquals(
-            listOf("deal-studio-v14.dealui-pack", "deal-studio-v15.dealui-pack"),
+            listOf("deal-studio-v14.dealui-pack", "deal-studio-v15.dealui-pack", "deal-studio-v16.dealui-pack"),
             File(root, "tooling/deal-ui-pack").listFiles().orEmpty()
                 .filter { it.extension == "dealui-pack" }
                 .map { it.name }
@@ -111,9 +111,14 @@ class CanonicalDealUiPackConformanceTest {
         )
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV15"))
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV14"))
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV16"))
         assertEquals(
             File(root, "tooling/deal-ui-pack/deal-studio-v14.dealui-pack").readText(),
             CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v14")
+        )
+        assertEquals(
+            File(root, "tooling/deal-ui-pack/deal-studio-v16.dealui-pack").readText(),
+            CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v16")
         )
         assertEquals(CanonicalDealUiPack.source, CanonicalDealUiPack.sourceFor(CanonicalDealUiPack.VERSION))
         assertEquals(CanonicalDealUiPack.SHA256, CanonicalDealUiPack.digestFor(CanonicalDealUiPack.VERSION))
@@ -122,13 +127,18 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `pack and renderer expose exactly the same component names`() {
-        val declared = Regex("export component ([A-Za-z_][A-Za-z0-9_]*)")
+    fun `renderer covers active pack and exactly matches newest candidate`() {
+        val active = Regex("export component ([A-Za-z_][A-Za-z0-9_]*)")
             .findAll(CanonicalDealUiPack.source)
             .map { it.groupValues[1] }
             .toSet()
+        val candidate = Regex("export component ([A-Za-z_][A-Za-z0-9_]*)")
+            .findAll(requireNotNull(CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v16")))
+            .map { it.groupValues[1] }
+            .toSet()
 
-        assertEquals(declared, canonicalRendererComponents)
+        assertTrue(canonicalRendererComponents.containsAll(active))
+        assertEquals(candidate, canonicalRendererComponents)
     }
 
     @Test

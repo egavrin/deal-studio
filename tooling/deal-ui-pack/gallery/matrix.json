@@ -6,6 +6,24 @@
       "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
       "viewport": "device",
       "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Button.disabled",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.Button.loading",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.Pressable.default",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
     }
   ]
 }

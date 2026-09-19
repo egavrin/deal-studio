@@ -5,8 +5,33 @@
       "id": "shadcn.Button.default",
       "origin": "shadcn",
       "component": "Button",
+      "packVersion": "deal-studio-dealui-pack-v15",
       "deal": "ui-catalog/shadcn.Button.default/app.deal",
       "dealUi": "ui-catalog/shadcn.Button.default/app.dealui"
+    },
+    {
+      "id": "shadcn.Button.disabled",
+      "origin": "shadcn",
+      "component": "Button",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Button.disabled/app.deal",
+      "dealUi": "ui-catalog/shadcn.Button.disabled/app.dealui"
+    },
+    {
+      "id": "react-native.Button.loading",
+      "origin": "react-native",
+      "component": "Button",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Button.loading/app.deal",
+      "dealUi": "ui-catalog/react-native.Button.loading/app.dealui"
+    },
+    {
+      "id": "react-native.Pressable.default",
+      "origin": "react-native",
+      "component": "Pressable",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Pressable.default/app.deal",
+      "dealUi": "ui-catalog/react-native.Pressable.default/app.dealui"
     }
   ]
 }

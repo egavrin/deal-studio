@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "deal-studio-pack-release-gates-v1",
+  "packVersion": "deal-studio-dealui-pack-v16",
+  "promotionStatus": "PENDING",
+  "gates": {
+    "contractCompile": "PENDING",
+    "rendererParity": "PENDING",
+    "interactiveDevice": "PENDING",
+    "visualEvidence": "PENDING",
+    "accessibilityReview": "PENDING",
+    "legacyRestore": "PENDING"
+  }
+}

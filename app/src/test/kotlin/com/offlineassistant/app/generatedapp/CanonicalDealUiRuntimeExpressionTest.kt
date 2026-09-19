@@ -1,5 +1,6 @@
 package com.offlineassistant.app.generatedapp
 
+import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -86,5 +87,13 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertThrows(IllegalArgumentException::class.java) {
             canonicalForEachKey(JsonObject(mapOf("id" to JsonPrimitive(1))))
         }
+    }
+
+    @Test
+    fun `button sizes preserve minimum accessible touch targets`() {
+        assertEquals(48.dp, canonicalButtonSize("small"))
+        assertEquals(48.dp, canonicalButtonSize("medium"))
+        assertEquals(56.dp, canonicalButtonSize("large"))
+        assertEquals(48.dp, canonicalButtonSize("unknown"))
     }
 }

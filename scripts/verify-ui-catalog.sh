@@ -51,9 +51,16 @@ python3 - "$MATRIX" "$OUTPUT/evidence.json" "$SERIAL" "$SIZE" "$DENSITY" "$PACK_
 import hashlib, json, pathlib, sys
 matrix_path, output_path, serial, size, density, pack_version, pack_sha = sys.argv[1:]
 matrix = json.load(open(matrix_path, encoding="utf-8"))
+fixtures = json.load(open("app/src/debug/assets/ui-catalog/manifest.json", encoding="utf-8"))
+fixture_by_id = {case["id"]: case for case in fixtures["cases"]}
 output = pathlib.Path(output_path)
 records = []
 for case in matrix["cases"]:
+    fixture = fixture_by_id[case["id"]]
+    fixture_pack_version = fixture["packVersion"]
+    fixture_pack_number = fixture_pack_version.rsplit("v", 1)[1]
+    fixture_pack = pathlib.Path(f"tooling/deal-ui-pack/deal-studio-v{fixture_pack_number}.dealui-pack")
+    fixture_pack_sha = hashlib.sha256(fixture_pack.read_bytes()).hexdigest()
     for style in case["styles"]:
         screenshot = output.parent / f"{case['id']}-{style}.png"
         if not screenshot.is_file() or screenshot.stat().st_size == 0:
@@ -61,6 +68,8 @@ for case in matrix["cases"]:
         records.append({
             "caseId": case["id"],
             "style": style,
+            "componentPackVersion": fixture_pack_version,
+            "componentPackSha256": fixture_pack_sha,
             "compileAndRender": "PASS",
             "visualReview": "PENDING",
             "screenshot": screenshot.name,
@@ -71,8 +80,8 @@ report = {
     "deviceSerial": serial,
     "physicalSize": size,
     "density": density,
-    "componentPackVersion": pack_version,
-    "componentPackSha256": pack_sha,
+    "activeComponentPackVersion": pack_version,
+    "activeComponentPackSha256": pack_sha,
     "records": records,
 }
 output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

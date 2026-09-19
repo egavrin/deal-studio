@@ -1,0 +1,13 @@
+export class AppState { presses: int = 0; longPresses: int = 0; }
+export class PressSurface {}
+export class LongPressSurface {}
+export function initialState(): AppState { return { presses: 0, longPresses: 0 }; }
+// @ui-update
+export function pressSurface(state: AppState, action: PressSurface): AppState {
+  return { presses: state.presses + 1, longPresses: state.longPresses };
+}
+// @ui-update
+export function longPressSurface(state: AppState, action: LongPressSurface): AppState {
+  return { presses: state.presses, longPresses: state.longPresses + 1 };
+}
+export function main(): null { return null; }
