@@ -17,6 +17,7 @@ export class SectionRole { value: string = "content"; }
 export class CardRole { value: string = "content"; }
 export class ButtonHierarchy { value: string = "primary"; }
 export class ButtonSize { value: string = "medium"; }
+export class SpinnerSize { value: string = "medium"; }
 export class SurfaceTreatment { value: string = "plain"; }
 export class ContentWidth { value: string = "standard"; }
 export class SectionSpacing { value: string = "regular"; }
@@ -53,6 +54,7 @@ export class IconProps { name: string = "info"; description: string = ""; tone: 
 export class IconButtonProps { icon: string = "info"; onClick?: Action; accessibilityLabel: string = ""; hierarchy?: ButtonHierarchy; size?: ButtonSize; disabled: boolean = false; loading: boolean = false; loadingLabel: string = "Loading"; }
 export class ButtonProps { text: string = ""; icon: string = ""; onClick?: Action; accessibilityLabel?: string; hierarchy?: ButtonHierarchy; size?: ButtonSize; disabled: boolean = false; loading: boolean = false; loadingLabel: string = "Loading"; }
 export class PressableProps { onClick?: Action; onLongClick?: Action; accessibilityLabel: string = ""; disabled: boolean = false; }
+export class SpinnerProps { size?: SpinnerSize; label: string = ""; tone?: SemanticTone; }
 export class TileProps { glyph: string; supporting: string = ""; icon: string = ""; tone: string; selected: boolean = false; highlighted: boolean = false; onClick?: Action; accessibilityLabel: string; }
 export class ProgressProps { value: int = 0; maximum: int = 100; label: string = ""; }
 export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; }
@@ -142,6 +144,7 @@ export component Icon(props: IconProps): View { accessibility description; capab
 export component IconButton(props: IconButtonProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.icon-button"; }
 export component Button(props: ButtonProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.button"; }
 export component Pressable(props: PressableProps): View { children optional; event onClick; event onLongClick; accessibility accessibilityLabel; capability "renderer.android.pressable"; }
+export component Spinner(props: SpinnerProps): View { capability "renderer.android.spinner"; }
 export component Tile(props: TileProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.tile"; }
 export component ProgressBar(props: ProgressProps): View { capability "renderer.android.progress-bar"; }
 export component ProgressRing(props: ProgressProps): View { capability "renderer.android.progress-ring"; }
@@ -260,6 +263,9 @@ export token buttonDestructive: ButtonHierarchy = { value: "destructive" };
 export token buttonSmall: ButtonSize = { value: "small" };
 export token buttonMedium: ButtonSize = { value: "medium" };
 export token buttonLarge: ButtonSize = { value: "large" };
+export token spinnerSmall: SpinnerSize = { value: "small" };
+export token spinnerMedium: SpinnerSize = { value: "medium" };
+export token spinnerLarge: SpinnerSize = { value: "large" };
 export token treatmentPlain: SurfaceTreatment = { value: "plain" };
 export token treatmentTonal: SurfaceTreatment = { value: "tonal" };
 export token treatmentOutlined: SurfaceTreatment = { value: "outlined" };

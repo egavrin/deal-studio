@@ -96,4 +96,12 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(56.dp, canonicalButtonSize("large"))
         assertEquals(48.dp, canonicalButtonSize("unknown"))
     }
+
+    @Test
+    fun `spinner sizes preserve normalized source variants`() {
+        assertEquals(20.dp, canonicalSpinnerSize("small"))
+        assertEquals(28.dp, canonicalSpinnerSize("medium"))
+        assertEquals(40.dp, canonicalSpinnerSize("large"))
+        assertEquals(28.dp, canonicalSpinnerSize("unknown"))
+    }
 }

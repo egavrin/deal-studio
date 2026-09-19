@@ -156,6 +156,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -611,7 +612,7 @@ internal val canonicalRendererComponents = setOf(
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
     "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "MetricGroup", "PointerSurface", "Pressable", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "MetricGroup", "PointerSurface", "Pressable", "Spinner", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
@@ -1400,6 +1401,34 @@ private fun RenderCall(
                     )
             ) {
                 children(Modifier.fillMaxWidth())
+            }
+        }
+
+        "Spinner" -> {
+            val label = value("label").asString().ifBlank { "Loading" }
+            val size = canonicalSpinnerSize(value("size").typedTokenString())
+            val color = textTone(value("tone").typedTokenString())
+            Row(
+                modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (visuals.motionEnabled) {
+                    CircularProgressIndicator(modifier = Modifier.size(size), color = color, strokeWidth = 3.dp)
+                } else {
+                    Canvas(Modifier.size(size)) {
+                        drawArc(
+                            color = color,
+                            startAngle = 35f,
+                            sweepAngle = 270f,
+                            useCenter = false,
+                            style = Stroke(width = 3.dp.toPx())
+                        )
+                    }
+                }
+                value("label").asString().takeIf(String::isNotBlank)?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
 
@@ -2676,6 +2705,12 @@ internal fun canonicalButtonSize(size: String): Dp = when (size) {
     "large" -> 56.dp
     "small", "medium" -> 48.dp
     else -> 48.dp
+}
+
+internal fun canonicalSpinnerSize(size: String): Dp = when (size) {
+    "small" -> 20.dp
+    "large" -> 40.dp
+    else -> 28.dp
 }
 
 @Composable

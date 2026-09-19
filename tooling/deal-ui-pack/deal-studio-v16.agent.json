@@ -58,6 +58,9 @@
     "buttonSmall",
     "buttonMedium",
     "buttonLarge",
+    "spinnerSmall",
+    "spinnerMedium",
+    "spinnerLarge",
     "treatmentPlain",
     "treatmentTonal",
     "treatmentOutlined",
@@ -355,6 +358,14 @@
       "visualWeight": "medium",
       "commonSiblings": [],
       "constraints": ["Always provide accessibilityLabel", "Disabled surfaces dispatch no events"]
+    },
+    "Spinner": {
+      "purpose": "Show indeterminate loading without implying completion progress. Source color is adapted to a semantic tone.",
+      "preferWhen": ["Completion percentage is unknown"],
+      "avoidWhen": ["A determinate ProgressBar can report real progress"],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": ["Provide a meaningful label", "motionNone renders a static loading glyph"]
     },
     "Tile": {
       "purpose": "Use Tile only for its declared typed contract.",
@@ -817,6 +828,9 @@
     "ButtonSize": {
       "purpose": "Typed ButtonSize contract used by the component pack."
     },
+    "SpinnerSize": {
+      "purpose": "Typed SpinnerSize contract used by the component pack."
+    },
     "SurfaceTreatment": {
       "purpose": "Typed SurfaceTreatment contract used by the component pack."
     },
@@ -891,6 +905,9 @@
     },
     "PressableProps": {
       "purpose": "Typed PressableProps contract used by the component pack."
+    },
+    "SpinnerProps": {
+      "purpose": "Typed SpinnerProps contract used by the component pack."
     },
     "TileProps": {
       "purpose": "Typed TileProps contract used by the component pack."
@@ -1259,6 +1276,15 @@
     },
     "buttonLarge": {
       "purpose": "Typed buttonLarge token exported by the component pack."
+    },
+    "spinnerSmall": {
+      "purpose": "Typed spinnerSmall token exported by the component pack."
+    },
+    "spinnerMedium": {
+      "purpose": "Typed spinnerMedium token exported by the component pack."
+    },
+    "spinnerLarge": {
+      "purpose": "Typed spinnerLarge token exported by the component pack."
     },
     "treatmentPlain": {
       "purpose": "Typed treatmentPlain token exported by the component pack."
@@ -1846,6 +1872,15 @@
     },
     "Pressable.disabled": {
       "purpose": "Disables both press events for Pressable."
+    },
+    "Spinner.size": {
+      "purpose": "Checked small, medium, or large spinner size. Adapts shadcn sm/md/lg and React Native small/large."
+    },
+    "Spinner.label": {
+      "purpose": "Visible and accessible loading description."
+    },
+    "Spinner.tone": {
+      "purpose": "Semantic color adaptation for the React Native source color property."
     },
     "Tile.glyph": {
       "purpose": "Checked glyph property for Tile."
