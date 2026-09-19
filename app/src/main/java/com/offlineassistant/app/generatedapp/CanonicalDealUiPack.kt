@@ -1,6 +1,7 @@
 package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
+    private const val V14_VERSION = "deal-studio-dealui-pack-v14"
     const val VERSION = "deal-studio-dealui-pack-v15"
     const val SHA256 = GeneratedCanonicalDealUiPackV15.SHA256
     const val MANIFEST_SHA256 = GeneratedCanonicalDealUiPackV15.MANIFEST_SHA256
@@ -15,11 +16,13 @@ internal object CanonicalDealUiPack {
      * recompiling against the active pack with different props or event semantics.
      */
     fun sourceFor(version: String): String? = when (version) {
+        V14_VERSION -> GeneratedCanonicalDealUiPackV14.SOURCE
         VERSION -> GeneratedCanonicalDealUiPackV15.SOURCE
         else -> null
     }
 
     fun digestFor(version: String): String? = when (version) {
+        V14_VERSION -> GeneratedCanonicalDealUiPackV14.SHA256
         VERSION -> GeneratedCanonicalDealUiPackV15.SHA256
         else -> null
     }

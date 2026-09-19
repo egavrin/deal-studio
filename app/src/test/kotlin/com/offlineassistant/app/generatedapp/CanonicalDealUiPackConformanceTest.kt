@@ -110,7 +110,11 @@ class CanonicalDealUiPackConformanceTest {
                 .sorted()
         )
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV15"))
-        assertFalse(productionPack.contains("GeneratedCanonicalDealUiPackV14"))
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV14"))
+        assertEquals(
+            File(root, "tooling/deal-ui-pack/deal-studio-v14.dealui-pack").readText(),
+            CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v14")
+        )
         assertEquals(CanonicalDealUiPack.source, CanonicalDealUiPack.sourceFor(CanonicalDealUiPack.VERSION))
         assertEquals(CanonicalDealUiPack.SHA256, CanonicalDealUiPack.digestFor(CanonicalDealUiPack.VERSION))
         assertEquals(null, CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v999"))

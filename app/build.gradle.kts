@@ -58,8 +58,8 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
     @get:org.gradle.api.tasks.InputFile
     abstract val toolchainLockFile: org.gradle.api.file.RegularFileProperty
 
-    @get:org.gradle.api.tasks.InputFile
-    abstract val releaseGateFile: org.gradle.api.file.RegularFileProperty
+    @get:org.gradle.api.tasks.InputFiles
+    abstract val releaseGateFiles: org.gradle.api.file.ConfigurableFileCollection
 
     @get:org.gradle.api.tasks.OutputDirectory
     abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
@@ -253,13 +253,20 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 require(separator > 0) { "Invalid toolchain lock entry: $line" }
                 line.substring(0, separator) to line.substring(separator + 1)
             }
-        val currentPackVersion = "deal-studio-dealui-pack-v15"
-        require(toolchainProperties["COMPONENT_PACK_VERSION"] == currentPackVersion) {
-            "toolchain.lock component pack must be $currentPackVersion"
+        val currentPackVersion = requireNotNull(toolchainProperties["COMPONENT_PACK_VERSION"]) {
+            "toolchain.lock must declare COMPONENT_PACK_VERSION"
         }
-        val releaseLedger = JsonSlurper().parse(releaseGateFile.get().asFile) as Map<*, *>
+        val currentPackNumber = requireNotNull(Regex("^deal-studio-dealui-pack-v(\\d+)$").matchEntire(currentPackVersion)) {
+            "Invalid component pack version in toolchain.lock: $currentPackVersion"
+        }.groupValues[1]
+        val releaseGateFile = requireNotNull(
+            releaseGateFiles.files.singleOrNull { it.parentFile.name == "v$currentPackNumber" }
+        ) {
+            "Exactly one release gate is required for active pack $currentPackVersion"
+        }
+        val releaseLedger = JsonSlurper().parse(releaseGateFile) as Map<*, *>
         require(releaseLedger["schemaVersion"] == "deal-studio-pack-release-gates-v1") {
-            "Invalid Pack v15 release-gate schema"
+            "Invalid $currentPackVersion release-gate schema"
         }
         require(releaseLedger["packVersion"] == currentPackVersion) { "Release-gate packVersion mismatch" }
         val promotionStatus = releaseLedger["promotionStatus"]?.toString()
@@ -269,7 +276,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         }
         require(promotionStatus in setOf("PASS", "FAIL", "PENDING")) { "Invalid promotionStatus" }
         require(promotionStatus != "PASS" || gateStatuses.all { it == "PASS" }) {
-            "Pack v15 cannot be promoted while any required gate is not PASS"
+            "$currentPackVersion cannot be promoted while any required gate is not PASS"
         }
         packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
             val packSource = sourceFile.readText()
@@ -279,7 +286,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(sourceFile.readBytes())
                 .joinToString("") { byte -> "%02x".format(byte) }
-            if (version == "15") {
+            if (version == currentPackNumber) {
                 require(toolchainProperties["COMPONENT_PACK_SHA256"] == digest) {
                     "toolchain.lock component pack digest is stale: expected $digest"
                 }
@@ -313,8 +320,10 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 }.joinToString(" ")
             }?.toMap().orEmpty()
             val globalRules = (manifest?.get("globalRules") as? List<*>)?.map { it.toString() }.orEmpty()
-            if (version == "15") {
-                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") { "Invalid v15 agent manifest version" }
+            if (version == currentPackNumber) {
+                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") {
+                    "Invalid active agent manifest version"
+                }
                 require(manifest["packVersion"] == currentPackVersion) { "Agent manifest packVersion mismatch" }
                 require(semanticHints.keys == contractMetadata.componentContracts.keys) {
                     "Agent manifest component coverage differs from pack: missing=${contractMetadata.componentContracts.keys - semanticHints.keys}, extra=${semanticHints.keys - contractMetadata.componentContracts.keys}"
@@ -360,7 +369,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 }
             }
             val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys
-            if (version == "15") {
+            if (version == currentPackNumber) {
                 require(missingCoreComponents.isEmpty()) {
                     "Mobile core components missing from ${sourceFile.name}: ${missingCoreComponents.joinToString()}"
                 }
@@ -457,12 +466,10 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 }
 
 val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
-    packFiles.from(
-        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v15.dealui-pack")
-    )
-    manifestFiles.from(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v15.agent.json"))
+    packFiles.from(rootProject.fileTree("tooling/deal-ui-pack") { include("deal-studio-v*.dealui-pack") })
+    manifestFiles.from(rootProject.fileTree("tooling/deal-ui-pack") { include("deal-studio-v*.agent.json") })
     toolchainLockFile.set(rootProject.layout.projectDirectory.file("tooling/deal-android-bridge/toolchain.lock"))
-    releaseGateFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/benchmarks/v15/gate-status.json"))
+    releaseGateFiles.from(rootProject.fileTree("tooling/deal-ui-pack/benchmarks") { include("v*/gate-status.json") })
     outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
 }
 
