@@ -104,4 +104,12 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(40.dp, canonicalSpinnerSize("large"))
         assertEquals(28.dp, canonicalSpinnerSize("unknown"))
     }
+
+    @Test
+    fun `skeleton dimensions are positive bounded native dp`() {
+        assertEquals(160, canonicalSkeletonDimension(0, 160))
+        assertEquals(160, canonicalSkeletonDimension(-1, 160))
+        assertEquals(320, canonicalSkeletonDimension(320, 160))
+        assertEquals(840, canonicalSkeletonDimension(1200, 160))
+    }
 }

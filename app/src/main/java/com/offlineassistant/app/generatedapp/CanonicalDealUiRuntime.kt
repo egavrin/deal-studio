@@ -8,6 +8,11 @@ package com.offlineassistant.app.generatedapp
 
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -165,6 +170,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
@@ -612,7 +618,7 @@ internal val canonicalRendererComponents = setOf(
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
     "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "MetricGroup", "PointerSurface", "Pressable", "Spinner", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
@@ -1430,6 +1436,37 @@ private fun RenderCall(
                     Text(it, style = MaterialTheme.typography.labelMedium)
                 }
             }
+        }
+
+        "Skeleton" -> {
+            val width = canonicalSkeletonDimension(value("widthDp").asInt(), 160).dp
+            val height = canonicalSkeletonDimension(value("heightDp").asInt(), 20).dp
+            val label = value("accessibilityLabel").asString()
+            val pulse = if (visuals.motionEnabled) {
+                rememberInfiniteTransition(label = "skeleton-pulse").animateFloat(
+                    initialValue = 0.45f,
+                    targetValue = 0.75f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(visuals.motionDurationMillis.coerceAtLeast(1)),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "skeleton-alpha"
+                ).value
+            } else {
+                0.6f
+            }
+            val semantics = if (label.isBlank()) {
+                Modifier.clearAndSetSemantics { }
+            } else {
+                Modifier.semantics { contentDescription = label }
+            }
+            Box(
+                Modifier.size(width, height)
+                    .then(modifier)
+                    .then(semantics)
+                    .clip(if (value("rounded").asBoolean()) MaterialTheme.shapes.small else RoundedCornerShape(0.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = pulse))
+            )
         }
 
         "Tile" -> {
@@ -2712,6 +2749,9 @@ internal fun canonicalSpinnerSize(size: String): Dp = when (size) {
     "large" -> 40.dp
     else -> 28.dp
 }
+
+internal fun canonicalSkeletonDimension(value: Int, defaultValue: Int): Int = value.takeIf { it > 0 }
+    ?.coerceAtMost(840) ?: defaultValue
 
 @Composable
 private fun textTone(tone: String): Color = generatedTonePalette(tone).content

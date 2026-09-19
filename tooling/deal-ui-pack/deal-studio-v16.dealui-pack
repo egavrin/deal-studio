@@ -55,6 +55,7 @@ export class IconButtonProps { icon: string = "info"; onClick?: Action; accessib
 export class ButtonProps { text: string = ""; icon: string = ""; onClick?: Action; accessibilityLabel?: string; hierarchy?: ButtonHierarchy; size?: ButtonSize; disabled: boolean = false; loading: boolean = false; loadingLabel: string = "Loading"; }
 export class PressableProps { onClick?: Action; onLongClick?: Action; accessibilityLabel: string = ""; disabled: boolean = false; }
 export class SpinnerProps { size?: SpinnerSize; label: string = ""; tone?: SemanticTone; }
+export class SkeletonProps { widthDp: int = 160; heightDp: int = 20; rounded: boolean = true; accessibilityLabel: string = ""; }
 export class TileProps { glyph: string; supporting: string = ""; icon: string = ""; tone: string; selected: boolean = false; highlighted: boolean = false; onClick?: Action; accessibilityLabel: string; }
 export class ProgressProps { value: int = 0; maximum: int = 100; label: string = ""; }
 export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; }
@@ -145,6 +146,7 @@ export component IconButton(props: IconButtonProps): View { event onClick; acces
 export component Button(props: ButtonProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.button"; }
 export component Pressable(props: PressableProps): View { children optional; event onClick; event onLongClick; accessibility accessibilityLabel; capability "renderer.android.pressable"; }
 export component Spinner(props: SpinnerProps): View { capability "renderer.android.spinner"; }
+export component Skeleton(props: SkeletonProps): View { accessibility accessibilityLabel; capability "renderer.android.skeleton"; }
 export component Tile(props: TileProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.tile"; }
 export component ProgressBar(props: ProgressProps): View { capability "renderer.android.progress-bar"; }
 export component ProgressRing(props: ProgressProps): View { capability "renderer.android.progress-ring"; }

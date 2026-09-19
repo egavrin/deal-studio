@@ -65,6 +65,14 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Spinner.semantic-color/app.deal",
       "dealUi": "ui-catalog/react-native.Spinner.semantic-color/app.dealui"
+    },
+    {
+      "id": "shadcn.Skeleton.shapes",
+      "origin": "shadcn",
+      "component": "Skeleton",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Skeleton.shapes/app.deal",
+      "dealUi": "ui-catalog/shadcn.Skeleton.shapes/app.dealui"
     }
   ]
 }

@@ -1,0 +1,13 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__, motion: ui.motionNone) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Loading placeholders", supporting: "Bounded native dimensions with deterministic reduced motion")
+      ui.Skeleton(widthDp: 280, heightDp: 28, rounded: true, accessibilityLabel: "Loading title")
+      ui.Skeleton(widthDp: 220, heightDp: 18, rounded: true)
+      ui.Skeleton(widthDp: 320, heightDp: 120, rounded: false, accessibilityLabel: "Loading media")
+    }
+  }
+}

@@ -367,6 +367,14 @@
       "commonSiblings": [],
       "constraints": ["Provide a meaningful label", "motionNone renders a static loading glyph"]
     },
+    "Skeleton": {
+      "purpose": "Reserve stable layout space while content loads. Source CSS dimensions must be adapted to bounded integer dp before lowering.",
+      "preferWhen": ["The final content shape is known but data is loading"],
+      "avoidWhen": ["A Spinner better represents an operation without a known content shape"],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": ["Never interpret arbitrary CSS at runtime", "Use accessibilityLabel only when the placeholder itself is the loading status", "motionNone disables pulsing"]
+    },
     "Tile": {
       "purpose": "Use Tile only for its declared typed contract.",
       "preferWhen": [],
@@ -908,6 +916,9 @@
     },
     "SpinnerProps": {
       "purpose": "Typed SpinnerProps contract used by the component pack."
+    },
+    "SkeletonProps": {
+      "purpose": "Typed SkeletonProps contract used by the component pack."
     },
     "TileProps": {
       "purpose": "Typed TileProps contract used by the component pack."
@@ -1881,6 +1892,18 @@
     },
     "Spinner.tone": {
       "purpose": "Semantic color adaptation for the React Native source color property."
+    },
+    "Skeleton.widthDp": {
+      "purpose": "Bounded native dp width adapted from a supported source dimension."
+    },
+    "Skeleton.heightDp": {
+      "purpose": "Bounded native dp height adapted from a supported source dimension."
+    },
+    "Skeleton.rounded": {
+      "purpose": "Uses the current theme shape when true and a geometric rectangle when false."
+    },
+    "Skeleton.accessibilityLabel": {
+      "purpose": "Optional loading-region label; an empty value keeps the placeholder decorative."
     },
     "Tile.glyph": {
       "purpose": "Checked glyph property for Tile."
