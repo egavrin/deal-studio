@@ -96,14 +96,12 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v15 is the only production pack source and v14 remains a baseline artifact`() {
+    fun `v15 is active and saved app pack lookup never falls back across versions`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val productionPack = File(
             root,
             "app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiPack.kt"
         ).readText()
-        assertFalse(productionPack.contains("sourceFor"))
-        assertFalse(productionPack.contains("digestFor"))
         assertEquals(
             listOf("deal-studio-v14.dealui-pack", "deal-studio-v15.dealui-pack"),
             File(root, "tooling/deal-ui-pack").listFiles().orEmpty()
@@ -113,6 +111,10 @@ class CanonicalDealUiPackConformanceTest {
         )
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV15"))
         assertFalse(productionPack.contains("GeneratedCanonicalDealUiPackV14"))
+        assertEquals(CanonicalDealUiPack.source, CanonicalDealUiPack.sourceFor(CanonicalDealUiPack.VERSION))
+        assertEquals(CanonicalDealUiPack.SHA256, CanonicalDealUiPack.digestFor(CanonicalDealUiPack.VERSION))
+        assertEquals(null, CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v999"))
+        assertEquals(null, CanonicalDealUiPack.digestFor("deal-studio-dealui-pack-v999"))
     }
 
     @Test

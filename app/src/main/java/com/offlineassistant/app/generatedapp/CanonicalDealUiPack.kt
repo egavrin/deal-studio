@@ -9,6 +9,21 @@ internal object CanonicalDealUiPack {
     val source: String = GeneratedCanonicalDealUiPackV15.SOURCE
     val agentManifestSource: String = GeneratedCanonicalDealUiPackV15.AGENT_MANIFEST_SOURCE
 
+    /**
+     * Saved applications are compiled against the exact pack they were accepted with.
+     * Keep this registry explicit: an unknown version must fail restore instead of silently
+     * recompiling against the active pack with different props or event semantics.
+     */
+    fun sourceFor(version: String): String? = when (version) {
+        VERSION -> GeneratedCanonicalDealUiPackV15.SOURCE
+        else -> null
+    }
+
+    fun digestFor(version: String): String? = when (version) {
+        VERSION -> GeneratedCanonicalDealUiPackV15.SHA256
+        else -> null
+    }
+
     /** Lossless model-facing signature catalog for the only supported production pack. */
     val generationContract: String = GeneratedCanonicalDealUiPackV15.GENERATION_CONTRACT
 
