@@ -47,6 +47,7 @@ export class AppThemeProps {
 export class EmptyProps {}
 export class DividerProps { direction: string = "horizontal"; tone?: SemanticTone; thickness: number = 1.0; margin: number = 0.0; }
 export class LayoutProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; }
+export class FlexProps { direction: string = "vertical"; gap?: Space; align: string = "start"; justify: string = "start"; }
 export class RootProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; contentWidth?: ContentWidth; }
 export class FrameProps { ratioWidth: int = 0; ratioHeight: int = 0; maxWidth: int = 0; maxHeight: int = 0; viewportHeightFraction: number = 0.0; }
 export class GridProps { columns: int = 1; minimumCellWidth: int = 0; cellAspectRatio: number = 0.0; spacing?: Space; padding?: Space; }
@@ -133,6 +134,7 @@ export component Root(props: RootProps): View { children optional; token spacing
 export component Column(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.column"; }
 export component Row(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.row"; }
 export component Stack(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.stack"; }
+export component Flex(props: FlexProps): View { children optional; token gap; capability "renderer.android.flex"; }
 export component Frame(props: FrameProps): View { children optional; capability "renderer.android.frame"; }
 export component Grid(props: GridProps): View { children optional; token spacing; capability "renderer.android.grid"; }
 export component Scroll(props: LayoutProps): View { children optional; token spacing; capability "renderer.android.scroll"; }
@@ -221,10 +223,12 @@ export component Menu(props: MenuProps): View { children required MenuItem; even
 export component MenuItem(props: MenuItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.menu-item"; }
 export component CapabilityNotice(props: CapabilityProps): View { event onRequest; accessibility accessibilityLabel; capability "renderer.android.capability-notice"; }
 
+export token spaceNone: Space = { value: 0 };
 export token spaceXs: Space = { value: 4 };
 export token spaceSm: Space = { value: 8 };
 export token spaceMd: Space = { value: 16 };
 export token spaceLg: Space = { value: 24 };
+export token spaceXl: Space = { value: 32 };
 export token textCaption: TextStyle = { value: "caption" };
 export token textBody: TextStyle = { value: "body" };
 export token textTitle: TextStyle = { value: "title" };

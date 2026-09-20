@@ -235,6 +235,27 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(invalidAvatarSize))
             }.message
         )
+        val invalidFlexDirection = callWithArguments("Flex", "\"direction\":${literal("diagonal")}")
+        assertEquals(
+            "Flex.direction has unsupported value 'diagonal'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidFlexDirection))
+            }.message
+        )
+        val invalidFlexAlignment = callWithArguments("Flex", "\"align\":${literal("baseline")}")
+        assertEquals(
+            "Flex.align has unsupported value 'baseline'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidFlexAlignment))
+            }.message
+        )
+        val invalidFlexJustification = callWithArguments("Flex", "\"justify\":${literal("evenly")}")
+        assertEquals(
+            "Flex.justify has unsupported value 'evenly'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidFlexJustification))
+            }.message
+        )
     }
 
     @Test

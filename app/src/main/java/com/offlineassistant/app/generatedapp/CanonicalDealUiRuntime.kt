@@ -27,11 +27,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -190,8 +192,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -509,6 +513,9 @@ private fun CanonicalDealUiProgram.validateStructure() {
         "Text.align" to setOf("start", "center", "end"),
         "Text.emphasis" to setOf("low", "medium", "high"),
         "Badge.variant" to setOf("default", "secondary", "destructive", "outline", "info", "success", "warning", "error"),
+        "Flex.direction" to setOf("horizontal", "vertical"),
+        "Flex.align" to setOf("start", "center", "end", "stretch"),
+        "Flex.justify" to setOf("start", "center", "end", "between", "around"),
         "Heading.level" to setOf("h1", "h2", "h3", "h4"),
         "Heading.align" to setOf("start", "center", "end"),
         "Avatar.size" to setOf("sm", "md", "lg", "xl"),
@@ -712,7 +719,7 @@ private fun CanonicalUiNode.validateWidgetNode() {
 }
 
 private val WIDGET_COMPONENTS = setOf(
-    "Column", "Row", "Stack", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "Heading", "IntText", "NumberText", "Icon",
+    "Column", "Row", "Stack", "Flex", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "Heading", "IntText", "NumberText", "Icon",
     "IconButton", "Button", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Badge", "Stat",
     "IntStat", "NumberStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
 )
@@ -720,7 +727,7 @@ private val WIDGET_COMPONENTS = setOf(
 internal val canonicalRendererComponents = setOf(
     "ActionBar", "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button", "Header", "SectionHeader",
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
-    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Heading", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
+    "Column", "Dialog", "Divider", "EmptyState", "Flex", "Frame", "FrameClock", "Grid", "Heading", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
     "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "RadioGroup", "RadioOption", "Select", "SelectOption", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
@@ -989,6 +996,32 @@ private fun RenderCall(
 
         "Stack" -> Box(modifier.fillMaxWidth().padding(padding)) {
             children(Modifier.fillMaxWidth())
+        }
+
+        "Flex" -> {
+            val direction = canonicalFlexDirection(value("direction").asString())
+            val alignment = canonicalFlexAlign(value("align").asString())
+            val justification = canonicalFlexJustify(value("justify").asString())
+            val gap = (value("gap").tokenInt().coerceAtLeast(0) * visuals.densityScale).dp
+            if (direction == "vertical") {
+                Column(
+                    modifier = modifier,
+                    verticalArrangement = flexVerticalArrangement(justification, gap),
+                    horizontalAlignment = flexVerticalAlignment(alignment)
+                ) {
+                    children(if (alignment == "stretch") Modifier.fillMaxWidth() else Modifier)
+                }
+            } else {
+                Row(
+                    modifier = modifier.then(
+                        if (alignment == "stretch") Modifier.height(IntrinsicSize.Min) else Modifier
+                    ),
+                    horizontalArrangement = flexHorizontalArrangement(justification, gap),
+                    verticalAlignment = flexHorizontalAlignment(alignment)
+                ) {
+                    children(if (alignment == "stretch") Modifier.fillMaxHeight() else Modifier)
+                }
+            }
         }
 
         "Frame" -> BoxWithConstraints(
@@ -3457,6 +3490,84 @@ private fun horizontalArrangement(value: String, spacing: androidx.compose.ui.un
     "spaceAround" -> Arrangement.SpaceAround
     "spaceEvenly" -> Arrangement.SpaceEvenly
     else -> Arrangement.spacedBy(spacing)
+}
+
+internal fun canonicalFlexDirection(value: String): String = when (value) {
+    "horizontal" -> "horizontal"
+    else -> "vertical"
+}
+
+internal fun canonicalFlexAlign(value: String): String = when (value) {
+    "center", "end", "stretch" -> value
+    else -> "start"
+}
+
+internal fun canonicalFlexJustify(value: String): String = when (value) {
+    "center", "end", "between", "around" -> value
+    else -> "start"
+}
+
+internal fun canonicalFlexPositions(
+    totalSize: Int,
+    sizes: IntArray,
+    gap: Int,
+    justify: String
+): IntArray {
+    if (sizes.isEmpty()) return IntArray(0)
+
+    val normalizedGap = gap.coerceAtLeast(0)
+    val contentSize = sizes.sum() + normalizedGap * (sizes.size - 1)
+    val remaining = (totalSize - contentSize).coerceAtLeast(0)
+    val normalizedJustify = canonicalFlexJustify(justify)
+    val leading = when (normalizedJustify) {
+        "center" -> remaining / 2
+        "end" -> remaining
+        "around" -> remaining / sizes.size / 2
+        else -> 0
+    }
+    val additionalGap = when (normalizedJustify) {
+        "between" -> if (sizes.size > 1) remaining / (sizes.size - 1) else 0
+        "around" -> remaining / sizes.size
+        else -> 0
+    }
+    var current = leading
+    return IntArray(sizes.size) { index ->
+        val position = current
+        current += sizes[index]
+        if (index < sizes.lastIndex) current += normalizedGap + additionalGap
+        position
+    }
+}
+
+private fun flexVerticalArrangement(justify: String, gap: Dp): Arrangement.Vertical = object : Arrangement.Vertical {
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
+        canonicalFlexPositions(totalSize, sizes, gap.roundToPx(), justify).copyInto(outPositions)
+    }
+}
+
+private fun flexHorizontalArrangement(justify: String, gap: Dp): Arrangement.Horizontal = object : Arrangement.Horizontal {
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, layoutDirection: LayoutDirection, outPositions: IntArray) {
+        val ltrPositions = canonicalFlexPositions(totalSize, sizes, gap.roundToPx(), justify)
+        if (layoutDirection == LayoutDirection.Ltr) {
+            ltrPositions.copyInto(outPositions)
+        } else {
+            ltrPositions.indices.forEach { index ->
+                outPositions[index] = totalSize - ltrPositions[index] - sizes[index]
+            }
+        }
+    }
+}
+
+private fun flexVerticalAlignment(value: String): Alignment.Horizontal = when (value) {
+    "center" -> Alignment.CenterHorizontally
+    "end" -> Alignment.End
+    else -> Alignment.Start
+}
+
+private fun flexHorizontalAlignment(value: String): Alignment.Vertical = when (value) {
+    "start" -> Alignment.Top
+    "end" -> Alignment.Bottom
+    else -> Alignment.CenterVertically
 }
 
 @Composable

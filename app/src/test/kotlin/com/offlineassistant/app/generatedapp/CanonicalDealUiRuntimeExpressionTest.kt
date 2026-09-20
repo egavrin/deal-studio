@@ -155,6 +155,24 @@ class CanonicalDealUiRuntimeExpressionTest {
     }
 
     @Test
+    fun `flex layout preserves source direction alignment justification and gaps`() {
+        assertEquals("vertical", canonicalFlexDirection(""))
+        assertEquals("horizontal", canonicalFlexDirection("horizontal"))
+        assertEquals("start", canonicalFlexAlign("unknown"))
+        assertEquals("stretch", canonicalFlexAlign("stretch"))
+        assertEquals("start", canonicalFlexJustify("unknown"))
+        assertEquals("around", canonicalFlexJustify("around"))
+
+        val sizes = intArrayOf(10, 10, 10)
+        assertEquals(listOf(0, 18, 36), canonicalFlexPositions(100, sizes, gap = 8, justify = "start").toList())
+        assertEquals(listOf(27, 45, 63), canonicalFlexPositions(100, sizes, gap = 8, justify = "center").toList())
+        assertEquals(listOf(54, 72, 90), canonicalFlexPositions(100, sizes, gap = 8, justify = "end").toList())
+        assertEquals(listOf(0, 45, 90), canonicalFlexPositions(100, sizes, gap = 8, justify = "between").toList())
+        assertEquals(listOf(9, 45, 81), canonicalFlexPositions(100, sizes, gap = 8, justify = "around").toList())
+        assertEquals(emptyList<Int>(), canonicalFlexPositions(100, intArrayOf(), gap = 8, justify = "around").toList())
+    }
+
+    @Test
     fun `divider dimensions preserve valid fractional values and bound invalid values`() {
         assertEquals(1f, canonicalDividerThickness(Double.NaN), 0f)
         assertEquals(1f, canonicalDividerThickness(0.0), 0f)

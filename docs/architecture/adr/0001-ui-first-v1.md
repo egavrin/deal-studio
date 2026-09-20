@@ -66,8 +66,11 @@ for an in-flight revision.
 - The complete Vercel-derived catalog is a release gate.  A component name in a
   pack is insufficient: its props, defaults, events, renderer behavior,
   accessibility and fixture evidence must be tracked in the coverage ledger.
-- Existing saved direct applications remain unchanged.  UI-first metadata is
-  provenance only, so restoring old records needs no source migration.
+- v16 and UI-first promotion make no restore or migration guarantee for legacy
+  v15 saved applications. While v15 remains the active rollout pack it can
+  still be selected explicitly, but legacy restore is not a v16 release gate.
+  UI-first metadata is provenance only and does not create a second saved
+  artifact format.
 
 ## Non-goals
 

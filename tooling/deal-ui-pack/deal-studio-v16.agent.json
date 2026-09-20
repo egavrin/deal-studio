@@ -156,6 +156,14 @@
       "commonSiblings": [],
       "constraints": []
     },
+    "Flex": {
+      "purpose": "Lay out generic content along a horizontal or vertical main axis using the source-adapted shadcn Stack flex contract.",
+      "preferWhen": ["Adapting the shadcn Stack component", "A layout needs one direction, a checked gap, cross-axis alignment, and main-axis justification"],
+      "avoidWhen": ["Content needs overlay semantics; use Stack", "The source requires arbitrary CSS className interpretation", "The layout needs adaptive grid column placement"],
+      "visualWeight": "medium",
+      "commonSiblings": ["Text", "Heading", "Badge", "Button", "Card"],
+      "constraints": ["direction is horizontal or vertical", "gap lowers shadcn none/sm/md/lg/xl to spaceNone/spaceSm/spaceMd/spaceLg/spaceXl", "align is start, center, end, or stretch on the cross axis", "justify is start, center, end, between, or around on the main axis", "Web-only className is deliberately unsupported; native presentation uses the app theme and typed local variants"]
+    },
     "Frame": {
       "purpose": "Use Frame only for its declared typed contract.",
       "preferWhen": [],
@@ -969,6 +977,9 @@
     "LayoutProps": {
       "purpose": "Typed LayoutProps contract used by the component pack."
     },
+    "FlexProps": {
+      "purpose": "Typed FlexProps contract for the source-adapted shadcn Stack flex container."
+    },
     "RootProps": {
       "purpose": "Typed RootProps contract used by the component pack."
     },
@@ -1208,6 +1219,9 @@
     }
   },
   "tokens": {
+    "spaceNone": {
+      "purpose": "Typed zero-gap space token for a source-adapted shadcn Stack."
+    },
     "spaceXs": {
       "purpose": "Typed spaceXs token exported by the component pack."
     },
@@ -1219,6 +1233,9 @@
     },
     "spaceLg": {
       "purpose": "Typed spaceLg token exported by the component pack."
+    },
+    "spaceXl": {
+      "purpose": "Typed extra-large gap token for a source-adapted shadcn Stack."
     },
     "textCaption": {
       "purpose": "Typed textCaption token exported by the component pack."
@@ -1659,6 +1676,18 @@
     },
     "Stack.wrap": {
       "purpose": "Checked wrap property for Stack."
+    },
+    "Flex.direction": {
+      "purpose": "Checked flex main-axis direction: horizontal or vertical."
+    },
+    "Flex.gap": {
+      "purpose": "Checked typed flex gap; source shadcn enum values lower to explicit Space tokens."
+    },
+    "Flex.align": {
+      "purpose": "Checked flex cross-axis alignment: start, center, end, or stretch."
+    },
+    "Flex.justify": {
+      "purpose": "Checked flex main-axis justification: start, center, end, between, or around."
     },
     "Frame.ratioWidth": {
       "purpose": "Checked ratioWidth property for Frame."

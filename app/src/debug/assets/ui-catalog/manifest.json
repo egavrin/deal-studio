@@ -322,6 +322,15 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Avatar.initials-tone/app.deal",
       "dealUi": "ui-catalog/react-native.Avatar.initials-tone/app.dealui"
+    },
+    {
+      "id": "shadcn.Stack.flex-layout",
+      "origin": "shadcn",
+      "component": "Stack",
+      "targetComponent": "Flex",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Stack.flex-layout/app.deal",
+      "dealUi": "ui-catalog/shadcn.Stack.flex-layout/app.dealui"
     }
   ]
 }

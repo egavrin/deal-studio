@@ -1,0 +1,22 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Flex(direction: "vertical", gap: ui.spaceLg, align: "stretch", justify: "start") {
+        ui.Heading(text: "Flexible layout", level: "h3")
+        ui.Flex(direction: "horizontal", gap: ui.spaceSm, align: "center", justify: "between") {
+          ui.Badge(label: "Start", variant: "secondary")
+          ui.Badge(label: "Center", variant: "default")
+          ui.Badge(label: "End", variant: "outline")
+        }
+        ui.Flex(direction: "horizontal", gap: ui.spaceXl, align: "end", justify: "around") {
+          ui.Text(value: "Around", style: ui.textCaption)
+          ui.Text(value: "with gap", style: ui.textLead)
+          ui.Text(value: "end aligned", style: ui.textCaption)
+        }
+      }
+    }
+  }
+}
