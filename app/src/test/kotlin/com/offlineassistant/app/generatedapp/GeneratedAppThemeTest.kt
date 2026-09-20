@@ -221,6 +221,13 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(invalidTextAlignment))
             }.message
         )
+        val invalidBadgeVariant = callWithArguments("Badge", "\"variant\":${literal("critical")}")
+        assertEquals(
+            "Badge.variant has unsupported value 'critical'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidBadgeVariant))
+            }.message
+        )
     }
 
     @Test

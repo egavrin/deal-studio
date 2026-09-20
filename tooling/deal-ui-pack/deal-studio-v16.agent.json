@@ -564,12 +564,12 @@
       "constraints": []
     },
     "Badge": {
-      "purpose": "Use Badge only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Show a compact, non-interactive status, count, or category label using a source-adapted semantic variant.",
+      "preferWhen": ["Adapting shadcn Badge", "Adapting React Native Badge", "A short status needs distinct visual treatment without becoming an action"],
+      "avoidWhen": ["The content needs an interactive press or remove affordance", "The text is a primary heading or paragraph", "The source requires arbitrary CSS or raw color rendering"],
       "visualWeight": "medium",
-      "commonSiblings": [],
-      "constraints": []
+      "commonSiblings": ["Text", "Heading", "Card", "ListItem"],
+      "constraints": ["shadcn text and React Native label lower to label", "variant is one declared source-adapted variant", "default and info use accent semantics; secondary uses muted; destructive and error use danger; success and warning use their matching semantic colors", "outline preserves an outlined surface without interpreting CSS"]
     },
     "Stat": {
       "purpose": "Use Stat only for its declared typed contract.",
@@ -1075,7 +1075,7 @@
       "purpose": "Typed SpacerProps contract used by the component pack."
     },
     "BadgeProps": {
-      "purpose": "Typed BadgeProps contract used by the component pack."
+      "purpose": "Typed BadgeProps contract for shadcn and React Native Badge adaptations."
     },
     "StatProps": {
       "purpose": "Typed StatProps contract used by the component pack."
@@ -2575,14 +2575,11 @@
     "Spacer.size": {
       "purpose": "Checked size property for Spacer."
     },
-    "Badge.text": {
-      "purpose": "Checked text property for Badge."
+    "Badge.label": {
+      "purpose": "Checked compact status, count, or category label; shadcn text lowers here."
     },
-    "Badge.tone": {
-      "purpose": "Checked tone property for Badge."
-    },
-    "Badge.icon": {
-      "purpose": "Checked icon property for Badge."
+    "Badge.variant": {
+      "purpose": "Checked source-adapted badge variant with explicit mobile semantic treatment."
     },
     "Stat.label": {
       "purpose": "Checked label property for Stat."

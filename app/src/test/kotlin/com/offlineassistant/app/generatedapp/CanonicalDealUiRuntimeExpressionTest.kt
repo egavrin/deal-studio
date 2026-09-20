@@ -128,6 +128,18 @@ class CanonicalDealUiRuntimeExpressionTest {
     }
 
     @Test
+    fun `badge variants lower to explicit semantic tones`() {
+        assertEquals("accent", canonicalBadgeTone("default"))
+        assertEquals("accent", canonicalBadgeTone("info"))
+        assertEquals("muted", canonicalBadgeTone("secondary"))
+        assertEquals("danger", canonicalBadgeTone("destructive"))
+        assertEquals("danger", canonicalBadgeTone("error"))
+        assertEquals("positive", canonicalBadgeTone("success"))
+        assertEquals("warning", canonicalBadgeTone("warning"))
+        assertEquals("default", canonicalBadgeTone("outline"))
+    }
+
+    @Test
     fun `divider dimensions preserve valid fractional values and bound invalid values`() {
         assertEquals(1f, canonicalDividerThickness(Double.NaN), 0f)
         assertEquals(1f, canonicalDividerThickness(0.0), 0f)

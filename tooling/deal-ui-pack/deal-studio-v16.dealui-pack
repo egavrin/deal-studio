@@ -82,7 +82,7 @@ export class RadioOptionProps { value: string = ""; label: string = ""; accessib
 export class SliderProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class NumberSliderProps { value: number = 0.0; minimum: number = 0.0; maximum: number = 100.0; step: number = 0.0; label: string = ""; tone?: SemanticTone; onChange?: Action; accessibilityLabel?: string; }
 export class SpacerProps { size?: Space; }
-export class BadgeProps { text: string = ""; tone: string = "neutral"; icon: string = ""; }
+export class BadgeProps { label: string = ""; variant: string = "default"; }
 export class StatProps { label: string = ""; value: string = ""; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
 export class IntStatProps { label: string = ""; value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
 export class NumberStatProps { label: string = ""; value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; supporting: string = ""; icon: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }

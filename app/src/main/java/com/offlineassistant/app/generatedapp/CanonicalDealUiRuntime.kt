@@ -508,6 +508,7 @@ private fun CanonicalDealUiProgram.validateStructure() {
         "Text.style" to setOf("caption", "body", "title", "headline", "metric", "display", "muted", "lead", "code", "label-xs", "label-sm", "label-md"),
         "Text.align" to setOf("start", "center", "end"),
         "Text.emphasis" to setOf("low", "medium", "high"),
+        "Badge.variant" to setOf("default", "secondary", "destructive", "outline", "info", "success", "warning", "error"),
         "Heading.level" to setOf("h1", "h2", "h3", "h4"),
         "Heading.align" to setOf("start", "center", "end"),
         "Divider.direction" to setOf("horizontal", "vertical"),
@@ -2259,20 +2260,22 @@ private fun RenderCall(
 
         "Spacer" -> Spacer(modifier.height(value("size").tokenInt().coerceAtLeast(8).dp))
 
-        "Badge" -> Surface(
-            shape = RoundedCornerShape(50),
-            color = toneColor(value("tone").typedTokenString()),
-            contentColor = textTone(value("tone").typedTokenString())
-        ) {
-            Row(
-                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+        "Badge" -> {
+            val variant = value("variant").asString().ifBlank { "default" }
+            val tone = canonicalBadgeTone(variant)
+            val palette = generatedTonePalette(tone)
+            val outlined = variant == "outline"
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = if (outlined) MaterialTheme.colorScheme.surface else palette.container,
+                contentColor = palette.content,
+                border = if (outlined) BorderStroke(1.dp, palette.border) else null
             ) {
-                value("icon").asString().takeIf(String::isNotBlank)?.let {
-                    Icon(icon(it), contentDescription = null, Modifier.size(14.dp))
-                }
-                Text(value("text").asString(), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    value("label").asString(),
+                    Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
         }
 
@@ -3548,6 +3551,15 @@ internal fun canonicalTextFontSize(value: Double): Float? = value
     .takeIf { it.isFinite() && it > 0.0 }
     ?.toFloat()
     ?.coerceIn(8f, 96f)
+
+internal fun canonicalBadgeTone(variant: String): String = when (variant) {
+    "default", "info" -> "accent"
+    "secondary" -> "muted"
+    "destructive", "error" -> "danger"
+    "success" -> "positive"
+    "warning" -> "warning"
+    else -> "default"
+}
 
 internal fun canonicalDividerThickness(value: Double): Float = value
     .takeIf { it.isFinite() && it > 0.0 }
