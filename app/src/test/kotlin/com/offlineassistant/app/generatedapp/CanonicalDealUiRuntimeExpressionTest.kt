@@ -221,6 +221,14 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(true, canonicalTextInputIsSecure("password", false))
         assertEquals(true, canonicalTextInputIsSecure("text", true))
         assertEquals(false, canonicalTextInputIsSecure("email", false))
+        assertEquals(
+            CanonicalValidationTrigger.CHANGE,
+            canonicalValidationTrigger(
+                value = null,
+                componentName = "Select",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+        )
         assertEquals(CanonicalTextInputFocusEvent.FOCUS, canonicalTextInputFocusEvent(false, true))
         assertEquals(CanonicalTextInputFocusEvent.BLUR, canonicalTextInputFocusEvent(true, false))
         assertEquals(null, canonicalTextInputFocusEvent(false, false))

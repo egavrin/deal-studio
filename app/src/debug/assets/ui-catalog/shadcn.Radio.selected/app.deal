@@ -1,0 +1,8 @@
+export class AppState { frequency: string = "weekly"; }
+export class ChangeFrequency { value: string; }
+export function initialState(): AppState { return { frequency: "weekly" }; }
+// @ui-update
+export function changeFrequency(state: AppState, action: ChangeFrequency): AppState {
+  return { frequency: action.value };
+}
+export function main(): null { return null; }

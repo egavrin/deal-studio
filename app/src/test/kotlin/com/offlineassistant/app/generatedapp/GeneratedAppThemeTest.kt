@@ -146,6 +146,20 @@ class GeneratedAppThemeTest {
             "TextField.keyboardType has unsupported value 'date'",
             assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongTextInputKeyboard)) }.message
         )
+        val wrongSelectChild = call("Select", call("Text"))
+        assertEquals(
+            "Select accepts only SelectOption children",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongSelectChild)) }.message
+        )
+        val duplicateSelectValues = call(
+            "Select",
+            callWithArguments("SelectOption", "\"value\":${literal("same")}", "select-option-one") + "," +
+                callWithArguments("SelectOption", "\"value\":${literal("same")}", "select-option-two")
+        )
+        assertEquals(
+            "Select requires unique static option values",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(duplicateSelectValues)) }.message
+        )
         val mixedGrid = call("Grid", call("GridItem", call("Text")) + "," + call("Text"))
         assertEquals(
             "Grid cannot mix direct children with GridItem children",
@@ -198,6 +212,14 @@ class GeneratedAppThemeTest {
             "TextField.validateOn must be change, blur, or submit",
             assertThrows(IllegalArgumentException::class.java) {
                 CanonicalDealUiParser.parse(structureIr(invalidTextFieldTrigger))
+            }.message
+        )
+
+        val invalidSelectTrigger = callWithArguments("Select", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "Select.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidSelectTrigger))
             }.message
         )
     }

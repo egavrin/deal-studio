@@ -163,6 +163,23 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.TextInput.multiline/app.deal",
       "dealUi": "ui-catalog/react-native.TextInput.multiline/app.dealui"
+    },
+    {
+      "id": "shadcn.Select.required-error",
+      "origin": "shadcn",
+      "component": "Select",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Select.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Select.required-error/app.dealui"
+    },
+    {
+      "id": "shadcn.Radio.selected",
+      "origin": "shadcn",
+      "component": "Radio",
+      "targetComponent": "RadioGroup",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Radio.selected/app.deal",
+      "dealUi": "ui-catalog/shadcn.Radio.selected/app.dealui"
     }
   ]
 }

@@ -491,6 +491,38 @@
       "commonSiblings": [],
       "constraints": []
     },
+    "Select": {
+      "purpose": "Choose one checked string from a compact dropdown with an explicit placeholder and validation lifecycle.",
+      "preferWhen": ["Adapting shadcn Select", "The option set is compact enough for a dropdown"],
+      "avoidWhen": ["Multiple values may be selected", "All choices need to remain visible; use RadioGroup"],
+      "visualWeight": "medium",
+      "commonSiblings": ["SelectOption"],
+      "constraints": ["shadcn options:string[] lowers to typed SelectOption children; ordinary lowering uses the same label and value", "Empty string adapts a nullable source value", "Validation checks lower explicitly to required/minLength/maxLength/email/pattern scalar properties", "onChange carries the selected string and dropdown disclosure is renderer-local state"]
+    },
+    "SelectOption": {
+      "purpose": "One stable Select choice identified by a checked string value.",
+      "preferWhen": ["A Select parent needs a visible option"],
+      "avoidWhen": ["Outside Select"],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": ["Requires a Select parent", "Static sibling values must be unique"]
+    },
+    "RadioGroup": {
+      "purpose": "Choose one checked string from always-visible radio options with source-compatible validation semantics.",
+      "preferWhen": ["Adapting shadcn Radio", "The choice set is small and each option benefits from direct visibility"],
+      "avoidWhen": ["Multiple values may be selected", "A compact dropdown is more appropriate; use Select"],
+      "visualWeight": "medium",
+      "commonSiblings": ["RadioOption"],
+      "constraints": ["shadcn options:string[] lowers to typed RadioOption children; ordinary lowering uses the same label and value", "Empty string adapts a nullable source value", "onChange carries the selected string and static sibling values must be unique"]
+    },
+    "RadioOption": {
+      "purpose": "One stable RadioGroup choice identified by a checked string value.",
+      "preferWhen": ["A RadioGroup parent needs a visible option"],
+      "avoidWhen": ["Outside RadioGroup"],
+      "visualWeight": "low",
+      "commonSiblings": [],
+      "constraints": ["Requires a RadioGroup parent", "Selection derives from the parent value rather than a second per-item state"]
+    },
     "Slider": {
       "purpose": "Use Slider only for its declared typed contract.",
       "preferWhen": [],
@@ -995,6 +1027,18 @@
     },
     "ChoiceItemProps": {
       "purpose": "Typed ChoiceItemProps contract used by the component pack."
+    },
+    "SelectProps": {
+      "purpose": "Typed SelectProps contract for shadcn Select adaptations."
+    },
+    "SelectOptionProps": {
+      "purpose": "Typed SelectOptionProps contract for stable dropdown choices."
+    },
+    "RadioGroupProps": {
+      "purpose": "Typed RadioGroupProps contract for shadcn Radio adaptations."
+    },
+    "RadioOptionProps": {
+      "purpose": "Typed RadioOptionProps contract for stable radio choices."
     },
     "SliderProps": {
       "purpose": "Typed SliderProps contract used by the component pack."
@@ -2274,6 +2318,129 @@
     },
     "ChoiceItem.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for ChoiceItem."
+    },
+    "Select.name": {
+      "purpose": "Stable field identity and final accessibility-label fallback for Select."
+    },
+    "Select.value": {
+      "purpose": "Checked selected string; blank adapts the nullable source Select value."
+    },
+    "Select.label": {
+      "purpose": "Visible Select field label and accessibility fallback."
+    },
+    "Select.placeholder": {
+      "purpose": "Text shown when the checked Select value is blank."
+    },
+    "Select.required": {
+      "purpose": "Requires a non-blank selected value when true."
+    },
+    "Select.requiredMessage": {
+      "purpose": "Message shown when the required Select rule fails."
+    },
+    "Select.minLength": {
+      "purpose": "Minimum selected-string Unicode code-point length; zero disables this rule."
+    },
+    "Select.minLengthMessage": {
+      "purpose": "Message shown when the Select minimum-length rule fails."
+    },
+    "Select.maxLength": {
+      "purpose": "Maximum selected-string Unicode code-point length; zero disables this rule."
+    },
+    "Select.maxLengthMessage": {
+      "purpose": "Message shown when the Select maximum-length rule fails."
+    },
+    "Select.email": {
+      "purpose": "Applies the supported email-address rule to the selected string when true."
+    },
+    "Select.emailMessage": {
+      "purpose": "Message shown when the Select email rule fails."
+    },
+    "Select.pattern": {
+      "purpose": "Full-string regular-expression rule for the selected value; blank disables this rule."
+    },
+    "Select.patternMessage": {
+      "purpose": "Message shown when the Select pattern rule fails."
+    },
+    "Select.validateOn": {
+      "purpose": "Validation lifecycle token; the source-compatible default is change."
+    },
+    "Select.validationVisible": {
+      "purpose": "DEAL-owned signal that forces Select validation visibility."
+    },
+    "Select.onChange": {
+      "purpose": "Dispatches the exact selected string."
+    },
+    "Select.accessibilityLabel": {
+      "purpose": "Accessible Select field name; falls back to label and then name."
+    },
+    "SelectOption.value": {
+      "purpose": "Stable checked string identity for a Select option."
+    },
+    "SelectOption.label": {
+      "purpose": "Visible Select option label."
+    },
+    "SelectOption.accessibilityLabel": {
+      "purpose": "Accessible Select option name; falls back to its label."
+    },
+    "RadioGroup.name": {
+      "purpose": "Stable field identity and final accessibility-label fallback for RadioGroup."
+    },
+    "RadioGroup.value": {
+      "purpose": "Checked selected string; blank adapts the nullable source Radio value."
+    },
+    "RadioGroup.label": {
+      "purpose": "Visible RadioGroup label and accessibility fallback."
+    },
+    "RadioGroup.required": {
+      "purpose": "Requires a non-blank selected value when true."
+    },
+    "RadioGroup.requiredMessage": {
+      "purpose": "Message shown when the required RadioGroup rule fails."
+    },
+    "RadioGroup.minLength": {
+      "purpose": "Minimum selected-string Unicode code-point length; zero disables this rule."
+    },
+    "RadioGroup.minLengthMessage": {
+      "purpose": "Message shown when the RadioGroup minimum-length rule fails."
+    },
+    "RadioGroup.maxLength": {
+      "purpose": "Maximum selected-string Unicode code-point length; zero disables this rule."
+    },
+    "RadioGroup.maxLengthMessage": {
+      "purpose": "Message shown when the RadioGroup maximum-length rule fails."
+    },
+    "RadioGroup.email": {
+      "purpose": "Applies the supported email-address rule to the selected string when true."
+    },
+    "RadioGroup.emailMessage": {
+      "purpose": "Message shown when the RadioGroup email rule fails."
+    },
+    "RadioGroup.pattern": {
+      "purpose": "Full-string regular-expression rule for the selected value; blank disables this rule."
+    },
+    "RadioGroup.patternMessage": {
+      "purpose": "Message shown when the RadioGroup pattern rule fails."
+    },
+    "RadioGroup.validateOn": {
+      "purpose": "Validation lifecycle token; the source-compatible default is change."
+    },
+    "RadioGroup.validationVisible": {
+      "purpose": "DEAL-owned signal that forces RadioGroup validation visibility."
+    },
+    "RadioGroup.onChange": {
+      "purpose": "Dispatches the exact selected string."
+    },
+    "RadioGroup.accessibilityLabel": {
+      "purpose": "Accessible RadioGroup name; falls back to label and then name."
+    },
+    "RadioOption.value": {
+      "purpose": "Stable checked string identity for a RadioGroup option."
+    },
+    "RadioOption.label": {
+      "purpose": "Visible RadioGroup option label."
+    },
+    "RadioOption.accessibilityLabel": {
+      "purpose": "Accessible RadioGroup option name; falls back to its label."
     },
     "Slider.value": {
       "purpose": "Checked value property for Slider."

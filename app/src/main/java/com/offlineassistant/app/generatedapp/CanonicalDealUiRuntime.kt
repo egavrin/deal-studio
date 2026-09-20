@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -134,6 +135,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Snackbar
@@ -174,6 +176,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -511,6 +514,18 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
             }
         }
     }.getOrNull()
+    fun containsOnlyOptionChildren(nodes: List<CanonicalUiNode>, optionComponent: String): Boolean = nodes.all { node ->
+        when (node) {
+            is CanonicalUiNode.Call -> node.name.substringAfterLast('.') == optionComponent
+
+            is CanonicalUiNode.When -> containsOnlyOptionChildren(node.thenNodes, optionComponent) &&
+                containsOnlyOptionChildren(node.elseNodes, optionComponent)
+
+            is CanonicalUiNode.ForEach -> containsOnlyOptionChildren(node.children, optionComponent)
+
+            is CanonicalUiNode.Scope -> containsOnlyOptionChildren(node.children, optionComponent)
+        }
+    }
     fun countHeroes(nodes: List<CanonicalUiNode>): Int = nodes.sumOf { node ->
         when (node) {
             is CanonicalUiNode.Call -> {
@@ -569,6 +584,22 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
                 val wrapped = node.children.count { it is CanonicalUiNode.Call && it.name.substringAfterLast('.') == "GridItem" }
                 require(wrapped == 0 || wrapped == node.children.size) { "Grid cannot mix direct children with GridItem children" }
             }
+            val optionComponent = when (component) {
+                "Select" -> "SelectOption"
+                "RadioGroup" -> "RadioOption"
+                else -> null
+            }
+            optionComponent?.let { expected ->
+                require(containsOnlyOptionChildren(node.children, expected)) { "$component accepts only $expected children" }
+                val directOptionValues = node.children.filterIsInstance<CanonicalUiNode.Call>().mapNotNull { child ->
+                    child.arguments["value"]?.let(::staticString)
+                }
+                if (directOptionValues.size == node.children.size) {
+                    require(directOptionValues.size == directOptionValues.toSet().size) {
+                        "$component requires unique static option values"
+                    }
+                }
+            }
             node.children.forEach { walk(it, insideCard || component == "Card", component) }
         }
 
@@ -584,11 +615,19 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
 private fun CanonicalDealUiProgram.validateFieldValidation() {
     fun validateCall(call: CanonicalUiNode.Call) {
         val componentName = call.name.substringAfterLast('.')
-        if (componentName !in setOf("TextArea", "TextField")) return
+        if (componentName !in setOf("TextArea", "TextField", "Select", "RadioGroup")) return
         call.arguments["validateOn"]?.let { expression ->
             val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
                 .getOrElse { throw IllegalArgumentException("$componentName.validateOn must be a static validation trigger") }
-            canonicalValidationTrigger(value, componentName)
+            canonicalValidationTrigger(
+                value = value,
+                componentName = componentName,
+                defaultTrigger = if (componentName in setOf("Select", "RadioGroup")) {
+                    CanonicalValidationTrigger.CHANGE
+                } else {
+                    CanonicalValidationTrigger.BLUR
+                }
+            )
         }
         call.arguments["pattern"]?.let { expression ->
             val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
@@ -672,7 +711,7 @@ internal val canonicalRendererComponents = setOf(
     "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
     "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
-    "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
+    "RadioGroup", "RadioOption", "Select", "SelectOption", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "NumberSlider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
@@ -1918,6 +1957,170 @@ private fun RenderCall(
 
         "ChoiceItem" -> Unit
 
+        "Select" -> {
+            val changeAction = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val selectedValue = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val items = collectTypedItems(call.children, "SelectOption", state, scope, program)
+            fun itemValue(item: CanonicalUiNode.Call, itemScope: Map<String, JsonElement>, name: String) = item.arguments[name]?.let {
+                evaluate(it, state, itemScope, program.tokens, null)
+            }
+            val selectedLabel = items.firstOrNull { (item, itemScope) ->
+                itemValue(item, itemScope, "value").asString() == selectedValue
+            }?.let { (item, itemScope) -> itemValue(item, itemScope, "label").asString() }
+            val triggerText = selectedLabel.orEmpty().ifBlank {
+                value("placeholder").asString().ifBlank { selectedValue.ifBlank { label } }
+            }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "Select",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString(),
+                componentName = "Select"
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            var expanded by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(selectedValue, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                label.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+                Box {
+                    OutlinedButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
+                            .semantics { contentDescription = accessibilityLabel },
+                        colors = if (error == null) {
+                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                        } else {
+                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        }
+                    ) {
+                        Text(triggerText, modifier = Modifier.weight(1f))
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        items.forEach { (item, itemScope) ->
+                            val optionValue = itemValue(item, itemScope, "value").asString()
+                            val optionLabel = itemValue(item, itemScope, "label").asString()
+                            val optionAccessibilityLabel = itemValue(item, itemScope, "accessibilityLabel").asString()
+                                .ifBlank { optionLabel }
+                            DropdownMenuItem(
+                                text = { Text(optionLabel) },
+                                onClick = {
+                                    wasEdited = true
+                                    changeAction?.let { action ->
+                                        onAction(action.resolve(state, itemScope, program.tokens, JsonPrimitive(optionValue)))
+                                    }
+                                    expanded = false
+                                },
+                                modifier = Modifier
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .semantics { contentDescription = optionAccessibilityLabel }
+                            )
+                        }
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+
+        "SelectOption" -> Unit
+
+        "RadioGroup" -> {
+            val changeAction = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val selectedValue = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val items = collectTypedItems(call.children, "RadioOption", state, scope, program)
+            fun itemValue(item: CanonicalUiNode.Call, itemScope: Map<String, JsonElement>, name: String) = item.arguments[name]?.let {
+                evaluate(it, state, itemScope, program.tokens, null)
+            }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "RadioGroup",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString(),
+                componentName = "RadioGroup"
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(selectedValue, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(
+                modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel },
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                label.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+                items.forEach { (item, itemScope) ->
+                    val optionValue = itemValue(item, itemScope, "value").asString()
+                    val optionLabel = itemValue(item, itemScope, "label").asString()
+                    val optionAccessibilityLabel = itemValue(item, itemScope, "accessibilityLabel").asString()
+                        .ifBlank { optionLabel }
+                    val selected = optionValue == selectedValue
+                    val selectOption: () -> Unit = {
+                        wasEdited = true
+                        changeAction?.let { action ->
+                            onAction(action.resolve(state, itemScope, program.tokens, JsonPrimitive(optionValue)))
+                        }
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
+                            .selectable(selected = selected, onClick = selectOption, role = Role.RadioButton)
+                            .semantics { contentDescription = optionAccessibilityLabel },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selected, onClick = null)
+                        Text(optionLabel)
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+
+        "RadioOption" -> Unit
+
         "Slider", "NumberSlider" -> Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val isNumber = name == "NumberSlider"
             val range = canonicalSliderRange(
@@ -2964,9 +3167,16 @@ private val CANONICAL_EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
 internal fun canonicalValidationTrigger(
     value: JsonElement?,
-    componentName: String = "TextArea"
+    componentName: String = "TextArea",
+    defaultTrigger: CanonicalValidationTrigger = CanonicalValidationTrigger.BLUR
 ): CanonicalValidationTrigger = when (
-    value.typedTokenString().ifBlank { "blur" }
+    value.typedTokenString().ifBlank {
+        when (defaultTrigger) {
+            CanonicalValidationTrigger.CHANGE -> "change"
+            CanonicalValidationTrigger.BLUR -> "blur"
+            CanonicalValidationTrigger.SUBMIT -> "submit"
+        }
+    }
 ) {
     "change" -> CanonicalValidationTrigger.CHANGE
     "blur" -> CanonicalValidationTrigger.BLUR

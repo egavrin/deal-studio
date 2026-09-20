@@ -72,6 +72,10 @@ export class TimeFieldProps { valueMinutes: int = 0; label: string = ""; onChang
 export class ToggleProps { checked: boolean = false; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class ChoiceProps { accessibilityLabel?: string; }
 export class ChoiceItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
+export class SelectProps { name: string = ""; value: string = ""; label: string = ""; placeholder: string = ""; required: boolean = false; requiredMessage: string = ""; minLength: int = 0; minLengthMessage: string = ""; maxLength: int = 0; maxLengthMessage: string = ""; email: boolean = false; emailMessage: string = ""; pattern: string = ""; patternMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
+export class SelectOptionProps { value: string = ""; label: string = ""; accessibilityLabel?: string; }
+export class RadioGroupProps { name: string = ""; value: string = ""; label: string = ""; required: boolean = false; requiredMessage: string = ""; minLength: int = 0; minLengthMessage: string = ""; maxLength: int = 0; maxLengthMessage: string = ""; email: boolean = false; emailMessage: string = ""; pattern: string = ""; patternMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
+export class RadioOptionProps { value: string = ""; label: string = ""; accessibilityLabel?: string; }
 export class SliderProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class NumberSliderProps { value: number = 0.0; minimum: number = 0.0; maximum: number = 100.0; step: number = 0.0; label: string = ""; tone?: SemanticTone; onChange?: Action; accessibilityLabel?: string; }
 export class SpacerProps { size?: Space; }
@@ -167,6 +171,10 @@ export component TimeField(props: TimeFieldProps): View { event onChange(payload
 export component Toggle(props: ToggleProps): View { event onChange(payload: boolean); accessibility accessibilityLabel; capability "renderer.android.toggle"; }
 export component Choice(props: ChoiceProps): View { children required ChoiceItem; accessibility accessibilityLabel; capability "renderer.android.choice"; }
 export component ChoiceItem(props: ChoiceItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.choice-item"; }
+export component Select(props: SelectProps): View { children optional SelectOption; event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.select"; }
+export component SelectOption(props: SelectOptionProps): View { parent required Select; accessibility accessibilityLabel; capability "renderer.android.select-option"; }
+export component RadioGroup(props: RadioGroupProps): View { children optional RadioOption; event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.radio-group"; }
+export component RadioOption(props: RadioOptionProps): View { parent required RadioGroup; accessibility accessibilityLabel; capability "renderer.android.radio-option"; }
 export component Slider(props: SliderProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.slider"; }
 export component NumberSlider(props: NumberSliderProps): View { event onChange(payload: number); accessibility accessibilityLabel; capability "renderer.android.number-slider"; }
 export component Spacer(props: SpacerProps): View { token size; capability "renderer.android.spacer"; }
