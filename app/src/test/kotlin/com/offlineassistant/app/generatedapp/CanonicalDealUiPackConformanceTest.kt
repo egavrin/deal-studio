@@ -68,6 +68,21 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
+    fun `v16 candidate explicitly excludes legacy restore from its release gates`() {
+        val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
+        val ledger = Json.parseToJsonElement(
+            File(root, "tooling/deal-ui-pack/benchmarks/v16/gate-status.json").readText()
+        ).jsonObject
+
+        assertEquals(
+            listOf("legacyRestore"),
+            ledger.getValue("excludedGates").jsonArray.map { it.jsonPrimitive.content }
+        )
+        assertFalse("legacyRestore" in ledger.getValue("gates").jsonObject)
+        assertEquals("PENDING", ledger.getValue("promotionStatus").jsonPrimitive.content)
+    }
+
+    @Test
     fun `benchmark dataset freezes the required utility heldout and medication cases`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val dataset = Json.parseToJsonElement(

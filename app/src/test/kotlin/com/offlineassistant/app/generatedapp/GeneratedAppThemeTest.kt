@@ -96,7 +96,7 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `v15 structural diagnostics reject nested cards hero misuse and duplicate route heroes`() {
+    fun `structural diagnostics reject nested cards hero misuse and duplicate route heroes`() {
         val nestedCard = call("Card", call("Card"))
         val heroInCard = call("Card", call("Hero"))
         val duplicateHeroes = call("Hero") + "," + call("Hero")
@@ -122,7 +122,7 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `widget projection accepts semantic v15 content and rejects unsupported input controls`() {
+    fun `widget projection accepts semantic content and rejects unsupported input controls`() {
         CanonicalDealUiParser.parse(
             structureIr(call("Widget", call("MetricGroup", call("IntStat"))))
         )
@@ -135,7 +135,7 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `v15 closed values and structural collections fail deterministically`() {
+    fun `closed values and structural collections fail deterministically`() {
         val wrongWidth = callWithArguments("Section", "\"contentWidth\":${literal("tablet")}")
         assertEquals(
             "Section.contentWidth has unsupported value 'tablet'",
@@ -178,6 +178,13 @@ class GeneratedAppThemeTest {
         assertEquals(
             "SegmentedControl requires exactly one statically selected SegmentItem",
             assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(noSelection)) }.message
+        )
+        val invalidToggleButtonVariant = callWithArguments("ToggleButton", "\"variant\":${literal("quiet")}")
+        assertEquals(
+            "ToggleButton.variant has unsupported value 'quiet'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidToggleButtonVariant))
+            }.message
         )
     }
 

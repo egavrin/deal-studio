@@ -150,6 +150,12 @@
       "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
       "viewport": "device",
       "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Toggle.pressed",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
     }
   ]
 }

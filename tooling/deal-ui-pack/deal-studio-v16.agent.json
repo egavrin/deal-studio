@@ -475,6 +475,14 @@
       "commonSiblings": [],
       "constraints": ["A nullable source checked value adapts to false until DEAL owns a boolean value", "shadcn checks lower explicitly to required and requiredMessage", "The source-compatible default validation trigger is change", "disabled prevents native interaction and event dispatch"]
     },
+    "ToggleButton": {
+      "purpose": "Toggle one checked boolean with a button presentation rather than switch semantics.",
+      "preferWhen": ["Adapting shadcn Toggle", "A pressed/unpressed action needs explicit selected semantics"],
+      "avoidWhen": ["The control is a settings-style switch; use Toggle", "Several values must be coordinated; use a group representation"],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": ["A nullable source pressed value adapts to false", "onChange carries the negated checked boolean", "variant is limited to default or outline"]
+    },
     "Choice": {
       "purpose": "Use Choice only for its declared typed contract.",
       "preferWhen": [],
@@ -1021,6 +1029,9 @@
     },
     "ToggleProps": {
       "purpose": "Typed ToggleProps contract for shadcn and React Native Switch adaptations."
+    },
+    "ToggleButtonProps": {
+      "purpose": "Typed ToggleButtonProps contract for shadcn Toggle adaptations."
     },
     "ChoiceProps": {
       "purpose": "Typed ChoiceProps contract used by the component pack."
@@ -2321,6 +2332,21 @@
     },
     "Toggle.accessibilityLabel": {
       "purpose": "Accessible Toggle field name; falls back to label and then name."
+    },
+    "ToggleButton.label": {
+      "purpose": "Visible ToggleButton label and accessibility fallback."
+    },
+    "ToggleButton.pressed": {
+      "purpose": "DEAL-owned pressed boolean; false adapts a nullable source value."
+    },
+    "ToggleButton.variant": {
+      "purpose": "Closed source-compatible visual variant: default or outline."
+    },
+    "ToggleButton.onChange": {
+      "purpose": "Dispatches the negated pressed boolean on each activation."
+    },
+    "ToggleButton.accessibilityLabel": {
+      "purpose": "Accessible ToggleButton name; falls back to label."
     },
     "Choice.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for Choice."

@@ -214,6 +214,15 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Switch.disabled/app.deal",
       "dealUi": "ui-catalog/react-native.Switch.disabled/app.dealui"
+    },
+    {
+      "id": "shadcn.Toggle.pressed",
+      "origin": "shadcn",
+      "component": "Toggle",
+      "targetComponent": "ToggleButton",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Toggle.pressed/app.deal",
+      "dealUi": "ui-catalog/shadcn.Toggle.pressed/app.dealui"
     }
   ]
 }

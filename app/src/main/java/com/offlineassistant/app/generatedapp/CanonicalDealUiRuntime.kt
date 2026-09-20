@@ -321,7 +321,7 @@ internal object CanonicalDealUiParser {
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
-            .also(CanonicalDealUiProgram::validateV15Structure)
+            .also(CanonicalDealUiProgram::validateStructure)
             .also(CanonicalDealUiProgram::validateFieldValidation)
     }
 
@@ -480,7 +480,7 @@ private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String, tokens: Map
     } ?: throw IllegalArgumentException("AppTheme $name must be a static string literal or exported typed token")
 }
 
-private fun CanonicalDealUiProgram.validateV15Structure() {
+private fun CanonicalDealUiProgram.validateStructure() {
     val contentWidths = setOf("compact", "standard", "wide", "full")
     val itemSizes = setOf("compact", "standard", "prominent")
     val balances = setOf("content-first", "balanced", "metric-first")
@@ -502,6 +502,7 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
         "Hero.height" to setOf("compact", "standard", "expanded"),
         "Card.orientation" to setOf("vertical", "horizontal"),
         "ActionBar.collapseBehavior" to setOf("wrap", "stack"),
+        "ToggleButton.variant" to setOf("default", "outline"),
         "TextField.inputType" to setOf("text", "email", "password", "number"),
         "TextField.keyboardType" to setOf("default", "email-address", "numeric", "phone-pad", "url")
     )
@@ -713,7 +714,7 @@ internal val canonicalRendererComponents = setOf(
     "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "RadioGroup", "RadioOption", "Select", "SelectOption", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "NumberSlider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
-    "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
+    "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "ToggleButton", "TopBar", "Widget"
 )
 
 internal fun adaptiveColumnCount(availableWidthDp: Float, maximumColumns: Int, minimumCellWidthDp: Int): Int {
@@ -1971,6 +1972,31 @@ private fun RenderCall(
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
             }
+        }
+
+        "ToggleButton" -> {
+            val label = value("label").asString()
+            val pressed = value("pressed").asBoolean()
+            val variant = value("variant").asString().ifBlank { "default" }
+            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            FilterChip(
+                selected = pressed,
+                onClick = {
+                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(!pressed))) }
+                },
+                label = { Text(label) },
+                modifier = modifier.defaultMinSize(minHeight = 48.dp).semantics {
+                    contentDescription = value("accessibilityLabel").asString().ifBlank { label }
+                },
+                colors = if (variant == "default") {
+                    androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    androidx.compose.material3.FilterChipDefaults.filterChipColors()
+                }
+            )
         }
 
         "Choice" -> Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

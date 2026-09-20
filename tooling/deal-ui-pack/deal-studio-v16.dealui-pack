@@ -70,6 +70,7 @@ export class IntFieldProps { value: int = 0; label: string = ""; placeholder: st
 export class NumberFieldProps { value: number = 0.0; label: string = ""; placeholder: string = ""; fractionDigits: int = 1; onChange?: Action; accessibilityLabel?: string; }
 export class TimeFieldProps { valueMinutes: int = 0; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class ToggleProps { name: string = ""; checked: boolean = false; label: string = ""; disabled: boolean = false; required: boolean = false; requiredMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
+export class ToggleButtonProps { label: string = ""; pressed: boolean = false; variant: string = "default"; onChange?: Action; accessibilityLabel?: string; }
 export class ChoiceProps { accessibilityLabel?: string; }
 export class ChoiceItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
 export class SelectProps { name: string = ""; value: string = ""; label: string = ""; placeholder: string = ""; required: boolean = false; requiredMessage: string = ""; minLength: int = 0; minLengthMessage: string = ""; maxLength: int = 0; maxLengthMessage: string = ""; email: boolean = false; emailMessage: string = ""; pattern: string = ""; patternMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
@@ -169,6 +170,7 @@ export component IntField(props: IntFieldProps): View { event onChange(payload: 
 export component NumberField(props: NumberFieldProps): View { event onChange(payload: number); accessibility accessibilityLabel; capability "renderer.android.number-field"; }
 export component TimeField(props: TimeFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.time-field"; }
 export component Toggle(props: ToggleProps): View { event onChange(payload: boolean); accessibility accessibilityLabel; capability "renderer.android.toggle"; }
+export component ToggleButton(props: ToggleButtonProps): View { event onChange(payload: boolean); accessibility accessibilityLabel; capability "renderer.android.toggle-button"; }
 export component Choice(props: ChoiceProps): View { children required ChoiceItem; accessibility accessibilityLabel; capability "renderer.android.choice"; }
 export component ChoiceItem(props: ChoiceItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.choice-item"; }
 export component Select(props: SelectProps): View { children optional SelectOption; event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.select"; }
