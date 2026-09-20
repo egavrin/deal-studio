@@ -94,14 +94,18 @@ KOTLIN_TOOLCHAIN="$ROOT/app/src/main/java/com/offlineassistant/app/generatedapp/
 rm -rf "$OUT"
 mkdir -p "$CLASSES" "$(dirname "$ASSET")"
 
-(
-  cd "$DEAL_REPO"
-  # The upstream manifest is the source-list authority. Fresh worktrees deliberately do not
-  # carry a generated build/prod-sources.txt, so never depend on another checkout's build output.
-  source tools/gate-manifest.sh
-  shopt -s nullglob
-  javac --release "$JAVAC_RELEASE" -proc:none -d "$CLASSES" ${PROD_SOURCES[@]}
-)
+# Core currently owns its production Java under deal/. Do not depend on a generated build source
+# list or a historical gate-manifest array: recovery worktrees intentionally contain neither.
+# `deal/test` is excluded so the Android toolchain remains a production compiler bundle.
+CORE_SOURCES=()
+while IFS= read -r source; do
+  CORE_SOURCES+=("$source")
+done < <(find "$DEAL_REPO/deal" -type f -name '*.java' ! -path "$DEAL_REPO/deal/test/*" -print | LC_ALL=C sort)
+[[ ${#CORE_SOURCES[@]} -gt 0 ]] || {
+  printf 'No DEAL production Java sources found under: %s\n' "$DEAL_REPO/deal" >&2
+  exit 1
+}
+javac --release "$JAVAC_RELEASE" -proc:none -d "$CLASSES" "${CORE_SOURCES[@]}"
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
@@ -113,7 +117,8 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_REPO/deal/compiler/RepairWorkspaceProtocol.java" \
   "$DEAL_REPO/deal/compiler/DeclarationReferences.java" \
   "$DEAL_REPO/deal/compiler/RepairDiagnosticRegistry.java" \
-  "$DEAL_REPO/deal/compiler/DealCompilerWorkspace.java"
+  "$DEAL_REPO/deal/compiler/DealCompilerWorkspace.java" \
+  "$DEAL_REPO/deal/compiler/UiFirstBusinessCandidate.java"
 javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
@@ -126,11 +131,21 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiChecker.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiCompilerWorkspace.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalCompiler.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftWorkspace.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftProtocolJson.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftRecipeCatalog.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftRecipeProtocolJson.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftLinker.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalConstruction.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiIrDumper.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/CanonicalRefinementSession.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/ArgumentRepairWorkspace.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/ConstructionSurface.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/JevUiPlanner.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstApplicationSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstReplayFixture.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstLiveBridge.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealUiJson.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealRuntime.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealToolchainBridge.java"

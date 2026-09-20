@@ -1415,13 +1415,18 @@ private fun RenderCall(
             style = textStyle(value("style").tokenString())
         )
 
-        "NumberText" -> Text(
-            text = value("prefix").asString() +
-                formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
-                value("suffix").asString(),
-            color = textTone(value("tone").typedTokenString()),
-            style = textStyle(value("style").tokenString())
-        )
+        "NumberText" -> {
+            val fractionDigits = call.arguments["fractionDigits"]?.let {
+                value("fractionDigits").asInt()
+            } ?: 1
+            Text(
+                text = value("prefix").asString() +
+                    formatCanonicalNumber(value("value").asNumber(), fractionDigits) +
+                    value("suffix").asString(),
+                color = textTone(value("tone").typedTokenString()),
+                style = textStyle(value("style").tokenString())
+            )
+        }
 
         "Icon" -> Icon(
             imageVector = icon(value("name").asString()),
@@ -1912,6 +1917,8 @@ private fun RenderCall(
 
         "IntField" -> {
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
             OutlinedTextField(
                 value = value("value").asInt().toString(),
                 onValueChange = { text ->
@@ -1919,31 +1926,38 @@ private fun RenderCall(
                         action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
                     }
                 },
-                label = { Text(value("label").asString()) },
+                label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                    .semantics { contentDescription = accessibilityLabel },
                 singleLine = true
             )
         }
 
         "NumberField" -> {
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            // A missing optional argument must preserve the checked pack's NumberFieldProps
+            // default (1), rather than flowing through JsonElement.asInt() as a visual 0.
+            val fractionDigits = call.arguments["fractionDigits"]?.let {
+                value("fractionDigits").asInt()
+            } ?: 1
             OutlinedTextField(
-                value = formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()),
+                value = formatCanonicalNumber(value("value").asNumber(), fractionDigits),
                 onValueChange = { text ->
                     text.replace(',', '.').toDoubleOrNull()?.let { number ->
                         action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
                     }
                 },
-                label = { Text(value("label").asString()) },
+                label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                    .semantics { contentDescription = accessibilityLabel },
                 singleLine = true
             )
         }
@@ -2315,6 +2329,11 @@ private fun RenderCall(
 
         "Stat", "IntStat", "NumberStat" -> {
             val palette = generatedTonePalette(value("tone").typedTokenString())
+            // NumberStatProps declares fractionDigits = 1 in the pack. The parsed UI call omits
+            // defaulted arguments, so materialize that contract here rather than rounding to 0.
+            val numberStatFractionDigits = call.arguments["fractionDigits"]?.let {
+                value("fractionDigits").asInt()
+            } ?: 1
             Surface(
                 modifier = modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
@@ -2343,7 +2362,7 @@ private fun RenderCall(
                             value("suffix").asString()
 
                         "NumberStat" -> value("prefix").asString() +
-                            formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
+                            formatCanonicalNumber(value("value").asNumber(), numberStatFractionDigits) +
                             value("suffix").asString()
 
                         else -> value("value").asString()

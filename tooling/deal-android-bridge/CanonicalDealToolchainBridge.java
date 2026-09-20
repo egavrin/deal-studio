@@ -25,6 +25,7 @@ import deal.ui.UiParser;
 import deal.ui.UiCompilerWorkspace;
 import deal.semantic.ir.CanonicalJson;
 import streaming.compiler.CanonicalRefinementSession;
+import streaming.compiler.UiFirstReplayFixture;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -221,6 +222,24 @@ public final class CanonicalDealToolchainBridge {
         } catch (UiDiagnostic diagnostic) {
             throw new IllegalArgumentException(diagnostic.format(), diagnostic);
         }
+    }
+
+    /**
+     * Runs the portable debug/test replay of the smallest complete UI-first transaction against
+     * this bridge's caller-supplied pinned component pack. It deliberately has no provider,
+     * credential, persistence, or publication surface; production generation does not call it.
+     */
+    public static String runUiFirstReplayFixture(String packSource) {
+        requireText(packSource, "platform-ui.dealui-pack");
+        var replay = UiFirstReplayFixture.run(packSource, PACK_SPECIFIER);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("version", replay.version());
+        result.put("dealSource", replay.dealSource());
+        result.put("dealUiSource", replay.dealUiSource());
+        result.put("structuralDigest", replay.structuralDigest());
+        result.put("bindingDigest", replay.bindingDigest());
+        result.put("plannerEvaluations", replay.plannerEvaluations());
+        return CompilerProtocolJson.encode(result);
     }
 
     /**

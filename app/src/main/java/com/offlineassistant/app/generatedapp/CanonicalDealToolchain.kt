@@ -212,6 +212,30 @@ internal class CanonicalDealToolchain(
         packSource: String
     ): String = compilePortable("compilePortablePreview", dealSource, dealUiSource, packSource)
 
+    /**
+     * Debug/test-only deterministic proof of the portable UI-first transaction. It does not make
+     * a provider request or read a credential; the returned sources are still compiled and run by
+     * the ordinary Studio runtime in the caller.
+     */
+    fun runUiFirstReplayFixture(packSource: String): UiFirstReplayApplication {
+        check(BuildConfig.DEBUG) { "The UI-first replay fixture is available only in internal builds" }
+        val result = (
+            invokeBridge(
+                "runUiFirstReplayFixture",
+                arrayOf(String::class.java),
+                arrayOf(packSource)
+            ) as String
+            ).jsonObject()
+        return UiFirstReplayApplication(
+            version = result.getValue("version").jsonPrimitive.content,
+            dealSource = result.getValue("dealSource").jsonPrimitive.content,
+            dealUiSource = result.getValue("dealUiSource").jsonPrimitive.content,
+            structuralDigest = result.getValue("structuralDigest").jsonPrimitive.content,
+            bindingDigest = result.getValue("bindingDigest").jsonPrimitive.content,
+            plannerEvaluations = result.getValue("plannerEvaluations").jsonPrimitive.long.toInt()
+        )
+    }
+
     /** Compiles a single Studio `app.deal` containing its checked embedded Deal UI view. */
     fun compileEmbeddedPortable(dealSource: String, packSource: String): String {
         check(BuildConfig.DEBUG) { "The embedded Deal toolchain is available only in internal builds" }
@@ -297,10 +321,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "dda788fe89eefe7d2ec0ac95bdb86c40cd0c6b9622e4886d5a15d965e13a1953"
-        const val DEAL_REVISION = "fde98e7bd6e33cc0c41c1a321ab0bffb7b621db2"
-        const val DEAL_UI_REVISION = "d792fa64ead70c00fac08c709c28d315dc10a13e"
-        const val STREAMING_COMPILER_REVISION = "0ab0890b263be7d5e806d88593cb57877b8cb10a"
+        const val ARTIFACT_SHA256 = "bd0493328c3056fa24f03f91896ae8e314553c09d2132fddaa0b98f741e57951"
+        const val DEAL_REVISION = "dd66bb4ae8bba9923137bc6909a1029a57a022f4"
+        const val DEAL_UI_REVISION = "973dbede549d8da68acef84399c46daabd9416c7"
+        const val STREAMING_COMPILER_REVISION = "7b5d5131ed88c622d053de6965750a59a06cb1d9"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -372,6 +396,16 @@ internal class CanonicalStreamingRefinementSession(
 internal data class CanonicalDealPrefixInspection(
     val impossible: Boolean,
     val diagnostics: List<String>
+)
+
+/** Checked but deliberately uncommitted output of the debug-only UI-first replay fixture. */
+internal data class UiFirstReplayApplication(
+    val version: String,
+    val dealSource: String,
+    val dealUiSource: String,
+    val structuralDigest: String,
+    val bindingDigest: String,
+    val plannerEvaluations: Int
 )
 
 internal class CanonicalDealRuntimeSession(
