@@ -624,7 +624,7 @@ internal val canonicalRendererComponents = setOf(
     "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "NumberSlider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
-    "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
+    "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
 
 internal fun adaptiveColumnCount(availableWidthDp: Float, maximumColumns: Int, minimumCellWidthDp: Int): Int {
@@ -1628,6 +1628,27 @@ private fun RenderCall(
                 label = { Text(value("label").asString()) },
                 placeholder = { Text(value("placeholder").asString()) },
                 modifier = modifier.fillMaxWidth(),
+                singleLine = false
+            )
+        }
+
+        "TextArea" -> {
+            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val rows = canonicalTextAreaRows(value("rows").asInt())
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            OutlinedTextField(
+                value = value("value").asString(),
+                onValueChange = { text ->
+                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(text))) }
+                },
+                label = { Text(label) },
+                placeholder = { Text(value("placeholder").asString()) },
+                modifier = modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = accessibilityLabel },
+                minLines = rows,
+                maxLines = maxOf(rows, 12),
                 singleLine = false
             )
         }
@@ -2740,6 +2761,8 @@ internal fun progress(value: Double, maximum: Double): Float = when {
 
 internal fun canonicalProgressHeight(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(24) ?: 4
 
+internal fun canonicalTextAreaRows(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(12) ?: 4
+
 internal fun canonicalSliderRange(minimum: Double, maximum: Double): ClosedFloatingPointRange<Double> {
     val start = minimum.takeIf(Double::isFinite) ?: 0.0
     val end = maximum.takeIf { it.isFinite() && it > start } ?: start + 1.0
@@ -2975,6 +2998,7 @@ private val ROW_EXPANDING_COMPONENTS = setOf(
     "NumberStat",
     "ListItem",
     "TextField",
+    "TextArea",
     "IntField",
     "NumberField",
     "Toggle",

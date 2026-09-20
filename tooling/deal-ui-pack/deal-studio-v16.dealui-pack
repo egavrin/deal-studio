@@ -62,6 +62,7 @@ export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0;
 export class ProgressBarProps { value: int = 0; maximum: int = 100; label: string = ""; heightDp: int = 4; tone?: SemanticTone; trackTone?: SemanticTone; }
 export class NumberProgressBarProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; heightDp: int = 4; tone?: SemanticTone; trackTone?: SemanticTone; }
 export class TextFieldProps { value: string = ""; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class TextAreaProps { value: string = ""; label: string = ""; placeholder: string = ""; rows: int = 4; onChange?: Action; accessibilityLabel?: string; }
 export class IntFieldProps { value: int = 0; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class NumberFieldProps { value: number = 0.0; label: string = ""; placeholder: string = ""; fractionDigits: int = 1; onChange?: Action; accessibilityLabel?: string; }
 export class TimeFieldProps { valueMinutes: int = 0; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
@@ -156,6 +157,7 @@ export component ProgressRing(props: ProgressProps): View { capability "renderer
 export component NumberProgressBar(props: NumberProgressBarProps): View { capability "renderer.android.number-progress-bar"; }
 export component NumberProgressRing(props: NumberProgressProps): View { capability "renderer.android.number-progress-ring"; }
 export component TextField(props: TextFieldProps): View { event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.text-field"; }
+export component TextArea(props: TextAreaProps): View { event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.text-area"; }
 export component IntField(props: IntFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.int-field"; }
 export component NumberField(props: NumberFieldProps): View { event onChange(payload: number); accessibility accessibilityLabel; capability "renderer.android.number-field"; }
 export component TimeField(props: TimeFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.time-field"; }

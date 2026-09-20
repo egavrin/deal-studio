@@ -148,4 +148,13 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(1.0, canonicalSliderValue(3.0, range, 0.25), 0.0)
         assertEquals(0.76, canonicalSliderValue(0.76, range, 0.0), 0.0)
     }
+
+    @Test
+    fun `text area rows use a bounded mobile layout`() {
+        assertEquals(4, canonicalTextAreaRows(0))
+        assertEquals(4, canonicalTextAreaRows(-1))
+        assertEquals(1, canonicalTextAreaRows(1))
+        assertEquals(8, canonicalTextAreaRows(8))
+        assertEquals(12, canonicalTextAreaRows(40))
+    }
 }

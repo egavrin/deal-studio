@@ -1,0 +1,19 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Multiline text", supporting: "Exact string binding including line breaks")
+      ui.TextArea(
+        value: state.notes,
+        label: "Notes",
+        placeholder: "Write several lines",
+        rows: 4,
+        onChange: action app.ChangeNotes { value: payload },
+        accessibilityLabel: "Notes editor"
+      )
+      ui.Text(value: state.notes)
+    }
+  }
+}

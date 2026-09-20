@@ -423,6 +423,14 @@
       "commonSiblings": [],
       "constraints": []
     },
+    "TextArea": {
+      "purpose": "Edit multiline string content with a bounded initial row count.",
+      "preferWhen": ["The user is expected to enter notes, descriptions, or other multiline text"],
+      "avoidWhen": ["The value is numeric", "A single short line is sufficient; use TextField"],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": ["rows is clamped to 1..12", "The onChange payload remains the exact edited string including newlines"]
+    },
     "IntField": {
       "purpose": "Use IntField only for its declared typed contract.",
       "preferWhen": [],
@@ -945,6 +953,9 @@
     },
     "TextFieldProps": {
       "purpose": "Typed TextFieldProps contract used by the component pack."
+    },
+    "TextAreaProps": {
+      "purpose": "Typed TextAreaProps contract used by the component pack."
     },
     "IntFieldProps": {
       "purpose": "Typed IntFieldProps contract used by the component pack."
@@ -2014,6 +2025,24 @@
     },
     "TextField.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for TextField."
+    },
+    "TextArea.value": {
+      "purpose": "Multiline checked string value for TextArea."
+    },
+    "TextArea.label": {
+      "purpose": "Visible TextArea label and accessibility fallback."
+    },
+    "TextArea.placeholder": {
+      "purpose": "Placeholder shown while TextArea is empty."
+    },
+    "TextArea.rows": {
+      "purpose": "Initial visible row count, clamped to 1..12."
+    },
+    "TextArea.onChange": {
+      "purpose": "Dispatches the exact edited string including newlines."
+    },
+    "TextArea.accessibilityLabel": {
+      "purpose": "Accessible field name; falls back to label in the renderer."
     },
     "IntField.value": {
       "purpose": "Checked value property for IntField."

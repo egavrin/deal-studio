@@ -109,6 +109,15 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Slider.semantic-color/app.deal",
       "dealUi": "ui-catalog/react-native.Slider.semantic-color/app.dealui"
+    },
+    {
+      "id": "shadcn.Textarea.multiline",
+      "origin": "shadcn",
+      "component": "Textarea",
+      "targetComponent": "TextArea",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Textarea.multiline/app.deal",
+      "dealUi": "ui-catalog/shadcn.Textarea.multiline/app.dealui"
     }
   ]
 }
