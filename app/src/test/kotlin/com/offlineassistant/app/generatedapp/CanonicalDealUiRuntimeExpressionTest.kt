@@ -115,6 +115,18 @@ class CanonicalDealUiRuntimeExpressionTest {
     }
 
     @Test
+    fun `divider dimensions preserve valid fractional values and bound invalid values`() {
+        assertEquals(1f, canonicalDividerThickness(Double.NaN), 0f)
+        assertEquals(1f, canonicalDividerThickness(0.0), 0f)
+        assertEquals(2.5f, canonicalDividerThickness(2.5), 0f)
+        assertEquals(8f, canonicalDividerThickness(20.0), 0f)
+        assertEquals(0f, canonicalDividerMargin(Double.NaN), 0f)
+        assertEquals(0f, canonicalDividerMargin(-1.0), 0f)
+        assertEquals(12.5f, canonicalDividerMargin(12.5), 0f)
+        assertEquals(840f, canonicalDividerMargin(1_000.0), 0f)
+    }
+
+    @Test
     fun `progress normalization handles boundaries and non finite values`() {
         assertEquals(0f, progress(-1, 100))
         assertEquals(0.65f, progress(65, 100))

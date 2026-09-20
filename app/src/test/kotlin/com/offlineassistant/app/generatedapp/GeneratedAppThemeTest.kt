@@ -186,6 +186,13 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(invalidToggleButtonVariant))
             }.message
         )
+        val invalidDividerDirection = callWithArguments("Divider", "\"direction\":${literal("diagonal")}")
+        assertEquals(
+            "Divider.direction has unsupported value 'diagonal'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidDividerDirection))
+            }.message
+        )
     }
 
     @Test

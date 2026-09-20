@@ -716,12 +716,12 @@
       "constraints": []
     },
     "Divider": {
-      "purpose": "Use Divider only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Separate adjacent content with a semantic horizontal or vertical native divider.",
+      "preferWhen": ["Adapting shadcn Separator", "Adapting React Native Divider", "A visual boundary is clearer than another Card or section title"],
+      "avoidWhen": ["The boundary needs an interactive action", "The source asks for arbitrary CSS or raw color rendering"],
       "visualWeight": "low",
-      "commonSiblings": [],
-      "constraints": []
+      "commonSiblings": ["SectionHeader", "ListGroup", "Card"],
+      "constraints": ["shadcn orientation lowers explicitly to direction", "React Native raw color must lower to a declared semantic tone or be rejected as unsupported", "Fractional thickness and margin values are preserved within bounded mobile dp limits"]
     },
     "FrameClock": {
       "purpose": "Use FrameClock only for its declared typed contract.",
@@ -954,6 +954,9 @@
     },
     "EmptyProps": {
       "purpose": "Typed EmptyProps contract used by the component pack."
+    },
+    "DividerProps": {
+      "purpose": "Typed DividerProps contract for shadcn Separator and React Native Divider adaptations."
     },
     "LayoutProps": {
       "purpose": "Typed LayoutProps contract used by the component pack."
@@ -2869,6 +2872,18 @@
     },
     "AnimatedVisibility.visible": {
       "purpose": "Checked visible property for AnimatedVisibility."
+    },
+    "Divider.direction": {
+      "purpose": "Closed native divider orientation: horizontal or vertical; shadcn orientation lowers here."
+    },
+    "Divider.tone": {
+      "purpose": "Typed semantic divider color; raw React Native color strings must be classified by an adapter rather than rendered as arbitrary colors."
+    },
+    "Divider.thickness": {
+      "purpose": "Fractional divider thickness in bounded native dp."
+    },
+    "Divider.margin": {
+      "purpose": "Fractional divider edge margin in bounded native dp."
     },
     "FrameClock.intervalMillis": {
       "purpose": "Checked intervalMillis property for FrameClock."

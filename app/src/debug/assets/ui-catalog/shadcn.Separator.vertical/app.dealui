@@ -1,0 +1,15 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Vertical separator", supporting: "shadcn orientation lowers to a native Divider direction")
+      ui.Row(spacing: ui.spaceMd, vertical: "center") {
+        ui.Text(value: "Before", style: ui.textBody)
+        ui.Divider(direction: "vertical", thickness: 2.0, margin: 4.0, tone: ui.toneAccent)
+        ui.Text(value: "After", style: ui.textBody)
+      }
+    }
+  }
+}

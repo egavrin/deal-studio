@@ -1,0 +1,13 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Fractional divider", supporting: "React Native dimensions adapt to bounded native dp and a semantic tone")
+      ui.Text(value: "Content before the separator", style: ui.textBody)
+      ui.Divider(direction: "horizontal", thickness: 2.5, margin: 12.5, tone: ui.toneWarning)
+      ui.Text(value: "Content after the separator", style: ui.textBody)
+    }
+  }
+}

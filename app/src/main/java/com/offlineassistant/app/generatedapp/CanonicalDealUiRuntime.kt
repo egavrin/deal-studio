@@ -502,6 +502,7 @@ private fun CanonicalDealUiProgram.validateStructure() {
         "Hero.height" to setOf("compact", "standard", "expanded"),
         "Card.orientation" to setOf("vertical", "horizontal"),
         "ActionBar.collapseBehavior" to setOf("wrap", "stack"),
+        "Divider.direction" to setOf("horizontal", "vertical"),
         "ToggleButton.variant" to setOf("default", "outline"),
         "TextField.inputType" to setOf("text", "email", "password", "number"),
         "TextField.keyboardType" to setOf("default", "email-address", "numeric", "phone-pad", "url")
@@ -2670,10 +2671,27 @@ private fun RenderCall(
             }
         }
 
-        "Divider" -> androidx.compose.material3.HorizontalDivider(
-            modifier,
-            color = MaterialTheme.colorScheme.outlineVariant
-        )
+        "Divider" -> {
+            val direction = value("direction").asString().ifBlank { "horizontal" }
+            val thickness = canonicalDividerThickness(value("thickness").asNumber()).dp
+            val margin = canonicalDividerMargin(value("margin").asNumber()).dp
+            val color = cardBorder(value("tone").typedTokenString())
+            if (direction == "vertical") {
+                Box(
+                    modifier
+                        .padding(vertical = margin)
+                        .width(thickness)
+                        .height(48.dp)
+                        .background(color)
+                )
+            } else {
+                HorizontalDivider(
+                    modifier = modifier.padding(horizontal = margin),
+                    thickness = thickness,
+                    color = color
+                )
+            }
+        }
 
         "FrameClock", "MinuteClock" -> RuntimeClock(call, name, state, scope, program.tokens, onAction)
 
@@ -3469,6 +3487,18 @@ internal fun canonicalSpinnerSize(size: String): Dp = when (size) {
 
 internal fun canonicalSkeletonDimension(value: Int, defaultValue: Int): Int = value.takeIf { it > 0 }
     ?.coerceAtMost(840) ?: defaultValue
+
+internal fun canonicalDividerThickness(value: Double): Float = value
+    .takeIf { it.isFinite() && it > 0.0 }
+    ?.toFloat()
+    ?.coerceAtMost(8f)
+    ?: 1f
+
+internal fun canonicalDividerMargin(value: Double): Float = value
+    .takeIf { it.isFinite() && it >= 0.0 }
+    ?.toFloat()
+    ?.coerceAtMost(840f)
+    ?: 0f
 
 @Composable
 private fun textTone(tone: String): Color = generatedTonePalette(tone).content

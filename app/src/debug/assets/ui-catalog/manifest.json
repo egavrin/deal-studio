@@ -223,6 +223,24 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/shadcn.Toggle.pressed/app.deal",
       "dealUi": "ui-catalog/shadcn.Toggle.pressed/app.dealui"
+    },
+    {
+      "id": "shadcn.Separator.vertical",
+      "origin": "shadcn",
+      "component": "Separator",
+      "targetComponent": "Divider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Separator.vertical/app.deal",
+      "dealUi": "ui-catalog/shadcn.Separator.vertical/app.dealui"
+    },
+    {
+      "id": "react-native.Divider.fractional",
+      "origin": "react-native",
+      "component": "Divider",
+      "targetComponent": "Divider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Divider.fractional/app.deal",
+      "dealUi": "ui-catalog/react-native.Divider.fractional/app.dealui"
     }
   ]
 }

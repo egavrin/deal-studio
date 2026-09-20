@@ -45,6 +45,7 @@ export class AppThemeProps {
   motion?: MotionStyle;
 }
 export class EmptyProps {}
+export class DividerProps { direction: string = "horizontal"; tone?: SemanticTone; thickness: number = 1.0; margin: number = 0.0; }
 export class LayoutProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; }
 export class RootProps { spacing?: Space; padding?: Space; horizontal: string = "start"; vertical: string = "top"; wrap: boolean = true; contentWidth?: ContentWidth; }
 export class FrameProps { ratioWidth: int = 0; ratioHeight: int = 0; maxWidth: int = 0; maxHeight: int = 0; viewportHeightFraction: number = 0.0; }
@@ -200,7 +201,7 @@ export component BarChart(props: ChartProps): View { accessibility label; capabi
 export component Sparkline(props: ChartProps): View { accessibility label; capability "renderer.android.chart.sparkline"; }
 export component Avatar(props: AvatarProps): View { accessibility description; capability "renderer.android.avatar.https"; }
 export component AnimatedVisibility(props: VisibilityProps): View { children optional; capability "renderer.android.animated-visibility"; }
-export component Divider(props: EmptyProps): View { capability "renderer.android.divider"; }
+export component Divider(props: DividerProps): View { capability "renderer.android.divider"; }
 export component FrameClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.frame"; }
 export component MinuteClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.minute"; }
 export component PointerSurface(props: PointerProps): View { children optional; event onPointer(payload: PointerPayload); accessibility accessibilityLabel; capability "host.pointer"; }
