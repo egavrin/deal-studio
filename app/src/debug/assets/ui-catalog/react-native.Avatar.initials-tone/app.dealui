@@ -1,0 +1,13 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Avatar(initials: "A", size: "sm", tone: ui.toneAccent)
+      ui.Avatar(initials: "BC", size: "md", tone: ui.tonePositive)
+      ui.Avatar(initials: "DE", size: "lg", tone: ui.toneWarning)
+      ui.Avatar(initials: "F", size: "xl", tone: ui.toneDanger)
+    }
+  }
+}

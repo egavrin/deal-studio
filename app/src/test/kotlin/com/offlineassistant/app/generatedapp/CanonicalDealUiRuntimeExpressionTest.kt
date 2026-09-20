@@ -140,6 +140,21 @@ class CanonicalDealUiRuntimeExpressionTest {
     }
 
     @Test
+    fun `avatar fallback keeps explicit initials and derives a compact name fallback`() {
+        assertEquals("JD", canonicalAvatarInitials("", "Jane Doe"))
+        assertEquals("J", canonicalAvatarInitials("", "Jane"))
+        assertEquals("AB", canonicalAvatarInitials(" AB ", "Jane Doe"))
+        assertEquals("?", canonicalAvatarInitials("", ""))
+        assertEquals(32.dp, canonicalAvatarSize("sm"))
+        assertEquals(48.dp, canonicalAvatarSize("md"))
+        assertEquals(64.dp, canonicalAvatarSize("lg"))
+        assertEquals(80.dp, canonicalAvatarSize("xl"))
+        assertEquals(48.dp, canonicalAvatarSize("unknown"))
+        assertEquals(true, canonicalAvatarUsesRemoteSource("https://example.com/avatar.png"))
+        assertEquals(false, canonicalAvatarUsesRemoteSource("http://example.com/avatar.png"))
+    }
+
+    @Test
     fun `divider dimensions preserve valid fractional values and bound invalid values`() {
         assertEquals(1f, canonicalDividerThickness(Double.NaN), 0f)
         assertEquals(1f, canonicalDividerThickness(0.0), 0f)

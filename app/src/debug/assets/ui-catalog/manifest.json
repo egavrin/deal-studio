@@ -304,6 +304,24 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Badge.statuses/app.deal",
       "dealUi": "ui-catalog/react-native.Badge.statuses/app.dealui"
+    },
+    {
+      "id": "shadcn.Avatar.fallback-sizes",
+      "origin": "shadcn",
+      "component": "Avatar",
+      "targetComponent": "Avatar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Avatar.fallback-sizes/app.deal",
+      "dealUi": "ui-catalog/shadcn.Avatar.fallback-sizes/app.dealui"
+    },
+    {
+      "id": "react-native.Avatar.initials-tone",
+      "origin": "react-native",
+      "component": "Avatar",
+      "targetComponent": "Avatar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Avatar.initials-tone/app.deal",
+      "dealUi": "ui-catalog/react-native.Avatar.initials-tone/app.dealui"
     }
   ]
 }

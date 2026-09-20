@@ -114,7 +114,7 @@ export class TabItemProps { label: string = ""; selected: boolean = false; onCli
 export class NavigationProps { accessibilityLabel?: string; }
 export class NavigationItemProps { label: string = ""; icon: string = "info"; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
 export class ChartProps { series: int[] = []; maximum: int = 100; label: string = ""; tone?: SemanticTone; emphasis?: Emphasis; }
-export class AvatarProps { url: string = ""; initials: string = ""; description: string = ""; size: int = 48; }
+export class AvatarProps { src: string = ""; name: string = ""; initials: string = ""; size: string = "md"; tone?: SemanticTone; accessibilityLabel?: string; }
 export class VisibilityProps { visible: boolean = true; }
 export class ClockProps { intervalMillis: int = 60000; onTick?: Action; }
 export class PointerPayload { x: int = 0; y: int = 0; phase: int = 0; }
@@ -201,7 +201,7 @@ export component NavigationBar(props: NavigationProps): View { children required
 export component NavigationItem(props: NavigationItemProps): View { event onClick; accessibility accessibilityLabel; capability "renderer.android.navigation-item"; }
 export component BarChart(props: ChartProps): View { accessibility label; capability "renderer.android.chart.bar"; }
 export component Sparkline(props: ChartProps): View { accessibility label; capability "renderer.android.chart.sparkline"; }
-export component Avatar(props: AvatarProps): View { accessibility description; capability "renderer.android.avatar.https"; }
+export component Avatar(props: AvatarProps): View { accessibility accessibilityLabel; capability "renderer.android.avatar.https"; }
 export component AnimatedVisibility(props: VisibilityProps): View { children optional; capability "renderer.android.animated-visibility"; }
 export component Divider(props: DividerProps): View { capability "renderer.android.divider"; }
 export component FrameClock(props: ClockProps): View { event onTick(payload: int); capability "host.clock.frame"; }

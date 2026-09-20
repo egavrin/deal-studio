@@ -228,6 +228,13 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(invalidBadgeVariant))
             }.message
         )
+        val invalidAvatarSize = callWithArguments("Avatar", "\"size\":${literal("xxl")}")
+        assertEquals(
+            "Avatar.size has unsupported value 'xxl'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidAvatarSize))
+            }.message
+        )
     }
 
     @Test

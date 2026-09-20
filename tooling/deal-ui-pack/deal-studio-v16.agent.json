@@ -708,12 +708,12 @@
       "constraints": []
     },
     "Avatar": {
-      "purpose": "Use Avatar only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Show a compact circular profile or contact identity with a checked image source and deterministic initials fallback.",
+      "preferWhen": ["Adapting shadcn Avatar", "Adapting React Native Avatar", "A person or contact needs a recognisable compact identity"],
+      "avoidWhen": ["The source is a non-person illustrative image", "An arbitrary remote image URL cannot be admitted by the HTTPS policy", "The presentation needs an interactive profile action"],
       "visualWeight": "medium",
-      "commonSiblings": [],
-      "constraints": []
+      "commonSiblings": ["Text", "Heading", "ListItem", "Card"],
+      "constraints": ["Only HTTPS image sources reach the native image loader", "shadcn name derives fallback initials; React Native initials remain explicit", "sm/md/lg/xl map to fixed compact native sizes", "React Native backgroundColor must lower to a declared semantic tone or be rejected as unsupported", "Image loading errors fall back to initials rather than leaving an empty circle"]
     },
     "AnimatedVisibility": {
       "purpose": "Use AnimatedVisibility only for its declared typed contract.",
@@ -1171,7 +1171,7 @@
       "purpose": "Typed ChartProps contract used by the component pack."
     },
     "AvatarProps": {
-      "purpose": "Typed AvatarProps contract used by the component pack."
+      "purpose": "Typed AvatarProps contract for shadcn and React Native Avatar adaptations."
     },
     "VisibilityProps": {
       "purpose": "Typed VisibilityProps contract used by the component pack."
@@ -2896,17 +2896,23 @@
     "Sparkline.emphasis": {
       "purpose": "Checked emphasis property for Sparkline."
     },
-    "Avatar.url": {
-      "purpose": "Checked url property for Avatar."
+    "Avatar.src": {
+      "purpose": "Checked HTTPS avatar source; an absent or rejected source uses initials fallback."
+    },
+    "Avatar.name": {
+      "purpose": "Checked person name used for shadcn-style fallback initials and an accessible label."
     },
     "Avatar.initials": {
-      "purpose": "Checked initials property for Avatar."
-    },
-    "Avatar.description": {
-      "purpose": "Checked description property for Avatar."
+      "purpose": "Checked explicit React Native-style fallback initials."
     },
     "Avatar.size": {
-      "purpose": "Checked size property for Avatar."
+      "purpose": "Checked source-adapted avatar size: sm, md, lg, or xl."
+    },
+    "Avatar.tone": {
+      "purpose": "Checked semantic fallback background tone; raw source background colors must be adapted before lowering."
+    },
+    "Avatar.accessibilityLabel": {
+      "purpose": "Accessible avatar identity; defaults to name or fallback initials in the renderer."
     },
     "AnimatedVisibility.visible": {
       "purpose": "Checked visible property for AnimatedVisibility."

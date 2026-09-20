@@ -511,6 +511,7 @@ private fun CanonicalDealUiProgram.validateStructure() {
         "Badge.variant" to setOf("default", "secondary", "destructive", "outline", "info", "success", "warning", "error"),
         "Heading.level" to setOf("h1", "h2", "h3", "h4"),
         "Heading.align" to setOf("start", "center", "end"),
+        "Avatar.size" to setOf("sm", "md", "lg", "xl"),
         "Divider.direction" to setOf("horizontal", "vertical"),
         "ToggleButton.variant" to setOf("default", "outline"),
         "TextField.inputType" to setOf("text", "email", "password", "number"),
@@ -2670,23 +2671,31 @@ private fun RenderCall(
         }
 
         "Avatar" -> {
-            val avatarSize = value("size").asInt().coerceIn(32, 96).dp
-            val url = value("url").asString()
-            if (url.startsWith("https://")) {
+            val source = value("src").asString()
+            val name = value("name").asString()
+            val initials = canonicalAvatarInitials(value("initials").asString(), name)
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { name.ifBlank { initials } }
+            val avatarSize = canonicalAvatarSize(value("size").asString())
+            val tone = value("tone").typedTokenString().ifBlank { "accent" }
+            var imageFailed by remember(source) { mutableStateOf(false) }
+            if (canonicalAvatarUsesRemoteSource(source) && !imageFailed) {
                 AsyncImage(
-                    model = url,
-                    contentDescription = value("description").asString(),
+                    model = source,
+                    contentDescription = accessibilityLabel,
                     contentScale = ContentScale.Crop,
-                    modifier = modifier.size(avatarSize).clip(CircleShape)
+                    modifier = Modifier.size(avatarSize).clip(CircleShape),
+                    onError = { imageFailed = true }
                 )
             } else {
+                val palette = generatedTonePalette(tone)
                 Surface(
-                    modifier = modifier.size(avatarSize),
+                    modifier = Modifier.size(avatarSize),
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = palette.container,
+                    contentColor = palette.content
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(value("initials").asString(), fontWeight = FontWeight.SemiBold)
+                        Text(initials, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -3560,6 +3569,23 @@ internal fun canonicalBadgeTone(variant: String): String = when (variant) {
     "warning" -> "warning"
     else -> "default"
 }
+
+internal fun canonicalAvatarSize(size: String): Dp = when (size) {
+    "sm" -> 32.dp
+    "lg" -> 64.dp
+    "xl" -> 80.dp
+    else -> 48.dp
+}
+
+internal fun canonicalAvatarInitials(initials: String, name: String): String = initials.trim().ifBlank {
+    name.trim()
+        .split(Regex("\\s+"))
+        .filter(String::isNotBlank)
+        .take(2)
+        .joinToString(separator = "") { it.first().uppercaseChar().toString() }
+}.take(2).ifBlank { "?" }
+
+internal fun canonicalAvatarUsesRemoteSource(source: String): Boolean = source.startsWith("https://")
 
 internal fun canonicalDividerThickness(value: Double): Float = value
     .takeIf { it.isFinite() && it > 0.0 }
