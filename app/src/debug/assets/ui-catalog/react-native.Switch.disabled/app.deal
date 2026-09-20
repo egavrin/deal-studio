@@ -1,0 +1,8 @@
+export class AppState { enabled: boolean = false; events: int = 0; }
+export class ChangeEnabled { checked: boolean; }
+export function initialState(): AppState { return { enabled: false, events: 0 }; }
+// @ui-update
+export function changeEnabled(state: AppState, action: ChangeEnabled): AppState {
+  return { enabled: action.checked, events: state.events + 1 };
+}
+export function main(): null { return null; }

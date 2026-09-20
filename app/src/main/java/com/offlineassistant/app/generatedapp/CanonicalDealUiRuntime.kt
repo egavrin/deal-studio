@@ -615,14 +615,14 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
 private fun CanonicalDealUiProgram.validateFieldValidation() {
     fun validateCall(call: CanonicalUiNode.Call) {
         val componentName = call.name.substringAfterLast('.')
-        if (componentName !in setOf("TextArea", "TextField", "Select", "RadioGroup")) return
+        if (componentName !in setOf("TextArea", "TextField", "Select", "RadioGroup", "Checkbox", "Toggle")) return
         call.arguments["validateOn"]?.let { expression ->
             val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
                 .getOrElse { throw IllegalArgumentException("$componentName.validateOn must be a static validation trigger") }
             canonicalValidationTrigger(
                 value = value,
                 componentName = componentName,
-                defaultTrigger = if (componentName in setOf("Select", "RadioGroup")) {
+                defaultTrigger = if (componentName in setOf("Select", "RadioGroup", "Checkbox", "Toggle")) {
                     CanonicalValidationTrigger.CHANGE
                 } else {
                     CanonicalValidationTrigger.BLUR
@@ -1928,15 +1928,49 @@ private fun RenderCall(
             }
         }
 
-        "Toggle" -> Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(value("label").asString(), Modifier.weight(1f))
+        "Toggle" -> {
+            val checked = value("checked").asBoolean()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val disabled = value("disabled").asBoolean()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
-            Switch(
-                checked = value("checked").asBoolean(),
-                onCheckedChange = { checked ->
-                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(checked))) }
-                }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "Toggle",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
             )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalBooleanValidationMessage(
+                checked = checked,
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString()
+            ).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(label, Modifier.weight(1f))
+                    Switch(
+                        checked = checked,
+                        onCheckedChange = { updatedChecked ->
+                            wasEdited = true
+                            action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedChecked))) }
+                        },
+                        enabled = !disabled,
+                        modifier = Modifier.semantics { contentDescription = accessibilityLabel }
+                    )
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+            }
         }
 
         "Choice" -> Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2377,21 +2411,52 @@ private fun RenderCall(
             }
         }
 
-        "Checkbox" -> Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = value("accessibilityLabel").asString() },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = value("checked").asBoolean(),
-                onCheckedChange = { emit("onChange", JsonPrimitive(it)) }
+        "Checkbox" -> {
+            val checked = value("checked").asBoolean()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val disabled = value("disabled").asBoolean()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "Checkbox",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
             )
-            Column(Modifier.weight(1f)) {
-                Text(value("label").asString(), style = MaterialTheme.typography.bodyLarge)
-                value("supporting").asString().takeIf(String::isNotBlank)?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalBooleanValidationMessage(
+                checked = checked,
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString()
+            ).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { updatedChecked ->
+                            wasEdited = true
+                            emit("onChange", JsonPrimitive(updatedChecked))
+                        },
+                        enabled = !disabled,
+                        modifier = Modifier.semantics { contentDescription = accessibilityLabel }
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                        value("supporting").asString().takeIf(String::isNotBlank)?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
             }
         }
 
@@ -3244,6 +3309,16 @@ internal fun canonicalValidationMessage(value: String, rules: List<CanonicalText
             else -> "Enter a valid value"
         }
     }
+}
+
+internal fun canonicalBooleanValidationMessage(
+    checked: Boolean,
+    required: Boolean,
+    requiredMessage: String
+): String? = if (required && !checked) {
+    requiredMessage.ifBlank { "This option is required" }
+} else {
+    null
 }
 
 internal fun canonicalSliderRange(minimum: Double, maximum: Double): ClosedFloatingPointRange<Double> {

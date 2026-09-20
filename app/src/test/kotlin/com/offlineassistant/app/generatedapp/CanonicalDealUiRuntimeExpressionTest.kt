@@ -234,4 +234,20 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(null, canonicalTextInputFocusEvent(false, false))
         assertEquals(null, canonicalTextInputFocusEvent(true, true))
     }
+
+    @Test
+    fun `boolean controls adapt required validation and source change timing`() {
+        assertEquals(
+            CanonicalValidationTrigger.CHANGE,
+            canonicalValidationTrigger(
+                value = null,
+                componentName = "Checkbox",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+        )
+        assertEquals("This option is required", canonicalBooleanValidationMessage(false, true, ""))
+        assertEquals("Accept terms", canonicalBooleanValidationMessage(false, true, "Accept terms"))
+        assertEquals(null, canonicalBooleanValidationMessage(true, true, "Accept terms"))
+        assertEquals(null, canonicalBooleanValidationMessage(false, false, "Accept terms"))
+    }
 }

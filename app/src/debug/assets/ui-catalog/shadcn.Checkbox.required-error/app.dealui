@@ -1,0 +1,21 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Terms", supporting: "shadcn Checkbox with source-compatible required validation")
+      ui.Checkbox(
+        name: "acceptedTerms",
+        checked: state.accepted,
+        label: "I accept the terms",
+        supporting: "Required to continue",
+        required: true,
+        requiredMessage: "Accept the terms before continuing",
+        validationVisible: state.validationVisible,
+        onChange: action app.ChangeAccepted { checked: payload },
+        accessibilityLabel: "Terms checkbox"
+      )
+    }
+  }
+}

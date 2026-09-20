@@ -222,6 +222,14 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(invalidSelectTrigger))
             }.message
         )
+
+        val invalidCheckboxTrigger = callWithArguments("Checkbox", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "Checkbox.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidCheckboxTrigger))
+            }.message
+        )
     }
 
     @Test

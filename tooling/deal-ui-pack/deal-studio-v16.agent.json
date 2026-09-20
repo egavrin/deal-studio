@@ -468,12 +468,12 @@
       "constraints": []
     },
     "Toggle": {
-      "purpose": "Use Toggle only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Edit one checked boolean with mobile switch semantics, source-compatible validation timing, and disabled-event suppression.",
+      "preferWhen": ["Adapting shadcn Switch", "Adapting React Native Switch"],
+      "avoidWhen": ["The control is a toggle button rather than a switch", "Several independent boolean choices are clearer as Checkbox controls"],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": ["A nullable source checked value adapts to false until DEAL owns a boolean value", "shadcn checks lower explicitly to required and requiredMessage", "The source-compatible default validation trigger is change", "disabled prevents native interaction and event dispatch"]
     },
     "Choice": {
       "purpose": "Use Choice only for its declared typed contract.",
@@ -628,12 +628,12 @@
       "constraints": []
     },
     "Checkbox": {
-      "purpose": "Use Checkbox only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Edit one checked boolean with checkbox semantics, optional supporting copy, validation timing, and disabled-event suppression.",
+      "preferWhen": ["Adapting shadcn Checkbox", "Adapting React Native Checkbox", "Several independent boolean values may be selected"],
+      "avoidWhen": ["A compact on/off preference is clearer as Toggle", "The control represents a mutually exclusive string choice"],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": ["A nullable source checked value adapts to false until DEAL owns a boolean value", "shadcn checks lower explicitly to required and requiredMessage", "The source-compatible default validation trigger is change", "disabled prevents native interaction and event dispatch"]
     },
     "Stepper": {
       "purpose": "Use Stepper only for its declared typed contract.",
@@ -1020,7 +1020,7 @@
       "purpose": "Typed TimeFieldProps contract used by the component pack."
     },
     "ToggleProps": {
-      "purpose": "Typed ToggleProps contract used by the component pack."
+      "purpose": "Typed ToggleProps contract for shadcn and React Native Switch adaptations."
     },
     "ChoiceProps": {
       "purpose": "Typed ChoiceProps contract used by the component pack."
@@ -1125,7 +1125,7 @@
       "purpose": "Typed TopBarProps contract used by the component pack."
     },
     "CheckboxProps": {
-      "purpose": "Typed CheckboxProps contract used by the component pack."
+      "purpose": "Typed CheckboxProps contract for shadcn and React Native Checkbox adaptations."
     },
     "StepperProps": {
       "purpose": "Typed StepperProps contract used by the component pack."
@@ -2292,17 +2292,35 @@
     "TimeField.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for TimeField."
     },
+    "Toggle.name": {
+      "purpose": "Stable field identity and final accessibility-label fallback for Toggle."
+    },
     "Toggle.checked": {
-      "purpose": "Checked checked property for Toggle."
+      "purpose": "DEAL-owned boolean value; false adapts a nullable source value."
     },
     "Toggle.label": {
-      "purpose": "Checked label property for Toggle."
+      "purpose": "Visible Toggle label and accessibility fallback."
+    },
+    "Toggle.disabled": {
+      "purpose": "Disables native Toggle interaction and suppresses onChange dispatch."
+    },
+    "Toggle.required": {
+      "purpose": "Requires the boolean value to be true when validation is visible."
+    },
+    "Toggle.requiredMessage": {
+      "purpose": "Message shown when a required Toggle remains false."
+    },
+    "Toggle.validateOn": {
+      "purpose": "Validation lifecycle token; the source-compatible default is change."
+    },
+    "Toggle.validationVisible": {
+      "purpose": "DEAL-owned signal that forces Toggle validation visibility."
     },
     "Toggle.onChange": {
-      "purpose": "Checked onChange property for Toggle."
+      "purpose": "Dispatches the exact checked boolean."
     },
     "Toggle.accessibilityLabel": {
-      "purpose": "Checked accessibilityLabel property for Toggle."
+      "purpose": "Accessible Toggle field name; falls back to label and then name."
     },
     "Choice.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for Choice."
@@ -2694,20 +2712,38 @@
     "TopBar.treatment": {
       "purpose": "Checked treatment property for TopBar."
     },
+    "Checkbox.name": {
+      "purpose": "Stable field identity and final accessibility-label fallback for Checkbox."
+    },
     "Checkbox.checked": {
-      "purpose": "Checked checked property for Checkbox."
+      "purpose": "DEAL-owned boolean value; false adapts a nullable source value."
     },
     "Checkbox.label": {
-      "purpose": "Checked label property for Checkbox."
+      "purpose": "Visible Checkbox label and accessibility fallback."
     },
     "Checkbox.supporting": {
-      "purpose": "Checked supporting property for Checkbox."
+      "purpose": "Optional supporting copy retained by the native Checkbox representation."
+    },
+    "Checkbox.disabled": {
+      "purpose": "Disables native Checkbox interaction and suppresses onChange dispatch."
+    },
+    "Checkbox.required": {
+      "purpose": "Requires the boolean value to be true when validation is visible."
+    },
+    "Checkbox.requiredMessage": {
+      "purpose": "Message shown when a required Checkbox remains false."
+    },
+    "Checkbox.validateOn": {
+      "purpose": "Validation lifecycle token; the source-compatible default is change."
+    },
+    "Checkbox.validationVisible": {
+      "purpose": "DEAL-owned signal that forces Checkbox validation visibility."
     },
     "Checkbox.onChange": {
-      "purpose": "Checked onChange property for Checkbox."
+      "purpose": "Dispatches the exact checked boolean."
     },
     "Checkbox.accessibilityLabel": {
-      "purpose": "Checked accessibilityLabel property for Checkbox."
+      "purpose": "Accessible Checkbox field name; falls back to label and then name."
     },
     "Stepper.value": {
       "purpose": "Checked value property for Stepper."

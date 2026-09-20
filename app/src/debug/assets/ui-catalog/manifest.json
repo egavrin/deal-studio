@@ -180,6 +180,40 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/shadcn.Radio.selected/app.deal",
       "dealUi": "ui-catalog/shadcn.Radio.selected/app.dealui"
+    },
+    {
+      "id": "shadcn.Checkbox.required-error",
+      "origin": "shadcn",
+      "component": "Checkbox",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Checkbox.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Checkbox.required-error/app.dealui"
+    },
+    {
+      "id": "react-native.Checkbox.disabled",
+      "origin": "react-native",
+      "component": "Checkbox",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Checkbox.disabled/app.deal",
+      "dealUi": "ui-catalog/react-native.Checkbox.disabled/app.dealui"
+    },
+    {
+      "id": "shadcn.Switch.required-error",
+      "origin": "shadcn",
+      "component": "Switch",
+      "targetComponent": "Toggle",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Switch.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Switch.required-error/app.dealui"
+    },
+    {
+      "id": "react-native.Switch.disabled",
+      "origin": "react-native",
+      "component": "Switch",
+      "targetComponent": "Toggle",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Switch.disabled/app.deal",
+      "dealUi": "ui-catalog/react-native.Switch.disabled/app.dealui"
     }
   ]
 }

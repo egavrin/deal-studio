@@ -69,7 +69,7 @@ export class TextAreaProps { name: string = ""; value: string = ""; label: strin
 export class IntFieldProps { value: int = 0; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class NumberFieldProps { value: number = 0.0; label: string = ""; placeholder: string = ""; fractionDigits: int = 1; onChange?: Action; accessibilityLabel?: string; }
 export class TimeFieldProps { valueMinutes: int = 0; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
-export class ToggleProps { checked: boolean = false; label: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class ToggleProps { name: string = ""; checked: boolean = false; label: string = ""; disabled: boolean = false; required: boolean = false; requiredMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
 export class ChoiceProps { accessibilityLabel?: string; }
 export class ChoiceItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
 export class SelectProps { name: string = ""; value: string = ""; label: string = ""; placeholder: string = ""; required: boolean = false; requiredMessage: string = ""; minLength: int = 0; minLengthMessage: string = ""; maxLength: int = 0; maxLengthMessage: string = ""; email: boolean = false; emailMessage: string = ""; pattern: string = ""; patternMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
@@ -104,7 +104,7 @@ export class ImageProps { url: string = ""; description: string = ""; ratioWidth
 export class EmptyStateProps { title: string = ""; message: string = ""; icon: string = "info"; actionText: string = ""; onAction?: Action; accessibilityLabel?: string; }
 export class SnackbarProps { visible: boolean = false; message: string = ""; actionText: string = ""; onAction?: Action; onDismiss?: Action; accessibilityLabel?: string; }
 export class TopBarProps { title: string = ""; subtitle: string = ""; leadingIcon: string = ""; treatment?: SurfaceTreatment; }
-export class CheckboxProps { checked: boolean = false; label: string = ""; supporting: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class CheckboxProps { name: string = ""; checked: boolean = false; label: string = ""; supporting: string = ""; disabled: boolean = false; required: boolean = false; requiredMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
 export class StepperProps { value: int = 0; minimum: int = 0; maximum: int = 100; label: string = ""; decrementLabel: string = "Decrease"; incrementLabel: string = "Increase"; onChange?: Action; }
 export class TabsProps { accessibilityLabel?: string; }
 export class TabItemProps { label: string = ""; selected: boolean = false; onClick?: Action; accessibilityLabel?: string; }
