@@ -163,6 +163,33 @@ class GeneratedAppThemeTest {
     }
 
     @Test
+    fun `checked IR rejects malformed static text area validation`() {
+        val invalidTrigger = callWithArguments("TextArea", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "TextArea.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTrigger))
+            }.message
+        )
+
+        val negativeMinimum = callWithArguments("TextArea", "\"minLength\":{\"kind\":\"literal\",\"value\":-1}")
+        assertEquals(
+            "TextArea.minLength must be non-negative",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(negativeMinimum))
+            }.message
+        )
+
+        val malformedPattern = callWithArguments("TextArea", "\"pattern\":${literal("[")}")
+        assertEquals(
+            "TextArea.pattern is not a valid regular expression",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(malformedPattern))
+            }.message
+        )
+    }
+
+    @Test
     fun `six styles materialize distinct coherent visual systems`() {
         val systems = GeneratedAppThemeSpec.STYLES.associateWith { style -> GeneratedAppThemeSpec(style = style).materializedStyle() }
         assertEquals("outlined", systems.getValue("clean").surface)

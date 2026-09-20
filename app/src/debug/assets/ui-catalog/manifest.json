@@ -118,6 +118,15 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/shadcn.Textarea.multiline/app.deal",
       "dealUi": "ui-catalog/shadcn.Textarea.multiline/app.dealui"
+    },
+    {
+      "id": "shadcn.Textarea.required-error",
+      "origin": "shadcn",
+      "component": "Textarea",
+      "targetComponent": "TextArea",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Textarea.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Textarea.required-error/app.dealui"
     }
   ]
 }

@@ -1,7 +1,7 @@
-export class AppState { notes: string = ""; validationVisible: boolean = false; }
+export class AppState { notes: string = ""; validationVisible: boolean = true; }
 export class ChangeNotes { value: string; }
 export class SubmitNotes {}
-export function initialState(): AppState { return { notes: "", validationVisible: false }; }
+export function initialState(): AppState { return { notes: "", validationVisible: true }; }
 // @ui-update
 export function changeNotes(state: AppState, action: ChangeNotes): AppState {
   return { notes: action.value, validationVisible: state.validationVisible };

@@ -61,6 +61,9 @@
     "spinnerSmall",
     "spinnerMedium",
     "spinnerLarge",
+    "validationOnChange",
+    "validationOnBlur",
+    "validationOnSubmit",
     "treatmentPlain",
     "treatmentTonal",
     "treatmentOutlined",
@@ -429,7 +432,7 @@
       "avoidWhen": ["The value is numeric", "A single short line is sufficient; use TextField"],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": ["rows is clamped to 1..12", "The onChange payload remains the exact edited string including newlines"]
+      "constraints": ["rows is clamped to 1..12", "The onChange payload remains the exact edited string including newlines", "The source checks array lowers explicitly to scalar required/minLength/maxLength/email/pattern properties in the current portable compiler", "submit validation requires DEAL-owned validationVisible rather than a renderer-owned success state"]
     },
     "IntField": {
       "purpose": "Use IntField only for its declared typed contract.",
@@ -854,6 +857,9 @@
     },
     "SpinnerSize": {
       "purpose": "Typed SpinnerSize contract used by the component pack."
+    },
+    "ValidationTrigger": {
+      "purpose": "Typed validation lifecycle trigger for supported form controls."
     },
     "SurfaceTreatment": {
       "purpose": "Typed SurfaceTreatment contract used by the component pack."
@@ -1324,6 +1330,15 @@
     },
     "spinnerLarge": {
       "purpose": "Typed spinnerLarge token exported by the component pack."
+    },
+    "validationOnChange": {
+      "purpose": "Show a supported validation message after the user edits the field."
+    },
+    "validationOnBlur": {
+      "purpose": "Show a supported validation message after the field loses focus."
+    },
+    "validationOnSubmit": {
+      "purpose": "Show a supported validation message only when the DEAL-owned validationVisible signal is true."
     },
     "treatmentPlain": {
       "purpose": "Typed treatmentPlain token exported by the component pack."
@@ -2026,6 +2041,9 @@
     "TextField.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for TextField."
     },
+    "TextArea.name": {
+      "purpose": "Stable field identity and final accessibility-label fallback for TextArea."
+    },
     "TextArea.value": {
       "purpose": "Multiline checked string value for TextArea."
     },
@@ -2037,6 +2055,42 @@
     },
     "TextArea.rows": {
       "purpose": "Initial visible row count, clamped to 1..12."
+    },
+    "TextArea.required": {
+      "purpose": "Requires non-blank multiline text when true."
+    },
+    "TextArea.requiredMessage": {
+      "purpose": "Message shown when the required rule fails."
+    },
+    "TextArea.minLength": {
+      "purpose": "Minimum Unicode code-point length; zero disables this rule."
+    },
+    "TextArea.minLengthMessage": {
+      "purpose": "Message shown when the minimum-length rule fails."
+    },
+    "TextArea.maxLength": {
+      "purpose": "Maximum Unicode code-point length; zero disables this rule."
+    },
+    "TextArea.maxLengthMessage": {
+      "purpose": "Message shown when the maximum-length rule fails."
+    },
+    "TextArea.email": {
+      "purpose": "Applies the supported email-address rule when true; blank values remain valid unless required is also true."
+    },
+    "TextArea.emailMessage": {
+      "purpose": "Message shown when the email rule fails."
+    },
+    "TextArea.pattern": {
+      "purpose": "Full-string regular-expression rule; blank disables this rule."
+    },
+    "TextArea.patternMessage": {
+      "purpose": "Message shown when the pattern rule fails."
+    },
+    "TextArea.validateOn": {
+      "purpose": "Validation lifecycle token; submit is driven by the explicit DEAL-owned validationVisible signal."
+    },
+    "TextArea.validationVisible": {
+      "purpose": "DEAL-owned signal that forces validation visibility, including submit-time validation."
     },
     "TextArea.onChange": {
       "purpose": "Dispatches the exact edited string including newlines."
@@ -2718,6 +2772,7 @@
     "Choose one coherent theme preset and use it for typography, rhythm, surfaces, metrics, controls, icons, and background—not only seed colour.",
     "Use one dominant Header and one primary action per surface; do not make every element high emphasis.",
     "Keep Cards scarce: prefer SectionHeader for headings and ListGroup for related rows.",
-    "Do not duplicate an app-owned Header with TopBar or host chrome."
+    "Do not duplicate an app-owned Header with TopBar or host chrome.",
+    "Keep validation settings declarative; submit-time validation visibility belongs to checked DEAL state."
   ]
 }

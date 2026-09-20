@@ -4,7 +4,7 @@ import * as ui from "./platform-ui.dealui-pack";
 export view App(state: app.AppState): View {
   ui.AppTheme(style: ui.__STYLE__) {
     ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
-      ui.Header(title: "Multiline text", supporting: "Exact string binding including line breaks")
+      ui.Header(title: "Required note", supporting: "Submit validation is owned by checked DEAL state")
       ui.TextArea(
         name: "notes",
         value: state.notes,
@@ -19,7 +19,6 @@ export view App(state: app.AppState): View {
         accessibilityLabel: "Notes editor"
       )
       ui.Button(text: "Validate notes", onClick: action app.SubmitNotes {})
-      ui.Text(value: state.notes)
     }
   }
 }

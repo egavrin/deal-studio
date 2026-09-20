@@ -157,4 +157,52 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(8, canonicalTextAreaRows(8))
         assertEquals(12, canonicalTextAreaRows(40))
     }
+
+    @Test
+    fun `text area validation uses checked rules and an explicit visibility lifecycle`() {
+        val rules = canonicalTextValidationRules(
+            required = true,
+            requiredMessage = "A note is required",
+            minLength = 3,
+            minLengthMessage = "Use at least three characters",
+            maxLength = 0,
+            maxLengthMessage = "",
+            email = false,
+            emailMessage = "",
+            pattern = "[A-Za-z ]+",
+            patternMessage = "Letters only"
+        )
+
+        assertEquals("A note is required", canonicalValidationMessage("  ", rules))
+        assertEquals("Use at least three characters", canonicalValidationMessage("ab", rules))
+        assertEquals("Letters only", canonicalValidationMessage("abc1", rules))
+        assertEquals(null, canonicalValidationMessage("A valid note", rules))
+        assertEquals(CanonicalValidationTrigger.BLUR, canonicalValidationTrigger(null))
+        assertEquals(CanonicalValidationTrigger.SUBMIT, canonicalValidationTrigger(JsonPrimitive("submit")))
+        assertEquals(
+            false,
+            canonicalValidationVisible(CanonicalValidationTrigger.CHANGE, false, wasEdited = false, wasBlurred = false)
+        )
+        assertEquals(
+            true,
+            canonicalValidationVisible(CanonicalValidationTrigger.CHANGE, false, wasEdited = true, wasBlurred = false)
+        )
+        assertEquals(
+            true,
+            canonicalValidationVisible(CanonicalValidationTrigger.SUBMIT, true, wasEdited = false, wasBlurred = false)
+        )
+    }
+
+    @Test
+    fun `text area validation rejects malformed scalar rules and unknown triggers`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            canonicalTextValidationRules(false, "", -1, "", 0, "", false, "", "", "")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            canonicalTextValidationRules(false, "", 0, "", 0, "", false, "", "[", "")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            canonicalValidationTrigger(JsonPrimitive("focus"))
+        }
+    }
 }

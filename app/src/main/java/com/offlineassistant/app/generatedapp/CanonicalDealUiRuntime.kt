@@ -157,6 +157,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -314,6 +315,7 @@ internal object CanonicalDealUiParser {
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
             .also(CanonicalDealUiProgram::validateV15Structure)
+            .also(CanonicalDealUiProgram::validateFieldValidation)
     }
 
     private fun metadata(value: JsonObject) = CanonicalDealUiCheckedMetadata(
@@ -571,6 +573,47 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
         is CanonicalUiNode.Scope -> node.children.forEach { walk(it, insideCard, parent) }
     }
     nodes.forEach { walk(it, false) }
+}
+
+private fun CanonicalDealUiProgram.validateFieldValidation() {
+    fun validateCall(call: CanonicalUiNode.Call) {
+        if (call.name.substringAfterLast('.') != "TextArea") return
+        call.arguments["validateOn"]?.let { expression ->
+            val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
+                .getOrElse { throw IllegalArgumentException("TextArea.validateOn must be a static validation trigger") }
+            canonicalValidationTrigger(value)
+        }
+        call.arguments["pattern"]?.let { expression ->
+            val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
+                .getOrElse { throw IllegalArgumentException("TextArea.pattern must be a static string") }
+            val pattern = value.asString()
+            if (pattern.isNotBlank()) {
+                runCatching { Regex(pattern) }.getOrElse {
+                    throw IllegalArgumentException("TextArea.pattern is not a valid regular expression")
+                }
+            }
+        }
+        listOf("minLength", "maxLength").forEach { property ->
+            call.arguments[property]?.let { expression ->
+                val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
+                    .getOrElse { throw IllegalArgumentException("TextArea.$property must be a static non-negative integer") }
+                require(value.asInt() >= 0) { "TextArea.$property must be non-negative" }
+            }
+        }
+    }
+    fun walk(node: CanonicalUiNode): Unit = when (node) {
+        is CanonicalUiNode.Call -> {
+            validateCall(node)
+            node.children.forEach(::walk)
+        }
+
+        is CanonicalUiNode.When -> (node.thenNodes + node.elseNodes).forEach(::walk)
+
+        is CanonicalUiNode.ForEach -> node.children.forEach(::walk)
+
+        is CanonicalUiNode.Scope -> node.children.forEach(::walk)
+    }
+    nodes.forEach(::walk)
 }
 
 private fun CanonicalDealUiProgram.validateWidgetSurface() {
@@ -1635,21 +1678,54 @@ private fun RenderCall(
         "TextArea" -> {
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
             val rows = canonicalTextAreaRows(value("rows").asInt())
+            val text = value("value").asString()
             val label = value("label").asString()
-            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val trigger = canonicalValidationTrigger(value("validateOn"))
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString()
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            var hadFocus by remember(call.identity) { mutableStateOf(false) }
+            var wasBlurred by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(text, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = wasBlurred
+                )
+            }
             OutlinedTextField(
-                value = value("value").asString(),
-                onValueChange = { text ->
-                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(text))) }
+                value = text,
+                onValueChange = { updatedText ->
+                    wasEdited = true
+                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedText))) }
                 },
                 label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
                 modifier = modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = accessibilityLabel },
+                    .semantics { contentDescription = accessibilityLabel }
+                    .onFocusChanged { focusState ->
+                        if (hadFocus && !focusState.isFocused) wasBlurred = true
+                        hadFocus = focusState.isFocused
+                    },
                 minLines = rows,
                 maxLines = maxOf(rows, 12),
-                singleLine = false
+                singleLine = false,
+                isError = error != null,
+                supportingText = error?.let { message -> { Text(message) } }
             )
         }
 
@@ -2762,6 +2838,92 @@ internal fun progress(value: Double, maximum: Double): Float = when {
 internal fun canonicalProgressHeight(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(24) ?: 4
 
 internal fun canonicalTextAreaRows(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(12) ?: 4
+
+internal enum class CanonicalValidationTrigger {
+    CHANGE,
+    BLUR,
+    SUBMIT
+}
+
+internal data class CanonicalTextValidationRule(
+    val type: String,
+    val message: String,
+    val minimumLength: Int? = null,
+    val maximumLength: Int? = null,
+    val pattern: String? = null
+)
+
+private val CANONICAL_EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+
+internal fun canonicalValidationTrigger(value: JsonElement?): CanonicalValidationTrigger = when (
+    value.typedTokenString().ifBlank { "blur" }
+) {
+    "change" -> CanonicalValidationTrigger.CHANGE
+    "blur" -> CanonicalValidationTrigger.BLUR
+    "submit" -> CanonicalValidationTrigger.SUBMIT
+    else -> throw IllegalArgumentException("TextArea.validateOn must be change, blur, or submit")
+}
+
+internal fun canonicalTextValidationRules(
+    required: Boolean,
+    requiredMessage: String,
+    minLength: Int,
+    minLengthMessage: String,
+    maxLength: Int,
+    maxLengthMessage: String,
+    email: Boolean,
+    emailMessage: String,
+    pattern: String,
+    patternMessage: String
+): List<CanonicalTextValidationRule> {
+    require(minLength >= 0) { "TextArea.minLength must be non-negative" }
+    require(maxLength >= 0) { "TextArea.maxLength must be non-negative" }
+    if (pattern.isNotBlank()) {
+        runCatching { Regex(pattern) }.getOrElse {
+            throw IllegalArgumentException("TextArea.pattern is not a valid regular expression")
+        }
+    }
+    return buildList {
+        if (required) add(CanonicalTextValidationRule("required", requiredMessage))
+        if (minLength > 0) add(CanonicalTextValidationRule("minLength", minLengthMessage, minimumLength = minLength))
+        if (maxLength > 0) add(CanonicalTextValidationRule("maxLength", maxLengthMessage, maximumLength = maxLength))
+        if (email) add(CanonicalTextValidationRule("email", emailMessage))
+        if (pattern.isNotBlank()) add(CanonicalTextValidationRule("pattern", patternMessage, pattern = pattern))
+    }
+}
+
+internal fun canonicalValidationVisible(
+    trigger: CanonicalValidationTrigger,
+    validationVisible: Boolean,
+    wasEdited: Boolean,
+    wasBlurred: Boolean
+): Boolean = validationVisible || when (trigger) {
+    CanonicalValidationTrigger.CHANGE -> wasEdited
+    CanonicalValidationTrigger.BLUR -> wasBlurred
+    CanonicalValidationTrigger.SUBMIT -> false
+}
+
+internal fun canonicalValidationMessage(value: String, rules: List<CanonicalTextValidationRule>): String? = rules.firstOrNull { rule ->
+    when (rule.type) {
+        "required" -> value.isBlank()
+        "minLength" -> value.codePointCount(0, value.length) < requireNotNull(rule.minimumLength)
+        "maxLength" -> value.codePointCount(0, value.length) > requireNotNull(rule.maximumLength)
+        "email" -> value.isNotBlank() && !CANONICAL_EMAIL_PATTERN.matches(value)
+        "pattern" -> !Regex(requireNotNull(rule.pattern)).matches(value)
+        else -> error("Validated rules may contain only supported types")
+    }
+}?.let { rule ->
+    rule.message.ifBlank {
+        when (rule.type) {
+            "required" -> "This field is required"
+            "minLength" -> "Enter at least ${rule.minimumLength} characters"
+            "maxLength" -> "Enter at most ${rule.maximumLength} characters"
+            "email" -> "Enter a valid email address"
+            "pattern" -> "Enter a valid value"
+            else -> "Enter a valid value"
+        }
+    }
+}
 
 internal fun canonicalSliderRange(minimum: Double, maximum: Double): ClosedFloatingPointRange<Double> {
     val start = minimum.takeIf(Double::isFinite) ?: 0.0

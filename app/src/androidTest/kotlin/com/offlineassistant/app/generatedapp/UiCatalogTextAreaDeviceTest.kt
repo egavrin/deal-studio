@@ -3,9 +3,12 @@ package com.offlineassistant.app.generatedapp
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -45,6 +48,35 @@ class UiCatalogTextAreaDeviceTest {
 
         composeRule.runOnIdle {
             assertEquals(text, state.value.getValue("notes").jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun submittedValidationShowsTheConfiguredRequiredMessage() {
+        val loaded = loadUiCatalogFixture(
+            context = ApplicationProvider.getApplicationContext(),
+            caseId = "shadcn.Textarea.multiline",
+            style = "technical"
+        )
+        val state = mutableStateOf(loaded.initialState)
+        composeRule.setContent {
+            CanonicalDealUiRenderer(
+                program = loaded.program,
+                state = state.value,
+                onAction = { action ->
+                    state.value = loaded.runtime.dispatch(
+                        handler = requireNotNull(loaded.program.updates[action.type]),
+                        actionType = action.type,
+                        fields = action.fields
+                    )
+                }
+            )
+        }
+
+        composeRule.onNodeWithText("Validate notes").performClick()
+        composeRule.onNodeWithText("Notes are required").assertExists()
+        composeRule.runOnIdle {
+            assertEquals(true, state.value.getValue("validationVisible").jsonPrimitive.boolean)
         }
     }
 }
