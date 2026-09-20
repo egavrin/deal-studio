@@ -142,12 +142,13 @@ internal fun GeneratedAppStudioRoute(
             onCancel = viewModel::cancel,
             onOpenSettings = onOpenSettings,
             onDismissSettings = onDismissSettings,
-            onSaveSettings = { dealModel, dealUiModel, deepSeekKey, cerebrasKey ->
-                viewModel.saveGenerationSettings(dealModel, dealUiModel, deepSeekKey, cerebrasKey)
+            onSaveSettings = { dealModel, dealUiModel, deepSeekKey, cerebrasKey, jevKey ->
+                viewModel.saveGenerationSettings(dealModel, dealUiModel, deepSeekKey, cerebrasKey, jevKey)
                 onDismissSettings()
             },
             onClearDeepSeekApiKey = viewModel::clearDeepSeekApiKey,
             onClearCerebrasApiKey = viewModel::clearCerebrasApiKey,
+            onClearJevApiKey = viewModel::clearJevApiKey,
             onArtifactSelected = viewModel::selectArtifact,
             onPreviewExpanded = viewModel::setPreviewExpanded,
             onSaveCurrent = viewModel::saveCurrent,
@@ -174,9 +175,10 @@ internal data class GeneratedAppStudioActions(
     val onCancel: () -> Unit,
     val onOpenSettings: () -> Unit,
     val onDismissSettings: () -> Unit,
-    val onSaveSettings: (DeepSeekGenerationModel, DeepSeekGenerationModel, String, String) -> Unit,
+    val onSaveSettings: (DeepSeekGenerationModel, DeepSeekGenerationModel, String, String, String) -> Unit,
     val onClearDeepSeekApiKey: () -> Unit,
     val onClearCerebrasApiKey: () -> Unit,
+    val onClearJevApiKey: () -> Unit,
     val onArtifactSelected: (GeneratedArtifact) -> Unit,
     val onPreviewExpanded: (Boolean) -> Unit,
     val onSaveCurrent: () -> Unit,
@@ -1292,6 +1294,7 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
     var dealModel by rememberSaveable { mutableStateOf(state.dealModel) }
     var deepSeekKey by rememberSaveable { mutableStateOf("") }
     var cerebrasKey by rememberSaveable { mutableStateOf("") }
+    var jevKey by rememberSaveable { mutableStateOf("") }
     Dialog(
         onDismissRequest = actions.onDismissSettings,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -1316,7 +1319,9 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
                         )
                     }
                     TextButton(
-                        onClick = { actions.onSaveSettings(dealModel, dealModel, deepSeekKey, cerebrasKey) },
+                        onClick = {
+                            actions.onSaveSettings(dealModel, dealModel, deepSeekKey, cerebrasKey, jevKey)
+                        },
                         enabled = !state.isBusy
                     ) { Text("Save settings") }
                     IconButton(onClick = actions.onDismissSettings) {
@@ -1373,6 +1378,14 @@ private fun StudioSettingsDialog(state: GeneratedAppStudioState, actions: Genera
                         configured = state.cerebrasKeyConfigured,
                         onClear = actions.onClearCerebrasApiKey
                     )
+                    ProviderKeyEditor(
+                        provider = "Jev / TypeSafe",
+                        value = jevKey,
+                        onValueChange = { jevKey = it },
+                        configured = state.jevKeyConfigured,
+                        onClear = actions.onClearJevApiKey,
+                        supportingText = "Used only by the experimental UI-first planner"
+                    )
                 }
             }
         }
@@ -1385,14 +1398,23 @@ private fun ProviderKeyEditor(
     value: String,
     onValueChange: (String) -> Unit,
     configured: Boolean,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    supportingText: String? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             label = { Text("$provider API key") },
-            supportingText = { Text(if (configured) "Stored securely" else "Not configured") },
+            supportingText = {
+                Text(
+                    when {
+                        configured -> "Stored securely"
+                        supportingText != null -> supportingText
+                        else -> "Not configured"
+                    }
+                )
+            },
             placeholder = { Text("Secret key") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),

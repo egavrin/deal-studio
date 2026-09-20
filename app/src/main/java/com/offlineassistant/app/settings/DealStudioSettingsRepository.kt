@@ -20,6 +20,18 @@ internal class DealStudioSettingsRepository(context: Context) {
         displayName = "Cerebras"
     )
 
+    /**
+     * The Jev credential is intentionally a Studio-host concern.  It must not
+     * cross the portable compiler/pack bridge or be included in a generation
+     * trace, source provenance, or a generated application.
+     */
+    private val jevApiKeyStore = EncryptedApiKeyStore(
+        context = context.applicationContext,
+        credentialId = "deal_studio_jev_api_key",
+        keyAlias = "deal_studio_jev_byok_v1",
+        displayName = "Jev"
+    )
+
     init {
         provisionEmbeddedDeepSeekApiKey()
         provisionEmbeddedCerebrasApiKey()
@@ -49,6 +61,19 @@ internal class DealStudioSettingsRepository(context: Context) {
 
     fun clearCerebrasApiKey() {
         cerebrasApiKeyStore.clear()
+    }
+
+    val jevApiKeyConfigured: Boolean
+        get() = jevApiKeyStore.isConfigured()
+
+    fun saveJevApiKey(value: String) {
+        jevApiKeyStore.save(value)
+    }
+
+    fun jevApiKeyOrNull(): String? = jevApiKeyStore.readOrNull()
+
+    fun clearJevApiKey() {
+        jevApiKeyStore.clear()
     }
 
     val dealModel: DeepSeekGenerationModel

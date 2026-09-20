@@ -3,7 +3,9 @@ package com.offlineassistant.app.settings
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -38,6 +40,28 @@ class EncryptedApiKeyStoreTest {
         } finally {
             first.clear()
             second.clear()
+        }
+    }
+
+    @Test
+    fun jevCredentialCanBeSavedAndClearedThroughStudioSettings() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val settings = DealStudioSettingsRepository(context)
+
+        try {
+            settings.clearJevApiKey()
+            assertNull(settings.jevApiKeyOrNull())
+
+            settings.saveJevApiKey("test-jev-credential")
+
+            assertEquals("test-jev-credential", settings.jevApiKeyOrNull())
+            assertTrue(settings.jevApiKeyConfigured)
+
+            settings.clearJevApiKey()
+            assertNull(settings.jevApiKeyOrNull())
+            assertFalse(settings.jevApiKeyConfigured)
+        } finally {
+            settings.clearJevApiKey()
         }
     }
 }

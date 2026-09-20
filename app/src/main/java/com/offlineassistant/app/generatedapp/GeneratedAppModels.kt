@@ -55,6 +55,7 @@ internal data class GeneratedAppStudioState(
     val refinementPrompt: String = "",
     val deepSeekKeyConfigured: Boolean = false,
     val cerebrasKeyConfigured: Boolean = false,
+    val jevKeyConfigured: Boolean = false,
     val dealModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
     val dealUiModel: DeepSeekGenerationModel = DeepSeekGenerationModel.FLASH,
     val generationMode: StudioGenerationMode = StudioGenerationMode.CANONICAL,

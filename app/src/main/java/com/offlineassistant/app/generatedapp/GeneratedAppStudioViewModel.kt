@@ -51,6 +51,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         GeneratedAppStudioState(
             deepSeekKeyConfigured = settings.deepSeekApiKeyConfigured,
             cerebrasKeyConfigured = settings.cerebrasApiKeyConfigured,
+            jevKeyConfigured = settings.jevApiKeyConfigured,
             dealModel = settings.dealModel,
             dealUiModel = settings.dealUiModel
         )
@@ -95,7 +96,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         mutableState.update {
             it.copy(
                 deepSeekKeyConfigured = settings.deepSeekApiKeyConfigured,
-                cerebrasKeyConfigured = settings.cerebrasApiKeyConfigured
+                cerebrasKeyConfigured = settings.cerebrasApiKeyConfigured,
+                jevKeyConfigured = settings.jevApiKeyConfigured
             )
         }
     }
@@ -120,24 +122,37 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         refreshCloudAvailability()
     }
 
+    fun saveJevApiKey(value: String) {
+        settings.saveJevApiKey(value)
+        refreshCloudAvailability()
+    }
+
+    fun clearJevApiKey() {
+        settings.clearJevApiKey()
+        refreshCloudAvailability()
+    }
+
     fun saveGenerationSettings(
         dealModel: DeepSeekGenerationModel,
         @Suppress("UnusedParameter")
         dealUiModel: DeepSeekGenerationModel,
         deepSeekApiKey: String,
-        cerebrasApiKey: String
+        cerebrasApiKey: String,
+        jevApiKey: String
     ) {
         if (state.value.isBusy) return
         settings.saveDealModel(dealModel)
         settings.saveDealUiModel(dealModel)
         deepSeekApiKey.trim().takeIf(String::isNotEmpty)?.let(settings::saveDeepSeekApiKey)
         cerebrasApiKey.trim().takeIf(String::isNotEmpty)?.let(settings::saveCerebrasApiKey)
+        jevApiKey.trim().takeIf(String::isNotEmpty)?.let(settings::saveJevApiKey)
         mutableState.update {
             it.copy(
                 dealModel = dealModel,
                 dealUiModel = dealModel,
                 deepSeekKeyConfigured = settings.deepSeekApiKeyConfigured,
-                cerebrasKeyConfigured = settings.cerebrasApiKeyConfigured
+                cerebrasKeyConfigured = settings.cerebrasApiKeyConfigured,
+                jevKeyConfigured = settings.jevApiKeyConfigured
             )
         }
     }
