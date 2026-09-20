@@ -23,3 +23,10 @@ scripts/verify-ui-catalog.sh --serial "$ANDROID_SERIAL" \
 The runner waits up to 60 seconds for the readiness semantic so a cold compiler load after a candidate-pack change cannot produce an empty screenshot. Set `UI_CATALOG_READY_TIMEOUT_SECONDS` to a positive whole number only when a device needs a different bounded timeout.
 
 Each fixture names its exact immutable pack version. The evidence report records that version and digest per screenshot, so a candidate-pack fixture is never reported as if it used the active pack from `toolchain.lock`.
+
+## Contract inventory
+
+The 64-row source denominator is not inferred from fixture names. Its checked artifact records every
+prop, event, and child slot extracted from the exact pinned json-render revision. The extraction
+is a build-time developer operation: it executes upstream Zod schemas from a locally prepared
+checkout and is never shipped in Studio or used by the renderer.

@@ -48,7 +48,7 @@
     { "origin": "react-native", "name": "ScrollContainer", "status": "PENDING" },
     { "origin": "react-native", "name": "SafeArea", "status": "PENDING" },
     { "origin": "react-native", "name": "Spacer", "status": "PENDING" },
-    { "origin": "react-native", "name": "Pressable", "status": "PENDING" },
+    { "origin": "react-native", "name": "Pressable", "status": "IMPLEMENTED" },
     { "origin": "react-native", "name": "Divider", "status": "PENDING" },
     { "origin": "react-native", "name": "Heading", "status": "PENDING" },
     { "origin": "react-native", "name": "Paragraph", "status": "PENDING" },
