@@ -4,10 +4,10 @@
   "scenario": "percentage",
   "requestDigest": "0c6acf95d7e995ed89c8c91f302d3a83a1305d8fa45292bd528db0064b2bcbcd",
   "plannerEvaluations": 2,
-  "structuralDigest": "8c7600ddc751651b5815677286e7fefd0b22a81d39c9869272322a9c298e784a",
-  "bindingDigest": "9f02a9cab713e2eb38838edb688071cc9788d26d6d7a15dc30605a917c373de7",
+  "structuralDigest": "963c13d253efed4b69df62b6a052d1404d0fb8bbfc9b6a15544977efda551fb2",
+  "bindingDigest": "5601938308032cf83fd0b05758a0aad66e078bb039ae78f007596e18eb2cc482",
   "dealSource": "export class AppState { amount: number = 100.0; percentage: number = 10.0; part: number = 10.0; whole: number = 1000.0; }\nexport class ChangeAmount { value: number = 0.0; }\nexport class ChangePercentage { value: number = 0.0; }\nexport class Calculate {}\nexport function initialState(): AppState { return {amount: 100.0, percentage: 10.0, part: 10.0, whole: 1000.0}; }\n// @ui-update\nexport function changeAmount(state: AppState, action: ChangeAmount): AppState { return {amount: action.value, percentage: state.percentage, part: state.part, whole: state.whole}; }\n// @ui-update\nexport function changePercentage(state: AppState, action: ChangePercentage): AppState { return {amount: state.amount, percentage: action.value, part: state.part, whole: state.whole}; }\n// @ui-update\nexport function calculate(state: AppState, action: Calculate): AppState { let part: number = (state.amount * state.percentage) / 100.0; let whole: number = 0.0; if (state.percentage !== 0.0) { whole = (state.amount * 100.0) / state.percentage; } return {amount: state.amount, percentage: state.percentage, part: part, whole: whole}; }",
-  "dealUiSource": "import * as app from \"./app.deal\";\nimport * as ui from \"./platform-ui.dealui-pack\";\n\n// @ui-root\nexport view App(state: app.AppState): View {\n  ui.Root() {\n    ui.Column() {\n      ui.NumberField(label: \"Значение\", onChange: action app.ChangeAmount {value: payload}, value: state.amount)\n      ui.NumberField(label: \"Процент\", onChange: action app.ChangePercentage {value: payload}, value: state.percentage)\n      ui.NumberStat(label: \"Процент от значения\", value: state.part)\n      ui.NumberStat(label: \"Целое, если значение — этот процент\", value: state.whole)\n      ui.Button(onClick: action app.Calculate {}, text: \"Рассчитать\")\n      ui.Text(value: \"Процент — это доля из 100. Чтобы найти P% от значения, умножьте значение на P и разделите на 100. Чтобы найти целое, если значение составляет P%, умножьте значение на 100 и разделите на P. При P = 0 обратный расчёт недоступен.\")\n    }\n  }\n}\n",
+  "dealUiSource": "import * as app from \"./app.deal\";\nimport * as ui from \"./platform-ui.dealui-pack\";\n\n// @ui-root\nexport view App(state: app.AppState): View {\n  ui.Root() {\n    ui.Column() {\n      ui.NumberField(label: \"Значение\", onChange: action app.ChangeAmount {value: payload}, value: state.amount)\n      ui.NumberField(label: \"Процент\", onChange: action app.ChangePercentage {value: payload}, value: state.percentage)\n      ui.NumberStat(label: \"Целое, если значение — этот процент\", value: state.whole)\n      ui.Button(onClick: action app.Calculate {}, text: \"Рассчитать\")\n      ui.Text(value: \"Процент — это доля из 100. Чтобы найти P% от значения, умножьте значение на P и разделите на 100. Чтобы найти целое, если значение составляет P%, умножьте значение на 100 и разделите на P. При P = 0 обратный расчёт недоступен.\")\n      ui.NumberStat(label: \"Процент от значения\", value: state.part)\n    }\n  }\n}\n",
   "metrics": {
     "jev": [
       {
@@ -27,7 +27,7 @@
       {
         "model": "jev-1.13.0",
         "phase": "LAYOUT",
-        "requestMs": 296,
+        "requestMs": 317,
         "inputTokens": 3556,
         "outputTokens": 704,
         "retries": 0,
@@ -36,13 +36,13 @@
           "omit": 0,
           "unavailable": 0
         },
-        "maxProbabilitySumError": 0
+        "maxProbabilitySumError": 2.220446049250313E-16
       }
     ],
     "business": [
       {
         "model": "deepseek-flash",
-        "requestMs": 2369,
+        "requestMs": 2327,
         "inputTokens": 1916,
         "outputTokens": 662,
         "retries": 0

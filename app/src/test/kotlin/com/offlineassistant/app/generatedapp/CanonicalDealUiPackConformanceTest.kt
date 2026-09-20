@@ -14,9 +14,9 @@ import org.junit.Test
 
 class CanonicalDealUiPackConformanceTest {
     @Test
-    fun `tracked v15 pack is the exact runtime and prompt source`() {
+    fun `tracked v16 pack is the exact runtime and prompt source`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v15.dealui-pack")
+        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v16.dealui-pack")
         val bytes = sourceFile.readBytes()
 
         assertEquals(sourceFile.readText(), CanonicalDealUiPack.source)
@@ -29,8 +29,8 @@ class CanonicalDealUiPackConformanceTest {
     @Test
     fun `pack manifest bundle and bridge lock are one atomic versioned contract`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val pack = File(root, "tooling/deal-ui-pack/deal-studio-v15.dealui-pack").readBytes()
-        val manifest = File(root, "tooling/deal-ui-pack/deal-studio-v15.agent.json").readBytes()
+        val pack = File(root, "tooling/deal-ui-pack/deal-studio-v16.dealui-pack").readBytes()
+        val manifest = File(root, "tooling/deal-ui-pack/deal-studio-v16.agent.json").readBytes()
         fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
         val packDigest = digest(pack)
@@ -50,7 +50,7 @@ class CanonicalDealUiPackConformanceTest {
         val changedPackDigest = digest(pack + 0.toByte())
         assertNotEquals(bundleDigest, digest("$changedPackDigest:$manifestDigest".encodeToByteArray()))
         assertEquals(
-            File(root, "tooling/deal-ui-pack/deal-studio-v15.agent.json").readText(),
+            File(root, "tooling/deal-ui-pack/deal-studio-v16.agent.json").readText(),
             CanonicalDealUiPack.agentManifestSource
         )
     }
@@ -111,7 +111,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v15 is active and saved app pack lookup never falls back across versions`() {
+    fun `v16 is active and pack lookup never falls back across versions`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val productionPack = File(
             root,
@@ -157,7 +157,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v15 uses typed children for interactive option collections`() {
+    fun `active pack uses typed children for interactive option collections`() {
         assertTrue(CanonicalDealUiPack.source.contains("children required NavigationItem"))
         assertTrue(CanonicalDealUiPack.source.contains("children required TabItem"))
         assertTrue(CanonicalDealUiPack.source.contains("children required ChoiceItem"))
@@ -166,7 +166,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v15 exposes generic adaptive interactive cells`() {
+    fun `active pack exposes generic adaptive interactive cells`() {
         assertTrue(CanonicalDealUiPack.source.contains("cellAspectRatio: number = 0.0"))
         assertTrue(CanonicalDealUiPack.source.contains("export component Tile"))
         assertTrue(CanonicalDealUiPack.source.contains("class TileProps { glyph: string;"))
@@ -183,7 +183,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v15 exposes typed utility semantics and adaptive groups`() {
+    fun `active pack exposes typed utility semantics and adaptive groups`() {
         assertTrue(CanonicalDealUiPack.source.contains("style?: ThemeStyle"))
         assertTrue(CanonicalDealUiPack.source.contains("hierarchy?: ButtonHierarchy"))
         assertTrue(CanonicalDealUiPack.source.contains("export component Hero"))
@@ -191,11 +191,11 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(CanonicalDealUiPack.source.contains("children required Button | IconButton"))
         assertEquals(
             "MetricGroup(MetricGroupProps)[children:Stat|IntStat|NumberStat]",
-            GeneratedCanonicalDealUiPackV15.COMPONENT_CONTRACTS.getValue("MetricGroup")
+            GeneratedCanonicalDealUiPackV16.COMPONENT_CONTRACTS.getValue("MetricGroup")
         )
         assertEquals(
             "ActionBar(ActionBarProps)[children:Button|IconButton]",
-            GeneratedCanonicalDealUiPackV15.COMPONENT_CONTRACTS.getValue("ActionBar")
+            GeneratedCanonicalDealUiPackV16.COMPONENT_CONTRACTS.getValue("ActionBar")
         )
         assertTrue(CanonicalDealUiPack.MANIFEST_SHA256.isNotBlank())
         assertTrue(CanonicalDealUiPack.BUNDLE_SHA256.isNotBlank())
@@ -207,7 +207,7 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v15 manifest has exact semantic coverage and fields`() {
+    fun `active pack manifest has exact semantic coverage and fields`() {
         val manifest = Json.parseToJsonElement(CanonicalDealUiPack.agentManifestSource).jsonObject
         val components = manifest.getValue("components").jsonObject
         val types = manifest.getValue("types").jsonObject

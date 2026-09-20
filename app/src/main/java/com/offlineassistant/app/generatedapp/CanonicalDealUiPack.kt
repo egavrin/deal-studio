@@ -2,14 +2,15 @@ package com.offlineassistant.app.generatedapp
 
 internal object CanonicalDealUiPack {
     private const val V14_VERSION = "deal-studio-dealui-pack-v14"
+    private const val V15_VERSION = "deal-studio-dealui-pack-v15"
     private const val V16_VERSION = "deal-studio-dealui-pack-v16"
-    const val VERSION = "deal-studio-dealui-pack-v15"
-    const val SHA256 = GeneratedCanonicalDealUiPackV15.SHA256
-    const val MANIFEST_SHA256 = GeneratedCanonicalDealUiPackV15.MANIFEST_SHA256
-    const val BUNDLE_SHA256 = GeneratedCanonicalDealUiPackV15.BUNDLE_SHA256
+    const val VERSION = V16_VERSION
+    const val SHA256 = GeneratedCanonicalDealUiPackV16.SHA256
+    const val MANIFEST_SHA256 = GeneratedCanonicalDealUiPackV16.MANIFEST_SHA256
+    const val BUNDLE_SHA256 = GeneratedCanonicalDealUiPackV16.BUNDLE_SHA256
 
-    val source: String = GeneratedCanonicalDealUiPackV15.SOURCE
-    val agentManifestSource: String = GeneratedCanonicalDealUiPackV15.AGENT_MANIFEST_SOURCE
+    val source: String = GeneratedCanonicalDealUiPackV16.SOURCE
+    val agentManifestSource: String = GeneratedCanonicalDealUiPackV16.AGENT_MANIFEST_SOURCE
 
     /**
      * Saved applications are compiled against the exact pack they were accepted with.
@@ -18,27 +19,27 @@ internal object CanonicalDealUiPack {
      */
     fun sourceFor(version: String): String? = when (version) {
         V14_VERSION -> GeneratedCanonicalDealUiPackV14.SOURCE
-        VERSION -> GeneratedCanonicalDealUiPackV15.SOURCE
-        V16_VERSION -> GeneratedCanonicalDealUiPackV16.SOURCE
+        V15_VERSION -> GeneratedCanonicalDealUiPackV15.SOURCE
+        VERSION -> GeneratedCanonicalDealUiPackV16.SOURCE
         else -> null
     }
 
     fun digestFor(version: String): String? = when (version) {
         V14_VERSION -> GeneratedCanonicalDealUiPackV14.SHA256
-        VERSION -> GeneratedCanonicalDealUiPackV15.SHA256
-        V16_VERSION -> GeneratedCanonicalDealUiPackV16.SHA256
+        V15_VERSION -> GeneratedCanonicalDealUiPackV15.SHA256
+        VERSION -> GeneratedCanonicalDealUiPackV16.SHA256
         else -> null
     }
 
     /** Lossless model-facing signature catalog for the only supported production pack. */
-    val generationContract: String = GeneratedCanonicalDealUiPackV15.GENERATION_CONTRACT
+    val generationContract: String = GeneratedCanonicalDealUiPackV16.GENERATION_CONTRACT
 
     /** Fixed, validated mobile primitives supplied to the initial model call. */
-    val initialGenerationContract: String = GeneratedCanonicalDealUiPackV15.MOBILE_CORE_GENERATION_CONTRACT
+    val initialGenerationContract: String = GeneratedCanonicalDealUiPackV16.MOBILE_CORE_GENERATION_CONTRACT
 
     /** Expands the mobile core for the sole repair attempt without changing the authoritative pack. */
     fun repairGenerationContract(rejectedDealUi: String, diagnostic: String): String {
-        val generated = GeneratedCanonicalDealUiPackV15
+        val generated = GeneratedCanonicalDealUiPackV16
         val knownComponents = generated.COMPONENT_CONTRACTS.keys
         val selected = generated.MOBILE_CORE_COMPONENTS.toMutableSet()
         COMPONENT_USE.findAll(rejectedDealUi)

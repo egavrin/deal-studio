@@ -139,9 +139,9 @@ class UiFirstPercentageLiveArtifactDeviceTest {
 
     private companion object {
         const val EVIDENCE_TAG = "UiFirstPercentageLiveEvidence"
-        const val EVIDENCE_FILE_NAME = "ui-first-percentage-live-8c7600ddc751"
+        const val EVIDENCE_FILE_NAME = "ui-first-percentage-live-963c13d253ef"
         const val EXPECTED_REQUEST_DIGEST = "0c6acf95d7e995ed89c8c91f302d3a83a1305d8fa45292bd528db0064b2bcbcd"
-        const val EXPECTED_STRUCTURAL_DIGEST = "8c7600ddc751651b5815677286e7fefd0b22a81d39c9869272322a9c298e784a"
-        const val EXPECTED_BINDING_DIGEST = "9f02a9cab713e2eb38838edb688071cc9788d26d6d7a15dc30605a917c373de7"
+        const val EXPECTED_STRUCTURAL_DIGEST = "963c13d253efed4b69df62b6a052d1404d0fb8bbfc9b6a15544977efda551fb2"
+        const val EXPECTED_BINDING_DIGEST = "5601938308032cf83fd0b05758a0aad66e078bb039ae78f007596e18eb2cc482"
     }
 }
