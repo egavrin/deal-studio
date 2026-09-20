@@ -90,6 +90,30 @@
       "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
       "viewport": "device",
       "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Input.email-submit",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Input.email-error",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.TextInput.secure",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.TextInput.multiline",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
     }
   ]
 }

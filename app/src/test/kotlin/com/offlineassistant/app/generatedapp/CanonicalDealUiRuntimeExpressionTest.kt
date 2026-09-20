@@ -1,5 +1,6 @@
 package com.offlineassistant.app.generatedapp
 
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -204,5 +205,25 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertThrows(IllegalArgumentException::class.java) {
             canonicalValidationTrigger(JsonPrimitive("focus"))
         }
+    }
+
+    @Test
+    fun `text input adapts source keyboard types and focus transitions without coercing strings`() {
+        assertEquals(1, canonicalTextInputLines(0))
+        assertEquals(3, canonicalTextInputLines(3))
+        assertEquals(12, canonicalTextInputLines(50))
+        assertEquals(KeyboardType.Email, canonicalTextInputKeyboardType("email", ""))
+        assertEquals(KeyboardType.Number, canonicalTextInputKeyboardType("number", "numeric"))
+        assertEquals(KeyboardType.Phone, canonicalTextInputKeyboardType("", "phone-pad"))
+        assertEquals(KeyboardType.Uri, canonicalTextInputKeyboardType("", "url"))
+        assertEquals(KeyboardType.Password, canonicalTextInputKeyboardType("password", "default"))
+        assertEquals(KeyboardType.Text, canonicalTextInputKeyboardType("text", "default"))
+        assertEquals(true, canonicalTextInputIsSecure("password", false))
+        assertEquals(true, canonicalTextInputIsSecure("text", true))
+        assertEquals(false, canonicalTextInputIsSecure("email", false))
+        assertEquals(CanonicalTextInputFocusEvent.FOCUS, canonicalTextInputFocusEvent(false, true))
+        assertEquals(CanonicalTextInputFocusEvent.BLUR, canonicalTextInputFocusEvent(true, false))
+        assertEquals(null, canonicalTextInputFocusEvent(false, false))
+        assertEquals(null, canonicalTextInputFocusEvent(true, true))
     }
 }

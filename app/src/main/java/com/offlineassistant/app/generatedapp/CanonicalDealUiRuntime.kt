@@ -44,6 +44,7 @@ import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -178,7 +179,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
@@ -494,7 +498,9 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
         "ListGroup.density" to setOf("compact", "comfortable"),
         "Hero.height" to setOf("compact", "standard", "expanded"),
         "Card.orientation" to setOf("vertical", "horizontal"),
-        "ActionBar.collapseBehavior" to setOf("wrap", "stack")
+        "ActionBar.collapseBehavior" to setOf("wrap", "stack"),
+        "TextField.inputType" to setOf("text", "email", "password", "number"),
+        "TextField.keyboardType" to setOf("default", "email-address", "numeric", "phone-pad", "url")
     )
     fun staticString(expression: CanonicalUiExpr): String? = runCatching {
         evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null).let { value ->
@@ -577,27 +583,28 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
 
 private fun CanonicalDealUiProgram.validateFieldValidation() {
     fun validateCall(call: CanonicalUiNode.Call) {
-        if (call.name.substringAfterLast('.') != "TextArea") return
+        val componentName = call.name.substringAfterLast('.')
+        if (componentName !in setOf("TextArea", "TextField")) return
         call.arguments["validateOn"]?.let { expression ->
             val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
-                .getOrElse { throw IllegalArgumentException("TextArea.validateOn must be a static validation trigger") }
-            canonicalValidationTrigger(value)
+                .getOrElse { throw IllegalArgumentException("$componentName.validateOn must be a static validation trigger") }
+            canonicalValidationTrigger(value, componentName)
         }
         call.arguments["pattern"]?.let { expression ->
             val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
-                .getOrElse { throw IllegalArgumentException("TextArea.pattern must be a static string") }
+                .getOrElse { throw IllegalArgumentException("$componentName.pattern must be a static string") }
             val pattern = value.asString()
             if (pattern.isNotBlank()) {
                 runCatching { Regex(pattern) }.getOrElse {
-                    throw IllegalArgumentException("TextArea.pattern is not a valid regular expression")
+                    throw IllegalArgumentException("$componentName.pattern is not a valid regular expression")
                 }
             }
         }
         listOf("minLength", "maxLength").forEach { property ->
             call.arguments[property]?.let { expression ->
                 val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
-                    .getOrElse { throw IllegalArgumentException("TextArea.$property must be a static non-negative integer") }
-                require(value.asInt() >= 0) { "TextArea.$property must be non-negative" }
+                    .getOrElse { throw IllegalArgumentException("$componentName.$property must be a static non-negative integer") }
+                require(value.asInt() >= 0) { "$componentName.$property must be non-negative" }
             }
         }
     }
@@ -1662,16 +1669,86 @@ private fun RenderCall(
         }
 
         "TextField" -> {
-            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val changeAction = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val submitAction = call.arguments["onSubmit"] as? CanonicalUiExpr.Action
+            val focusAction = call.arguments["onFocus"] as? CanonicalUiExpr.Action
+            val blurAction = call.arguments["onBlur"] as? CanonicalUiExpr.Action
+            val text = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val inputType = value("inputType").typedTokenString()
+            val keyboardType = canonicalTextInputKeyboardType(inputType, value("keyboardType").typedTokenString())
+            val lineCount = canonicalTextInputLines(value("numberOfLines").asInt())
+            val isMultiline = value("multiline").asBoolean() || lineCount > 1
+            val trigger = canonicalValidationTrigger(value("validateOn"), "TextField")
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString(),
+                componentName = "TextField"
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            var wasBlurred by remember(call.identity) { mutableStateOf(false) }
+            var wasFocused by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(text, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = wasBlurred
+                )
+            }
             OutlinedTextField(
-                value = value("value").asString(),
-                onValueChange = { text ->
-                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(text))) }
+                value = text,
+                onValueChange = { updatedText ->
+                    wasEdited = true
+                    changeAction?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedText))) }
                 },
-                label = { Text(value("label").asString()) },
+                label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
-                modifier = modifier.fillMaxWidth(),
-                singleLine = false
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = keyboardType,
+                    imeAction = if (submitAction != null && !isMultiline) ImeAction.Done else ImeAction.Default
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        submitAction?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(text))) }
+                    }
+                ),
+                visualTransformation = if (canonicalTextInputIsSecure(inputType, value("secureTextEntry").asBoolean())) {
+                    PasswordVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                },
+                modifier = modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = accessibilityLabel }
+                    .onFocusChanged { focusState ->
+                        when (canonicalTextInputFocusEvent(wasFocused, focusState.isFocused)) {
+                            CanonicalTextInputFocusEvent.FOCUS -> focusAction?.let { onAction(it.resolve(state, scope, program.tokens)) }
+
+                            CanonicalTextInputFocusEvent.BLUR -> {
+                                wasBlurred = true
+                                blurAction?.let { onAction(it.resolve(state, scope, program.tokens)) }
+                            }
+
+                            null -> Unit
+                        }
+                        wasFocused = focusState.isFocused
+                    },
+                minLines = if (isMultiline) lineCount else 1,
+                maxLines = if (isMultiline) maxOf(lineCount, 12) else 1,
+                singleLine = !isMultiline,
+                isError = error != null,
+                supportingText = error?.let { message -> { Text(message) } }
             )
         }
 
@@ -2839,6 +2916,36 @@ internal fun canonicalProgressHeight(value: Int): Int = value.takeIf { it > 0 }?
 
 internal fun canonicalTextAreaRows(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(12) ?: 4
 
+internal fun canonicalTextInputLines(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(12) ?: 1
+
+internal enum class CanonicalTextInputFocusEvent {
+    FOCUS,
+    BLUR
+}
+
+internal fun canonicalTextInputFocusEvent(
+    wasFocused: Boolean,
+    isFocused: Boolean
+): CanonicalTextInputFocusEvent? = when {
+    !wasFocused && isFocused -> CanonicalTextInputFocusEvent.FOCUS
+    wasFocused && !isFocused -> CanonicalTextInputFocusEvent.BLUR
+    else -> null
+}
+
+internal fun canonicalTextInputKeyboardType(
+    inputType: String,
+    keyboardType: String
+): KeyboardType = when (keyboardType.takeUnless { it.isBlank() || it == "default" } ?: inputType) {
+    "email", "email-address" -> KeyboardType.Email
+    "number", "numeric" -> KeyboardType.Number
+    "phone-pad" -> KeyboardType.Phone
+    "url" -> KeyboardType.Uri
+    "password" -> KeyboardType.Password
+    else -> KeyboardType.Text
+}
+
+internal fun canonicalTextInputIsSecure(inputType: String, secureTextEntry: Boolean): Boolean = secureTextEntry || inputType == "password"
+
 internal enum class CanonicalValidationTrigger {
     CHANGE,
     BLUR,
@@ -2855,13 +2962,16 @@ internal data class CanonicalTextValidationRule(
 
 private val CANONICAL_EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
-internal fun canonicalValidationTrigger(value: JsonElement?): CanonicalValidationTrigger = when (
+internal fun canonicalValidationTrigger(
+    value: JsonElement?,
+    componentName: String = "TextArea"
+): CanonicalValidationTrigger = when (
     value.typedTokenString().ifBlank { "blur" }
 ) {
     "change" -> CanonicalValidationTrigger.CHANGE
     "blur" -> CanonicalValidationTrigger.BLUR
     "submit" -> CanonicalValidationTrigger.SUBMIT
-    else -> throw IllegalArgumentException("TextArea.validateOn must be change, blur, or submit")
+    else -> throw IllegalArgumentException("$componentName.validateOn must be change, blur, or submit")
 }
 
 internal fun canonicalTextValidationRules(
@@ -2874,13 +2984,14 @@ internal fun canonicalTextValidationRules(
     email: Boolean,
     emailMessage: String,
     pattern: String,
-    patternMessage: String
+    patternMessage: String,
+    componentName: String = "TextArea"
 ): List<CanonicalTextValidationRule> {
-    require(minLength >= 0) { "TextArea.minLength must be non-negative" }
-    require(maxLength >= 0) { "TextArea.maxLength must be non-negative" }
+    require(minLength >= 0) { "$componentName.minLength must be non-negative" }
+    require(maxLength >= 0) { "$componentName.maxLength must be non-negative" }
     if (pattern.isNotBlank()) {
         runCatching { Regex(pattern) }.getOrElse {
-            throw IllegalArgumentException("TextArea.pattern is not a valid regular expression")
+            throw IllegalArgumentException("$componentName.pattern is not a valid regular expression")
         }
     }
     return buildList {

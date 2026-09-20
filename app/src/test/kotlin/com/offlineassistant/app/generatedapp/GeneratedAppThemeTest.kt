@@ -141,6 +141,11 @@ class GeneratedAppThemeTest {
             "Section.contentWidth has unsupported value 'tablet'",
             assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongWidth)) }.message
         )
+        val wrongTextInputKeyboard = callWithArguments("TextField", "\"keyboardType\":${literal("date")}")
+        assertEquals(
+            "TextField.keyboardType has unsupported value 'date'",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongTextInputKeyboard)) }.message
+        )
         val mixedGrid = call("Grid", call("GridItem", call("Text")) + "," + call("Text"))
         assertEquals(
             "Grid cannot mix direct children with GridItem children",
@@ -185,6 +190,14 @@ class GeneratedAppThemeTest {
             "TextArea.pattern is not a valid regular expression",
             assertThrows(IllegalArgumentException::class.java) {
                 CanonicalDealUiParser.parse(structureIr(malformedPattern))
+            }.message
+        )
+
+        val invalidTextFieldTrigger = callWithArguments("TextField", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "TextField.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTextFieldTrigger))
             }.message
         )
     }

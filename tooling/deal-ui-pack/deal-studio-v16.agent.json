@@ -61,6 +61,15 @@
     "spinnerSmall",
     "spinnerMedium",
     "spinnerLarge",
+    "textInputText",
+    "textInputEmail",
+    "textInputPassword",
+    "textInputNumber",
+    "keyboardDefault",
+    "keyboardEmailAddress",
+    "keyboardNumeric",
+    "keyboardPhonePad",
+    "keyboardUrl",
     "validationOnChange",
     "validationOnBlur",
     "validationOnSubmit",
@@ -419,12 +428,12 @@
       "constraints": []
     },
     "TextField": {
-      "purpose": "Use TextField only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Edit a checked string with optional mobile input type, keyboard, validation lifecycle, and explicit focus, blur, or submit actions.",
+      "preferWhen": ["The user enters a short text value", "A password, email, URL, phone, numeric keyboard, or multiline TextInput adaptation is required"],
+      "avoidWhen": ["The value must be stored as a checked int or number; use IntField or NumberField", "A deliberately long editor is clearer as TextArea"],
       "visualWeight": "medium",
       "commonSiblings": [],
-      "constraints": []
+      "constraints": ["String values remain exact edit buffers even with number or phone keyboards", "shadcn Input type lowers to inputType; its checks array lowers explicitly to scalar required/minLength/maxLength/email/pattern properties", "React Native secureTextEntry, keyboardType, multiline, and numberOfLines are supported", "onSubmit receives the current checked string; onFocus and onBlur are unit actions", "React Native flex remains an explicit pending layout adaptation rather than an ignored property"]
     },
     "TextArea": {
       "purpose": "Edit multiline string content with a bounded initial row count.",
@@ -857,6 +866,12 @@
     },
     "SpinnerSize": {
       "purpose": "Typed SpinnerSize contract used by the component pack."
+    },
+    "TextInputType": {
+      "purpose": "Typed shadcn Input type adaptation for text, email, password, and number string fields."
+    },
+    "TextInputKeyboardType": {
+      "purpose": "Typed React Native TextInput keyboard adaptation for Android text-field IME options."
     },
     "ValidationTrigger": {
       "purpose": "Typed validation lifecycle trigger for supported form controls."
@@ -1330,6 +1345,33 @@
     },
     "spinnerLarge": {
       "purpose": "Typed spinnerLarge token exported by the component pack."
+    },
+    "textInputText": {
+      "purpose": "Default string-entry adaptation for shadcn Input."
+    },
+    "textInputEmail": {
+      "purpose": "Email string-entry adaptation for shadcn Input."
+    },
+    "textInputPassword": {
+      "purpose": "Password string-entry adaptation with obscured visual treatment."
+    },
+    "textInputNumber": {
+      "purpose": "Numeric keyboard adaptation while retaining the source string edit buffer."
+    },
+    "keyboardDefault": {
+      "purpose": "Default Android IME keyboard for a React Native TextInput adaptation."
+    },
+    "keyboardEmailAddress": {
+      "purpose": "Email-address Android IME keyboard for a React Native TextInput adaptation."
+    },
+    "keyboardNumeric": {
+      "purpose": "Numeric Android IME keyboard for a React Native TextInput adaptation without coercing its string value."
+    },
+    "keyboardPhonePad": {
+      "purpose": "Phone Android IME keyboard for a React Native TextInput adaptation."
+    },
+    "keyboardUrl": {
+      "purpose": "URL Android IME keyboard for a React Native TextInput adaptation."
     },
     "validationOnChange": {
       "purpose": "Show a supported validation message after the user edits the field."
@@ -2026,20 +2068,83 @@
     "NumberProgressRing.label": {
       "purpose": "Checked label property for NumberProgressRing."
     },
+    "TextField.name": {
+      "purpose": "Stable field identity and final accessibility-label fallback for TextField."
+    },
     "TextField.value": {
-      "purpose": "Checked value property for TextField."
+      "purpose": "Checked string edit buffer for TextField, including intermediate numeric input text."
     },
     "TextField.label": {
-      "purpose": "Checked label property for TextField."
+      "purpose": "Visible TextField label and accessibility fallback."
     },
     "TextField.placeholder": {
-      "purpose": "Checked placeholder property for TextField."
+      "purpose": "Placeholder shown while TextField is empty."
+    },
+    "TextField.inputType": {
+      "purpose": "Typed shadcn Input type adaptation for text, email, password, or numeric string entry."
+    },
+    "TextField.keyboardType": {
+      "purpose": "Typed React Native TextInput keyboard adaptation for default, email, numeric, phone, or URL entry."
+    },
+    "TextField.secureTextEntry": {
+      "purpose": "Obscures the displayed string for React Native secure TextInput semantics."
+    },
+    "TextField.multiline": {
+      "purpose": "Enables multiline editing for React Native TextInput semantics."
+    },
+    "TextField.numberOfLines": {
+      "purpose": "Initial multiline visible-row count, clamped to 1..12; a value above one implies multiline layout."
+    },
+    "TextField.required": {
+      "purpose": "Requires non-blank text when true."
+    },
+    "TextField.requiredMessage": {
+      "purpose": "Message shown when the required rule fails."
+    },
+    "TextField.minLength": {
+      "purpose": "Minimum Unicode code-point length; zero disables this rule."
+    },
+    "TextField.minLengthMessage": {
+      "purpose": "Message shown when the minimum-length rule fails."
+    },
+    "TextField.maxLength": {
+      "purpose": "Maximum Unicode code-point length; zero disables this rule."
+    },
+    "TextField.maxLengthMessage": {
+      "purpose": "Message shown when the maximum-length rule fails."
+    },
+    "TextField.email": {
+      "purpose": "Applies the supported email-address rule when true; blank remains valid unless required is also true."
+    },
+    "TextField.emailMessage": {
+      "purpose": "Message shown when the email rule fails."
+    },
+    "TextField.pattern": {
+      "purpose": "Full-string regular-expression rule; blank disables this rule."
+    },
+    "TextField.patternMessage": {
+      "purpose": "Message shown when the pattern rule fails."
+    },
+    "TextField.validateOn": {
+      "purpose": "Validation lifecycle token; submit is driven by the explicit DEAL-owned validationVisible signal."
+    },
+    "TextField.validationVisible": {
+      "purpose": "DEAL-owned signal that forces validation visibility, including submit-time validation."
     },
     "TextField.onChange": {
-      "purpose": "Checked onChange property for TextField."
+      "purpose": "Dispatches the exact edited string including intermediate numeric input text."
+    },
+    "TextField.onSubmit": {
+      "purpose": "Dispatches the current checked string from the Android IME Done action."
+    },
+    "TextField.onFocus": {
+      "purpose": "Dispatches once when the field gains focus."
+    },
+    "TextField.onBlur": {
+      "purpose": "Dispatches once after a focused field loses focus."
     },
     "TextField.accessibilityLabel": {
-      "purpose": "Checked accessibilityLabel property for TextField."
+      "purpose": "Accessible field name; falls back to label and then name in the renderer."
     },
     "TextArea.name": {
       "purpose": "Stable field identity and final accessibility-label fallback for TextArea."

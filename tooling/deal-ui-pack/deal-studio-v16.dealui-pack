@@ -18,6 +18,8 @@ export class CardRole { value: string = "content"; }
 export class ButtonHierarchy { value: string = "primary"; }
 export class ButtonSize { value: string = "medium"; }
 export class SpinnerSize { value: string = "medium"; }
+export class TextInputType { value: string = "text"; }
+export class TextInputKeyboardType { value: string = "default"; }
 export class ValidationTrigger { value: string = "blur"; }
 export class SurfaceTreatment { value: string = "plain"; }
 export class ContentWidth { value: string = "standard"; }
@@ -62,7 +64,7 @@ export class ProgressProps { value: int = 0; maximum: int = 100; label: string =
 export class NumberProgressProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; }
 export class ProgressBarProps { value: int = 0; maximum: int = 100; label: string = ""; heightDp: int = 4; tone?: SemanticTone; trackTone?: SemanticTone; }
 export class NumberProgressBarProps { value: number = 0.0; maximum: number = 100.0; label: string = ""; heightDp: int = 4; tone?: SemanticTone; trackTone?: SemanticTone; }
-export class TextFieldProps { value: string = ""; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
+export class TextFieldProps { name: string = ""; value: string = ""; label: string = ""; placeholder: string = ""; inputType?: TextInputType; keyboardType?: TextInputKeyboardType; secureTextEntry: boolean = false; multiline: boolean = false; numberOfLines: int = 1; required: boolean = false; requiredMessage: string = ""; minLength: int = 0; minLengthMessage: string = ""; maxLength: int = 0; maxLengthMessage: string = ""; email: boolean = false; emailMessage: string = ""; pattern: string = ""; patternMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; onSubmit?: Action; onFocus?: Action; onBlur?: Action; accessibilityLabel?: string; }
 export class TextAreaProps { name: string = ""; value: string = ""; label: string = ""; placeholder: string = ""; rows: int = 4; required: boolean = false; requiredMessage: string = ""; minLength: int = 0; minLengthMessage: string = ""; maxLength: int = 0; maxLengthMessage: string = ""; email: boolean = false; emailMessage: string = ""; pattern: string = ""; patternMessage: string = ""; validateOn?: ValidationTrigger; validationVisible: boolean = false; onChange?: Action; accessibilityLabel?: string; }
 export class IntFieldProps { value: int = 0; label: string = ""; placeholder: string = ""; onChange?: Action; accessibilityLabel?: string; }
 export class NumberFieldProps { value: number = 0.0; label: string = ""; placeholder: string = ""; fractionDigits: int = 1; onChange?: Action; accessibilityLabel?: string; }
@@ -157,7 +159,7 @@ export component ProgressBar(props: ProgressBarProps): View { capability "render
 export component ProgressRing(props: ProgressProps): View { capability "renderer.android.progress-ring"; }
 export component NumberProgressBar(props: NumberProgressBarProps): View { capability "renderer.android.number-progress-bar"; }
 export component NumberProgressRing(props: NumberProgressProps): View { capability "renderer.android.number-progress-ring"; }
-export component TextField(props: TextFieldProps): View { event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.text-field"; }
+export component TextField(props: TextFieldProps): View { event onChange(payload: string); event onSubmit(payload: string); event onFocus; event onBlur; accessibility accessibilityLabel; capability "renderer.android.text-field"; }
 export component TextArea(props: TextAreaProps): View { event onChange(payload: string); accessibility accessibilityLabel; capability "renderer.android.text-area"; }
 export component IntField(props: IntFieldProps): View { event onChange(payload: int); accessibility accessibilityLabel; capability "renderer.android.int-field"; }
 export component NumberField(props: NumberFieldProps): View { event onChange(payload: number); accessibility accessibilityLabel; capability "renderer.android.number-field"; }
@@ -275,6 +277,15 @@ export token buttonLarge: ButtonSize = { value: "large" };
 export token spinnerSmall: SpinnerSize = { value: "small" };
 export token spinnerMedium: SpinnerSize = { value: "medium" };
 export token spinnerLarge: SpinnerSize = { value: "large" };
+export token textInputText: TextInputType = { value: "text" };
+export token textInputEmail: TextInputType = { value: "email" };
+export token textInputPassword: TextInputType = { value: "password" };
+export token textInputNumber: TextInputType = { value: "number" };
+export token keyboardDefault: TextInputKeyboardType = { value: "default" };
+export token keyboardEmailAddress: TextInputKeyboardType = { value: "email-address" };
+export token keyboardNumeric: TextInputKeyboardType = { value: "numeric" };
+export token keyboardPhonePad: TextInputKeyboardType = { value: "phone-pad" };
+export token keyboardUrl: TextInputKeyboardType = { value: "url" };
 export token validationOnChange: ValidationTrigger = { value: "change" };
 export token validationOnBlur: ValidationTrigger = { value: "blur" };
 export token validationOnSubmit: ValidationTrigger = { value: "submit" };

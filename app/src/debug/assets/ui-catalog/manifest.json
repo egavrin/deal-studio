@@ -127,6 +127,42 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/shadcn.Textarea.required-error/app.deal",
       "dealUi": "ui-catalog/shadcn.Textarea.required-error/app.dealui"
+    },
+    {
+      "id": "shadcn.Input.email-submit",
+      "origin": "shadcn",
+      "component": "Input",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Input.email-submit/app.deal",
+      "dealUi": "ui-catalog/shadcn.Input.email-submit/app.dealui"
+    },
+    {
+      "id": "shadcn.Input.email-error",
+      "origin": "shadcn",
+      "component": "Input",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Input.email-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Input.email-error/app.dealui"
+    },
+    {
+      "id": "react-native.TextInput.secure",
+      "origin": "react-native",
+      "component": "TextInput",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.TextInput.secure/app.deal",
+      "dealUi": "ui-catalog/react-native.TextInput.secure/app.dealui"
+    },
+    {
+      "id": "react-native.TextInput.multiline",
+      "origin": "react-native",
+      "component": "TextInput",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.TextInput.multiline/app.deal",
+      "dealUi": "ui-catalog/react-native.TextInput.multiline/app.dealui"
     }
   ]
 }
