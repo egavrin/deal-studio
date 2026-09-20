@@ -66,6 +66,18 @@
       "styles": ["technical"],
       "viewport": "device",
       "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Slider.fractional",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.Slider.semantic-color",
+      "styles": ["technical"],
+      "viewport": "device",
+      "fontScale": 1.0
     }
   ]
 }

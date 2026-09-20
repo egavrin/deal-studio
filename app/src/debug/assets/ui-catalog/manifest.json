@@ -91,6 +91,24 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.ProgressBar.fractional/app.deal",
       "dealUi": "ui-catalog/react-native.ProgressBar.fractional/app.dealui"
+    },
+    {
+      "id": "shadcn.Slider.fractional",
+      "origin": "shadcn",
+      "component": "Slider",
+      "targetComponent": "NumberSlider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Slider.fractional/app.deal",
+      "dealUi": "ui-catalog/shadcn.Slider.fractional/app.dealui"
+    },
+    {
+      "id": "react-native.Slider.semantic-color",
+      "origin": "react-native",
+      "component": "Slider",
+      "targetComponent": "NumberSlider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Slider.semantic-color/app.deal",
+      "dealUi": "ui-catalog/react-native.Slider.semantic-color/app.dealui"
     }
   ]
 }

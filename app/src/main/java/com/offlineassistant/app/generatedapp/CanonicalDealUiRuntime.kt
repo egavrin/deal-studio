@@ -134,6 +134,7 @@ import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -186,6 +187,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.toColorInt
 import coil3.compose.AsyncImage
 import com.offlineassistant.app.ui.theme.DealStudioSpacing
+import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -621,7 +623,7 @@ internal val canonicalRendererComponents = setOf(
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
     "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
-    "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
+    "Scroll", "Section", "Slider", "NumberSlider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
     "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
 )
 
@@ -1742,17 +1744,50 @@ private fun RenderCall(
 
         "ChoiceItem" -> Unit
 
-        "Slider" -> Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val minimum = value("minimum").asInt()
-            val maximum = value("maximum").asInt().coerceAtLeast(minimum + 1)
-            value("label").asString().takeIf(String::isNotBlank)?.let {
-                Text(it, style = MaterialTheme.typography.labelMedium)
+        "Slider", "NumberSlider" -> Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val isNumber = name == "NumberSlider"
+            val range = canonicalSliderRange(
+                minimum = if (isNumber) value("minimum").asNumber() else value("minimum").asInt().toDouble(),
+                maximum = if (isNumber) value("maximum").asNumber() else value("maximum").asInt().toDouble()
+            )
+            val step = canonicalSliderStep(
+                if (isNumber) value("step").asNumber() else 0.0,
+                range
+            )
+            val sliderValue = canonicalSliderValue(
+                if (isNumber) value("value").asNumber() else value("value").asInt().toDouble(),
+                range,
+                step
+            )
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            label.takeIf(String::isNotBlank)?.let {
+                Text(it, modifier = Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelMedium)
             }
+            val tone = if (isNumber) value("tone").typedTokenString() else ""
+            val sliderColor = progressColor(tone)
             Slider(
-                value = value("value").asInt().coerceIn(minimum, maximum).toFloat(),
-                onValueChange = { emit("onChange", JsonPrimitive(it.toInt())) },
-                valueRange = minimum.toFloat()..maximum.toFloat(),
-                modifier = Modifier.fillMaxWidth()
+                value = sliderValue.toFloat(),
+                onValueChange = {
+                    val payload = if (isNumber) {
+                        JsonPrimitive(canonicalSliderValue(it.toDouble(), range, step))
+                    } else {
+                        JsonPrimitive(it.toInt())
+                    }
+                    emit("onChange", payload)
+                },
+                valueRange = range.start.toFloat()..range.endInclusive.toFloat(),
+                modifier = Modifier.fillMaxWidth().then(
+                    if (accessibilityLabel.isNotBlank()) {
+                        Modifier.semantics { contentDescription = accessibilityLabel }
+                    } else {
+                        Modifier
+                    }
+                ),
+                colors = SliderDefaults.colors(
+                    thumbColor = sliderColor,
+                    activeTrackColor = sliderColor
+                )
             )
         }
 
@@ -2705,6 +2740,25 @@ internal fun progress(value: Double, maximum: Double): Float = when {
 
 internal fun canonicalProgressHeight(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(24) ?: 4
 
+internal fun canonicalSliderRange(minimum: Double, maximum: Double): ClosedFloatingPointRange<Double> {
+    val start = minimum.takeIf(Double::isFinite) ?: 0.0
+    val end = maximum.takeIf { it.isFinite() && it > start } ?: start + 1.0
+    return start..end
+}
+
+internal fun canonicalSliderStep(step: Double, range: ClosedFloatingPointRange<Double>): Double = step.takeIf { it.isFinite() && it > 0.0 && it <= range.endInclusive - range.start } ?: 0.0
+
+internal fun canonicalSliderValue(
+    value: Double,
+    range: ClosedFloatingPointRange<Double>,
+    step: Double
+): Double {
+    val bounded = value.takeIf(Double::isFinite)?.coerceIn(range.start, range.endInclusive) ?: range.start
+    if (step <= 0.0) return bounded
+    val snapped = range.start + round((bounded - range.start) / step) * step
+    return snapped.coerceIn(range.start, range.endInclusive)
+}
+
 @Composable
 private fun progressColor(tone: String): Color = if (tone.isBlank() || tone == "default") {
     MaterialTheme.colorScheme.primary
@@ -2925,6 +2979,7 @@ private val ROW_EXPANDING_COMPONENTS = setOf(
     "NumberField",
     "Toggle",
     "Slider",
+    "NumberSlider",
     "ProgressBar",
     "ProgressRing",
     "NumberProgressBar",

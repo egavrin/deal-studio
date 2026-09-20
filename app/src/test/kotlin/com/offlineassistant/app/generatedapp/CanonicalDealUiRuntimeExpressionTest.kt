@@ -133,4 +133,19 @@ class CanonicalDealUiRuntimeExpressionTest {
         assertEquals(8, canonicalProgressHeight(8))
         assertEquals(24, canonicalProgressHeight(40))
     }
+
+    @Test
+    fun `number slider normalizes ranges and snaps fractional values`() {
+        assertEquals(0.0..1.0, canonicalSliderRange(Double.NaN, Double.POSITIVE_INFINITY))
+        assertEquals(5.0..6.0, canonicalSliderRange(5.0, 5.0))
+        val range = -1.0..1.0
+        assertEquals(0.0, canonicalSliderStep(Double.NaN, range), 0.0)
+        assertEquals(0.0, canonicalSliderStep(3.0, range), 0.0)
+        assertEquals(0.25, canonicalSliderStep(0.25, range), 0.0)
+        assertEquals(-1.0, canonicalSliderValue(Double.NaN, range, 0.25), 0.0)
+        assertEquals(-1.0, canonicalSliderValue(-3.0, range, 0.25), 0.0)
+        assertEquals(0.75, canonicalSliderValue(0.76, range, 0.25), 0.0000001)
+        assertEquals(1.0, canonicalSliderValue(3.0, range, 0.25), 0.0)
+        assertEquals(0.76, canonicalSliderValue(0.76, range, 0.0), 0.0)
+    }
 }

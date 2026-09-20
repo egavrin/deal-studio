@@ -1,0 +1,19 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Fractional slider", supporting: "A checked number payload snapped to a 0.5 step")
+      ui.NumberSlider(
+        value: state.value,
+        minimum: 0.0,
+        maximum: 10.0,
+        step: 0.5,
+        label: "Intensity",
+        onChange: action app.ChangeValue { value: payload }
+      )
+      ui.NumberStat(label: "Selected", value: state.value, fractionDigits: 1)
+    }
+  }
+}

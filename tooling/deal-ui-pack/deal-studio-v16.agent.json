@@ -479,6 +479,14 @@
       "commonSiblings": [],
       "constraints": []
     },
+    "NumberSlider": {
+      "purpose": "Show and edit a fractional numeric value within a bounded range.",
+      "preferWhen": ["The source contract uses numeric min, max, step, or value", "Adapting shadcn Slider or React Native Slider"],
+      "avoidWhen": ["The value and payload are strictly integers; use Slider"],
+      "visualWeight": "medium",
+      "commonSiblings": [],
+      "constraints": ["Non-finite values normalize safely", "step <= 0 means continuous", "Raw source color adapts to a semantic tone"]
+    },
     "Spacer": {
       "purpose": "Use Spacer only for its declared typed contract.",
       "preferWhen": [],
@@ -958,6 +966,9 @@
     },
     "SliderProps": {
       "purpose": "Typed SliderProps contract used by the component pack."
+    },
+    "NumberSliderProps": {
+      "purpose": "Typed NumberSliderProps contract used by the component pack."
     },
     "SpacerProps": {
       "purpose": "Typed SpacerProps contract used by the component pack."
@@ -2093,6 +2104,30 @@
     },
     "Slider.accessibilityLabel": {
       "purpose": "Checked accessibilityLabel property for Slider."
+    },
+    "NumberSlider.value": {
+      "purpose": "Fractional checked value for NumberSlider."
+    },
+    "NumberSlider.minimum": {
+      "purpose": "Fractional lower bound for NumberSlider."
+    },
+    "NumberSlider.maximum": {
+      "purpose": "Fractional upper bound for NumberSlider."
+    },
+    "NumberSlider.step": {
+      "purpose": "Positive fractional interval; zero selects continuous behavior."
+    },
+    "NumberSlider.label": {
+      "purpose": "Visible label associated with NumberSlider semantics."
+    },
+    "NumberSlider.tone": {
+      "purpose": "Semantic foreground adaptation for React Native source color."
+    },
+    "NumberSlider.onChange": {
+      "purpose": "Dispatches the snapped number payload."
+    },
+    "NumberSlider.accessibilityLabel": {
+      "purpose": "Accessible slider name; falls back to label in the renderer."
     },
     "Spacer.size": {
       "purpose": "Checked size property for Spacer."
