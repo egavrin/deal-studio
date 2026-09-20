@@ -180,6 +180,24 @@
       "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
       "viewport": "device",
       "fontScale": 1.0
+    },
+    {
+      "id": "shadcn.Text.variants",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.Paragraph.alignment-size",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
+    },
+    {
+      "id": "react-native.Label.bold-size",
+      "styles": ["clean", "soft", "expressive", "editorial", "technical", "playful"],
+      "viewport": "device",
+      "fontScale": 1.0
     }
   ]
 }

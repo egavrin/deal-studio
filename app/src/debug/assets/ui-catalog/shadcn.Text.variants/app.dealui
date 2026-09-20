@@ -1,0 +1,14 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Text(value: "Body text", style: ui.textBody)
+      ui.Text(value: "Caption text", style: ui.textCaption)
+      ui.Text(value: "Muted text", style: ui.textMuted)
+      ui.Text(value: "Lead text", style: ui.textLead)
+      ui.Text(value: "const message = \"code\";", style: ui.textCode)
+    }
+  }
+}

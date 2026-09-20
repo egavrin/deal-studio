@@ -259,6 +259,33 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Heading.alignment-tone/app.deal",
       "dealUi": "ui-catalog/react-native.Heading.alignment-tone/app.dealui"
+    },
+    {
+      "id": "shadcn.Text.variants",
+      "origin": "shadcn",
+      "component": "Text",
+      "targetComponent": "Text",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Text.variants/app.deal",
+      "dealUi": "ui-catalog/shadcn.Text.variants/app.dealui"
+    },
+    {
+      "id": "react-native.Paragraph.alignment-size",
+      "origin": "react-native",
+      "component": "Paragraph",
+      "targetComponent": "Text",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Paragraph.alignment-size/app.deal",
+      "dealUi": "ui-catalog/react-native.Paragraph.alignment-size/app.dealui"
+    },
+    {
+      "id": "react-native.Label.bold-size",
+      "origin": "react-native",
+      "component": "Label",
+      "targetComponent": "Text",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Label.bold-size/app.deal",
+      "dealUi": "ui-catalog/react-native.Label.bold-size/app.dealui"
     }
   ]
 }

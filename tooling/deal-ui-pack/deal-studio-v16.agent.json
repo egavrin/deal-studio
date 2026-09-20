@@ -315,12 +315,12 @@
       "constraints": []
     },
     "Text": {
-      "purpose": "Use Text only for its declared typed contract.",
-      "preferWhen": [],
-      "avoidWhen": [],
+      "purpose": "Render body, caption, muted, lead, code, or label copy through the existing app typography and semantic color system.",
+      "preferWhen": ["Adapting shadcn Text", "Adapting React Native Paragraph", "Adapting React Native Label", "A heading, app header, or section header would overstate the copy hierarchy"],
+      "avoidWhen": ["The text needs h1–h4 semantics", "The source requires arbitrary CSS or raw color rendering", "The content is an interactive action label"],
       "visualWeight": "medium",
-      "commonSiblings": [],
-      "constraints": []
+      "commonSiblings": ["Heading", "Divider", "TextField", "Card"],
+      "constraints": ["style is one of the declared typed text styles", "React Native left/center/right lowers explicitly to start/center/end", "React Native raw color must lower to a declared semantic tone or be rejected as unsupported", "numberOfLines must be integral during lowering and becomes a bounded maxLines value", "Positive fractional fontSize values are preserved within bounded native sp limits", "Label bold lowers to emphasis and xs/sm/md lower to typed label styles"]
     },
     "Heading": {
       "purpose": "Present a semantic h1–h4 heading using the existing app typography and accessible heading semantics.",
@@ -982,7 +982,7 @@
       "purpose": "Typed CardProps contract used by the component pack."
     },
     "TextProps": {
-      "purpose": "Typed TextProps contract used by the component pack."
+      "purpose": "Typed TextProps contract for shadcn Text and React Native Paragraph and Label adaptations."
     },
     "HeadingProps": {
       "purpose": "Typed HeadingProps contract for shadcn and React Native Heading adaptations."
@@ -1237,6 +1237,24 @@
     },
     "textDisplay": {
       "purpose": "Typed textDisplay token exported by the component pack."
+    },
+    "textMuted": {
+      "purpose": "Typed textMuted token for supporting copy that inherits the semantic muted tone unless a tone is supplied."
+    },
+    "textLead": {
+      "purpose": "Typed textLead token for introductory copy that inherits the semantic muted tone unless a tone is supplied."
+    },
+    "textCode": {
+      "purpose": "Typed textCode token for short monospaced inline or block code copy."
+    },
+    "textLabelXs": {
+      "purpose": "Typed textLabelXs token for compact source-adapted field labels."
+    },
+    "textLabelSm": {
+      "purpose": "Typed textLabelSm token for small source-adapted field labels."
+    },
+    "textLabelMd": {
+      "purpose": "Typed textLabelMd token for medium source-adapted field labels."
     },
     "themeClean": {
       "purpose": "Typed themeClean token exported by the component pack."
@@ -1922,13 +1940,25 @@
       "purpose": "Checked span property for GridItem."
     },
     "Text.value": {
-      "purpose": "Checked value property for Text."
+      "purpose": "Checked text value for body copy, paragraphs, and labels."
     },
     "Text.style": {
-      "purpose": "Checked style property for Text."
+      "purpose": "Typed text style: body, caption, muted, lead, code, or a declared label size."
     },
     "Text.tone": {
-      "purpose": "Checked tone property for Text."
+      "purpose": "Typed semantic text color; raw source colors must be classified by an adapter rather than rendered directly."
+    },
+    "Text.align": {
+      "purpose": "Native text alignment: start, center, or end; source left/right lower explicitly to start/end."
+    },
+    "Text.maxLines": {
+      "purpose": "Bounded maximum text lines; zero means unbounded in the target contract."
+    },
+    "Text.fontSize": {
+      "purpose": "Positive fractional native sp override within bounded accessibility-safe limits; zero preserves the style default."
+    },
+    "Text.emphasis": {
+      "purpose": "Typed text weight used for source label boldness and explicit hierarchy."
     },
     "IntText.value": {
       "purpose": "Checked value property for IntText."

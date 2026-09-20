@@ -115,6 +115,19 @@ class CanonicalDealUiRuntimeExpressionTest {
     }
 
     @Test
+    fun `text overrides preserve fractional sizes and bound lines`() {
+        assertEquals(Int.MAX_VALUE, canonicalTextMaxLines(-1))
+        assertEquals(Int.MAX_VALUE, canonicalTextMaxLines(0))
+        assertEquals(2, canonicalTextMaxLines(2))
+        assertEquals(100, canonicalTextMaxLines(120))
+        assertEquals(null, canonicalTextFontSize(Double.NaN))
+        assertEquals(null, canonicalTextFontSize(0.0))
+        assertEquals(8f, requireNotNull(canonicalTextFontSize(2.0)), 0f)
+        assertEquals(19.5f, requireNotNull(canonicalTextFontSize(19.5)), 0f)
+        assertEquals(96f, requireNotNull(canonicalTextFontSize(120.0)), 0f)
+    }
+
+    @Test
     fun `divider dimensions preserve valid fractional values and bound invalid values`() {
         assertEquals(1f, canonicalDividerThickness(Double.NaN), 0f)
         assertEquals(1f, canonicalDividerThickness(0.0), 0f)

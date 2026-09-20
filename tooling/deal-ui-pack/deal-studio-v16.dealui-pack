@@ -51,7 +51,7 @@ export class RootProps { spacing?: Space; padding?: Space; horizontal: string = 
 export class FrameProps { ratioWidth: int = 0; ratioHeight: int = 0; maxWidth: int = 0; maxHeight: int = 0; viewportHeightFraction: number = 0.0; }
 export class GridProps { columns: int = 1; minimumCellWidth: int = 0; cellAspectRatio: number = 0.0; spacing?: Space; padding?: Space; }
 export class CardProps { role?: CardRole; treatment?: SurfaceTreatment; emphasis?: Emphasis; spacing?: Space; padding?: Space; orientation?: CardOrientation; size?: ItemSize; onClick?: Action; accessibilityLabel?: string; }
-export class TextProps { value: string = ""; style?: TextStyle; tone?: SemanticTone; }
+export class TextProps { value: string = ""; style?: TextStyle; tone?: SemanticTone; align: string = "start"; maxLines: int = 0; fontSize: number = 0.0; emphasis?: Emphasis; }
 export class HeadingProps { text: string = ""; level: string = "h2"; align: string = "start"; tone?: SemanticTone; }
 export class IntTextProps { value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
 export class NumberTextProps { value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
@@ -231,6 +231,12 @@ export token textTitle: TextStyle = { value: "title" };
 export token textHeadline: TextStyle = { value: "headline" };
 export token textMetric: TextStyle = { value: "metric" };
 export token textDisplay: TextStyle = { value: "display" };
+export token textMuted: TextStyle = { value: "muted" };
+export token textLead: TextStyle = { value: "lead" };
+export token textCode: TextStyle = { value: "code" };
+export token textLabelXs: TextStyle = { value: "label-xs" };
+export token textLabelSm: TextStyle = { value: "label-sm" };
+export token textLabelMd: TextStyle = { value: "label-md" };
 export token themeClean: ThemeStyle = { value: "clean" };
 export token themeSoft: ThemeStyle = { value: "soft" };
 export token themeExpressive: ThemeStyle = { value: "expressive" };

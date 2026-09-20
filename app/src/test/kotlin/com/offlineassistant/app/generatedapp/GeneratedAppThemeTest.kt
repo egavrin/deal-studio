@@ -207,6 +207,20 @@ class GeneratedAppThemeTest {
                 CanonicalDealUiParser.parse(structureIr(invalidHeadingAlignment))
             }.message
         )
+        val invalidTextStyle = callWithArguments("Text", "\"style\":${literal("display-small")}")
+        assertEquals(
+            "Text.style has unsupported value 'display-small'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTextStyle))
+            }.message
+        )
+        val invalidTextAlignment = callWithArguments("Text", "\"align\":${literal("justify")}")
+        assertEquals(
+            "Text.align has unsupported value 'justify'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTextAlignment))
+            }.message
+        )
     }
 
     @Test

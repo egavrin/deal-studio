@@ -182,6 +182,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -504,6 +505,9 @@ private fun CanonicalDealUiProgram.validateStructure() {
         "Hero.height" to setOf("compact", "standard", "expanded"),
         "Card.orientation" to setOf("vertical", "horizontal"),
         "ActionBar.collapseBehavior" to setOf("wrap", "stack"),
+        "Text.style" to setOf("caption", "body", "title", "headline", "metric", "display", "muted", "lead", "code", "label-xs", "label-sm", "label-md"),
+        "Text.align" to setOf("start", "center", "end"),
+        "Text.emphasis" to setOf("low", "medium", "high"),
         "Heading.level" to setOf("h1", "h2", "h3", "h4"),
         "Heading.align" to setOf("start", "center", "end"),
         "Divider.direction" to setOf("horizontal", "vertical"),
@@ -1342,18 +1346,30 @@ private fun RenderCall(
 
         "GridItem" -> children(Modifier.fillMaxWidth())
 
-        "Text" -> Text(
-            text = value("value").displayString(),
-            color = textTone(value("tone").typedTokenString()),
-            style = textStyle(value("style").tokenString())
-        )
+        "Text" -> {
+            val styleName = value("style").tokenString()
+            val alignment = value("align").asString().ifBlank { "start" }
+            val baseStyle = textStyle(styleName)
+            val resolvedTextStyle = canonicalTextFontSize(value("fontSize").asNumber())?.let { fontSize ->
+                baseStyle.copy(fontSize = fontSize.sp)
+            } ?: baseStyle
+            Text(
+                text = value("value").displayString(),
+                modifier = if (alignment == "start") modifier else modifier.fillMaxWidth(),
+                color = textTone(textToneForStyle(styleName, value("tone").typedTokenString())),
+                style = resolvedTextStyle,
+                fontWeight = value("emphasis").typedTokenString().takeIf(String::isNotBlank)?.let(::emphasisWeight),
+                textAlign = canonicalTextAlign(alignment),
+                maxLines = canonicalTextMaxLines(value("maxLines").asInt())
+            )
+        }
 
         "Heading" -> Text(
             text = value("text").asString(),
             modifier = modifier.fillMaxWidth().semantics { heading() },
             color = textTone(value("tone").typedTokenString()),
             style = headingStyle(value("level").asString()),
-            textAlign = headingTextAlign(value("align").asString())
+            textAlign = canonicalTextAlign(value("align").asString())
         )
 
         "IntText" -> Text(
@@ -3437,7 +3453,12 @@ private fun textStyle(value: String) = when (value) {
     "metric" -> MaterialTheme.typography.headlineLarge
     "headline" -> MaterialTheme.typography.headlineSmall
     "title" -> MaterialTheme.typography.titleLarge
-    "caption" -> MaterialTheme.typography.labelMedium
+    "caption", "label-sm" -> MaterialTheme.typography.labelMedium
+    "label-xs" -> MaterialTheme.typography.labelSmall
+    "label-md" -> MaterialTheme.typography.bodyMedium
+    "lead" -> MaterialTheme.typography.titleMedium
+    "code" -> MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+    "muted" -> MaterialTheme.typography.bodyMedium
     else -> MaterialTheme.typography.bodyLarge
 }
 
@@ -3449,10 +3470,16 @@ private fun headingStyle(level: String) = when (level) {
     else -> MaterialTheme.typography.headlineLarge
 }
 
-private fun headingTextAlign(value: String): TextAlign = when (value) {
+private fun canonicalTextAlign(value: String): TextAlign = when (value) {
     "center" -> TextAlign.Center
     "end" -> TextAlign.End
     else -> TextAlign.Start
+}
+
+private fun textToneForStyle(style: String, tone: String): String = if (tone.isBlank() && style in setOf("muted", "lead")) {
+    "muted"
+} else {
+    tone
 }
 
 internal data class GeneratedTonePalette(val container: Color, val content: Color, val border: Color)
@@ -3513,6 +3540,14 @@ internal fun canonicalSpinnerSize(size: String): Dp = when (size) {
 
 internal fun canonicalSkeletonDimension(value: Int, defaultValue: Int): Int = value.takeIf { it > 0 }
     ?.coerceAtMost(840) ?: defaultValue
+
+internal fun canonicalTextMaxLines(value: Int): Int = value.takeIf { it > 0 }
+    ?.coerceAtMost(100) ?: Int.MAX_VALUE
+
+internal fun canonicalTextFontSize(value: Double): Float? = value
+    .takeIf { it.isFinite() && it > 0.0 }
+    ?.toFloat()
+    ?.coerceIn(8f, 96f)
 
 internal fun canonicalDividerThickness(value: Double): Float = value
     .takeIf { it.isFinite() && it > 0.0 }
