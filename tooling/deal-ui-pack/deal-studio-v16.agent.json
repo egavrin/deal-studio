@@ -322,6 +322,14 @@
       "commonSiblings": [],
       "constraints": []
     },
+    "Heading": {
+      "purpose": "Present a semantic h1–h4 heading using the existing app typography and accessible heading semantics.",
+      "preferWhen": ["Adapting shadcn Heading", "Adapting React Native Heading", "A content hierarchy needs a heading distinct from the app Header or SectionHeader"],
+      "avoidWhen": ["The text is ordinary body copy", "The title belongs to app navigation chrome", "The source requires arbitrary CSS or raw color rendering"],
+      "visualWeight": "high",
+      "commonSiblings": ["Text", "Divider", "Section", "Card"],
+      "constraints": ["level is one of h1, h2, h3, h4", "React Native left/center/right lowers explicitly to start/center/end", "React Native raw color must lower to a declared semantic tone or be rejected as unsupported", "Heading uses the app typography profile rather than a component-specific font"]
+    },
     "IntText": {
       "purpose": "Use IntText only for its declared typed contract.",
       "preferWhen": [],
@@ -975,6 +983,9 @@
     },
     "TextProps": {
       "purpose": "Typed TextProps contract used by the component pack."
+    },
+    "HeadingProps": {
+      "purpose": "Typed HeadingProps contract for shadcn and React Native Heading adaptations."
     },
     "IntTextProps": {
       "purpose": "Typed IntTextProps contract used by the component pack."
@@ -2872,6 +2883,18 @@
     },
     "AnimatedVisibility.visible": {
       "purpose": "Checked visible property for AnimatedVisibility."
+    },
+    "Heading.text": {
+      "purpose": "Heading text supplied by the checked UI source."
+    },
+    "Heading.level": {
+      "purpose": "Closed semantic heading hierarchy: h1, h2, h3, or h4."
+    },
+    "Heading.align": {
+      "purpose": "Native heading alignment: start, center, or end; source left/right lower explicitly to start/end."
+    },
+    "Heading.tone": {
+      "purpose": "Typed semantic heading color; raw source colors must be classified by an adapter rather than rendered directly."
     },
     "Divider.direction": {
       "purpose": "Closed native divider orientation: horizontal or vertical; shadcn orientation lowers here."

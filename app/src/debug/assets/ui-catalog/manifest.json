@@ -241,6 +241,24 @@
       "packVersion": "deal-studio-dealui-pack-v16",
       "deal": "ui-catalog/react-native.Divider.fractional/app.deal",
       "dealUi": "ui-catalog/react-native.Divider.fractional/app.dealui"
+    },
+    {
+      "id": "shadcn.Heading.levels",
+      "origin": "shadcn",
+      "component": "Heading",
+      "targetComponent": "Heading",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Heading.levels/app.deal",
+      "dealUi": "ui-catalog/shadcn.Heading.levels/app.dealui"
+    },
+    {
+      "id": "react-native.Heading.alignment-tone",
+      "origin": "react-native",
+      "component": "Heading",
+      "targetComponent": "Heading",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Heading.alignment-tone/app.deal",
+      "dealUi": "ui-catalog/react-native.Heading.alignment-tone/app.dealui"
     }
   ]
 }

@@ -124,7 +124,7 @@ class GeneratedAppThemeTest {
     @Test
     fun `widget projection accepts semantic content and rejects unsupported input controls`() {
         CanonicalDealUiParser.parse(
-            structureIr(call("Widget", call("MetricGroup", call("IntStat"))))
+            structureIr(call("Widget", call("Heading") + "," + call("MetricGroup", call("IntStat"))))
         )
         assertEquals(
             "TextField is unavailable on the Android home-screen Widget surface",
@@ -191,6 +191,20 @@ class GeneratedAppThemeTest {
             "Divider.direction has unsupported value 'diagonal'",
             assertThrows(IllegalArgumentException::class.java) {
                 CanonicalDealUiParser.parse(structureIr(invalidDividerDirection))
+            }.message
+        )
+        val invalidHeadingLevel = callWithArguments("Heading", "\"level\":${literal("h5")}")
+        assertEquals(
+            "Heading.level has unsupported value 'h5'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidHeadingLevel))
+            }.message
+        )
+        val invalidHeadingAlignment = callWithArguments("Heading", "\"align\":${literal("justify")}")
+        assertEquals(
+            "Heading.align has unsupported value 'justify'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidHeadingAlignment))
             }.message
         )
     }

@@ -180,12 +180,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
@@ -502,6 +504,8 @@ private fun CanonicalDealUiProgram.validateStructure() {
         "Hero.height" to setOf("compact", "standard", "expanded"),
         "Card.orientation" to setOf("vertical", "horizontal"),
         "ActionBar.collapseBehavior" to setOf("wrap", "stack"),
+        "Heading.level" to setOf("h1", "h2", "h3", "h4"),
+        "Heading.align" to setOf("start", "center", "end"),
         "Divider.direction" to setOf("horizontal", "vertical"),
         "ToggleButton.variant" to setOf("default", "outline"),
         "TextField.inputType" to setOf("text", "email", "password", "number"),
@@ -702,7 +706,7 @@ private fun CanonicalUiNode.validateWidgetNode() {
 }
 
 private val WIDGET_COMPONENTS = setOf(
-    "Column", "Row", "Stack", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "IntText", "NumberText", "Icon",
+    "Column", "Row", "Stack", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "Heading", "IntText", "NumberText", "Icon",
     "IconButton", "Button", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Badge", "Stat",
     "IntStat", "NumberStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
 )
@@ -710,7 +714,7 @@ private val WIDGET_COMPONENTS = setOf(
 internal val canonicalRendererComponents = setOf(
     "ActionBar", "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button", "Header", "SectionHeader",
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
-    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
+    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Heading", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
     "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
     "RadioGroup", "RadioOption", "Select", "SelectOption", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
@@ -1342,6 +1346,14 @@ private fun RenderCall(
             text = value("value").displayString(),
             color = textTone(value("tone").typedTokenString()),
             style = textStyle(value("style").tokenString())
+        )
+
+        "Heading" -> Text(
+            text = value("text").asString(),
+            modifier = modifier.fillMaxWidth().semantics { heading() },
+            color = textTone(value("tone").typedTokenString()),
+            style = headingStyle(value("level").asString()),
+            textAlign = headingTextAlign(value("align").asString())
         )
 
         "IntText" -> Text(
@@ -3427,6 +3439,20 @@ private fun textStyle(value: String) = when (value) {
     "title" -> MaterialTheme.typography.titleLarge
     "caption" -> MaterialTheme.typography.labelMedium
     else -> MaterialTheme.typography.bodyLarge
+}
+
+@Composable
+private fun headingStyle(level: String) = when (level) {
+    "h1" -> MaterialTheme.typography.displaySmall
+    "h3" -> MaterialTheme.typography.headlineMedium
+    "h4" -> MaterialTheme.typography.headlineSmall
+    else -> MaterialTheme.typography.headlineLarge
+}
+
+private fun headingTextAlign(value: String): TextAlign = when (value) {
+    "center" -> TextAlign.Center
+    "end" -> TextAlign.End
+    else -> TextAlign.Start
 }
 
 internal data class GeneratedTonePalette(val container: Color, val content: Color, val border: Color)

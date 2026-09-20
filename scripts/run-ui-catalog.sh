@@ -8,6 +8,7 @@ CASE_ID=""
 STYLE="clean"
 OUTPUT=""
 SKIP_INSTALL=false
+READY_TIMEOUT_SECONDS="${UI_CATALOG_READY_TIMEOUT_SECONDS:-60}"
 
 while (($#)); do
   case "$1" in
@@ -22,6 +23,10 @@ done
 
 [[ -n "$SERIAL" ]] || { echo "Provide --serial or ANDROID_SERIAL" >&2; exit 2; }
 [[ -n "$CASE_ID" ]] || { echo "Provide --case" >&2; exit 2; }
+[[ "$READY_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || {
+  echo "UI_CATALOG_READY_TIMEOUT_SECONDS must be a positive whole number" >&2
+  exit 2
+}
 case "$STYLE" in
   clean|soft|expressive|editorial|technical|playful) ;;
   *) echo "Unsupported style: $STYLE" >&2; exit 2 ;;
@@ -41,7 +46,7 @@ adb -s "$SERIAL" shell am start -W \
 
 READY="ui-catalog-ready:$CASE_ID"
 FAILED="ui-catalog-failed:$CASE_ID"
-for _ in $(seq 1 40); do
+for _ in $(seq 1 "$((READY_TIMEOUT_SECONDS * 2))"); do
   TREE="$(adb -s "$SERIAL" exec-out uiautomator dump /dev/tty 2>/dev/null || true)"
   if [[ "$TREE" == *"$READY"* ]]; then
     if [[ -n "$OUTPUT" ]]; then
@@ -58,5 +63,5 @@ for _ in $(seq 1 40); do
   sleep 0.5
 done
 
-echo "Timed out waiting for UI catalog readiness: case=$CASE_ID style=$STYLE" >&2
+echo "Timed out after ${READY_TIMEOUT_SECONDS}s waiting for UI catalog readiness: case=$CASE_ID style=$STYLE" >&2
 exit 1

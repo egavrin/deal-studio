@@ -52,6 +52,7 @@ export class FrameProps { ratioWidth: int = 0; ratioHeight: int = 0; maxWidth: i
 export class GridProps { columns: int = 1; minimumCellWidth: int = 0; cellAspectRatio: number = 0.0; spacing?: Space; padding?: Space; }
 export class CardProps { role?: CardRole; treatment?: SurfaceTreatment; emphasis?: Emphasis; spacing?: Space; padding?: Space; orientation?: CardOrientation; size?: ItemSize; onClick?: Action; accessibilityLabel?: string; }
 export class TextProps { value: string = ""; style?: TextStyle; tone?: SemanticTone; }
+export class HeadingProps { text: string = ""; level: string = "h2"; align: string = "start"; tone?: SemanticTone; }
 export class IntTextProps { value: int = 0; prefix: string = ""; suffix: string = ""; minimumDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
 export class NumberTextProps { value: number = 0.0; prefix: string = ""; suffix: string = ""; fractionDigits: int = 1; style?: TextStyle; tone?: SemanticTone; }
 export class IconProps { name: string = "info"; description: string = ""; tone: string = "default"; }
@@ -152,6 +153,7 @@ export component InsetBanner(props: InsetBannerProps): View { event onAction; ac
 export component ListGroup(props: ListGroupProps): View { children required ListItem | IntListItem; token spacing; capability "renderer.android.list-group"; }
 export component GridItem(props: GridItemProps): View { children optional; parent required Grid; capability "renderer.android.grid-item"; }
 export component Text(props: TextProps): View { capability "renderer.android.text"; }
+export component Heading(props: HeadingProps): View { capability "renderer.android.heading"; }
 export component IntText(props: IntTextProps): View { capability "renderer.android.int-text"; }
 export component NumberText(props: NumberTextProps): View { capability "renderer.android.number-text"; }
 export component Icon(props: IconProps): View { accessibility description; capability "renderer.android.icon"; }
