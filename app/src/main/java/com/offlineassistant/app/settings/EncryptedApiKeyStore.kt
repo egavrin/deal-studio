@@ -20,9 +20,28 @@ internal class EncryptedApiKeyStore(
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val ciphertextKey = "${credentialId}_ciphertext"
     private val ivKey = "${credentialId}_iv"
+    private val provenanceKey = "${credentialId}_provenance"
+
+    val provenance: CredentialProvenance?
+        @Synchronized get() = CredentialProvenance.resolve(
+            preferences.getString(provenanceKey, null),
+            preferences.contains(ciphertextKey) || preferences.contains(ivKey)
+        )
 
     @Synchronized
     fun save(value: String) {
+        saveEncrypted(value, CredentialProvenance.USER)
+    }
+
+    /** Explicit bootstrap never replaces user ownership or an intentional clear. */
+    @Synchronized
+    fun bootstrap(value: String, refreshExisting: Boolean = false): Boolean {
+        if (!CredentialProvenance.permitsBootstrap(provenance, refreshExisting) || value.isBlank()) return false
+        saveEncrypted(value, CredentialProvenance.BOOTSTRAP)
+        return true
+    }
+
+    private fun saveEncrypted(value: String, source: CredentialProvenance) {
         val normalized = value.trim()
         require(normalized.isNotEmpty()) { "$displayName API key cannot be empty" }
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
@@ -32,6 +51,7 @@ internal class EncryptedApiKeyStore(
         preferences.edit(commit = true) {
             putString(ciphertextKey, Base64.encodeToString(encrypted, Base64.NO_WRAP))
             putString(ivKey, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            putString(provenanceKey, source.name)
         }
     }
 
@@ -49,7 +69,7 @@ internal class EncryptedApiKeyStore(
             }
             cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)).decodeToString()
         }.getOrElse {
-            removeEncryptedValue()
+            // Keep both ownership and ciphertext on transient keystore failures.
             null
         }
     }
@@ -58,14 +78,10 @@ internal class EncryptedApiKeyStore(
 
     @Synchronized
     fun clear() {
-        removeEncryptedValue()
-        runCatching { keyStore().deleteEntry(keyAlias) }
-    }
-
-    private fun removeEncryptedValue() {
         preferences.edit(commit = true) {
             remove(ciphertextKey)
             remove(ivKey)
+            putString(provenanceKey, CredentialProvenance.CLEARED.name)
         }
     }
 

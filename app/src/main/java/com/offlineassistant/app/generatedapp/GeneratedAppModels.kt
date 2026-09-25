@@ -26,6 +26,25 @@ internal data class CanonicalAcceptedPreview(
     val committedSections: Int
 )
 
+/** Compiler-checked, display-only UI. It contains no canonical source and is never persisted. */
+internal data class CanonicalFrozenUiPreview(
+    val version: String,
+    val draftDigest: String,
+    val packVersion: String,
+    val packDigest: String,
+    val program: CanonicalDealUiProgram,
+    val state: JsonObject,
+    val phase: String = "S2",
+    val revision: Int = 3,
+    val projectionKind: String = "legacy",
+    val bindingTypes: JsonObject = JsonObject(emptyMap()),
+    val status: String = "FROZEN",
+    val meaningful: Boolean = false,
+    val coveredObligations: Int = 0,
+    val remainingObligations: Int = 0,
+    val qualityDeficits: List<String> = emptyList()
+)
+
 internal sealed interface CanonicalStudioSession {
     data object Empty : CanonicalStudioSession
 
@@ -33,7 +52,8 @@ internal sealed interface CanonicalStudioSession {
         val phase: CanonicalGenerationPhase,
         val message: String,
         val previousRunnable: CanonicalRunnableApp?,
-        val acceptedPreview: CanonicalAcceptedPreview? = null
+        val acceptedPreview: CanonicalAcceptedPreview? = null,
+        val frozenPreview: CanonicalFrozenUiPreview? = null
     ) : CanonicalStudioSession
 
     data class Runnable(val app: CanonicalRunnableApp) : CanonicalStudioSession
@@ -46,7 +66,8 @@ internal sealed interface CanonicalStudioSession {
     data class Failed(
         val previousRunnable: CanonicalRunnableApp?,
         val userMessage: String,
-        val technicalTrace: String
+        val technicalTrace: String,
+        val frozenPreview: CanonicalFrozenUiPreview? = null
     ) : CanonicalStudioSession
 }
 
@@ -95,11 +116,15 @@ internal data class GeneratedAppStudioState(
         get() = selectedProviderKeysConfigured && !isBusy
 
     val canRefine: Boolean
-        get() = refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && !isBusy &&
+        get() = generationMode != StudioGenerationMode.UI_FIRST && refinementPrompt.isNotBlank() && modelKeyConfigured(dealModel) && !isBusy &&
             (runnable != null || experimentalHtml5Session.result != null)
 
     val selectedProviderKeysConfigured: Boolean
-        get() = modelKeyConfigured(dealModel)
+        get() = when (generationMode) {
+            StudioGenerationMode.UI_FIRST -> deepSeekKeyConfigured && jevKeyConfigured
+            StudioGenerationMode.CANONICAL -> deepSeekKeyConfigured
+            StudioGenerationMode.JS -> modelKeyConfigured(dealModel)
+        }
 
     private fun modelKeyConfigured(model: DeepSeekGenerationModel): Boolean = when (model.provider) {
         GenerationProvider.DEEPSEEK -> deepSeekKeyConfigured

@@ -32,9 +32,25 @@ internal class DealStudioSettingsRepository(context: Context) {
         displayName = "Jev"
     )
 
-    init {
-        provisionEmbeddedDeepSeekApiKey()
-        provisionEmbeddedCerebrasApiKey()
+    enum class CredentialProvider { DEEPSEEK, CEREBRAS, JEV }
+
+    fun credentialProvenance(provider: CredentialProvider): CredentialProvenance? = credentialStore(provider).provenance
+
+    /** Must be invoked by an explicit bootstrap action, never initialization or revision migration. */
+    fun bootstrapEmbeddedApiKey(provider: CredentialProvider, refreshExisting: Boolean = false): Boolean {
+        check(BuildConfig.DEBUG) { "Credential bootstrap is available only in debug builds" }
+        val value = when (provider) {
+            CredentialProvider.DEEPSEEK -> BuildConfig.EMBEDDED_DEEPSEEK_API_KEY
+            CredentialProvider.CEREBRAS -> BuildConfig.EMBEDDED_CEREBRAS_API_KEY
+            CredentialProvider.JEV -> BuildConfig.EMBEDDED_JEV_API_KEY
+        }
+        return credentialStore(provider).bootstrap(value, refreshExisting)
+    }
+
+    private fun credentialStore(provider: CredentialProvider): EncryptedApiKeyStore = when (provider) {
+        CredentialProvider.DEEPSEEK -> deepSeekApiKeyStore
+        CredentialProvider.CEREBRAS -> cerebrasApiKeyStore
+        CredentialProvider.JEV -> jevApiKeyStore
     }
 
     val deepSeekApiKeyConfigured: Boolean
@@ -95,38 +111,8 @@ internal class DealStudioSettingsRepository(context: Context) {
         ?.let { stored -> DeepSeekGenerationModel.entries.firstOrNull { it.name == stored } }
         ?: DeepSeekGenerationModel.FLASH
 
-    private fun provisionEmbeddedDeepSeekApiKey() {
-        val embeddedKey = BuildConfig.EMBEDDED_DEEPSEEK_API_KEY.trim()
-        val embeddedRevision = BuildConfig.EMBEDDED_DEEPSEEK_API_KEY_REVISION
-        val installedRevision = preferences.getString(KEY_EMBEDDED_DEEPSEEK_REVISION, null)
-        if (embeddedKey.isBlank() || embeddedRevision.isBlank() || embeddedRevision == installedRevision) return
-
-        runCatching { deepSeekApiKeyStore.save(embeddedKey) }
-            .onSuccess {
-                preferences.edit(commit = true) {
-                    putString(KEY_EMBEDDED_DEEPSEEK_REVISION, embeddedRevision)
-                }
-            }
-    }
-
-    private fun provisionEmbeddedCerebrasApiKey() {
-        val embeddedKey = BuildConfig.EMBEDDED_CEREBRAS_API_KEY.trim()
-        val embeddedRevision = BuildConfig.EMBEDDED_CEREBRAS_API_KEY_REVISION
-        val installedRevision = preferences.getString(KEY_EMBEDDED_CEREBRAS_REVISION, null)
-        if (embeddedKey.isBlank() || embeddedRevision.isBlank() || embeddedRevision == installedRevision) return
-
-        runCatching { cerebrasApiKeyStore.save(embeddedKey) }
-            .onSuccess {
-                preferences.edit(commit = true) {
-                    putString(KEY_EMBEDDED_CEREBRAS_REVISION, embeddedRevision)
-                }
-            }
-    }
-
     private companion object {
         const val PREFERENCES_NAME = "deal_studio_settings"
-        const val KEY_EMBEDDED_DEEPSEEK_REVISION = "embedded_deepseek_revision"
-        const val KEY_EMBEDDED_CEREBRAS_REVISION = "embedded_cerebras_revision"
         const val KEY_DEAL_MODEL = "deal_generation_model"
         const val KEY_DEAL_UI_MODEL = "deal_ui_generation_model"
     }

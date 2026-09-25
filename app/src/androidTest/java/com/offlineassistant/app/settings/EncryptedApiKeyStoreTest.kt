@@ -44,24 +44,57 @@ class EncryptedApiKeyStoreTest {
     }
 
     @Test
-    fun jevCredentialCanBeSavedAndClearedThroughStudioSettings() {
+    fun testCredentialCanBeSavedAndClearedWithoutTouchingStudioSettings() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val settings = DealStudioSettingsRepository(context)
+        val slot = "test_jev_${java.util.UUID.randomUUID()}"
+        val store = EncryptedApiKeyStore(
+            context = context,
+            credentialId = slot,
+            keyAlias = slot,
+            displayName = "Test Jev"
+        )
 
         try {
-            settings.clearJevApiKey()
-            assertNull(settings.jevApiKeyOrNull())
+            store.clear()
+            assertNull(store.readOrNull())
 
-            settings.saveJevApiKey("test-jev-credential")
+            store.save("test-jev-credential")
 
-            assertEquals("test-jev-credential", settings.jevApiKeyOrNull())
-            assertTrue(settings.jevApiKeyConfigured)
+            assertEquals("test-jev-credential", store.readOrNull())
+            assertTrue(store.isConfigured())
 
-            settings.clearJevApiKey()
-            assertNull(settings.jevApiKeyOrNull())
-            assertFalse(settings.jevApiKeyConfigured)
+            store.clear()
+            assertNull(store.readOrNull())
+            assertFalse(store.isConfigured())
         } finally {
-            settings.clearJevApiKey()
+            store.clear()
+        }
+    }
+
+    @Test
+    fun bootstrapPreservesUserAndClearedOwnershipAcrossStoreRecreation() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val slot = "test_provenance_${java.util.UUID.randomUUID()}"
+        fun store() = EncryptedApiKeyStore(context, slot, slot, "Test")
+        val first = store()
+        try {
+            assertTrue(first.bootstrap("fixture-initial"))
+            assertEquals(CredentialProvenance.BOOTSTRAP, first.provenance)
+            val reopened = store()
+            assertFalse(reopened.bootstrap("fixture-updated"))
+            assertTrue(reopened.isConfigured())
+            assertTrue(reopened.bootstrap("fixture-updated", refreshExisting = true))
+            assertTrue(reopened.isConfigured())
+            reopened.save("fixture-user")
+            assertEquals(CredentialProvenance.USER, reopened.provenance)
+            assertFalse(store().bootstrap("fixture-next", refreshExisting = true))
+            assertTrue(store().isConfigured())
+            reopened.clear()
+            assertEquals(CredentialProvenance.CLEARED, store().provenance)
+            assertFalse(store().bootstrap("fixture-next", refreshExisting = true))
+            assertFalse(store().isConfigured())
+        } finally {
+            first.clear()
         }
     }
 }

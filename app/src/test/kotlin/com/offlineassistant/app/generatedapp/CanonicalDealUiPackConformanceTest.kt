@@ -14,9 +14,9 @@ import org.junit.Test
 
 class CanonicalDealUiPackConformanceTest {
     @Test
-    fun `tracked v16 pack is the exact runtime and prompt source`() {
+    fun `tracked active v20 pack is the exact runtime and prompt source`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v16.dealui-pack")
+        val sourceFile = File(root, "tooling/deal-ui-pack/deal-studio-v20.dealui-pack")
         val bytes = sourceFile.readBytes()
 
         assertEquals(sourceFile.readText(), CanonicalDealUiPack.source)
@@ -29,13 +29,15 @@ class CanonicalDealUiPackConformanceTest {
     @Test
     fun `pack manifest bundle and bridge lock are one atomic versioned contract`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
-        val pack = File(root, "tooling/deal-ui-pack/deal-studio-v16.dealui-pack").readBytes()
-        val manifest = File(root, "tooling/deal-ui-pack/deal-studio-v16.agent.json").readBytes()
+        val pack = File(root, "tooling/deal-ui-pack/deal-studio-v20.dealui-pack").readBytes()
+        val manifest = File(root, "tooling/deal-ui-pack/deal-studio-v20.agent.json").readBytes()
+        val semantics = File(root, "tooling/deal-ui-pack/deal-studio-v20.semantics.json").readBytes()
         fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
         val packDigest = digest(pack)
         val manifestDigest = digest(manifest)
-        val bundleDigest = digest("$packDigest:$manifestDigest".encodeToByteArray())
+        val semanticsDigest = digest(semantics)
+        val bundleDigest = digest("$packDigest:$manifestDigest:$semanticsDigest".encodeToByteArray())
         val lock = File(root, "tooling/deal-android-bridge/toolchain.lock").readLines()
             .filter(String::isNotBlank)
             .associate { it.substringBefore('=') to it.substringAfter('=') }
@@ -44,14 +46,21 @@ class CanonicalDealUiPackConformanceTest {
         assertEquals(packDigest, lock.getValue("COMPONENT_PACK_SHA256"))
         assertEquals(packDigest, CanonicalDealUiPack.SHA256)
         assertEquals(manifestDigest, CanonicalDealUiPack.MANIFEST_SHA256)
+        assertEquals(semanticsDigest, CanonicalDealUiPack.SEMANTICS_SHA256)
         assertEquals(bundleDigest, CanonicalDealUiPack.BUNDLE_SHA256)
         val changedManifestDigest = digest(manifest + 0.toByte())
-        assertNotEquals(bundleDigest, digest("$packDigest:$changedManifestDigest".encodeToByteArray()))
+        assertNotEquals(bundleDigest, digest("$packDigest:$changedManifestDigest:$semanticsDigest".encodeToByteArray()))
         val changedPackDigest = digest(pack + 0.toByte())
-        assertNotEquals(bundleDigest, digest("$changedPackDigest:$manifestDigest".encodeToByteArray()))
+        assertNotEquals(bundleDigest, digest("$changedPackDigest:$manifestDigest:$semanticsDigest".encodeToByteArray()))
+        val changedSemanticsDigest = digest(semantics + 0.toByte())
+        assertNotEquals(bundleDigest, digest("$packDigest:$manifestDigest:$changedSemanticsDigest".encodeToByteArray()))
         assertEquals(
-            File(root, "tooling/deal-ui-pack/deal-studio-v16.agent.json").readText(),
+            File(root, "tooling/deal-ui-pack/deal-studio-v20.agent.json").readText(),
             CanonicalDealUiPack.agentManifestSource
+        )
+        assertEquals(
+            File(root, "tooling/deal-ui-pack/deal-studio-v20.semantics.json").readText(),
+            CanonicalDealUiPack.semanticsSource
         )
     }
 
@@ -68,10 +77,10 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v16 candidate explicitly excludes legacy restore from its release gates`() {
+    fun `v17 candidate explicitly excludes legacy restore from its release gates`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val ledger = Json.parseToJsonElement(
-            File(root, "tooling/deal-ui-pack/benchmarks/v16/gate-status.json").readText()
+            File(root, "tooling/deal-ui-pack/benchmarks/v17/gate-status.json").readText()
         ).jsonObject
 
         assertEquals(
@@ -111,14 +120,22 @@ class CanonicalDealUiPackConformanceTest {
     }
 
     @Test
-    fun `v16 is active and pack lookup never falls back across versions`() {
+    fun `v20 is active and pack lookup never falls back across versions`() {
         val root = File(requireNotNull(System.getProperty("offlineAssistant.repoRoot")))
         val productionPack = File(
             root,
             "app/src/main/java/com/offlineassistant/app/generatedapp/CanonicalDealUiPack.kt"
         ).readText()
         assertEquals(
-            listOf("deal-studio-v14.dealui-pack", "deal-studio-v15.dealui-pack", "deal-studio-v16.dealui-pack"),
+            listOf(
+                "deal-studio-v14.dealui-pack",
+                "deal-studio-v15.dealui-pack",
+                "deal-studio-v16.dealui-pack",
+                "deal-studio-v17.dealui-pack",
+                "deal-studio-v18.dealui-pack",
+                "deal-studio-v19.dealui-pack",
+                "deal-studio-v20.dealui-pack"
+            ),
             File(root, "tooling/deal-ui-pack").listFiles().orEmpty()
                 .filter { it.extension == "dealui-pack" }
                 .map { it.name }
@@ -127,13 +144,21 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV15"))
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV14"))
         assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV16"))
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV17"))
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV18"))
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV19"))
+        assertTrue(productionPack.contains("GeneratedCanonicalDealUiPackV20"))
         assertEquals(
             File(root, "tooling/deal-ui-pack/deal-studio-v14.dealui-pack").readText(),
             CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v14")
         )
         assertEquals(
-            File(root, "tooling/deal-ui-pack/deal-studio-v16.dealui-pack").readText(),
-            CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v16")
+            File(root, "tooling/deal-ui-pack/deal-studio-v19.dealui-pack").readText(),
+            CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v19")
+        )
+        assertEquals(
+            File(root, "tooling/deal-ui-pack/deal-studio-v20.dealui-pack").readText(),
+            CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v20")
         )
         assertEquals(CanonicalDealUiPack.source, CanonicalDealUiPack.sourceFor(CanonicalDealUiPack.VERSION))
         assertEquals(CanonicalDealUiPack.SHA256, CanonicalDealUiPack.digestFor(CanonicalDealUiPack.VERSION))
@@ -148,7 +173,7 @@ class CanonicalDealUiPackConformanceTest {
             .map { it.groupValues[1] }
             .toSet()
         val candidate = Regex("export component ([A-Za-z_][A-Za-z0-9_]*)")
-            .findAll(requireNotNull(CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v16")))
+            .findAll(requireNotNull(CanonicalDealUiPack.sourceFor("deal-studio-dealui-pack-v20")))
             .map { it.groupValues[1] }
             .toSet()
 
@@ -191,19 +216,36 @@ class CanonicalDealUiPackConformanceTest {
         assertTrue(CanonicalDealUiPack.source.contains("children required Button | IconButton"))
         assertEquals(
             "MetricGroup(MetricGroupProps)[children:Stat|IntStat|NumberStat]",
-            GeneratedCanonicalDealUiPackV16.COMPONENT_CONTRACTS.getValue("MetricGroup")
+            GeneratedCanonicalDealUiPackV19.COMPONENT_CONTRACTS.getValue("MetricGroup")
         )
         assertEquals(
             "ActionBar(ActionBarProps)[children:Button|IconButton]",
-            GeneratedCanonicalDealUiPackV16.COMPONENT_CONTRACTS.getValue("ActionBar")
+            GeneratedCanonicalDealUiPackV19.COMPONENT_CONTRACTS.getValue("ActionBar")
         )
         assertTrue(CanonicalDealUiPack.MANIFEST_SHA256.isNotBlank())
         assertTrue(CanonicalDealUiPack.BUNDLE_SHA256.isNotBlank())
         assertFalse(CanonicalDealUiPack.initialGenerationContract.contains("TopBar(TopBarProps)"))
         listOf(
             "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem",
-            "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem"
+            "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem", "DateTimeField"
         ).forEach { assertTrue(CanonicalDealUiPack.source.contains("export component $it")) }
+        assertTrue(CanonicalDealUiPack.source.contains("valueEpochMinute: int"))
+        assertTrue(CanonicalDealUiPack.source.contains("renderer.android.date-time-field"))
+    }
+
+    @Test
+    fun `active pack exposes capability-specific platform controls without project vocabulary`() {
+        listOf(
+            "HostNavigationButton" to "host.navigation.open",
+            "HostCalendarOpenButton" to "host.calendar.open",
+            "HostCalendarCreateButton" to "host.calendar.write",
+            "HostCalendarClearOwnedButton" to "host.calendar.write"
+        ).forEach { (component, capability) ->
+            assertTrue(CanonicalDealUiPack.source.contains("export component $component"))
+            assertTrue(CanonicalDealUiPack.source.contains("capability \"$capability\""))
+        }
+        assertFalse(CanonicalDealUiPack.source.contains("Medication"))
+        assertFalse(CanonicalDealUiPack.source.contains("Shanghai"))
     }
 
     @Test

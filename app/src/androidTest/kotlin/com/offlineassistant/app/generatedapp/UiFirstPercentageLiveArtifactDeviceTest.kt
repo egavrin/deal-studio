@@ -131,11 +131,9 @@ class UiFirstPercentageLiveArtifactDeviceTest {
             .use { it.readText() }
     ).jsonObject
 
-    private fun kotlinx.serialization.json.JsonObject.string(name: String): String =
-        getValue(name).jsonPrimitive.content
+    private fun kotlinx.serialization.json.JsonObject.string(name: String): String = getValue(name).jsonPrimitive.content
 
-    private fun kotlinx.serialization.json.JsonObject.int(name: String): Int =
-        getValue(name).jsonPrimitive.int
+    private fun kotlinx.serialization.json.JsonObject.int(name: String): Int = getValue(name).jsonPrimitive.int
 
     private companion object {
         const val EVIDENCE_TAG = "UiFirstPercentageLiveEvidence"

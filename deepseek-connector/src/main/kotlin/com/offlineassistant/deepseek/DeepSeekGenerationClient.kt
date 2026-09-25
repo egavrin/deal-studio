@@ -44,7 +44,9 @@ data class DeepSeekGenerationRequest(
     val instructions: String,
     val input: String,
     val maxOutputTokens: Int,
-    val temperature: Double = 0.1
+    val temperature: Double = 0.1,
+    /** Requests a JSON object only where the selected provider exposes that chat capability. */
+    val jsonObjectResponse: Boolean = false
 )
 
 data class DeepSeekGenerationResult(
@@ -234,7 +236,12 @@ class DeepSeekGenerationClient(
             )
         }
         when (request.model.provider) {
-            GenerationProvider.DEEPSEEK -> putJsonObject("thinking") { put("type", "disabled") }
+            GenerationProvider.DEEPSEEK -> {
+                putJsonObject("thinking") { put("type", "disabled") }
+                if (request.jsonObjectResponse) {
+                    putJsonObject("response_format") { put("type", "json_object") }
+                }
+            }
             GenerationProvider.CEREBRAS -> put("reasoning_effort", "high")
         }
         put("temperature", request.temperature)

@@ -40,7 +40,7 @@ metadata       compiler, component-pack, model, token and timing provenance; not
 ```
 
 There is no generated `AppPlan`, layout plan, profile, JSON AST, bytecode file or app-family record.
-`AppInterfaceV1` is extracted from accepted DEAL and passed read-only to Deal UI generation. It is
+`AppInterfaceV1` is extracted from accepted DEAL and passed read-only to Deal UI linking or internal generation. It is
 ephemeral compiler state and is never independently generated or persisted.
 
 State and data belong in DEAL/AppInterface. The DEAL root state is also the complete presentation
@@ -52,7 +52,86 @@ Compose only renders checked portable Deal UI IR and sends typed events back to 
 
 ## Generation Protocol
 
-The Android model-facing path uses `compiler-construction-v1` for both generation and refinement.
+### Jev coherent v20 experimental revision
+
+`jev-coherent-v20-r1` is opt-in (`-PjevCoherentV20=true` for a debug build); ordinary builds
+keep their current selection until paired evaluation passes. Jev SELECT/LAYOUT still supplies
+checked inert previews. After LAYOUT one DeepSeek request receives the original task, exact selected
+UI, component/event semantics, full language/pack contract and actual runtime capabilities, and
+returns one complete raw DEAL module with an embedded view. The compiler projects canonical
+`app.deal` and `app.dealui`, checks the entire pair and derives the final AppInterface. The model may
+extend the selected UI and state. Preview ABI is provisional and does not freeze final business data.
+This explicit source ingress is authorized for this revision; constructor-only restrictions below
+continue to apply to their own compatibility/refinement routes.
+
+The coherent host allowlist includes executable FrameClock, MinuteClock, PointerSurface and the four
+existing navigation/calendar controls. The final model may declare clock.frame, clock.minute,
+pointer, navigation.open, calendar.open and calendar.write. Runnable Studio and saved-app hosts
+supply the existing permission-aware executor; inert previews and library thumbnails never do.
+Other capabilities remain unavailable. Enabling a component is not permission to fabricate a
+successful external effect. These capabilities were added by explicit user steering during this work.
+
+There is no SLOTS/READ/BIND/RESIDUAL prefetch or automatic business-path fallback in this revision.
+At most three actual business HTTP requests including transport retries and a 90-second business
+deadline are allowed. The initial business call emits a complete pair. Repair calls use the versioned
+`coherent-repair-v1` JSON envelope with compiler-issued diagnostic target aliases and a revision
+digest. The compiler applies scoped patches to a transient rejected candidate and recompiles the
+complete pair; an invalid candidate may receive another scoped patch within the same call limit.
+The original request, selected UI, rejected candidate and compiler diagnostics remain read-only
+repair context. Unsupported or stale patch targets fail explicitly without full-source regeneration.
+No retained artifact silently overrides model output. Identical rejected candidates terminate.
+Final source/ABI digests, final revision and the
+originating preview digest are checked independently. Failed/cancelled generation never replaces a
+working app. No production validator infers requested business meaning from names or prompt text.
+
+Exact provider bodies can be captured only through an explicit private debug or evaluation trace sink, without
+credentials or headers; safe product metrics never contain them. Source traces are private debug or evaluation
+artifacts, not saved application state. Report functional results separately from compiler admission.
+The frozen-ABI description below documents the older route retained for explicit comparisons.
+
+
+Public Studio greenfield generation is Jev UI-first. Jev selects a compiler-checked UiDraft; before
+S3 the compiler freezes that draft and its typed ABI, pack identity and structural digest. The draft
+is immediately renderable as an inert, non-persistent preview. Before S3 the compiler materializes
+exact frozen `app.dealui` with its normal emitter and checks it against ABI-derived declarations.
+In the experimental public path, SELECT batches pack-derived component choices and produces the first
+meaningful checked inert preview; LAYOUT batches placement and order before freeze. One scoped repair
+may use the third and final Jev HTTP attempt, including transport retries. An explicitly reported
+sequential fallback preserves coverage for oversized or unrepresentable batches. Record first checked
+UI time separately from time to runnable, the route and fallback reason, Jev network time and local
+compiler time. A measured p50 at or below two seconds on a fixed device and network is required
+before claiming that latency target.
+DeepSeek Flash receives the original request, frozen ABI and that exact transient presentation source and emits only raw
+`app.deal` text: no JSON envelope, bindings object, constructors, tools, markdown fences or raw DUI.
+Thinking is disabled for the initial and repair request. Max output is exactly 393216 tokens, with
+a finite 256 KiB encoded request ceiling. One initial request and at most one compiler-guided full
+replacement after rejected DEAL are permitted; no transport, schema or tool retries, prefix
+salvage, partial acceptance or third request. Original request, rejected DEAL and scoped repair
+diagnostics remain in memory and never enter logs, traces, displays, persistence or safe results.
+The portable compiler parses and checks DEAL, extracts actual AppInterface, checks exact frozen ABI
+and legal/required capabilities, deterministically emits DUI from the checked draft, verifies pack
+and structural identity, requires final DUI byte/digest equality to its pre-S3 materialization and
+atomically admits the pair. Frozen presentation source stays transient until accepted as canonical
+`app.dealui`; it never enters safe status, traces, logs or persisted drafts. Failure preserves the previous runnable app.
+Unsupported draft/ABI shapes fail explicitly before S3. DeepSeek-direct is the main Studio tab;
+Jev UI-first remains a separately selectable experimental tab. The direct route asks DeepSeek Flash for one
+complete raw `app.deal` containing exactly one declarative `// @ui-root` view, mechanically projects
+the checked canonical pair, and admits it only after parser, type, pack, ABI and runtime checks.
+It supplies the same complete pinned Deal UI pack as the Jev route. No model JSON, separate DUI
+source, unchecked preview, generated host capability or scenario-specific template is accepted.
+Its one full-file semantic replacement is compiler-guided; transport failure is not a repair.
+Do not claim direct component/visual parity or release stability before medical, travel and the
+consecutive held-out device gate pass. The JS/HTML route remains experimental and separate.
+The compiler also supplies an ABI-derived parser/type-checked generic DEAL scaffold as transient
+language guidance. It never becomes a saved/runnable fallback; returned business source must pass
+all admission checks independently. Scaffold source never enters safe traces, logs or persistence.
+The public Jev UI stage uses bounded manifest-derived refinement, not the fixed-role recipe route.
+Android supplies actual renderer-supported symbols; the compiler intersects them with pack, lowerer,
+typed ABI and capability contracts. Checked literal/token choices survive each actual inert partial
+preview. Exactly one app-owned AppTheme wraps adaptive Root before freeze; only the compiler's
+structural checklist can release S3. Unsupported contracts fail explicitly without placeholder UI.
+
+Internal compatibility generation and refinement use `compiler-construction-v1`.
 All source-writing tools are `construct_*` operations: a flat batch of compiler constructors with
 operand handles plus the authorized edit arguments. Source/body/declaration arguments refer to
 constructor results, never model-written source strings. The upstream transpilers project these
@@ -60,7 +139,7 @@ operations into canonical sources and validate them before runtime admission. Pl
 and the source-edit compatibility tools are not accepted as a fallback. Read-only and finish tools
 remain ordinary compiler API operations. Batch-local constructor handles are not persistent node IDs.
 
-Normal greenfield generation uses `construct_apply_deal_batch` with `final=true` for the complete
+Internal constructor greenfield generation uses `construct_apply_deal_batch` with `final=true` for the complete
 DEAL artifact, then one checked UI transaction. Do not restore mandatory foundation/behavior/finish
 network rounds. A partial batch may continue with `final=false`; rejected groups stay in compiler
 repair slots. Reasoning profiles come from the engine request and must be benchmarked including
@@ -68,10 +147,11 @@ failures before changing production defaults. Compact pack contracts must retain
 property type, optionality, typed-child constraint and event contract.
 
 Source-edit and older generation protocols described below are compatibility/internal interfaces,
-not permission to expose raw-source writes to the production model. Constructor coverage is still
+not permission to expose raw-source writes on refinement or constructor routes. The public raw DEAL
+greenfield contract above is a separate bounded ingress. Constructor coverage is still
 partial; unsupported syntax needs an upstream API extension and tests, not a raw-code escape hatch.
 
-Cloud generation is sequential and compiler-guided:
+The following compatibility/refinement protocols are sequential and compiler-guided:
 
 The rich `compiler-protocol-v2` API is an internal capability surface. Models never receive its full
 schema, graph, source or identifier set. The Java generation engine asks the transpilers for a
@@ -93,8 +173,8 @@ authorized ChangeSet through the unguarded v1 API in shadow and records parity; 
 failure is never shadow-applied. The old greenfield graph protocol described below is a temporary
 migration adapter only. It may remain runnable while upstream typed-hole generation is completed,
 but it must not gain new semantics, source scanners, repair heuristics or product features. The
-migration is not complete until initial DEAL and Deal UI generation use the same compiler-owned v2
-workspace and the Kotlin graph compilers are deleted.
+migration of that compatibility route is not complete until the Kotlin graph compilers are deleted.
+Public greenfield uses the frozen draft/raw DEAL ingress described above.
 
 1. The selected cloud model calls `submit_deal_program` once with nominal types, external actions, reusable helper
    signatures, capabilities and every compact function body. The model does not select a separate
@@ -129,11 +209,11 @@ repairs. The original batch must pass its complete issued schema and compiler ch
 A failed transport attempt must not mutate compiler state or consume a semantic repair round.
 TTFC for tools means the first structurally valid compiler call.
 
-Repair budgets are progress-aware. The fixed Flash and Pro budgets remain latency ceilings; one
+Internal constructor/refinement repair budgets are progress-aware. The fixed Flash and Pro budgets remain latency ceilings; one
 additional round may be granted only when the compiler accepted new immutable graph content at the
 budget boundary, and all generation is hard-capped. Rejections alone never buy another model call.
 
-DeepSeek and Cerebras are production cloud providers behind the same canonical compiler API. A run
+DeepSeek and Cerebras support internal compatibility/refinement behind the same canonical compiler API. Such a run
 always finishes and checks DEAL before starting Deal UI, and the two stages may select providers
 independently. Provider differences stop at authenticated transport, model identifiers, streaming
 event parsing and usage metadata; they do not create different prompts, compiler semantics, repair
@@ -146,7 +226,7 @@ call per AST constructor.
 
 ### Repair Granularity Invariant
 
-The independently checked and replaceable unit is one typed function body or one named Deal UI
+On internal constructor/refinement routes the independently checked and replaceable unit is one typed function body or one named Deal UI
 surface. Compactness is measured by body size, repair input/output tokens and changed graph units,
 not by minimizing the number of nominal action types.
 
@@ -210,7 +290,8 @@ No release gate is considered closed by implementation, a single successful gene
 hand-picked screenshot. A gate closes only after its recorded matrix or soak measurement passes on
 the pinned compiler, pack, model and device/network profile. Until then the build remains internal.
 
-A normal cloud run is budgeted for one complete DEAL call and one complete Deal UI batch call.
+A public UI-first run uses bounded Jev planning followed by one raw DEAL call and at most one
+replacement repair. An internal constructor cloud run is budgeted for one complete DEAL call and one complete Deal UI batch call.
 Diagnostic retries are a failure ceiling, not expected progress. Record TTFT, graph rounds,
 accepted/rejected holes, input/cache/output tokens, local compiler time and wall time.
 

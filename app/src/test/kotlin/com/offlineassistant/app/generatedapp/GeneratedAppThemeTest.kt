@@ -179,6 +179,11 @@ class GeneratedAppThemeTest {
             "SegmentedControl requires exactly one statically selected SegmentItem",
             assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(noSelection)) }.message
         )
+        val dynamicSegments = call(
+            "SegmentedControl",
+            """{"kind":"foreach","identity":"segments","source":{"kind":"path","parts":["state","options"]},"item":"option","key":{"kind":"path","parts":["option","id"]},"children":[{"kind":"call","name":"ui.SegmentItem","identity":"segment","arguments":{"label":{"kind":"path","parts":["option","label"]},"selected":{"kind":"path","parts":["option","selected"]}},"children":[]}]}"""
+        )
+        CanonicalDealUiParser.parse(structureIr(dynamicSegments))
         val invalidToggleButtonVariant = callWithArguments("ToggleButton", "\"variant\":${literal("quiet")}")
         assertEquals(
             "ToggleButton.variant has unsupported value 'quiet'",

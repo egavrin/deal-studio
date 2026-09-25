@@ -19,6 +19,15 @@ fi
 # shellcheck source=/dev/null
 source "$LOCK"
 
+# A lock refresh is an intentional dependency re-pin.  Resolve the exact committed input before
+# enforcing the clean revision gate, then write that same revision together with the DEX digest
+# below.  Ordinary builds still require every dependency to match the already-recorded lock.
+if $UPDATE_LOCK; then
+  DEAL_REVISION=$(git -C "$DEAL_REPO" rev-parse HEAD)
+  DEAL_UI_REVISION=$(git -C "$DEAL_UI_REPO" rev-parse HEAD)
+  STREAMING_COMPILER_REVISION=$(git -C "$STREAMING_COMPILER_REPO" rev-parse HEAD)
+fi
+
 PACK_SUFFIX=${COMPONENT_PACK_VERSION#deal-studio-dealui-pack-}
 PACK="$ROOT/tooling/deal-ui-pack/deal-studio-$PACK_SUFFIX.dealui-pack"
 [[ -f "$PACK" ]] || { printf 'Pinned component pack is unavailable: %s\n' "$PACK" >&2; exit 1; }
@@ -29,6 +38,9 @@ ACTUAL_PACK_DIGEST=$(shasum -a 256 "$PACK" | awk '{print $1}')
     "$COMPONENT_PACK_VERSION" "$ACTUAL_PACK_VERSION" >&2
   exit 1
 }
+if $UPDATE_LOCK; then
+  COMPONENT_PACK_SHA256=$ACTUAL_PACK_DIGEST
+fi
 [[ "$ACTUAL_PACK_DIGEST" == "$COMPONENT_PACK_SHA256" ]] || {
   printf 'Component-pack digest mismatch: expected %s, found %s\n' \
     "$COMPONENT_PACK_SHA256" "$ACTUAL_PACK_DIGEST" >&2
@@ -123,6 +135,7 @@ javac --release "$JAVAC_RELEASE" \
   -cp "$CLASSES" \
   -d "$CLASSES" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiModel.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiQualityContract.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDiagnostic.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiRepairDiagnostics.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiParser.java" \
@@ -132,10 +145,17 @@ javac --release "$JAVAC_RELEASE" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiCompilerWorkspace.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalCompiler.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftWorkspace.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftManifest.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalDealUiJson.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftProtocolJson.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftRecipeCatalog.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftRecipeProtocolJson.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiDraftLinker.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/FrozenUiBehavior.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/FrozenUiAbi.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/FrozenUiBindingProgram.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/FrozenUiResidualProgram.java" \
+  "$DEAL_UI_REPO/src/main/java/deal/ui/FrozenUiResidualTree.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/CanonicalConstruction.java" \
   "$DEAL_UI_REPO/src/main/java/deal/ui/UiIrDumper.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/CanonicalRefinementSession.java" \
@@ -144,6 +164,28 @@ javac --release "$JAVAC_RELEASE" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/JevUiPlanner.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstSession.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstApplicationSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/InputAtomBuilder.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/NaturalUiFirstPlanner.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/NaturalUiFirstApplicationSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/FrozenUiBusinessConstructionSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/RawDealLanguageContract.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/FrozenUiRawDealSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/ComponentSemanticsV20.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/FrozenUiBusinessV20Session.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/FrozenUiBindingWireV20.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/FrozenUiResidualWireV20.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/FrozenUiBindingV20Session.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/V20SchemaValidator.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/ManifestUiRefinementSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/ProviderJson.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/JevSystemOneTransport.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/DeepSeekToolTransport.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/DeepSeekRawDealTransport.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/DirectRawLanguageContract.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/DirectRawGenerationExecutor.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/CoherentUiSourceSession.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/SurprisePromptGenerator.java" \
+  "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstGenerationExecutor.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstReplayFixture.java" \
   "$STREAMING_COMPILER_REPO/java/streaming/compiler/UiFirstLiveBridge.java" \
   "$ROOT/tooling/deal-android-bridge/CanonicalDealUiJson.java" \
@@ -158,8 +200,14 @@ cp "$OUT/classes.dex" "$ASSET"
 DIGEST=$(shasum -a 256 "$ASSET" | awk '{print $1}')
 if $UPDATE_LOCK; then
   temporary="$LOCK.tmp"
-  awk -v digest="$DIGEST" '
+  awk -v digest="$DIGEST" -v streaming_revision="$STREAMING_COMPILER_REVISION" \
+      -v deal_ui_revision="$DEAL_UI_REVISION" -v deal_revision="$DEAL_REVISION" \
+      -v pack_digest="$COMPONENT_PACK_SHA256" '
     /^DEX_SHA256=/ { print "DEX_SHA256=" digest; next }
+    /^DEAL_REVISION=/ { print "DEAL_REVISION=" deal_revision; next }
+    /^COMPONENT_PACK_SHA256=/ { print "COMPONENT_PACK_SHA256=" pack_digest; next }
+    /^DEAL_UI_REVISION=/ { print "DEAL_UI_REVISION=" deal_ui_revision; next }
+    /^STREAMING_COMPILER_REVISION=/ { print "STREAMING_COMPILER_REVISION=" streaming_revision; next }
     { print }
   ' "$LOCK" > "$temporary"
   mv "$temporary" "$LOCK"

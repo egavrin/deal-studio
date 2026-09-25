@@ -6,13 +6,16 @@ import dalvik.system.DexClassLoader
 import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.security.MessageDigest
+import java.util.function.Consumer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.double
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
@@ -236,6 +239,210 @@ internal class CanonicalDealToolchain(
         )
     }
 
+    /**
+     * Opens the production-shaped UI-first compiler transaction for the explicitly negotiated
+     * Studio mode. Provider transport remains outside the DEX bridge; all plan, draft, binding,
+     * and source-pair transitions remain inside it.
+     */
+    fun createUiFirstLiveSession(
+        requestDigest: String,
+        scenario: String
+    ): CanonicalUiFirstLiveSession {
+        check(BuildConfig.DEBUG) { "The UI-first live session is available only in internal builds" }
+        require(requestDigest.isNotBlank()) { "UI-first request digest is empty" }
+        require(scenario.isNotBlank()) { "UI-first scenario is empty" }
+        val bridge = bridgeClass()
+        val handle = invokeBridge(
+            "createUiFirstLiveSession",
+            arrayOf(String::class.java, String::class.java, String::class.java),
+            arrayOf(CanonicalDealUiPack.source, requestDigest, scenario)
+        )
+        return CanonicalUiFirstLiveSession(bridge, handle)
+    }
+
+    /**
+     * Opens the compiler-owned natural-request S0 → S1 → S2 UI-first transaction.
+     *
+     * The explicit request is passed once to the portable compiler boundary, which mechanically
+     * derives its bounded request spans and emits the only model-safe planner state. Kotlin keeps
+     * no planner draft, recipe inventory, source projection, or semantic interpretation.
+     */
+    fun createManifestUiSession(request: String): CanonicalManifestUiSession {
+        val handle = invokeBridge(
+            "createManifestUiSession",
+            arrayOf(String::class.java, String::class.java, String::class.java, String::class.java, String::class.java),
+            arrayOf(
+                CanonicalDealUiPack.source,
+                request,
+                buildJsonArray {
+                    canonicalPortableRendererComponents.sorted().forEach { add(JsonPrimitive(it)) }
+                }.toString(),
+                canonicalRendererQualityEvidence().toString(),
+                CanonicalDealUiPack.semanticsSource
+            )
+        )
+        return CanonicalManifestUiSession(bridgeClass(), handle)
+    }
+
+    fun createNaturalUiFirstLiveSession(
+        requestDigest: String,
+        originalUserRequest: String,
+        viewportClass: String = "compact-phone",
+        locale: String = "en",
+        legalCapabilities: List<String> = emptyList()
+    ): CanonicalNaturalUiFirstLiveSession {
+        check(BuildConfig.DEBUG) { "The natural UI-first live session is available only in internal builds" }
+        require(requestDigest.isNotBlank()) { "Natural UI-first request digest is empty" }
+        require(originalUserRequest.isNotBlank()) { "Natural UI-first request is empty" }
+        require(viewportClass.isNotBlank()) { "Natural UI-first viewport class is empty" }
+        require(locale.isNotBlank()) { "Natural UI-first locale is empty" }
+        require(legalCapabilities.all(String::isNotBlank)) { "Natural UI-first capabilities must be non-blank" }
+        val bridge = bridgeClass()
+        val handle = invokeBridge(
+            "createNaturalUiFirstLiveSession",
+            arrayOf(
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                String::class.java,
+                String::class.java
+            ),
+            arrayOf(
+                CanonicalDealUiPack.source,
+                requestDigest,
+                originalUserRequest,
+                viewportClass,
+                locale,
+                buildJsonArray { legalCapabilities.forEach { add(JsonPrimitive(it)) } }.toString()
+            )
+        )
+        return CanonicalNaturalUiFirstLiveSession(bridge, handle)
+    }
+
+    /**
+     * Runs the bounded real-provider UI-first transaction inside the pinned streaming-compiler
+     * DEX. Credentials are constructed only for this call and never enter saved artifacts,
+     * diagnostics, traces, or the returned result.
+     */
+    fun runNaturalUiFirstGeneration(
+        originalUserRequest: String,
+        viewportClass: String = "compact-phone",
+        locale: String = "en",
+        legalCapabilities: List<String>,
+        jevApiKey: String,
+        deepSeekApiKey: String,
+        onPreview: (JsonObject) -> Unit = {},
+        coherentGeneration: Boolean = BuildConfig.JEV_COHERENT_V20_ENABLED,
+        traceConsumer: ((String) -> Unit)? = null
+    ): JsonObject {
+        check(BuildConfig.DEBUG) { "The natural UI-first executor is available only in internal builds" }
+        require(
+            if (coherentGeneration) {
+                GenerationCapabilityContracts.coherentUiFirstLegalCapabilities.containsAll(legalCapabilities)
+            } else {
+                legalCapabilities.isEmpty()
+            }
+        ) { "Unsupported UI-first host capabilities" }
+        require(originalUserRequest.isNotBlank()) { "Natural UI-first request is empty" }
+        require(viewportClass.isNotBlank()) { "Natural UI-first viewport class is empty" }
+        require(locale.isNotBlank()) { "Natural UI-first locale is empty" }
+        require(legalCapabilities.all(String::isNotBlank)) { "Natural UI-first capabilities must be non-blank" }
+        require(jevApiKey.isNotBlank()) { "Jev API key is not configured" }
+        require(deepSeekApiKey.isNotBlank()) { "DeepSeek API key is not configured" }
+        val credentials = buildJsonObject {
+            put("jevApiKey", jevApiKey)
+            put("deepSeekApiKey", deepSeekApiKey)
+        }.toString()
+        return (
+            invokeBridge(
+                if (coherentGeneration) "runManifestCoherentUiFirstGenerationWithPreview" else "runManifestUiFirstGenerationWithTrace",
+                arrayOf(
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    Consumer::class.java,
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    Consumer::class.java
+                ),
+                arrayOf(
+                    CanonicalDealUiPack.source,
+                    originalUserRequest,
+                    viewportClass,
+                    locale,
+                    buildJsonArray { legalCapabilities.forEach { add(JsonPrimitive(it)) } }.toString(),
+                    "jev-latest",
+                    "deepseek-flash",
+                    credentials,
+                    Consumer<String> { raw -> onPreview(raw.jsonObject()) },
+                    buildJsonArray {
+                        (if (coherentGeneration) canonicalRendererComponents else canonicalPortableRendererComponents)
+                            .sorted().forEach { add(JsonPrimitive(it)) }
+                    }.toString(),
+                    canonicalRendererQualityEvidence().toString(),
+                    CanonicalDealUiPack.semanticsSource,
+                    Consumer<String> { raw -> traceConsumer?.invoke(raw) }
+                )
+            ) as String
+            ).jsonObject()
+    }
+
+    fun appInterfaceFingerprint(dealSource: String): String = invokeBridge(
+        "appInterfaceFingerprint",
+        arrayOf(String::class.java),
+        arrayOf(dealSource)
+    ) as String
+
+    fun cancelNaturalUiFirstGeneration() {
+        runCatching {
+            invokeBridge(
+                "cancelNaturalUiFirstGeneration",
+                emptyArray<Class<*>>(),
+                emptyArray<Any?>()
+            )
+        }
+    }
+
+    /** The direct model sees the same complete pinned pack as the Jev UI route. */
+    fun runDirectRawGeneration(originalUserRequest: String, deepSeekApiKey: String): JsonObject {
+        check(BuildConfig.DEBUG) { "Direct generation is available only in internal builds" }
+        require(originalUserRequest.isNotBlank()) { "Direct generation request is empty" }
+        require(deepSeekApiKey.isNotBlank()) { "DeepSeek API key is not configured" }
+        val result = invokeBridge(
+            "runDirectRawGeneration",
+            arrayOf(String::class.java, String::class.java, String::class.java, String::class.java),
+            arrayOf(CanonicalDealUiPack.source, originalUserRequest, "[]", deepSeekApiKey)
+        )
+        return (result as String).jsonObject()
+    }
+
+    fun cancelDirectRawGeneration() {
+        runCatching { invokeBridge("cancelDirectRawGeneration", emptyArray<Class<*>>(), emptyArray<Any?>()) }
+    }
+
+    fun runSurprisePromptGeneration(localeLanguageTag: String, deepSeekApiKey: String): JsonObject {
+        check(BuildConfig.DEBUG) { "Surprise prompt generation is available only in internal builds" }
+        require(localeLanguageTag.isNotBlank()) { "Locale language tag is empty" }
+        require(deepSeekApiKey.isNotBlank()) { "DeepSeek API key is not configured" }
+        val result = invokeBridge(
+            "runSurprisePromptGeneration",
+            arrayOf(String::class.java, String::class.java),
+            arrayOf(localeLanguageTag, deepSeekApiKey)
+        )
+        return (result as String).jsonObject()
+    }
+
+    fun cancelSurprisePromptGeneration() {
+        runCatching { invokeBridge("cancelSurprisePromptGeneration", emptyArray<Class<*>>(), emptyArray<Any?>()) }
+    }
+
     /** Compiles a single Studio `app.deal` containing its checked embedded Deal UI view. */
     fun compileEmbeddedPortable(dealSource: String, packSource: String): String {
         check(BuildConfig.DEBUG) { "The embedded Deal toolchain is available only in internal builds" }
@@ -321,10 +528,10 @@ internal class CanonicalDealToolchain(
         .joinToString("") { byte -> "%02x".format(byte) }
 
     companion object {
-        const val ARTIFACT_SHA256 = "bd0493328c3056fa24f03f91896ae8e314553c09d2132fddaa0b98f741e57951"
-        const val DEAL_REVISION = "dd66bb4ae8bba9923137bc6909a1029a57a022f4"
-        const val DEAL_UI_REVISION = "973dbede549d8da68acef84399c46daabd9416c7"
-        const val STREAMING_COMPILER_REVISION = "648e72782ee54c839faddcf17fa1a72e1b854682"
+        const val ARTIFACT_SHA256 = "ce324ebe921053d99d5536faf320ac47e0228df0101330f8fae6caf94b88bd23"
+        const val DEAL_REVISION = "b66f4488b0437345c460203061a9109404f1fc9f"
+        const val DEAL_UI_REVISION = "e884a3ed74d4648e488dfb41b6e60013ee528edf"
+        const val STREAMING_COMPILER_REVISION = "c4fb2452d467719c35abb4fea703cd2e65ca8d64"
 
         const val ASSET_NAME = "deal-android-toolchain.dex"
         const val BRIDGE_CLASS = "com.offlineassistant.dealtoolchain.CanonicalDealToolchainBridge"
@@ -334,6 +541,138 @@ internal class CanonicalDealToolchain(
         var loadedBridge: Class<*>? = null
     }
 }
+
+/** Typed Kotlin façade over one opaque portable UI-first compiler transaction. */
+internal class CanonicalUiFirstLiveSession(
+    private val bridge: Class<*>,
+    private val handle: Any
+) {
+    fun currentEvent(): JsonObject = invoke("uiFirstLiveCurrentEvent").jsonObject()
+
+    fun advancePlanner(response: JsonObject): JsonObject = invoke(
+        "uiFirstLiveAdvancePlanner",
+        arrayOf(String::class.java),
+        arrayOf(response.toString())
+    ).jsonObject()
+
+    fun businessRequest(
+        originalUserRequest: String,
+        repairCodes: List<String> = emptyList()
+    ): CanonicalUiFirstBusinessRequest {
+        require(originalUserRequest.isNotBlank()) { "UI-first original request is empty" }
+        val result = invoke(
+            "uiFirstLiveBusinessRequest",
+            arrayOf(String::class.java, String::class.java),
+            arrayOf(
+                originalUserRequest,
+                buildJsonArray { repairCodes.forEach { add(JsonPrimitive(it)) } }.toString()
+            )
+        ).jsonObject()
+        return CanonicalUiFirstBusinessRequest(
+            instructions = result.getValue("instructions").jsonPrimitive.content,
+            input = result.getValue("input").jsonPrimitive.content,
+            maxOutputTokens = result.getValue("maxOutputTokens").jsonPrimitive.int
+        )
+    }
+
+    fun completeBusiness(completion: JsonObject): JsonObject = invoke(
+        "uiFirstLiveCompleteBusiness",
+        arrayOf(String::class.java),
+        arrayOf(completion.toString())
+    ).jsonObject()
+
+    @Suppress("SpreadOperator")
+    private fun invoke(
+        method: String,
+        extraTypes: Array<Class<*>> = emptyArray(),
+        extraValues: Array<Any?> = emptyArray()
+    ): String = try {
+        val types = arrayOf(Any::class.java, *extraTypes)
+        val values = arrayOf(handle, *extraValues)
+        bridge.getMethod(method, *types).invoke(null, *values) as String
+    } catch (failure: InvocationTargetException) {
+        throw IllegalArgumentException(
+            failure.targetException.message ?: "UI-first compiler transaction failed",
+            failure
+        )
+    }
+}
+
+/** Typed Kotlin façade over one opaque natural S0 → S1 → S2 compiler transaction. */
+internal class CanonicalManifestUiSession(private val bridge: Class<*>, private val handle: Any) {
+    fun currentEvent(): JsonObject = (bridge.getMethod("manifestUiCurrentEvent", Any::class.java).invoke(null, handle) as String).jsonObject()
+    fun advance(response: JsonObject): JsonObject = (bridge.getMethod("manifestUiAdvance", Any::class.java, String::class.java).invoke(null, handle, response.toString()) as String).jsonObject()
+    fun applyForcedPatch(): JsonObject = (bridge.getMethod("manifestUiApplyForcedPatch", Any::class.java).invoke(null, handle) as String).jsonObject()
+}
+
+internal class CanonicalNaturalUiFirstLiveSession(
+    private val bridge: Class<*>,
+    private val handle: Any
+) {
+    fun currentEvent(): JsonObject = invoke("naturalUiFirstLiveCurrentEvent").jsonObject()
+
+    fun advancePlanner(response: JsonObject): JsonObject = invoke(
+        "naturalUiFirstLiveAdvancePlanner",
+        arrayOf(String::class.java),
+        arrayOf(response.toString())
+    ).jsonObject()
+
+    fun businessRequest(repairCodes: List<String> = emptyList()): CanonicalUiFirstBusinessRequest {
+        val result = invoke(
+            "naturalUiFirstLiveBusinessRequest",
+            arrayOf(String::class.java),
+            arrayOf(buildJsonArray { repairCodes.forEach { add(JsonPrimitive(it)) } }.toString())
+        ).jsonObject()
+        return CanonicalUiFirstBusinessRequest(
+            instructions = result.getValue("instructions").jsonPrimitive.content,
+            input = result.getValue("input").jsonPrimitive.content,
+            maxOutputTokens = result.getValue("maxOutputTokens").jsonPrimitive.int
+        )
+    }
+
+    fun completeBusiness(completion: JsonObject): JsonObject = invoke(
+        "naturalUiFirstLiveCompleteBusiness",
+        arrayOf(String::class.java),
+        arrayOf(completion.toString())
+    ).jsonObject()
+
+    /**
+     * Returns the compiler-issued source-free S3 tool request after the UI draft is frozen.
+     * The returned schema exposes only `construct_complete_frozen_business`.
+     */
+    fun businessConstructionRequest(): JsonObject = invoke(
+        "naturalUiFirstBusinessConstructionRequest"
+    ).jsonObject()
+
+    /** Submits one opaque source-free constructor/binding tool call to the compiler. */
+    fun advanceBusinessConstruction(toolCall: JsonObject): JsonObject = invoke(
+        "naturalUiFirstAdvanceBusinessConstruction",
+        arrayOf(String::class.java),
+        arrayOf(toolCall.toString())
+    ).jsonObject()
+
+    @Suppress("SpreadOperator")
+    private fun invoke(
+        method: String,
+        extraTypes: Array<Class<*>> = emptyArray(),
+        extraValues: Array<Any?> = emptyArray()
+    ): String = try {
+        val types = arrayOf(Any::class.java, *extraTypes)
+        val values = arrayOf(handle, *extraValues)
+        bridge.getMethod(method, *types).invoke(null, *values) as String
+    } catch (failure: InvocationTargetException) {
+        throw IllegalArgumentException(
+            failure.targetException.message ?: "Natural UI-first compiler transaction failed",
+            failure
+        )
+    }
+}
+
+internal data class CanonicalUiFirstBusinessRequest(
+    val instructions: String,
+    val input: String,
+    val maxOutputTokens: Int
+)
 
 private fun String.jsonObject(): JsonObject = Json.parseToJsonElement(this).jsonObject
 

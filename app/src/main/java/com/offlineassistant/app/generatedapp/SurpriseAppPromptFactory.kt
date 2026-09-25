@@ -3,11 +3,13 @@ package com.offlineassistant.app.generatedapp
 import kotlin.random.Random
 
 internal enum class SurpriseAppCapabilityProfile {
+    JEV_UI_FIRST_V1,
     CANONICAL_UTILITY_V14,
     RICH_JS
 }
 
 internal fun StudioGenerationMode.surpriseCapabilityProfile(): SurpriseAppCapabilityProfile = when (this) {
+    StudioGenerationMode.UI_FIRST -> SurpriseAppCapabilityProfile.JEV_UI_FIRST_V1
     StudioGenerationMode.CANONICAL -> SurpriseAppCapabilityProfile.CANONICAL_UTILITY_V14
     StudioGenerationMode.JS -> SurpriseAppCapabilityProfile.RICH_JS
 }
@@ -44,6 +46,7 @@ internal object SurpriseAppPromptFactory {
     ): String {
         val random = Random(seed)
         val direction = when (profile) {
+            SurpriseAppCapabilityProfile.JEV_UI_FIRST_V1 -> uiFirstDirections
             SurpriseAppCapabilityProfile.CANONICAL_UTILITY_V14 -> utilityDirections
             SurpriseAppCapabilityProfile.RICH_JS -> richDirections
         }.random(random)
@@ -56,8 +59,8 @@ internal object SurpriseAppPromptFactory {
             .joinToString(", ")
             .ifBlank { "none" }
         return """
-            Invent and build one original polished small application now. DeepSeek must choose the concept, name,
-            data model, behavior and interface; do not ask a clarifying question and do not use an app-family template.
+            Invent and build one original polished small application now. ${authoringBoundary(profile)}
+            Do not ask a clarifying question and do not use an app-family template.
             Make it ${direction.form} with ${direction.interaction}. Its visual character
             should be ${productQualities.random(random)}. Variation key: ${seed.toULong().toString(36)}.
 
@@ -75,7 +78,29 @@ internal object SurpriseAppPromptFactory {
 
     private const val MAX_AVOIDED_TITLES = 12
 
+    private val uiFirstDirections = listOf(
+        ProductDirection("a focused reflective micro-tool", "one clear prompt followed by one intentional result"),
+        ProductDirection("a concise decision-framing surface", "a short input-to-result loop that feels complete in a few taps"),
+        ProductDirection("a compact phrase-shaping tool", "one explicit transformation followed by a readable kept result"),
+        ProductDirection("a tiny thinking companion", "a calm one-step interaction with a visible conclusion"),
+        ProductDirection("a quick personal prompt", "a single focused value and an intentional apply action"),
+        ProductDirection("a small creative utility", "a concise write-and-keep interaction with no hidden steps")
+    )
+
+    private fun authoringBoundary(profile: SurpriseAppCapabilityProfile): String = when (profile) {
+        SurpriseAppCapabilityProfile.JEV_UI_FIRST_V1 ->
+            "Jev chooses the checked UI presentation before the business stage; the business completion supplies only permitted labels and behavior bindings."
+
+        SurpriseAppCapabilityProfile.CANONICAL_UTILITY_V14,
+        SurpriseAppCapabilityProfile.RICH_JS ->
+            "DeepSeek must choose the concept, name, data model, behavior and interface."
+    }
+
     private fun profileConstraint(profile: SurpriseAppCapabilityProfile): String = when (profile) {
+        SurpriseAppCapabilityProfile.JEV_UI_FIRST_V1 ->
+            "Stay inside the checked Jev UI + DEAL capability surface selected by the compiler. Use navigation or calendar controls only when the frozen UI contains their matching Host*Button and the original request explicitly requires that real platform action. " +
+                "Do not claim network, notifications, location lookup, files, payments, a backend, persistence or any other unavailable capability."
+
         SurpriseAppCapabilityProfile.CANONICAL_UTILITY_V14 ->
             "Stay within the semantic utility surface and compose only utility components exposed by the checked pack."
 

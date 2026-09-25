@@ -7,6 +7,9 @@ import com.offlineassistant.app.settings.DealStudioSettingsRepository
 import com.offlineassistant.deepseek.DeepSeekGenerationClient
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 import com.offlineassistant.deepseek.DeepSeekGenerationRequest
+import java.io.BufferedWriter
+import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,6 +19,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /** Canonical Studio state plus a separate, ephemeral experimental HTML5 comparison path. */
 internal class GeneratedAppStudioViewModel(application: Application) : AndroidViewModel(application) {
@@ -29,6 +40,12 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         settings::deepSeekApiKeyOrNull,
         settings::cerebrasApiKeyOrNull,
         dealReasoningEffort = "none"
+    )
+    private val directCompiler = DirectGeneratedAppCompiler(application, settings::deepSeekApiKeyOrNull)
+    private val uiFirstCompiler = UiFirstGeneratedAppCompiler(
+        application,
+        settings::jevApiKeyOrNull,
+        settings::deepSeekApiKeyOrNull
     )
     private val refiner = CanonicalGeneratedAppRefiner(
         application,
@@ -176,6 +193,10 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     fun generateSurprise() {
         val snapshot = state.value
         if (!snapshot.canGenerateSurprise) return
+        if (snapshot.generationMode == StudioGenerationMode.CANONICAL) {
+            generateCanonicalRequest(request = null, surprise = true)
+            return
+        }
         val titles = buildList {
             addAll(snapshot.savedApps.map { it.record.title })
             snapshot.runnable?.let { add(it.program.displayTitle(it.state, "")) }
@@ -188,21 +209,148 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     private fun generateSelectedRequest(request: String) {
         when (state.value.generationMode) {
+            StudioGenerationMode.UI_FIRST -> generateUiFirstRequest(request)
             StudioGenerationMode.CANONICAL -> generateCanonicalRequest(request)
             StudioGenerationMode.JS -> generateExperimentalHtml5(request)
         }
     }
 
-    private fun generateCanonicalRequest(request: String) {
+    /**
+     * Runs the negotiated UI-first transaction. The portable bridge owns draft construction and
+     * linking; this host only coordinates provider transport and keeps the existing runnable
+     * revision intact until the ordinary canonical runtime accepts the completed source pair.
+     */
+    private fun generateUiFirstRequest(request: String) {
         val snapshot = state.value
-        if (request.isBlank() || snapshot.isBusy || saveJob?.isActive == true || !snapshot.selectedProviderKeysConfigured) return
+        if (request.isBlank() || snapshot.isBusy || saveJob?.isActive == true ||
+            !snapshot.selectedProviderKeysConfigured
+        ) {
+            return
+        }
+        val previous = snapshot.runnable
+        val runToken = ++generationRunToken
+        mutableState.update {
+            it.copy(
+                session = CanonicalStudioSession.Generating(
+                    phase = CanonicalGenerationPhase.JEV_SELECT,
+                    message = "Preparing a checked UI plan",
+                    previousRunnable = previous
+                ),
+                selectedArtifact = GeneratedArtifact.PREVIEW,
+                isPreviewExpanded = false,
+                currentSavedAppId = null
+            )
+        }
+        activeJob = viewModelScope.launch {
+            val manualUiFirstTrace = if (com.offlineassistant.app.BuildConfig.DEBUG) {
+                ManualUiFirstTraceCapture(getApplication()).also { it.start(runToken) }
+            } else {
+                null
+            }
+            try {
+                runCatching {
+                    uiFirstCompiler.generate(
+                        request = request,
+                        // The UI-first source-free construction route is explicitly benchmarked and
+                        // accepted only with DeepSeek Flash. Other provider/model choices remain
+                        // available to canonical mode and do not silently alter this protocol.
+                        businessModel = DeepSeekGenerationModel.FLASH,
+                        manualTraceConsumer = manualUiFirstTrace?.let { capture ->
+                            { raw -> capture.append(runToken, raw) }
+                        },
+                        onProgress = { phase, message ->
+                            mutableState.update { current ->
+                                if (runToken != generationRunToken) return@update current
+                                val generating = current.session as? CanonicalStudioSession.Generating
+                                    ?: return@update current
+                                current.copy(
+                                    session = generating.copy(
+                                        phase = phase,
+                                        message = progressMessage(phase, message)
+                                    )
+                                )
+                            }
+                        },
+                        onUiPreview = { preview ->
+                            mutableState.update { current ->
+                                if (runToken != generationRunToken) return@update current
+                                val generating = current.session as? CanonicalStudioSession.Generating
+                                    ?: return@update current
+                                current.copy(session = generating.copy(frozenPreview = preview))
+                            }
+                        }
+                    )
+                }.mapCatching { bundle ->
+                    val runtime = toolchain.createRuntime(bundle.dealSource)
+                    CanonicalRunnableApp(
+                        bundle = bundle,
+                        program = CanonicalDealUiParser.parse(bundle.checkedUiIr),
+                        runtime = runtime,
+                        state = runtime.snapshot()
+                    )
+                }.onSuccess { runnable ->
+                    manualUiFirstTrace?.terminal("accepted")
+                    mutableState.update { current ->
+                        if (runToken != generationRunToken) return@update current
+                        current.copy(
+                            session = CanonicalStudioSession.Runnable(runnable),
+                            selectedArtifact = GeneratedArtifact.PREVIEW,
+                            currentSavedAppId = null
+                        )
+                    }
+                }.onFailure { failure ->
+                    manualUiFirstTrace?.terminal(
+                        if (failure is CancellationException) "cancelled" else "failed",
+                        failure
+                    )
+                    if (failure is CancellationException) throw failure
+                    mutableState.update { current ->
+                        if (runToken != generationRunToken) return@update current
+                        val previousRunnable = when (val session = current.session) {
+                            is CanonicalStudioSession.Generating -> session.previousRunnable
+                            else -> current.runnable
+                        }
+                        val userMessage = when {
+                            failure.isCanonicalTransportFailure() ->
+                                "Jev UI + DEAL lost a generation connection before a checked app was ready. Your previous app is unchanged."
+
+                            failure is UiFirstGenerationException ->
+                                "Jev UI + DEAL could not complete this app. Your previous app is unchanged."
+
+                            else ->
+                                "Jev UI + DEAL could not build this app. Your previous app is unchanged."
+                        }
+                        current.copy(
+                            session = CanonicalStudioSession.Failed(
+                                previousRunnable = previousRunnable,
+                                userMessage = userMessage,
+                                frozenPreview = (current.session as? CanonicalStudioSession.Generating)?.frozenPreview,
+                                technicalTrace = failure.stackTraceToString()
+                            )
+                        )
+                    }
+                }
+            } finally {
+                if (runToken == generationRunToken) activeJob = null
+                manualUiFirstTrace?.finish()
+            }
+        }
+    }
+
+    private fun generateCanonicalRequest(request: String?, surprise: Boolean = false) {
+        val snapshot = state.value
+        val missingRequest = !surprise && request.isNullOrBlank()
+        val cannotStart = missingRequest || snapshot.isBusy || saveJob?.isActive == true || !snapshot.deepSeekKeyConfigured
+        if (cannotStart) {
+            return
+        }
         val previous = snapshot.runnable
         val runToken = ++generationRunToken
         mutableState.update {
             it.copy(
                 session = CanonicalStudioSession.Generating(
                     phase = CanonicalGenerationPhase.DEAL,
-                    message = "Building app behavior",
+                    message = if (surprise) "DeepSeek is choosing an app idea" else "Building app behavior",
                     previousRunnable = previous
                 ),
                 selectedArtifact = GeneratedArtifact.PREVIEW,
@@ -212,10 +360,23 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
         }
         activeJob = viewModelScope.launch {
             runCatching {
-                compiler.generate(
-                    request = request,
-                    dealModel = snapshot.dealModel,
-                    dealUiModel = snapshot.dealModel,
+                val selectedRequest = if (surprise) {
+                    val generatedRequest = directCompiler.generateSurprisePrompt(Locale.getDefault().toLanguageTag())
+                    mutableState.update { current ->
+                        if (runToken != generationRunToken) return@update current
+                        val generating = current.session as? CanonicalStudioSession.Generating
+                            ?: return@update current
+                        current.copy(
+                            prompt = generatedRequest,
+                            session = generating.copy(message = "DeepSeek is building the app")
+                        )
+                    }
+                    generatedRequest
+                } else {
+                    requireNotNull(request)
+                }
+                directCompiler.generate(
+                    request = selectedRequest,
                     onProgress = { phase, message ->
                         mutableState.update { current ->
                             if (runToken != generationRunToken) return@update current
@@ -227,23 +388,6 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                                     message = progressMessage(phase, message)
                                 )
                             )
-                        }
-                    },
-                    onUiPreview = { preview ->
-                        if (runToken != generationRunToken) return@generate
-                        val runtime = toolchain.createRuntime(preview.dealSource)
-                        val accepted = CanonicalAcceptedPreview(
-                            dealSource = preview.dealSource,
-                            dealUiSource = preview.dealUiSource,
-                            program = CanonicalDealUiParser.parse(preview.checkedUiIr),
-                            state = runtime.snapshot(),
-                            committedSections = preview.committedSections
-                        )
-                        mutableState.update { current ->
-                            if (runToken != generationRunToken) return@update current
-                            val generating = current.session as? CanonicalStudioSession.Generating
-                                ?: return@update current
-                            current.copy(session = generating.copy(acceptedPreview = accepted))
                         }
                     }
                 )
@@ -272,18 +416,24 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
                         is CanonicalStudioSession.Generating -> session.previousRunnable
                         else -> current.runnable
                     }
-                    val userMessage = if (failure.isCanonicalTransportFailure()) {
-                        "The connection to the generation service was interrupted before source arrived. We retried once; please try again. Your previous app is unchanged."
-                    } else if (failure is CanonicalGenerationFailureException) {
-                        "We couldn't build this app after compiler patches. Inspection artifact: ${failure.artifactId}. Your previous app is unchanged."
-                    } else {
-                        "We couldn't build this app. Your previous app is unchanged."
+                    val userMessage = when (failure) {
+                        is SurprisePromptException ->
+                            "DeepSeek could not choose a Surprise Me request (${failure.code}). Your previous app is unchanged."
+
+                        is DirectGenerationException ->
+                            "DeepSeek could not build a checked app (${failure.code}). Your previous app is unchanged."
+
+                        else -> "DeepSeek could not build this app. Your previous app is unchanged."
                     }
                     current.copy(
                         session = CanonicalStudioSession.Failed(
                             previousRunnable = previousRunnable,
                             userMessage = userMessage,
-                            technicalTrace = failure.stackTraceToString()
+                            technicalTrace = when (failure) {
+                                is SurprisePromptException -> failure.code
+                                is DirectGenerationException -> failure.safeTrace
+                                else -> failure.stackTraceToString()
+                            }
                         )
                     )
                 }
@@ -355,6 +505,7 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
     fun refine() {
         val snapshot = state.value
+        if (snapshot.generationMode == StudioGenerationMode.UI_FIRST) return
         if (snapshot.generationMode == StudioGenerationMode.JS) {
             refineJs(snapshot)
             return
@@ -634,6 +785,8 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     fun cancel() {
         generationRunToken++
         compiler.cancel()
+        directCompiler.cancel()
+        uiFirstCompiler.cancel()
         refiner.cancel()
         experimentalHtml5Client.cancel()
         activeJob?.cancel()
@@ -659,8 +812,12 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
     )
 
     private fun progressMessage(phase: CanonicalGenerationPhase, detail: String): String = when (phase) {
+        CanonicalGenerationPhase.JEV_SELECT -> detail.ifBlank { "Selecting checked UI variants" }
+        CanonicalGenerationPhase.JEV_LAYOUT -> detail.ifBlank { "Placing checked UI variants" }
+        CanonicalGenerationPhase.UI_PREVIEW -> "Building app behavior"
         CanonicalGenerationPhase.DEAL -> detail.ifBlank { "Building app behavior" }
         CanonicalGenerationPhase.DEAL_UI -> "Building the interface"
+        CanonicalGenerationPhase.LINKING -> detail.ifBlank { "Linking UI bindings" }
         CanonicalGenerationPhase.VALIDATING -> "Checking the complete app"
         CanonicalGenerationPhase.REPAIRING -> detail.ifBlank { "Repairing a compiler diagnostic" }
         CanonicalGenerationPhase.RETRYING -> detail.ifBlank { "Regenerating the complete app once" }
@@ -669,3 +826,156 @@ internal class GeneratedAppStudioViewModel(application: Application) : AndroidVi
 
 private fun Throwable.isCanonicalTransportFailure(): Boolean = generateSequence(this) { it.cause }
     .any(CanonicalTransportRetryPolicy::shouldRetry)
+
+/** Debug-only, private, bounded wire evidence for a manual Studio generation run. */
+private class ManualUiFirstTraceCapture(private val application: Application) {
+    private val maximumBytes = 32L * 1024L * 1024L
+    private val maximumSummaryBytes = 256 * 1024
+    private val startedNanos = System.nanoTime()
+    private var writer: BufferedWriter? = null
+    private var summaryFile: File? = null
+    private var writtenBytes = 0L
+    private var activeRunToken: Long? = null
+    private var rawCaptureStatus = "unavailable"
+    private var compilerTerminal: JsonObject? = null
+    private var androidTerminal: JsonObject? = null
+
+    @Synchronized
+    fun start(runToken: Long) {
+        activeRunToken = runToken
+        runCatching {
+            val directory = File(application.filesDir, "ui-first-manual-traces")
+            check(directory.isDirectory || directory.mkdirs())
+            // Keep two previous runs plus this run, including independently written summaries.
+            prune(directory, retainedRuns = 2)
+            val stem = "manual-${System.currentTimeMillis()}-$runToken"
+            summaryFile = File(directory, "$stem.summary.json")
+            writer = File(directory, "$stem.jsonl").bufferedWriter(Charsets.UTF_8)
+            rawCaptureStatus = "recording"
+            val revision = if (com.offlineassistant.app.BuildConfig.JEV_COHERENT_V20_ENABLED) {
+                "jev-coherent-v20-r1"
+            } else {
+                "ui-first"
+            }
+            val startTrace = buildJsonObject {
+                put("kind", "manual_run")
+                put("runToken", runToken)
+                put("generationRevision", revision)
+                put("streamingRevision", CanonicalDealToolchain.STREAMING_COMPILER_REVISION)
+                put("dexSha256", CanonicalDealToolchain.ARTIFACT_SHA256)
+                put("startedEpochMs", System.currentTimeMillis())
+            }.toString()
+            append(runToken, startTrace)
+        }.onFailure { stopRawCapture("io_failure") }
+        persistSummary()
+    }
+
+    @Synchronized
+    fun append(runToken: Long, rawJson: String) {
+        if (activeRunToken != runToken) return
+        runCatching {
+            // Keep compiler-owned safe metrics even after the raw file is full or unavailable.
+            if (rawJson.length <= maximumSummaryBytes) {
+                val event = Json.parseToJsonElement(rawJson) as? JsonObject
+                if (event?.get("kind")?.jsonPrimitive?.contentOrNull == "compiler_terminal") {
+                    compilerTerminal = event
+                    persistSummary()
+                }
+            }
+            val active = writer ?: return
+            // UTF-8 byte count is authoritative; the character guard avoids a large extra allocation.
+            if (rawJson.length > maximumBytes - writtenBytes) {
+                stopRawCapture("size_limit")
+                return
+            }
+            val bytes = rawJson.toByteArray(Charsets.UTF_8)
+            if (writtenBytes + bytes.size + 1 > maximumBytes) {
+                stopRawCapture("size_limit")
+                return
+            }
+            active.write(rawJson)
+            active.newLine()
+            active.flush()
+            writtenBytes += bytes.size + 1
+        }.onFailure { stopRawCapture("io_failure") }
+    }
+
+    @Synchronized
+    fun terminal(status: String, failure: Throwable? = null) {
+        runCatching {
+            androidTerminal = buildJsonObject {
+                put("kind", "android_terminal")
+                put("status", status)
+                put("elapsedMs", (System.nanoTime() - startedNanos) / 1_000_000L)
+                failure?.let { put("exceptionClass", it.javaClass.simpleName) }
+                if (failure is UiFirstGenerationException) {
+                    put("diagnosticCodes", JsonArray(failure.diagnosticCodes.map(::JsonPrimitive)))
+                    failure.safeMetrics?.let { put("safeMetrics", it) }
+                }
+            }
+            activeRunToken?.let { append(it, androidTerminal.toString()) }
+            persistSummary()
+            // A short safe fallback survives an unavailable/full filesystem. Never log raw bodies.
+            android.util.Log.i(
+                "UiFirstManualTrace",
+                "run=$activeRunToken status=$status rawCapture=$rawCaptureStatus " +
+                    "exception=${failure?.javaClass?.simpleName.orEmpty()} " +
+                    "elapsedMs=${(System.nanoTime() - startedNanos) / 1_000_000L} " +
+                    "codes=${(failure as? UiFirstGenerationException)?.diagnosticCodes.orEmpty()} " +
+                    "compilerCodes=${compilerTerminal?.get("diagnosticCodes")}".take(2_048)
+            )
+        }
+    }
+
+    private fun persistSummary() {
+        runCatching {
+            val summary = buildJsonObject {
+                put("runToken", activeRunToken)
+                put("streamingRevision", CanonicalDealToolchain.STREAMING_COMPILER_REVISION)
+                put("dexSha256", CanonicalDealToolchain.ARTIFACT_SHA256)
+                put("rawCaptureStatus", rawCaptureStatus)
+                put("rawBytes", writtenBytes)
+                compilerTerminal?.let { put("compilerTerminal", it) }
+                androidTerminal?.let { put("androidTerminal", it) }
+            }
+            val full = summary.toString()
+            val bounded = if (full.toByteArray(Charsets.UTF_8).size <= maximumSummaryBytes) {
+                full
+            } else {
+                // Keep terminal status even if an unexpectedly large metrics object arrives.
+                buildJsonObject {
+                    put("runToken", activeRunToken)
+                    put("rawCaptureStatus", rawCaptureStatus)
+                    put("metricsOmitted", true)
+                    androidTerminal?.get("status")?.let { put("status", it) }
+                    androidTerminal?.get("exceptionClass")?.let { put("exceptionClass", it) }
+                    compilerTerminal?.get("status")?.let { put("compilerStatus", it) }
+                    val codes = compilerTerminal?.get("diagnosticCodes") as? JsonArray
+                    codes?.let { put("diagnosticCodes", JsonArray(it.take(32))) }
+                }.toString()
+            }
+            summaryFile?.writeText(bounded, Charsets.UTF_8)
+        }
+    }
+
+    private fun prune(directory: File, retainedRuns: Int) {
+        directory.listFiles()?.filter { it.name.startsWith("manual-") }
+            ?.groupBy { it.name.removeSuffix(".summary.json").removeSuffix(".jsonl") }
+            ?.values?.sortedByDescending { files -> files.maxOf(File::lastModified) }
+            ?.drop(retainedRuns)?.flatten()?.forEach(File::delete)
+    }
+
+    private fun stopRawCapture(status: String) {
+        runCatching { writer?.close() }
+        writer = null
+        rawCaptureStatus = status
+        persistSummary()
+    }
+
+    @Synchronized
+    fun finish() {
+        stopRawCapture(if (rawCaptureStatus == "recording") "complete" else rawCaptureStatus)
+        runCatching { summaryFile?.parentFile?.let { prune(it, retainedRuns = 3) } }
+        activeRunToken = null
+    }
+}

@@ -7,6 +7,7 @@
 package com.offlineassistant.app.generatedapp
 
 import android.graphics.Paint
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -121,6 +121,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
@@ -147,6 +149,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -162,6 +165,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -202,6 +206,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.toColorInt
 import coil3.compose.AsyncImage
 import com.offlineassistant.app.ui.theme.DealStudioSpacing
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -575,15 +581,11 @@ private fun CanonicalDealUiProgram.validateStructure() {
                     }
                 }
             }
-            if (component == "Header" || component == "SectionHeader") {
-                require(
-                    node.children.size <= 1 && node.children.all {
-                        it is CanonicalUiNode.Call && it.name.substringAfterLast('.') in setOf("Button", "IconButton")
-                    }
-                ) { "$component accepts at most one Button or IconButton child" }
-            }
             if (component == "SegmentedControl") {
-                require(node.children.size in 2..4) { "SegmentedControl requires two to four SegmentItem children" }
+                // ForEach and When are checked by the compiler but expand only with runtime state.
+                if (node.children.all { it is CanonicalUiNode.Call }) {
+                    require(node.children.size in 2..4) { "SegmentedControl requires two to four SegmentItem children" }
+                }
                 val staticSelections = node.children.mapNotNull { child ->
                     (child as? CanonicalUiNode.Call)?.arguments?.get("selected")?.let {
                         staticString(it) ?: runCatching {
@@ -632,12 +634,14 @@ private fun CanonicalDealUiProgram.validateStructure() {
 }
 
 private fun CanonicalDealUiProgram.validateFieldValidation() {
+    fun staticValue(expression: CanonicalUiExpr, message: String): JsonElement = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
+        .getOrElse { throw IllegalArgumentException(message) }
+
     fun validateCall(call: CanonicalUiNode.Call) {
         val componentName = call.name.substringAfterLast('.')
         if (componentName !in setOf("TextArea", "TextField", "Select", "RadioGroup", "Checkbox", "Toggle")) return
         call.arguments["validateOn"]?.let { expression ->
-            val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
-                .getOrElse { throw IllegalArgumentException("$componentName.validateOn must be a static validation trigger") }
+            val value = staticValue(expression, "$componentName.validateOn must be a static validation trigger")
             canonicalValidationTrigger(
                 value = value,
                 componentName = componentName,
@@ -649,8 +653,7 @@ private fun CanonicalDealUiProgram.validateFieldValidation() {
             )
         }
         call.arguments["pattern"]?.let { expression ->
-            val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
-                .getOrElse { throw IllegalArgumentException("$componentName.pattern must be a static string") }
+            val value = staticValue(expression, "$componentName.pattern must be a static string")
             val pattern = value.asString()
             if (pattern.isNotBlank()) {
                 runCatching { Regex(pattern) }.getOrElse {
@@ -660,8 +663,7 @@ private fun CanonicalDealUiProgram.validateFieldValidation() {
         }
         listOf("minLength", "maxLength").forEach { property ->
             call.arguments[property]?.let { expression ->
-                val value = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
-                    .getOrElse { throw IllegalArgumentException("$componentName.$property must be a static non-negative integer") }
+                val value = staticValue(expression, "$componentName.$property must be a static non-negative integer")
                 require(value.asInt() >= 0) { "$componentName.$property must be non-negative" }
             }
         }
@@ -729,10 +731,11 @@ internal val canonicalRendererComponents = setOf(
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
     "Column", "Dialog", "Divider", "EmptyState", "Flex", "Frame", "FrameClock", "Grid", "Heading", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
+    "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "BackHandler", "Row",
+    "HostNavigationButton", "HostCalendarOpenButton", "HostCalendarCreateButton", "HostCalendarClearOwnedButton",
     "RadioGroup", "RadioOption", "Select", "SelectOption", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
     "Scroll", "Section", "Slider", "NumberSlider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
-    "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "ToggleButton", "TopBar", "Widget"
+    "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "DateTimeField", "Toggle", "ToggleButton", "TopBar", "Widget"
 )
 
 internal fun adaptiveColumnCount(availableWidthDp: Float, maximumColumns: Int, minimumCellWidthDp: Int): Int {
@@ -762,12 +765,61 @@ internal fun CanonicalDealUiRenderer(
     state: JsonObject,
     modifier: Modifier = Modifier,
     onAction: (CanonicalUiAction) -> Unit,
-    hostScrolling: Boolean = false
+    hostScrolling: Boolean = false,
+    hostActionExecutor: CanonicalHostActionExecutor? = null,
+    inertPreview: Boolean = false,
+    skeletonBindingTypes: JsonObject? = null
 ) {
+    val previewNodes = remember(program, inertPreview, skeletonBindingTypes) {
+        if (inertPreview && skeletonBindingTypes != null) canonicalSkeletonNodes(program.nodes, program.tokens) else program.nodes
+    }
     GeneratedAppTheme(program.themeSpec()) {
         Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            CompositionLocalProvider(LocalCanonicalHostScrolling provides hostScrolling) {
-                CanonicalNodes(program, state, emptyMap(), program.nodes, onAction, Modifier.fillMaxSize())
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (inertPreview) {
+                            Modifier
+                                .focusProperties { canFocus = false }
+                                .clearAndSetSemantics {
+                                    disabled()
+                                    contentDescription = "App preview. Loading"
+                                }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                CompositionLocalProvider(
+                    LocalCanonicalInertPreview provides inertPreview,
+                    LocalCanonicalFocusRegistry provides remember(program) { CanonicalFocusRegistry() },
+                    LocalCanonicalHostScrolling provides (hostScrolling && !inertPreview),
+                    LocalCanonicalHostActionExecutor provides hostActionExecutor.takeUnless { inertPreview }
+                ) {
+                    CanonicalNodes(
+                        program,
+                        state,
+                        emptyMap(),
+                        previewNodes,
+                        if (inertPreview) ({ _ -> }) else onAction,
+                        Modifier.fillMaxSize()
+                    )
+                }
+                if (inertPreview) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        awaitPointerEvent().changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                            .clearAndSetSemantics { disabled() }
+                    )
+                }
             }
         }
     }
@@ -782,6 +834,11 @@ private fun CanonicalNodes(
     onAction: (CanonicalUiAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // A system-back listener is an event ingress, not a layout node. Compose must still
+    // install it before the visible tree is rendered, including when it is the only node
+    // selected by a conditional branch.
+    nodes.filterNot { it.producesLayout(program, state, scope) }
+        .forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
     val renderedNodes = nodes.filter { it.producesLayout(program, state, scope) }
     if (renderedNodes.isEmpty()) return
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DealStudioSpacing.Md)) {
@@ -809,7 +866,7 @@ private fun CanonicalUiNode.producesLayout(
         children.any { it.producesLayout(program, state, nested) }
     }
 
-    is CanonicalUiNode.Call -> true
+    is CanonicalUiNode.Call -> name.substringAfterLast('.') != "BackHandler"
 }
 
 @Composable
@@ -866,11 +923,18 @@ private fun RenderCall(
     modifier: Modifier
 ) {
     val name = call.name.substringAfterLast('.')
-    val value = { key: String -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) } }
+    val inert = LocalCanonicalInertPreview.current
+    val value = { key: String ->
+        when {
+            inert && key == "disabled" -> JsonPrimitive(true)
+            inert && key == "enabled" -> JsonPrimitive(false)
+            else -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) }
+        }
+    }
     val visuals = LocalGeneratedAppVisuals.current
     val spacing = (value("spacing").tokenInt() * visuals.densityScale).dp
     val padding = (value("padding").tokenInt() * visuals.densityScale).dp
-    val action = { key: String -> call.arguments[key] as? CanonicalUiExpr.Action }
+    val action = { key: String -> (call.arguments[key] as? CanonicalUiExpr.Action).takeUnless { inert } }
     val emit = { key: String, payload: JsonElement? ->
         action(key)?.let { onAction(it.resolve(state, scope, program.tokens, payload)) }
         Unit
@@ -907,11 +971,13 @@ private fun RenderCall(
 
         "Root" -> BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             val maximumContentWidth = contentWidthLimit(value("contentWidth").typedTokenString())
-            CompositionLocalProvider(LocalCanonicalViewportHeight provides maxHeight) {
+            val viewportHeight = maxHeight.takeIf { it.value.isFinite() && it.value > 0f }
+                ?: with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.coerceAtLeast(1).toDp() }
+            CompositionLocalProvider(LocalCanonicalViewportHeight provides viewportHeight) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
                         .widthIn(max = maximumContentWidth)
+                        .fillMaxWidth()
                         .then(
                             if (visuals.atmosphericBackground) {
                                 Modifier.background(
@@ -923,7 +989,7 @@ private fun RenderCall(
                         )
                         .then(
                             if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
-                                Modifier.verticalScroll(rememberScrollState())
+                                Modifier.heightIn(max = viewportHeight).verticalScroll(rememberScrollState())
                             } else {
                                 Modifier
                             }
@@ -1013,13 +1079,15 @@ private fun RenderCall(
                 }
             } else {
                 Row(
-                    modifier = modifier.then(
-                        if (alignment == "stretch") Modifier.height(IntrinsicSize.Min) else Modifier
-                    ),
+                    // Intrinsic height asks every descendant for a size before layout. Adaptive
+                    // children (including BoxWithConstraints and scroll containers) cannot answer
+                    // that query and crash as soon as a dynamic collection inserts one. Let Row
+                    // measure natural child heights; stretch retains ordinary cross-axis alignment.
+                    modifier = modifier,
                     horizontalArrangement = flexHorizontalArrangement(justification, gap),
                     verticalAlignment = flexHorizontalAlignment(alignment)
                 ) {
-                    children(if (alignment == "stretch") Modifier.fillMaxHeight() else Modifier)
+                    children(Modifier)
                 }
             }
         }
@@ -1290,7 +1358,7 @@ private fun RenderCall(
 
         "SegmentedControl" -> FlowRow(modifier.fillMaxWidth().semantics { contentDescription = value("accessibilityLabel").asString() }) {
             val directItems = call.children.filterIsInstance<CanonicalUiNode.Call>()
-            if (directItems.size == call.children.size) {
+            if (!inert && directItems.size == call.children.size) {
                 require(
                     directItems.count { item ->
                         item.arguments["selected"]?.let { evaluate(it, state, scope, program.tokens, null).asBoolean() } == true
@@ -1351,7 +1419,13 @@ private fun RenderCall(
                     Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
                     Text(value("message").asString(), style = MaterialTheme.typography.bodyMedium)
                 }
-                value("actionText").asString().takeIf(String::isNotBlank)?.let { TextButton(onClick = { emit("onAction", null) }, modifier = Modifier.defaultMinSize(minHeight = 48.dp)) { Text(it) } }
+                value("actionText").asString().takeIf(String::isNotBlank)?.let { label ->
+                    TextButton(
+                        onClick = { emit("onAction", null) },
+                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .semantics { contentDescription = value("accessibilityLabel").asString().ifBlank { label } }
+                    ) { Text(label) }
+                }
             }
         }
 
@@ -1817,6 +1891,7 @@ private fun RenderCall(
             }
             OutlinedTextField(
                 value = text,
+                enabled = !inert,
                 onValueChange = { updatedText ->
                     wasEdited = true
                     changeAction?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedText))) }
@@ -1838,6 +1913,8 @@ private fun RenderCall(
                     VisualTransformation.None
                 },
                 modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                     .fillMaxWidth()
                     .semantics { contentDescription = accessibilityLabel }
                     .onFocusChanged { focusState ->
@@ -1894,6 +1971,7 @@ private fun RenderCall(
             }
             OutlinedTextField(
                 value = text,
+                enabled = !inert,
                 onValueChange = { updatedText ->
                     wasEdited = true
                     action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedText))) }
@@ -1921,6 +1999,7 @@ private fun RenderCall(
             val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
             OutlinedTextField(
                 value = value("value").asInt().toString(),
+                enabled = !inert,
                 onValueChange = { text ->
                     text.toIntOrNull()?.let { number ->
                         action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
@@ -1947,6 +2026,7 @@ private fun RenderCall(
             } ?: 1
             OutlinedTextField(
                 value = formatCanonicalNumber(value("value").asNumber(), fractionDigits),
+                enabled = !inert,
                 onValueChange = { text ->
                     text.replace(',', '.').toDoubleOrNull()?.let { number ->
                         action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
@@ -1956,6 +2036,8 @@ private fun RenderCall(
                 placeholder = { Text(value("placeholder").asString()) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                     .fillMaxWidth()
                     .semantics { contentDescription = accessibilityLabel },
                 singleLine = true
@@ -1974,9 +2056,11 @@ private fun RenderCall(
             }
             OutlinedButton(
                 onClick = { dialogVisible = true },
-                modifier = modifier.semantics {
-                    contentDescription = value("accessibilityLabel").asString()
-                }
+                modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                        contentDescription = value("accessibilityLabel").asString()
+                    }
             ) {
                 Column(horizontalAlignment = Alignment.Start) {
                     value("label").asString().takeIf(String::isNotBlank)?.let {
@@ -2003,6 +2087,112 @@ private fun RenderCall(
                         TextButton(onClick = { dialogVisible = false }) { Text("Cancel") }
                     },
                     text = { TimePicker(state = pickerState) }
+                )
+            }
+        }
+
+        "DateTimeField" -> {
+            val epochMinute = value("valueEpochMinute").asInt()
+            // `0` is the pack-default int value.  It means that a date/time input is unset, not
+            // that the user scheduled something at the Unix epoch.  Keep that distinction in the
+            // renderer: displaying 1970 as an actual value invents a date the checked state never
+            // supplied, while the picker can still start from a useful current local instant.
+            val hasSelectedInstant = epochMinute > 0
+            val pickerEpochMillis = if (hasSelectedInstant) {
+                epochMinute.toLong() * 60_000L
+            } else {
+                System.currentTimeMillis()
+            }
+            val instant = Calendar.getInstance().apply { timeInMillis = pickerEpochMillis }
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            var dateVisible by remember(call.identity) { mutableStateOf(false) }
+            var timeVisible by remember(call.identity) { mutableStateOf(false) }
+            var selectedDateMillis by remember(call.identity) { mutableStateOf<Long?>(null) }
+            val datePickerState = key(epochMinute) {
+                rememberDatePickerState(initialSelectedDateMillis = if (hasSelectedInstant) pickerEpochMillis else null)
+            }
+            val timePickerState = key(epochMinute, selectedDateMillis) {
+                rememberTimePickerState(
+                    initialHour = instant.get(Calendar.HOUR_OF_DAY),
+                    initialMinute = instant.get(Calendar.MINUTE),
+                    is24Hour = true
+                )
+            }
+            OutlinedButton(
+                onClick = {
+                    selectedDateMillis = null
+                    dateVisible = true
+                },
+                modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = accessibilityLabel }
+            ) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    label.takeIf(String::isNotBlank)?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Text(
+                        if (hasSelectedInstant) {
+                            String.format(
+                                Locale.ROOT,
+                                "%04d-%02d-%02d %02d:%02d",
+                                instant.get(Calendar.YEAR),
+                                instant.get(Calendar.MONTH) + 1,
+                                instant.get(Calendar.DAY_OF_MONTH),
+                                instant.get(Calendar.HOUR_OF_DAY),
+                                instant.get(Calendar.MINUTE)
+                            )
+                        } else {
+                            "Not set"
+                        }
+                    )
+                }
+            }
+            if (dateVisible) {
+                DatePickerDialog(
+                    onDismissRequest = { dateVisible = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                selectedDateMillis = datePickerState.selectedDateMillis ?: pickerEpochMillis
+                                dateVisible = false
+                                timeVisible = true
+                            }
+                        ) { Text("Next") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dateVisible = false }) { Text("Cancel") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
+            if (timeVisible) {
+                AlertDialog(
+                    onDismissRequest = { timeVisible = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val chosen = Calendar.getInstance().apply {
+                                    timeInMillis = selectedDateMillis ?: pickerEpochMillis
+                                    set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                                    set(Calendar.MINUTE, timePickerState.minute)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }
+                                val emitted = (chosen.timeInMillis / 60_000L)
+                                    .coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong())
+                                    .toInt()
+                                emit("onChange", JsonPrimitive(emitted))
+                                timeVisible = false
+                            }
+                        ) { Text("Set") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { timeVisible = false }) { Text("Cancel") }
+                    },
+                    text = { TimePicker(state = timePickerState) }
                 )
             }
         }
@@ -2482,18 +2672,33 @@ private fun RenderCall(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             value("actionText").asString().takeIf(String::isNotBlank)?.let { label ->
-                Button(onClick = { emit("onAction", null) }) { Text(label) }
+                Button(
+                    onClick = { emit("onAction", null) },
+                    modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .semantics { contentDescription = value("accessibilityLabel").asString().ifBlank { label } }
+                ) { Text(label) }
             }
         }
 
         "Snackbar" -> if (value("visible").asBoolean()) {
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { value("message").asString() }
             Snackbar(
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel },
                 action = value("actionText").asString().takeIf(String::isNotBlank)?.let { label ->
-                    { TextButton(onClick = { emit("onAction", null) }) { Text(label) } }
+                    {
+                        TextButton(
+                            onClick = { emit("onAction", null) },
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                .semantics { contentDescription = accessibilityLabel }
+                        ) { Text(label) }
+                    }
                 },
                 dismissAction = {
-                    IconButton(onClick = { emit("onDismiss", null) }) {
+                    IconButton(
+                        onClick = { emit("onDismiss", null) },
+                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .semantics { contentDescription = accessibilityLabel }
+                    ) {
                         Icon(Icons.Default.Close, contentDescription = "Dismiss")
                     }
                 }
@@ -2580,7 +2785,9 @@ private fun RenderCall(
             val boundedMaximum = maximum.coerceAtLeast(minimum)
             val current = value("value").asInt().coerceIn(minimum, boundedMaximum)
             Row(
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).semantics {
+                    contentDescription = value("accessibilityLabel").asString().ifBlank { value("label").asString() }
+                },
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2785,7 +2992,7 @@ private fun RenderCall(
             }
         }
 
-        "FrameClock", "MinuteClock" -> RuntimeClock(call, name, state, scope, program.tokens, onAction)
+        "FrameClock", "MinuteClock" -> if (!inert) RuntimeClock(call, name, state, scope, program.tokens, onAction)
 
         "PointerSurface" -> PointerSurface(
             call = call,
@@ -2802,13 +3009,84 @@ private fun RenderCall(
         "Rectangle", "RoundRectangle", "Circle", "Line", "CanvasText" -> Unit
 
         "Route" -> if (value("route").asString() == value("activeRoute").asString()) {
-            Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
+            BackHandler(enabled = action("onBack") != null) { emit("onBack", null) }
+            Column(modifier.fillMaxWidth()) {
+                if (action("onBack") != null) {
+                    TextButton(onClick = { emit("onBack", null) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)) {
+                        Text(value("accessibilityLabel").asString())
+                    }
+                }
+                children(Modifier.fillMaxWidth())
+            }
         }
+
+        "BackHandler" -> BackHandler(enabled = !inert && value("enabled").asBoolean()) {
+            emit("onBack", null)
+        }
+
+        "HostNavigationButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.LocationOn,
+            request = CanonicalHostActionRequest(
+                operation = CanonicalHostActionOperation.NAVIGATION_OPEN,
+                destinationLatitude = value("destinationLatitude").asNumber(),
+                destinationLongitude = value("destinationLongitude").asNumber(),
+                originLatitude = value("originLatitude").asNumber(),
+                originLongitude = value("originLongitude").asNumber(),
+                useOrigin = value("useOrigin").asBoolean()
+            ),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
+
+        "HostCalendarOpenButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.CalendarMonth,
+            request = CanonicalHostActionRequest(CanonicalHostActionOperation.CALENDAR_OPEN),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
+
+        "HostCalendarCreateButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.CalendarMonth,
+            request = CanonicalHostActionRequest(
+                operation = CanonicalHostActionOperation.CALENDAR_CREATE,
+                ownerKey = value("ownerKey").asString(),
+                title = value("title").asString(),
+                startEpochMinute = value("startEpochMinute").asInt(),
+                durationMinutes = value("durationMinutes").asInt(),
+                reminderMinutes = value("reminderMinutes").asInt()
+            ),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
+
+        "HostCalendarClearOwnedButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.Delete,
+            request = CanonicalHostActionRequest(CanonicalHostActionOperation.CALENDAR_CLEAR_OWNED),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
 
         "Modal", "Dialog" -> if (value("visible").asBoolean()) {
             Dialog(onDismissRequest = { emit("onDismiss", null) }) {
                 Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 8.dp) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp)) { children(Modifier.fillMaxWidth()) }
+                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                        TextButton(onClick = { emit("onDismiss", null) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)) {
+                            Text(value("accessibilityLabel").asString().ifBlank { "Close" })
+                        }
+                        children(Modifier.fillMaxWidth())
+                    }
                 }
             }
         }
@@ -2816,6 +3094,9 @@ private fun RenderCall(
         "BottomSheet" -> if (value("visible").asBoolean()) {
             ModalBottomSheet(onDismissRequest = { emit("onDismiss", null) }) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+                    TextButton(onClick = { emit("onDismiss", null) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)) {
+                        Text(value("accessibilityLabel").asString().ifBlank { "Close" })
+                    }
                     children(Modifier.fillMaxWidth())
                 }
             }
@@ -2856,18 +3137,59 @@ private fun RenderCall(
         "MenuItem" -> Unit
 
         "CapabilityNotice" -> if (!value("available").asBoolean()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2D8))) {
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { value("name").asString() }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2D8)),
+                modifier = modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel }
+            ) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF8B5A00))
                     Column(Modifier.weight(1f)) {
                         Text(value("name").asString(), fontWeight = FontWeight.SemiBold)
                         Text(value("explanation").asString(), style = MaterialTheme.typography.bodySmall)
+                        TextButton(
+                            onClick = { emit("onRequest", null) },
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                .semantics { contentDescription = accessibilityLabel }
+                        ) { Text("Unavailable in this build") }
                     }
                 }
             }
         }
 
         else -> error("Unsupported canonical Deal UI component: $name")
+    }
+}
+
+@Composable
+private fun CanonicalHostActionButton(
+    label: String,
+    accessibilityLabel: String,
+    disabled: Boolean,
+    icon: ImageVector,
+    request: CanonicalHostActionRequest,
+    modifier: Modifier,
+    onComplete: (String) -> Unit
+) {
+    // Preview/gallery calls deliberately have no executor.  The component remains visible so the
+    // checked shape can be reviewed, but never initiates an intent, permission request or fake
+    // completion before a saved app is opened in its real host activity.
+    val executor = LocalCanonicalHostActionExecutor.current
+    val enabled = !disabled && executor != null
+    Button(
+        onClick = { executor?.execute(request, onComplete) },
+        enabled = enabled,
+        modifier = modifier
+            .defaultMinSize(minHeight = 48.dp)
+            .semantics {
+                contentDescription = accessibilityLabel.ifBlank { label }
+                if (!enabled) disabled()
+            },
+        shape = MaterialTheme.shapes.small
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(8.dp))
+        Text(label)
     }
 }
 

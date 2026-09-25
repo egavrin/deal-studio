@@ -12,6 +12,8 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,8 +33,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -95,6 +100,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
@@ -110,6 +116,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 import java.io.ByteArrayInputStream
+import java.security.MessageDigest
 import kotlin.math.roundToInt
 
 @Composable
@@ -202,6 +209,13 @@ internal fun GeneratedAppStudioScreen(
         FullscreenCanonicalApp(app, onCollapse = { actions.onPreviewExpanded(false) }, actions.onCanonicalAction)
     }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        val showUiFirstResultFirst = state.generationMode == StudioGenerationMode.UI_FIRST &&
+            when (val session = state.session) {
+                is CanonicalStudioSession.Generating -> session.frozenPreview?.meaningful == true
+                is CanonicalStudioSession.Failed -> session.frozenPreview?.meaningful == true
+                is CanonicalStudioSession.Runnable -> true
+                else -> false
+            }
         Column(
             Modifier
                 .fillMaxWidth()
@@ -210,10 +224,13 @@ internal fun GeneratedAppStudioScreen(
                 .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            StudioComposer(state, actions)
-            if (state.generationMode == StudioGenerationMode.CANONICAL) {
+            if (showUiFirstResultFirst) {
                 CanonicalStudioResult(state, actions)
-            } else {
+            }
+            StudioComposer(state, actions)
+            if (state.generationMode.usesCanonicalRuntime && !showUiFirstResultFirst) {
+                CanonicalStudioResult(state, actions)
+            } else if (!state.generationMode.usesCanonicalRuntime) {
                 ExperimentalHtml5StudioResult(state, actions)
             }
             SavedApps(state.savedApps, actions)
@@ -230,7 +247,15 @@ private fun StudioComposer(state: GeneratedAppStudioState, actions: GeneratedApp
         Text(
             when {
                 state.generationMode == StudioGenerationMode.JS -> "Create a JavaScript app"
+
+                state.generationMode == StudioGenerationMode.UI_FIRST && state.runnable == null ->
+                    "Create an experimental Deal app"
+
+                state.generationMode == StudioGenerationMode.CANONICAL && state.runnable == null ->
+                    "Create a Deal app"
+
                 state.runnable == null -> "Create an app"
+
                 else -> "Create another app"
             },
             style = MaterialTheme.typography.titleMedium
@@ -298,9 +323,9 @@ private fun GenerationModeSelector(
     enabled: Boolean,
     onSelected: (StudioGenerationMode) -> Unit
 ) {
-    val modes = StudioGenerationMode.entries
+    val modes = listOf(StudioGenerationMode.CANONICAL, StudioGenerationMode.UI_FIRST, StudioGenerationMode.JS)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        PrimaryTabRow(selectedTabIndex = modes.indexOf(selected)) {
+        PrimaryTabRow(selectedTabIndex = modes.indexOf(selected).coerceAtLeast(0)) {
             modes.forEach { mode ->
                 Tab(
                     selected = selected == mode,
@@ -308,10 +333,10 @@ private fun GenerationModeSelector(
                     onClick = { onSelected(mode) },
                     text = {
                         Text(
-                            if (mode == StudioGenerationMode.CANONICAL) {
-                                "Canonical DEAL"
-                            } else {
-                                "JavaScript"
+                            when (mode) {
+                                StudioGenerationMode.UI_FIRST -> "Deal (experimental)"
+                                StudioGenerationMode.CANONICAL -> "Deal"
+                                StudioGenerationMode.JS -> "JS/HTML (experimental)"
                             },
                             maxLines = 2
                         )
@@ -320,10 +345,15 @@ private fun GenerationModeSelector(
             }
         }
         Text(
-            if (selected == StudioGenerationMode.CANONICAL) {
-                "A checked app.deal + app.dealui pair rendered by the native runtime."
-            } else {
-                "An isolated HTML/CSS/JavaScript application. It has no network or Android bridge and can be saved."
+            when (selected) {
+                StudioGenerationMode.UI_FIRST ->
+                    "Jev designs the interface. DeepSeek Flash adds its behavior, and the compiler checks the complete app before it runs."
+
+                StudioGenerationMode.CANONICAL ->
+                    "DeepSeek Flash writes one complete raw app.deal with embedded UI. The compiler checks both canonical files before it runs."
+
+                StudioGenerationMode.JS ->
+                    "Experimental HTML/CSS/JavaScript apps run in an isolated sandbox and can be saved. They are separate from canonical DEAL apps."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -336,7 +366,9 @@ private fun CanonicalStudioResult(state: GeneratedAppStudioState, actions: Gener
     when (val session = state.session) {
         is CanonicalStudioSession.Generating -> {
             GenerationProgress(session, actions.onCancel)
-            session.acceptedPreview?.let { preview ->
+            session.frozenPreview?.let { preview ->
+                FrozenUiPreview(preview)
+            } ?: session.acceptedPreview?.let { preview ->
                 AcceptedPreview(preview)
             } ?: session.previousRunnable?.let { PreviousRunnableNotice(it, actions) }
         }
@@ -348,12 +380,49 @@ private fun CanonicalStudioResult(state: GeneratedAppStudioState, actions: Gener
 
         is CanonicalStudioSession.Failed -> {
             FailurePanel(session, actions.onGenerate)
+            session.frozenPreview?.let { FrozenUiPreview(it) }
             session.previousRunnable?.let { RunnableResult(it, state, actions) }
         }
 
         is CanonicalStudioSession.Runnable -> RunnableResult(session.app, state, actions)
 
         CanonicalStudioSession.Empty -> Unit
+    }
+}
+
+@Composable
+private fun FrozenUiPreview(preview: CanonicalFrozenUiPreview) {
+    Surface(
+        modifier = Modifier.drawWithContent {
+            drawContent()
+            UiFirstPreviewDrawMetrics.drawn(preview)
+        },
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text(
+                        "Layout preview · building content",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+            CanonicalDealUiRenderer(
+                program = preview.program,
+                state = preview.state,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 320.dp),
+                onAction = {},
+                inertPreview = true,
+                skeletonBindingTypes = preview.bindingTypes.takeIf { preview.projectionKind == "typed-skeleton" }
+            )
+        }
     }
 }
 
@@ -604,10 +673,10 @@ private fun BuildButton(state: GeneratedAppStudioState, actions: GeneratedAppStu
         Icon(Icons.Default.AutoAwesome, contentDescription = null)
         Spacer(Modifier.width(8.dp))
         Text(
-            if (state.generationMode == StudioGenerationMode.CANONICAL) {
-                "Build app"
-            } else {
-                "Build JS app"
+            when (state.generationMode) {
+                StudioGenerationMode.UI_FIRST -> "Build experimental app"
+                StudioGenerationMode.CANONICAL -> "Build app"
+                StudioGenerationMode.JS -> "Build JS app"
             }
         )
     }
@@ -631,10 +700,14 @@ private fun GenerationProgress(session: CanonicalStudioSession.Generating, onCan
     GenerationProgress(
         message = session.message,
         supporting = when (session.phase) {
+            CanonicalGenerationPhase.JEV_SELECT -> "Jev is choosing only supported UI variants from the checked pack."
+            CanonicalGenerationPhase.JEV_LAYOUT -> "Jev is placing selected variants in compiler-checked slots."
+            CanonicalGenerationPhase.UI_PREVIEW -> "The layout preview is ready. Controls will work when the app is ready."
             CanonicalGenerationPhase.DEAL -> "DeepSeek is producing one complete DEAL and Deal UI bundle."
             CanonicalGenerationPhase.DEAL_UI -> "Studio is deriving checked Deal UI from DEAL."
+            CanonicalGenerationPhase.LINKING -> "The pinned compilers are resolving UI ports against the accepted AppInterface."
             CanonicalGenerationPhase.VALIDATING -> "The pinned compilers are checking both canonical sources."
-            CanonicalGenerationPhase.REPAIRING -> "DeepSeek is applying one compiler-directed local source patch."
+            CanonicalGenerationPhase.REPAIRING -> "DeepSeek is correcting the app using compiler diagnostics."
             CanonicalGenerationPhase.RETRYING -> "A structural compiler error needs one fresh complete-bundle retry."
         },
         onCancel = onCancel
@@ -723,7 +796,7 @@ private fun AcceptedPreview(preview: CanonicalAcceptedPreview) {
 private fun PreviousRunnableNotice(app: CanonicalRunnableApp, actions: GeneratedAppStudioActions) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Your previous app remains available", style = MaterialTheme.typography.titleSmall)
-        AppPreviewSurface(app.program, app.state, actions.onCanonicalAction)
+        AppPreviewSurface(app.program, app.state, actions.onCanonicalAction, rememberStudioHostActions(app))
     }
 }
 
@@ -753,7 +826,7 @@ private fun RunnableResult(
         ArtifactTabs(state.selectedArtifact, actions.onArtifactSelected)
         when (state.selectedArtifact) {
             GeneratedArtifact.PREVIEW -> {
-                AppPreviewSurface(app.program, app.state, actions.onCanonicalAction)
+                AppPreviewSurface(app.program, app.state, actions.onCanonicalAction, rememberStudioHostActions(app))
                 RefinementBox(state, actions)
             }
 
@@ -791,7 +864,8 @@ private fun ArtifactTabs(selected: GeneratedArtifact, onSelected: (GeneratedArti
 private fun AppPreviewSurface(
     program: CanonicalDealUiProgram,
     state: kotlinx.serialization.json.JsonObject,
-    onAction: (CanonicalUiAction) -> Unit
+    onAction: (CanonicalUiAction) -> Unit,
+    hostActionExecutor: CanonicalHostActionExecutor? = null
 ) {
     Surface(
         Modifier.fillMaxWidth().heightIn(min = 360.dp),
@@ -799,7 +873,7 @@ private fun AppPreviewSurface(
         shape = RoundedCornerShape(6.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        CanonicalDealUiRenderer(program, state, Modifier.fillMaxWidth(), onAction)
+        CanonicalDealUiRenderer(program, state, Modifier.fillMaxWidth(), onAction, hostActionExecutor = hostActionExecutor)
     }
 }
 
@@ -878,7 +952,7 @@ private fun GenerationSummary(metrics: CanonicalGenerationMetrics) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Runnable app", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "First interface ${formatGenerationDuration(metrics.firstInteractivePreviewMs)} · " +
+                    "Checked UI ${formatGenerationDuration(metrics.firstCheckedUiPreviewMs ?: metrics.firstInteractivePreviewMs)} · " +
                         "${formatGenerationTokens(metrics.outputTokens)} generated tokens",
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -1489,18 +1563,20 @@ private fun FullscreenCanonicalApp(
     onCollapse: () -> Unit,
     onAction: (CanonicalUiAction) -> Unit
 ) {
+    val hostActionExecutor = rememberStudioHostActions(app)
     Dialog(
         onDismissRequest = onCollapse,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
                 CanonicalDealUiRenderer(
                     app.program,
                     app.state,
                     Modifier.fillMaxSize(),
                     onAction,
-                    hostScrolling = true
+                    hostScrolling = true,
+                    hostActionExecutor = hostActionExecutor
                 )
                 Surface(
                     Modifier.align(Alignment.TopEnd).padding(12.dp),
@@ -1547,4 +1623,15 @@ private fun FullscreenHtml5Preview(
             }
         }
     }
+}
+
+@Composable
+private fun rememberStudioHostActions(app: CanonicalRunnableApp): CanonicalHostActionExecutor? {
+    val activity = LocalActivity.current as? ComponentActivity ?: return null
+    val appId = remember(app.bundle.dealSource, app.bundle.dealUiSource, app.savedRecord?.id) {
+        app.savedRecord?.id ?: "canonical-" + MessageDigest.getInstance("SHA-256")
+            .digest("${app.bundle.dealUiSource}\u0000${app.bundle.dealSource}".toByteArray())
+            .joinToString("") { "%02x".format(it) }.take(16)
+    }
+    return rememberCanonicalHostActionExecutor(activity, appId)
 }

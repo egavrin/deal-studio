@@ -63,6 +63,10 @@ class SurpriseAppPromptFactoryTest {
     @Test
     fun `generation mode explicitly selects surprise capability profile`() {
         assertEquals(
+            SurpriseAppCapabilityProfile.JEV_UI_FIRST_V1,
+            StudioGenerationMode.UI_FIRST.surpriseCapabilityProfile()
+        )
+        assertEquals(
             SurpriseAppCapabilityProfile.CANONICAL_UTILITY_V14,
             StudioGenerationMode.CANONICAL.surpriseCapabilityProfile()
         )
@@ -72,6 +76,20 @@ class SurpriseAppPromptFactoryTest {
             SurpriseAppPromptFactory.create(emptyList(), SurpriseAppCapabilityProfile.RICH_JS, seed)
         }
         assertTrue(jsPrompts.any { "touch game" in it || "spatial experiment" in it })
+    }
+
+    @Test
+    fun `Studio defaults to direct Deal and requires DeepSeek credential`() {
+        assertEquals(StudioGenerationMode.CANONICAL, GeneratedAppStudioState().generationMode)
+        assertTrue(
+            GeneratedAppStudioState(deepSeekKeyConfigured = true).selectedProviderKeysConfigured
+        )
+        assertTrue(
+            GeneratedAppStudioState(
+                deepSeekKeyConfigured = true,
+                jevKeyConfigured = true
+            ).selectedProviderKeysConfigured
+        )
     }
 
     @Test

@@ -56,6 +56,7 @@ class GeneratedAppActivity : ComponentActivity() {
             }
             DealStudioTheme(darkTheme = darkTheme) {
                 GeneratedAppHost(
+                    hostActivity = this,
                     appId = appId,
                     onClose = ::finish,
                     onEdit = {
@@ -85,9 +86,15 @@ internal fun generatedAppStoreKind(appId: String): GeneratedAppStoreKind = when 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> Unit) {
+private fun GeneratedAppHost(
+    hostActivity: ComponentActivity,
+    appId: String,
+    onClose: () -> Unit,
+    onEdit: () -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val controller = remember(appId) { GeneratedAppRuntimeController(context, appId) }
+    val hostActionExecutor = rememberCanonicalHostActionExecutor(hostActivity, appId)
     val jsLibrary = remember { JsGeneratedAppLibrary(context) }
     var loaded by remember(appId) { mutableStateOf<LoadedGeneratedApp?>(null) }
     var error by remember(appId) { mutableStateOf<String?>(null) }
@@ -159,7 +166,8 @@ private fun GeneratedAppHost(appId: String, onClose: () -> Unit, onEdit: () -> U
                         .onSuccess { loaded = it }
                         .onFailure { error = it.message }
                 },
-                hostScrolling = true
+                hostScrolling = true,
+                hostActionExecutor = hostActionExecutor
             )
 
             jsApp != null -> SandboxedHtml5WebView(

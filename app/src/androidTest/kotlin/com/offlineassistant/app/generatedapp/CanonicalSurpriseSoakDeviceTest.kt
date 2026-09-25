@@ -58,7 +58,12 @@ class CanonicalSurpriseSoakDeviceTest {
 
                             CanonicalGenerationPhase.DEAL_UI -> partialDealUi = partial
 
-                            CanonicalGenerationPhase.VALIDATING, CanonicalGenerationPhase.REPAIRING,
+                            CanonicalGenerationPhase.JEV_SELECT,
+                            CanonicalGenerationPhase.JEV_LAYOUT,
+                            CanonicalGenerationPhase.UI_PREVIEW,
+                            CanonicalGenerationPhase.LINKING,
+                            CanonicalGenerationPhase.VALIDATING,
+                            CanonicalGenerationPhase.REPAIRING,
                             CanonicalGenerationPhase.RETRYING -> Unit
                         }
                     },
