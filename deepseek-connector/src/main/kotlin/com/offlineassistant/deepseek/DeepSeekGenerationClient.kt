@@ -242,6 +242,7 @@ class DeepSeekGenerationClient(
                     putJsonObject("response_format") { put("type", "json_object") }
                 }
             }
+
             GenerationProvider.CEREBRAS -> put("reasoning_effort", "high")
         }
         put("temperature", request.temperature)
