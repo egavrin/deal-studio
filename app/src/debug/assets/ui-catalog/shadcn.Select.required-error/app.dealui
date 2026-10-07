@@ -1,0 +1,25 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Priority", supporting: "shadcn Select with source-compatible required validation")
+      ui.Select(
+        name: "priority",
+        value: state.priority,
+        label: "Priority",
+        placeholder: "Choose a priority",
+        required: true,
+        requiredMessage: "Select a priority before continuing",
+        validationVisible: state.validationVisible,
+        onChange: action app.ChangePriority { value: payload },
+        accessibilityLabel: "Priority select"
+      ) {
+        ui.SelectOption(value: "low", label: "Low", accessibilityLabel: "Low priority")
+        ui.SelectOption(value: "medium", label: "Medium", accessibilityLabel: "Medium priority")
+        ui.SelectOption(value: "high", label: "High", accessibilityLabel: "High priority")
+      }
+    }
+  }
+}

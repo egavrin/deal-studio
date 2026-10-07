@@ -1,0 +1,8 @@
+export class AppState { presses: int = 0; }
+export class PressButton {}
+export function initialState(): AppState { return { presses: 0 }; }
+// @ui-update
+export function pressButton(state: AppState, action: PressButton): AppState {
+  return { presses: state.presses + 1 };
+}
+export function main(): null { return null; }

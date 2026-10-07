@@ -1,0 +1,8 @@
+export class AppState { accepted: boolean = false; validationVisible: boolean = true; }
+export class ChangeAccepted { checked: boolean; }
+export function initialState(): AppState { return { accepted: false, validationVisible: true }; }
+// @ui-update
+export function changeAccepted(state: AppState, action: ChangeAccepted): AppState {
+  return { accepted: action.checked, validationVisible: state.validationVisible };
+}
+export function main(): null { return null; }

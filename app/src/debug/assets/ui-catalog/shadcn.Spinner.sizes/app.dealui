@@ -1,0 +1,13 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__, motion: ui.motionNone) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Loading indicators", supporting: "Deterministic reduced-motion samples in three normalized sizes")
+      ui.Spinner(size: ui.spinnerSmall, label: "Loading compact result")
+      ui.Spinner(size: ui.spinnerMedium, label: "Loading standard result")
+      ui.Spinner(size: ui.spinnerLarge, label: "Loading prominent result")
+    }
+  }
+}

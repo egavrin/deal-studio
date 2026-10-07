@@ -1,0 +1,12 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Avatar(name: "Jane Doe", size: "sm")
+      ui.Avatar(name: "Ada Lovelace", size: "md")
+      ui.Avatar(name: "Grace Hopper", size: "lg")
+    }
+  }
+}

@@ -1,0 +1,3 @@
+export class AppState {}
+export function initialState(): AppState { return {}; }
+export function main(): null { return null; }

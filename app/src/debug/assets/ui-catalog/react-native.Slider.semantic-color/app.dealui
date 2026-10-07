@@ -1,0 +1,21 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Semantic slider color", supporting: "React Native numeric range adapted to Studio tone tokens")
+      ui.NumberSlider(
+        value: state.value,
+        minimum: -1.0,
+        maximum: 1.0,
+        step: 0.25,
+        label: "Balance",
+        tone: ui.tonePositive,
+        onChange: action app.ChangeValue { value: payload },
+        accessibilityLabel: "Balance control"
+      )
+      ui.NumberStat(label: "Balance", value: state.value, fractionDigits: 2)
+    }
+  }
+}

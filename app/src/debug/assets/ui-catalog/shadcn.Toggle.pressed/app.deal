@@ -1,0 +1,8 @@
+export class AppState { pinned: boolean = false; }
+export class ChangePinned { pressed: boolean; }
+export function initialState(): AppState { return { pinned: false }; }
+// @ui-update
+export function changePinned(state: AppState, action: ChangePinned): AppState {
+  return { pinned: action.pressed };
+}
+export function main(): null { return null; }

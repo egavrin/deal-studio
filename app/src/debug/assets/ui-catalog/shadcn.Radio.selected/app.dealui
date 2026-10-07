@@ -1,0 +1,23 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Digest frequency", supporting: "shadcn Radio keeps one checked string value")
+      ui.RadioGroup(
+        name: "frequency",
+        value: state.frequency,
+        label: "Send digest",
+        required: true,
+        requiredMessage: "Choose a digest frequency",
+        onChange: action app.ChangeFrequency { value: payload },
+        accessibilityLabel: "Digest frequency"
+      ) {
+        ui.RadioOption(value: "daily", label: "Daily", accessibilityLabel: "Daily frequency")
+        ui.RadioOption(value: "weekly", label: "Weekly", accessibilityLabel: "Weekly frequency")
+        ui.RadioOption(value: "monthly", label: "Monthly", accessibilityLabel: "Monthly frequency")
+      }
+    }
+  }
+}

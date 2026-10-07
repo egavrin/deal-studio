@@ -1,0 +1,12 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Heading(text: "Start aligned", level: "h3", align: "start")
+      ui.Heading(text: "Centered semantic tone", level: "h2", align: "center", tone: ui.toneAccent)
+      ui.Heading(text: "End aligned", level: "h4", align: "end", tone: ui.toneMuted)
+    }
+  }
+}

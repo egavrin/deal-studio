@@ -1,0 +1,18 @@
+run=13
+seed=81661658144818
+prompt_sha256=9d0e09f413f971cc16393df193cdf5d0c30888301d5abd3e4b39a47b746e82d9
+
+Invent and build one original polished small application now. Jev chooses the checked UI presentation before the business stage; the business completion supplies only permitted labels and behavior bindings.
+Do not ask a clarifying question and do not use an app-family template.
+Make it a small creative utility with a concise write-and-keep interaction with no hidden steps. Its visual character
+should be playful and tactile. Variation key: sy2uitfzm.
+
+Use only the capabilities, DEAL language features and Deal UI components exposed by the compiler. Build a
+real end-to-end interaction loop with meaningful state changes, not a static mock or a list of placeholders.
+Deliver one finished screen and its core interaction loop first. Omit optional history, extra modes,
+onboarding and speculative integrations. Keep the data model and action count minimal for that loop;
+do not add unused state, helper types or capabilities. The result must still be genuinely usable.
+Keep the scope small enough to complete and validate in one generation. Use honest sample data when live
+platform data is unavailable. Consider a compact home-screen widget when the state is genuinely glanceable.
+Stay inside the checked Jev UI + DEAL capability surface selected by the compiler. Use navigation or calendar controls only when the frozen UI contains their matching Host*Button and the original request explicitly requires that real platform action. Do not claim network, notifications, location lookup, files, payments, a backend, persistence or any other unavailable capability.
+Do not repeat or closely imitate these existing app names or concepts: Surprise 6, Surprise 8, Surprise 11, Surprise 12.

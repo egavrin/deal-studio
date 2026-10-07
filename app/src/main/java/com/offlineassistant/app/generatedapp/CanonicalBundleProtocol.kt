@@ -417,8 +417,10 @@ internal object CanonicalBundlePrompts {
         and the primary action, summary, content, and empty state are visually distinct.
         Do not declare keyboard, storage.private, notifications, camera.capture, vision.ocr, health.read or
         focus.control merely because the product has forms, reminders, reports, history or a health-related topic.
-        Declare such a host capability only when the user explicitly asks for that platform operation; a declaration
-        then requires a truthful CapabilityNotice surface and unavailable/pending state.
+        Declare a host capability only when the user explicitly asks for that platform operation. navigation.open,
+        calendar.open and calendar.write use their matching Host*Button rather than CapabilityNotice and must retain
+        the real typed completion outcome. Other declared host capabilities require a truthful CapabilityNotice
+        surface and unavailable/pending state.
 
         User request:
         $request

@@ -2,11 +2,15 @@ package com.offlineassistant.app.generatedapp
 
 import com.offlineassistant.deepseek.DeepSeekGenerationModel
 
-/** Two first-class generation runtimes. JS stays isolated from the canonical DEAL toolchain. */
+/** Three generation routes; direct DEAL is primary, Jev-backed DEAL and JS/HTML are experimental. */
 internal enum class StudioGenerationMode {
+    UI_FIRST,
     CANONICAL,
     JS
 }
+
+internal val StudioGenerationMode.usesCanonicalRuntime: Boolean
+    get() = this != StudioGenerationMode.JS
 
 internal data class ExperimentalHtml5Result(
     val html: String,
@@ -143,5 +147,5 @@ internal fun normalizeExperimentalHtml(output: String): String {
 
 internal fun GeneratedAppStudioState.withStudioMode(mode: StudioGenerationMode): GeneratedAppStudioState = copy(
     generationMode = mode,
-    isPreviewExpanded = isPreviewExpanded && mode == StudioGenerationMode.CANONICAL
+    isPreviewExpanded = isPreviewExpanded && mode.usesCanonicalRuntime
 )

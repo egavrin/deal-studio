@@ -1,0 +1,18 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Sync", supporting: "React Native Switch disabled state suppresses change")
+      ui.Toggle(
+        checked: state.enabled,
+        label: "Sync over mobile data",
+        disabled: true,
+        onChange: action app.ChangeEnabled { checked: payload },
+        accessibilityLabel: "Disabled sync switch"
+      )
+      ui.IntStat(label: "Event count", value: state.events)
+    }
+  }
+}

@@ -1,0 +1,13 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Badge(label: "Default", variant: "default")
+      ui.Badge(label: "Secondary", variant: "secondary")
+      ui.Badge(label: "Destructive", variant: "destructive")
+      ui.Badge(label: "Outline", variant: "outline")
+    }
+  }
+}

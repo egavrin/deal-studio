@@ -46,7 +46,15 @@ internal data class SavedCanonicalGeneratedAppRecord(
     val dealUiCachedInputTokens: Int = 0,
     val dealUiOutputTokens: Int = 0,
     val dealUiAcceptedPatches: Int = 0,
+    val firstCheckedUiPreviewMs: Long? = null,
     val firstInteractivePreviewMs: Long? = null,
+    val uiPlanningRoute: String? = null,
+    val uiPlanningFallbackReason: String? = null,
+    val uiSelectLatencyMs: Long? = null,
+    val uiLayoutLatencyMs: Long? = null,
+    val uiRepairLatencyMs: Long? = null,
+    val uiLocalCompilerLatencyMs: Long? = null,
+    val uiPlanningHttpAttempts: Int? = null,
     val compilerProtocolVersion: String = "compiler-protocol-v1",
     val agentSurfaceVersion: String = "legacy-greenfield-v1",
     val agentSurfaceBytes: Int = 0,
@@ -88,13 +96,13 @@ internal fun restoreCanonicalGeneratedApp(
     require(record.toolchainSha256 == CanonicalDealToolchain.ARTIFACT_SHA256) {
         "Required canonical toolchain is unavailable"
     }
-    require(record.componentPackVersion == CanonicalDealUiPack.VERSION) {
-        "Saved app uses unsupported component pack ${record.componentPackVersion}; regenerate the app with ${CanonicalDealUiPack.VERSION}"
+    val packSource = requireNotNull(CanonicalDealUiPack.sourceFor(record.componentPackVersion)) {
+        "Required component pack ${record.componentPackVersion} is unavailable"
     }
-    require(record.componentPackSha256 == CanonicalDealUiPack.SHA256) {
-        "Saved v15 component pack digest mismatch; regenerate the app"
+    require(record.componentPackSha256 == CanonicalDealUiPack.digestFor(record.componentPackVersion)) {
+        "Saved component pack ${record.componentPackVersion} digest mismatch"
     }
-    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, CanonicalDealUiPack.source)
+    val checkedIr = toolchain.compilePortable(record.dealSource, record.dealUiSource, packSource)
     val extractedInterface = toolchain.extractAppInterface(record.dealSource)
     val bundle = CanonicalGeneratedAppBundle(
         request = record.request,
@@ -125,7 +133,15 @@ internal fun restoreCanonicalGeneratedApp(
         dealUiCachedInputTokens = record.dealUiCachedInputTokens,
         dealUiOutputTokens = record.dealUiOutputTokens,
         dealUiAcceptedPatches = record.dealUiAcceptedPatches,
+        firstCheckedUiPreviewMs = record.firstCheckedUiPreviewMs,
         firstInteractivePreviewMs = record.firstInteractivePreviewMs,
+        uiPlanningRoute = record.uiPlanningRoute,
+        uiPlanningFallbackReason = record.uiPlanningFallbackReason,
+        uiSelectLatencyMs = record.uiSelectLatencyMs,
+        uiLayoutLatencyMs = record.uiLayoutLatencyMs,
+        uiRepairLatencyMs = record.uiRepairLatencyMs,
+        uiLocalCompilerLatencyMs = record.uiLocalCompilerLatencyMs,
+        uiPlanningHttpAttempts = record.uiPlanningHttpAttempts,
         dealModelId = record.dealModelId,
         dealUiModelId = record.dealUiModelId,
         promptDigest = record.promptDigest,
@@ -270,7 +286,15 @@ internal class CanonicalGeneratedAppLibrary private constructor(private val dire
         dealUiCachedInputTokens = bundle.dealUiCachedInputTokens,
         dealUiOutputTokens = bundle.dealUiOutputTokens,
         dealUiAcceptedPatches = bundle.dealUiAcceptedPatches,
+        firstCheckedUiPreviewMs = bundle.firstCheckedUiPreviewMs,
         firstInteractivePreviewMs = bundle.firstInteractivePreviewMs,
+        uiPlanningRoute = bundle.uiPlanningRoute,
+        uiPlanningFallbackReason = bundle.uiPlanningFallbackReason,
+        uiSelectLatencyMs = bundle.uiSelectLatencyMs,
+        uiLayoutLatencyMs = bundle.uiLayoutLatencyMs,
+        uiRepairLatencyMs = bundle.uiRepairLatencyMs,
+        uiLocalCompilerLatencyMs = bundle.uiLocalCompilerLatencyMs,
+        uiPlanningHttpAttempts = bundle.uiPlanningHttpAttempts,
         compilerProtocolVersion = bundle.compilerProtocolVersion,
         agentSurfaceVersion = bundle.agentSurfaceVersion,
         agentSurfaceBytes = bundle.agentSurfaceBytes,

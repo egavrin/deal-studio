@@ -1,0 +1,44 @@
+{
+  "protocolVersion": "ui-first-live-smoke-v1",
+  "status": "ready",
+  "requestDigest": "4cdc6125c710b2f643ee4d9089e0b257d4a9538a780cd948f1a8fb6bf66288f8",
+  "plannerEvaluations": 2,
+  "structuralDigest": "cfb3e1adb44211644672bad9985fa40a1abe9d37c32a38245f10202d9a5aaa43",
+  "bindingDigest": "6f6fb0fe3e773267f539c7a51b95f372f496594c4259f21ec741bd4a5f69d6e6",
+  "dealSource": "export class AppState { draft: string = \"\"; submitted: string = \"\"; }\nexport class ChangeDraft { value: string = \"\"; }\nexport class Submit {}\nexport function initialState(): AppState { return {draft: \"\", submitted: \"\"}; }\n// @ui-update\nexport function changeDraft(state: AppState, action: ChangeDraft): AppState { return {draft: action.value, submitted: state.submitted}; }\n// @ui-update\nexport function submit(state: AppState, action: Submit): AppState { return {draft: state.draft, submitted: state.draft}; }",
+  "dealUiSource": "import * as app from \"./app.deal\";\nimport * as ui from \"./platform-ui.dealui-pack\";\n\n// @ui-root\nexport view App(state: app.AppState): View {\n  ui.Root() {\n    ui.Column() {\n      ui.TextField(label: \"Draft\", onChange: action app.ChangeDraft {value: payload}, value: state.draft)\n      ui.Button(onClick: action app.Submit {}, text: \"Apply\")\n      ui.Text(value: state.submitted)\n    }\n  }\n}\n",
+  "metrics": {
+    "jev": [
+      {
+        "model": "jev-1.13.0",
+        "phase": "SELECT",
+        "requestMs": 783,
+        "inputTokens": 1330,
+        "outputTokens": 213,
+        "retries": 0,
+        "answerKinds": {"candidate": 5, "omit": 0, "unavailable": 0},
+        "maxProbabilitySumError": 0
+      },
+      {
+        "model": "jev-1.13.0",
+        "phase": "LAYOUT",
+        "requestMs": 288,
+        "inputTokens": 1640,
+        "outputTokens": 281,
+        "retries": 0,
+        "answerKinds": {"candidate": 4, "omit": 0, "unavailable": 0},
+        "maxProbabilitySumError": 0
+      }
+    ],
+    "business": [
+      {
+        "model": "deepseek-flash",
+        "requestMs": 1447,
+        "inputTokens": 1098,
+        "outputTokens": 275,
+        "retries": 0
+      }
+    ],
+    "repairCalls": 0
+  }
+}

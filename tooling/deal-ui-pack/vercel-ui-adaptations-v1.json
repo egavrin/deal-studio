@@ -1,0 +1,2772 @@
+{
+  "requiredRows": 64,
+  "rows": [
+    {
+      "component": "Card",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "centered": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "className": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "description": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "maxWidth": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Card",
+        "summary": "mobile card surface"
+      }
+    },
+    {
+      "component": "Stack",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Stack.flex-layout"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "align": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "className": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "direction": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "gap": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "justify": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Flex",
+        "summary": "flex layout adapter"
+      }
+    },
+    {
+      "component": "Grid",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "className": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "columns": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "gap": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Grid",
+        "summary": "adaptive grid adapter"
+      }
+    },
+    {
+      "component": "Separator",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Separator.vertical"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "orientation": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Divider",
+        "summary": "divider adapter"
+      }
+    },
+    {
+      "component": "Tabs",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "defaultValue": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "tabs": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Tabs",
+        "summary": "tabs plus TabItem recipe"
+      }
+    },
+    {
+      "component": "Accordion",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "items": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "type": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Accordion",
+        "summary": "accordion recipe"
+      }
+    },
+    {
+      "component": "Collapsible",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "defaultOpen": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Collapsible",
+        "summary": "disclosure recipe"
+      }
+    },
+    {
+      "component": "Dialog",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "description": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "openPath": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Dialog",
+        "summary": "modal dialog adapter"
+      }
+    },
+    {
+      "component": "Drawer",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "description": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "openPath": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "BottomSheet",
+        "summary": "bottom-sheet adapter"
+      }
+    },
+    {
+      "component": "Carousel",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "items": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Carousel",
+        "summary": "horizontal carousel recipe"
+      }
+    },
+    {
+      "component": "Table",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "caption": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "columns": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "rows": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "DataTable",
+        "summary": "typed data-table recipe"
+      }
+    },
+    {
+      "component": "Heading",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Heading.levels"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "level": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Heading",
+        "summary": "heading adapter"
+      }
+    },
+    {
+      "component": "Text",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Text.variants"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "variant": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Text",
+        "summary": "text variant adapter"
+      }
+    },
+    {
+      "component": "Image",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "alt": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "height": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "src": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "width": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Image",
+        "summary": "image adapter"
+      }
+    },
+    {
+      "component": "Avatar",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Avatar.fallback-sizes"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "src": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Avatar",
+        "summary": "avatar adapter"
+      }
+    },
+    {
+      "component": "Badge",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Badge.variants"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "variant": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Badge",
+        "summary": "badge variant adapter"
+      }
+    },
+    {
+      "component": "Alert",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "message": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "type": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "InsetBanner",
+        "summary": "semantic alert adapter"
+      }
+    },
+    {
+      "component": "Progress",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Progress.boundaries"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "max": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "NumberProgressBar",
+        "summary": "numeric progress adapter"
+      }
+    },
+    {
+      "component": "Skeleton",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Skeleton.shapes"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "height": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "rounded": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "width": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Skeleton",
+        "summary": "loading skeleton adapter"
+      }
+    },
+    {
+      "component": "Spinner",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Spinner.sizes"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Spinner",
+        "summary": "loading spinner adapter"
+      }
+    },
+    {
+      "component": "Tooltip",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "content": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Tooltip",
+        "summary": "touch-accessible help presentation"
+      }
+    },
+    {
+      "component": "Popover",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "content": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "trigger": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Popover",
+        "summary": "touch popover presentation"
+      }
+    },
+    {
+      "component": "Input",
+      "events": {
+        "blur": {
+          "state": "PENDING",
+          "targetEvent": null
+        },
+        "focus": {
+          "state": "PENDING",
+          "targetEvent": null
+        },
+        "submit": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Input.email-error",
+        "shadcn.Input.email-submit"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "checks": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "placeholder": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "type": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "validateOn": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "TextField",
+        "summary": "typed text-field adapter"
+      }
+    },
+    {
+      "component": "Textarea",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Textarea.multiline",
+        "shadcn.Textarea.required-error"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "checks": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "placeholder": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "rows": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "validateOn": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "TextArea",
+        "summary": "multiline text adapter"
+      }
+    },
+    {
+      "component": "Select",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Select.required-error"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "checks": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "options": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "placeholder": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "validateOn": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Select",
+        "summary": "typed select recipe"
+      }
+    },
+    {
+      "component": "Checkbox",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Checkbox.required-error"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "checked": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "checks": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "validateOn": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Checkbox",
+        "summary": "boolean field adapter"
+      }
+    },
+    {
+      "component": "Radio",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Radio.selected"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "checks": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "options": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "validateOn": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "RadioGroup",
+        "summary": "single-choice recipe"
+      }
+    },
+    {
+      "component": "Switch",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Switch.required-error"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "checked": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "checks": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "name": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "validateOn": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Toggle",
+        "summary": "boolean switch adapter"
+      }
+    },
+    {
+      "component": "Slider",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Slider.fractional"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "max": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "min": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "step": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "NumberSlider",
+        "summary": "fractional slider adapter"
+      }
+    },
+    {
+      "component": "Button",
+      "events": {
+        "press": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Button.default",
+        "shadcn.Button.disabled"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "disabled": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "variant": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Button",
+        "summary": "button adapter"
+      }
+    },
+    {
+      "component": "Link",
+      "events": {
+        "press": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "href": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Link",
+        "summary": "permission-aware URL action"
+      }
+    },
+    {
+      "component": "DropdownMenu",
+      "events": {
+        "select": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "items": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Menu",
+        "summary": "menu plus MenuItem recipe"
+      }
+    },
+    {
+      "component": "Toggle",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "shadcn.Toggle.pressed"
+      ],
+      "origin": "shadcn",
+      "properties": {
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "pressed": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "variant": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "ToggleButton",
+        "summary": "toggle-button adapter"
+      }
+    },
+    {
+      "component": "ToggleGroup",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "items": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "type": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "ToggleGroup",
+        "summary": "single-or-multiple toggle recipe"
+      }
+    },
+    {
+      "component": "ButtonGroup",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "buttons": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "selected": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "SegmentedControl",
+        "summary": "segmented button-group adapter"
+      }
+    },
+    {
+      "component": "Pagination",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "shadcn",
+      "properties": {
+        "page": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "totalPages": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Pagination",
+        "summary": "pagination control"
+      }
+    },
+    {
+      "component": "Container",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "backgroundColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "borderRadius": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "flex": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "margin": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "padding": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "paddingHorizontal": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "paddingVertical": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Flex",
+        "summary": "surface/flex adapter"
+      }
+    },
+    {
+      "component": "Row",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "alignItems": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "flex": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "flexWrap": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "gap": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "justifyContent": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "padding": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Flex",
+        "summary": "horizontal flex adapter"
+      }
+    },
+    {
+      "component": "Column",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "alignItems": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "flex": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "gap": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "justifyContent": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "padding": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Flex",
+        "summary": "vertical flex adapter"
+      }
+    },
+    {
+      "component": "ScrollContainer",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "backgroundColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "horizontal": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "padding": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "showsScrollIndicator": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Scroll",
+        "summary": "scroll adapter"
+      }
+    },
+    {
+      "component": "SafeArea",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "backgroundColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "SafeArea",
+        "summary": "host-inset recipe"
+      }
+    },
+    {
+      "component": "Spacer",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "flex": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Spacer",
+        "summary": "spacing adapter"
+      }
+    },
+    {
+      "component": "Pressable",
+      "events": {
+        "longPress": {
+          "state": "IMPLEMENTED",
+          "targetEvent": "onLongClick"
+        },
+        "press": {
+          "state": "IMPLEMENTED",
+          "targetEvent": "onClick"
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PASS",
+        "interactive": "PASS",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Pressable.default",
+        "react-native.Pressable.disabled"
+      ],
+      "origin": "react-native",
+      "properties": {},
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "IMPLEMENTED",
+        "targetSlot": "children"
+      },
+      "status": "IMPLEMENTED",
+      "target": {
+        "availability": "active",
+        "component": "Pressable",
+        "summary": "press and long-press adapter"
+      }
+    },
+    {
+      "component": "Divider",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Divider.fractional"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "direction": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "margin": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "thickness": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Divider",
+        "summary": "divider adapter"
+      }
+    },
+    {
+      "component": "Heading",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Heading.alignment-tone"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "align": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "level": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Heading",
+        "summary": "heading adapter"
+      }
+    },
+    {
+      "component": "Paragraph",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Paragraph.alignment-size"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "align": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "fontSize": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "numberOfLines": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Text",
+        "summary": "paragraph text adapter"
+      }
+    },
+    {
+      "component": "Label",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Label.bold-size"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "bold": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "text": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Text",
+        "summary": "field-label text adapter"
+      }
+    },
+    {
+      "component": "Image",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "alt": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "borderRadius": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "height": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "resizeMode": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "src": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "width": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Image",
+        "summary": "image adapter"
+      }
+    },
+    {
+      "component": "Avatar",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Avatar.initials-tone"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "backgroundColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "initials": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "src": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Avatar",
+        "summary": "avatar adapter"
+      }
+    },
+    {
+      "component": "Badge",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Badge.statuses"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "variant": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Badge",
+        "summary": "badge status adapter"
+      }
+    },
+    {
+      "component": "Chip",
+      "events": {
+        "press": {
+          "state": "PENDING",
+          "targetEvent": null
+        },
+        "remove": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "backgroundColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "selected": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "planned",
+        "component": "Chip",
+        "summary": "selectable/removable chip"
+      }
+    },
+    {
+      "component": "Button",
+      "events": {
+        "press": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Button.icon-loading",
+        "react-native.Button.loading"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "disabled": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "loading": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "variant": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Button",
+        "summary": "button adapter"
+      }
+    },
+    {
+      "component": "TextInput",
+      "events": {
+        "blur": {
+          "state": "PENDING",
+          "targetEvent": null
+        },
+        "focus": {
+          "state": "PENDING",
+          "targetEvent": null
+        },
+        "submit": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.TextInput.multiline",
+        "react-native.TextInput.secure"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "flex": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "keyboardType": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "multiline": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "numberOfLines": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "placeholder": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "secureTextEntry": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "TextField",
+        "summary": "text input adapter"
+      }
+    },
+    {
+      "component": "Switch",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Switch.disabled"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "checked": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "disabled": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Toggle",
+        "summary": "boolean switch adapter"
+      }
+    },
+    {
+      "component": "Checkbox",
+      "events": {
+        "change": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Checkbox.disabled"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "checked": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "disabled": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Checkbox",
+        "summary": "boolean checkbox adapter"
+      }
+    },
+    {
+      "component": "Slider",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Slider.semantic-color"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "max": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "min": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "step": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "NumberSlider",
+        "summary": "fractional slider adapter"
+      }
+    },
+    {
+      "component": "SearchBar",
+      "events": {
+        "submit": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "placeholder": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "TextField",
+        "summary": "search text-field recipe"
+      }
+    },
+    {
+      "component": "Spinner",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.Spinner.semantic-color"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "size": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Spinner",
+        "summary": "loading spinner adapter"
+      }
+    },
+    {
+      "component": "ProgressBar",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [
+        "react-native.ProgressBar.fractional"
+      ],
+      "origin": "react-native",
+      "properties": {
+        "color": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "height": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "progress": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "trackColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "NumberProgressBar",
+        "summary": "fractional progress adapter"
+      }
+    },
+    {
+      "component": "Card",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "backgroundColor": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "borderRadius": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "elevated": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "padding": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "subtitle": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Card",
+        "summary": "card surface adapter"
+      }
+    },
+    {
+      "component": "ListItem",
+      "events": {
+        "press": {
+          "state": "PENDING",
+          "targetEvent": null
+        }
+      },
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "leading": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "showChevron": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "subtitle": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "trailing": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "ListItem",
+        "summary": "list-item adapter"
+      }
+    },
+    {
+      "component": "Modal",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "react-native",
+      "properties": {
+        "animationType": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "visible": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [
+          "default"
+        ],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Modal",
+        "summary": "modal overlay adapter"
+      }
+    },
+    {
+      "component": "Metric",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "jev-playground",
+      "properties": {
+        "change": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "changeType": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "label": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "prefix": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "suffix": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "value": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "Stat",
+        "summary": "metric/stat adapter"
+      }
+    },
+    {
+      "component": "BarGraph",
+      "events": {},
+      "evidence": {
+        "accessibility": "PENDING",
+        "contractCompile": "PENDING",
+        "interactive": "PENDING",
+        "visual": "PENDING"
+      },
+      "fixtureIds": [],
+      "origin": "jev-playground",
+      "properties": {
+        "data": {
+          "state": "PENDING",
+          "targetProperty": null
+        },
+        "title": {
+          "state": "PENDING",
+          "targetProperty": null
+        }
+      },
+      "slots": {
+        "source": [],
+        "state": "PENDING",
+        "targetSlot": null
+      },
+      "status": "PENDING",
+      "target": {
+        "availability": "active",
+        "component": "BarChart",
+        "summary": "labelled bar-chart adapter"
+      }
+    }
+  ],
+  "schemaVersion": "deal-studio-ui-adaptation-v1",
+  "sourceContract": {
+    "path": "tooling/deal-ui-pack/vercel-json-render-contract-v1.json",
+    "sha256": "12876f2649b49a10e1f8737b6770f596ef0571aef3b1968f8aa11a3dbad0bd4d"
+  },
+  "targetPack": {
+    "sha256": "fc99e918e76e7d59bbb578ff9529544a836edbf9b766775ea8b6e528bdc9443a",
+    "sourcePath": "tooling/deal-ui-pack/deal-studio-v16.dealui-pack",
+    "version": "deal-studio-dealui-pack-v16"
+  }
+}

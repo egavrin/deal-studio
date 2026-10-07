@@ -1,0 +1,336 @@
+{
+  "schemaVersion": "deal-studio-ui-catalog-fixtures-v1",
+  "cases": [
+    {
+      "id": "shadcn.Button.default",
+      "origin": "shadcn",
+      "component": "Button",
+      "packVersion": "deal-studio-dealui-pack-v15",
+      "deal": "ui-catalog/shadcn.Button.default/app.deal",
+      "dealUi": "ui-catalog/shadcn.Button.default/app.dealui"
+    },
+    {
+      "id": "shadcn.Button.disabled",
+      "origin": "shadcn",
+      "component": "Button",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Button.disabled/app.deal",
+      "dealUi": "ui-catalog/shadcn.Button.disabled/app.dealui"
+    },
+    {
+      "id": "react-native.Button.loading",
+      "origin": "react-native",
+      "component": "Button",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Button.loading/app.deal",
+      "dealUi": "ui-catalog/react-native.Button.loading/app.dealui"
+    },
+    {
+      "id": "react-native.Button.icon-loading",
+      "origin": "react-native",
+      "component": "Button",
+      "targetComponent": "IconButton",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Button.icon-loading/app.deal",
+      "dealUi": "ui-catalog/react-native.Button.icon-loading/app.dealui"
+    },
+    {
+      "id": "react-native.Pressable.default",
+      "origin": "react-native",
+      "component": "Pressable",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Pressable.default/app.deal",
+      "dealUi": "ui-catalog/react-native.Pressable.default/app.dealui"
+    },
+    {
+      "id": "react-native.Pressable.disabled",
+      "origin": "react-native",
+      "component": "Pressable",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Pressable.disabled/app.deal",
+      "dealUi": "ui-catalog/react-native.Pressable.disabled/app.dealui"
+    },
+    {
+      "id": "shadcn.Spinner.sizes",
+      "origin": "shadcn",
+      "component": "Spinner",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Spinner.sizes/app.deal",
+      "dealUi": "ui-catalog/shadcn.Spinner.sizes/app.dealui"
+    },
+    {
+      "id": "react-native.Spinner.semantic-color",
+      "origin": "react-native",
+      "component": "Spinner",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Spinner.semantic-color/app.deal",
+      "dealUi": "ui-catalog/react-native.Spinner.semantic-color/app.dealui"
+    },
+    {
+      "id": "shadcn.Skeleton.shapes",
+      "origin": "shadcn",
+      "component": "Skeleton",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Skeleton.shapes/app.deal",
+      "dealUi": "ui-catalog/shadcn.Skeleton.shapes/app.dealui"
+    },
+    {
+      "id": "shadcn.Progress.boundaries",
+      "origin": "shadcn",
+      "component": "Progress",
+      "targetComponent": "NumberProgressBar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Progress.boundaries/app.deal",
+      "dealUi": "ui-catalog/shadcn.Progress.boundaries/app.dealui"
+    },
+    {
+      "id": "react-native.ProgressBar.fractional",
+      "origin": "react-native",
+      "component": "ProgressBar",
+      "targetComponent": "NumberProgressBar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.ProgressBar.fractional/app.deal",
+      "dealUi": "ui-catalog/react-native.ProgressBar.fractional/app.dealui"
+    },
+    {
+      "id": "shadcn.Slider.fractional",
+      "origin": "shadcn",
+      "component": "Slider",
+      "targetComponent": "NumberSlider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Slider.fractional/app.deal",
+      "dealUi": "ui-catalog/shadcn.Slider.fractional/app.dealui"
+    },
+    {
+      "id": "react-native.Slider.semantic-color",
+      "origin": "react-native",
+      "component": "Slider",
+      "targetComponent": "NumberSlider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Slider.semantic-color/app.deal",
+      "dealUi": "ui-catalog/react-native.Slider.semantic-color/app.dealui"
+    },
+    {
+      "id": "shadcn.Textarea.multiline",
+      "origin": "shadcn",
+      "component": "Textarea",
+      "targetComponent": "TextArea",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Textarea.multiline/app.deal",
+      "dealUi": "ui-catalog/shadcn.Textarea.multiline/app.dealui"
+    },
+    {
+      "id": "shadcn.Textarea.required-error",
+      "origin": "shadcn",
+      "component": "Textarea",
+      "targetComponent": "TextArea",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Textarea.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Textarea.required-error/app.dealui"
+    },
+    {
+      "id": "shadcn.Input.email-submit",
+      "origin": "shadcn",
+      "component": "Input",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Input.email-submit/app.deal",
+      "dealUi": "ui-catalog/shadcn.Input.email-submit/app.dealui"
+    },
+    {
+      "id": "shadcn.Input.email-error",
+      "origin": "shadcn",
+      "component": "Input",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Input.email-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Input.email-error/app.dealui"
+    },
+    {
+      "id": "react-native.TextInput.secure",
+      "origin": "react-native",
+      "component": "TextInput",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.TextInput.secure/app.deal",
+      "dealUi": "ui-catalog/react-native.TextInput.secure/app.dealui"
+    },
+    {
+      "id": "react-native.TextInput.multiline",
+      "origin": "react-native",
+      "component": "TextInput",
+      "targetComponent": "TextField",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.TextInput.multiline/app.deal",
+      "dealUi": "ui-catalog/react-native.TextInput.multiline/app.dealui"
+    },
+    {
+      "id": "shadcn.Select.required-error",
+      "origin": "shadcn",
+      "component": "Select",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Select.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Select.required-error/app.dealui"
+    },
+    {
+      "id": "shadcn.Radio.selected",
+      "origin": "shadcn",
+      "component": "Radio",
+      "targetComponent": "RadioGroup",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Radio.selected/app.deal",
+      "dealUi": "ui-catalog/shadcn.Radio.selected/app.dealui"
+    },
+    {
+      "id": "shadcn.Checkbox.required-error",
+      "origin": "shadcn",
+      "component": "Checkbox",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Checkbox.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Checkbox.required-error/app.dealui"
+    },
+    {
+      "id": "react-native.Checkbox.disabled",
+      "origin": "react-native",
+      "component": "Checkbox",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Checkbox.disabled/app.deal",
+      "dealUi": "ui-catalog/react-native.Checkbox.disabled/app.dealui"
+    },
+    {
+      "id": "shadcn.Switch.required-error",
+      "origin": "shadcn",
+      "component": "Switch",
+      "targetComponent": "Toggle",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Switch.required-error/app.deal",
+      "dealUi": "ui-catalog/shadcn.Switch.required-error/app.dealui"
+    },
+    {
+      "id": "react-native.Switch.disabled",
+      "origin": "react-native",
+      "component": "Switch",
+      "targetComponent": "Toggle",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Switch.disabled/app.deal",
+      "dealUi": "ui-catalog/react-native.Switch.disabled/app.dealui"
+    },
+    {
+      "id": "shadcn.Toggle.pressed",
+      "origin": "shadcn",
+      "component": "Toggle",
+      "targetComponent": "ToggleButton",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Toggle.pressed/app.deal",
+      "dealUi": "ui-catalog/shadcn.Toggle.pressed/app.dealui"
+    },
+    {
+      "id": "shadcn.Separator.vertical",
+      "origin": "shadcn",
+      "component": "Separator",
+      "targetComponent": "Divider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Separator.vertical/app.deal",
+      "dealUi": "ui-catalog/shadcn.Separator.vertical/app.dealui"
+    },
+    {
+      "id": "react-native.Divider.fractional",
+      "origin": "react-native",
+      "component": "Divider",
+      "targetComponent": "Divider",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Divider.fractional/app.deal",
+      "dealUi": "ui-catalog/react-native.Divider.fractional/app.dealui"
+    },
+    {
+      "id": "shadcn.Heading.levels",
+      "origin": "shadcn",
+      "component": "Heading",
+      "targetComponent": "Heading",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Heading.levels/app.deal",
+      "dealUi": "ui-catalog/shadcn.Heading.levels/app.dealui"
+    },
+    {
+      "id": "react-native.Heading.alignment-tone",
+      "origin": "react-native",
+      "component": "Heading",
+      "targetComponent": "Heading",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Heading.alignment-tone/app.deal",
+      "dealUi": "ui-catalog/react-native.Heading.alignment-tone/app.dealui"
+    },
+    {
+      "id": "shadcn.Text.variants",
+      "origin": "shadcn",
+      "component": "Text",
+      "targetComponent": "Text",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Text.variants/app.deal",
+      "dealUi": "ui-catalog/shadcn.Text.variants/app.dealui"
+    },
+    {
+      "id": "react-native.Paragraph.alignment-size",
+      "origin": "react-native",
+      "component": "Paragraph",
+      "targetComponent": "Text",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Paragraph.alignment-size/app.deal",
+      "dealUi": "ui-catalog/react-native.Paragraph.alignment-size/app.dealui"
+    },
+    {
+      "id": "react-native.Label.bold-size",
+      "origin": "react-native",
+      "component": "Label",
+      "targetComponent": "Text",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Label.bold-size/app.deal",
+      "dealUi": "ui-catalog/react-native.Label.bold-size/app.dealui"
+    },
+    {
+      "id": "shadcn.Badge.variants",
+      "origin": "shadcn",
+      "component": "Badge",
+      "targetComponent": "Badge",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Badge.variants/app.deal",
+      "dealUi": "ui-catalog/shadcn.Badge.variants/app.dealui"
+    },
+    {
+      "id": "react-native.Badge.statuses",
+      "origin": "react-native",
+      "component": "Badge",
+      "targetComponent": "Badge",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Badge.statuses/app.deal",
+      "dealUi": "ui-catalog/react-native.Badge.statuses/app.dealui"
+    },
+    {
+      "id": "shadcn.Avatar.fallback-sizes",
+      "origin": "shadcn",
+      "component": "Avatar",
+      "targetComponent": "Avatar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Avatar.fallback-sizes/app.deal",
+      "dealUi": "ui-catalog/shadcn.Avatar.fallback-sizes/app.dealui"
+    },
+    {
+      "id": "react-native.Avatar.initials-tone",
+      "origin": "react-native",
+      "component": "Avatar",
+      "targetComponent": "Avatar",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/react-native.Avatar.initials-tone/app.deal",
+      "dealUi": "ui-catalog/react-native.Avatar.initials-tone/app.dealui"
+    },
+    {
+      "id": "shadcn.Stack.flex-layout",
+      "origin": "shadcn",
+      "component": "Stack",
+      "targetComponent": "Flex",
+      "packVersion": "deal-studio-dealui-pack-v16",
+      "deal": "ui-catalog/shadcn.Stack.flex-layout/app.deal",
+      "dealUi": "ui-catalog/shadcn.Stack.flex-layout/app.dealui"
+    }
+  ]
+}

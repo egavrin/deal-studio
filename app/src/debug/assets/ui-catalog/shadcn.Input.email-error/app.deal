@@ -1,0 +1,23 @@
+export class AppState { email: string = "not-an-email"; submitted: string = ""; validationVisible: boolean = true; focused: boolean = false; blurred: boolean = false; }
+export class ChangeEmail { value: string; }
+export class SubmitEmail { value: string; }
+export class FocusEmail {}
+export class BlurEmail {}
+export function initialState(): AppState { return { email: "not-an-email", submitted: "", validationVisible: true, focused: false, blurred: false }; }
+// @ui-update
+export function changeEmail(state: AppState, action: ChangeEmail): AppState {
+  return { email: action.value, submitted: state.submitted, validationVisible: state.validationVisible, focused: state.focused, blurred: state.blurred };
+}
+// @ui-update
+export function submitEmail(state: AppState, action: SubmitEmail): AppState {
+  return { email: state.email, submitted: action.value, validationVisible: true, focused: state.focused, blurred: state.blurred };
+}
+// @ui-update
+export function focusEmail(state: AppState, action: FocusEmail): AppState {
+  return { email: state.email, submitted: state.submitted, validationVisible: state.validationVisible, focused: true, blurred: state.blurred };
+}
+// @ui-update
+export function blurEmail(state: AppState, action: BlurEmail): AppState {
+  return { email: state.email, submitted: state.submitted, validationVisible: state.validationVisible, focused: state.focused, blurred: true };
+}
+export function main(): null { return null; }

@@ -1,0 +1,21 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Resource notes", supporting: "React Native multiline TextInput with URL keyboard")
+      ui.TextField(
+        name: "notes",
+        value: state.notes,
+        label: "Links and notes",
+        placeholder: "https://example.com\nNotes",
+        keyboardType: ui.keyboardUrl,
+        multiline: true,
+        numberOfLines: 3,
+        onChange: action app.ChangeNotes { value: payload },
+        accessibilityLabel: "Resource notes input"
+      )
+    }
+  }
+}

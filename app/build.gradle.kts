@@ -22,7 +22,8 @@ val localProperties = Properties().apply {
 fun String.asBuildConfigString(): String = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 val embeddedDeepSeekApiKey =
-    providers.gradleProperty("DEEPSEEK_API_KEY").orNull
+    providers.environmentVariable("DEAL_STUDIO_BOOTSTRAP_DEEPSEEK_API_KEY").orNull
+        ?: providers.gradleProperty("DEEPSEEK_API_KEY").orNull
         ?: localProperties.getProperty("DEEPSEEK_API_KEY")
         ?: ""
 val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
@@ -35,10 +36,27 @@ val embeddedDeepSeekApiKeyRevision = embeddedDeepSeekApiKey
     }
     .orEmpty()
 val embeddedCerebrasApiKey =
-    providers.gradleProperty("CEREBRAS_API_KEY").orNull
+    providers.environmentVariable("DEAL_STUDIO_BOOTSTRAP_CEREBRAS_API_KEY").orNull
+        ?: providers.gradleProperty("CEREBRAS_API_KEY").orNull
         ?: localProperties.getProperty("CEREBRAS_API_KEY")
         ?: ""
 val embeddedCerebrasApiKeyRevision = embeddedCerebrasApiKey
+    .takeIf(String::isNotBlank)
+    ?.let { value ->
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.encodeToByteArray())
+            .take(8)
+            .joinToString("") { byte -> "%02x".format(byte) }
+    }
+    .orEmpty()
+val embeddedJevApiKey =
+    providers.environmentVariable("DEAL_STUDIO_BOOTSTRAP_JEV_API_KEY").orNull
+        ?: providers.gradleProperty("JEV_API_KEY").orNull
+        ?: providers.gradleProperty("TYPESAFE_API_KEY").orNull
+        ?: localProperties.getProperty("JEV_API_KEY")
+        ?: localProperties.getProperty("TYPESAFE_API_KEY")
+        ?: ""
+val embeddedJevApiKeyRevision = embeddedJevApiKey
     .takeIf(String::isNotBlank)
     ?.let { value ->
         MessageDigest.getInstance("SHA-256")
@@ -55,20 +73,25 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
     @get:org.gradle.api.tasks.InputFiles
     abstract val manifestFiles: org.gradle.api.file.ConfigurableFileCollection
 
+    @get:org.gradle.api.tasks.InputFiles
+    abstract val semanticsFiles: org.gradle.api.file.ConfigurableFileCollection
+
     @get:org.gradle.api.tasks.InputFile
     abstract val toolchainLockFile: org.gradle.api.file.RegularFileProperty
 
-    @get:org.gradle.api.tasks.InputFile
-    abstract val releaseGateFile: org.gradle.api.file.RegularFileProperty
+    @get:org.gradle.api.tasks.InputFiles
+    abstract val releaseGateFiles: org.gradle.api.file.ConfigurableFileCollection
 
     @get:org.gradle.api.tasks.OutputDirectory
     abstract val outputDirectory: org.gradle.api.file.DirectoryProperty
 
     private data class PackContractMetadata(
         val typeContracts: LinkedHashMap<String, String>,
+        val typeFields: Map<String, Map<String, String>>,
         val typeDependencies: Map<String, Set<String>>,
         val componentContracts: LinkedHashMap<String, String>,
         val componentPropTypes: Map<String, String>,
+        val componentEvents: Map<String, Map<String, String>>,
         val componentExtraTypes: Map<String, Set<String>>,
         val componentDependencies: Map<String, Set<String>>,
         val tokenContracts: LinkedHashMap<String, String>,
@@ -80,10 +103,11 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         "MetricGroup", "ActionBar", "Header", "SectionHeader", "SegmentedControl", "SegmentItem", "Timeline",
         "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
         "Text", "IntText", "NumberText", "Icon", "Button", "IconButton", "TextField", "IntField",
-        "NumberField", "TimeField", "Toggle", "Checkbox", "Choice", "ChoiceItem", "Slider", "ProgressBar",
+        "NumberField", "TimeField", "DateTimeField", "Toggle", "Checkbox", "Choice", "ChoiceItem", "Slider", "ProgressBar",
         "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Divider", "Badge", "Stat",
         "IntStat", "NumberStat", "ListItem", "IntListItem", "EmptyState", "Snackbar", "Tabs", "TabItem",
-        "NavigationBar", "NavigationItem", "BarChart", "Sparkline", "Modal", "Dialog", "BottomSheet", "Route"
+        "NavigationBar", "NavigationItem", "BarChart", "Sparkline", "Modal", "Dialog", "BottomSheet", "Route",
+        "HostNavigationButton", "HostCalendarOpenButton", "HostCalendarCreateButton", "HostCalendarClearOwnedButton"
     )
 
     private fun parseContractMetadata(packSource: String): PackContractMetadata {
@@ -110,9 +134,13 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         )
 
         val typeContracts = linkedMapOf<String, String>()
+        val typeFields = linkedMapOf<String, Map<String, String>>()
         val typeDependencies = linkedMapOf<String, Set<String>>()
         classDeclaration.findAll(packSource).forEach { match ->
             val fields = fieldDeclaration.findAll(match.groupValues[2]).toList()
+            typeFields[match.groupValues[1]] = fields.associate { field ->
+                field.groupValues[1] to field.groupValues[3]
+            }
             typeContracts[match.groupValues[1]] = fields.joinToString(",") { field ->
                 val optional = field.groupValues[2].isNotBlank() || field.groupValues[4].isNotBlank()
                 "${field.groupValues[1]}${if (optional) "?" else ""}:${field.groupValues[3]}"
@@ -123,6 +151,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         }
         val componentContracts = linkedMapOf<String, String>()
         val componentPropTypes = linkedMapOf<String, String>()
+        val componentEvents = linkedMapOf<String, Map<String, String>>()
         val componentExtraTypes = linkedMapOf<String, Set<String>>()
         val componentDependencies = linkedMapOf<String, Set<String>>()
         componentDeclaration.findAll(packSource).forEach { match ->
@@ -157,6 +186,9 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 if (constraints.isNotEmpty()) append(constraints.joinToString(prefix = "[", postfix = "]"))
             }
             componentPropTypes[name] = match.groupValues[2]
+            componentEvents[name] = eventDeclaration.findAll(metadata).associate { event ->
+                event.groupValues[1] to event.groupValues[2]
+            }
             componentExtraTypes[name] = extraTypes
             componentDependencies[name] = dependencies
         }
@@ -168,9 +200,11 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         }
         return PackContractMetadata(
             typeContracts,
+            typeFields,
             typeDependencies,
             componentContracts,
             componentPropTypes,
+            componentEvents,
             componentExtraTypes,
             componentDependencies,
             tokenContracts,
@@ -253,13 +287,20 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 require(separator > 0) { "Invalid toolchain lock entry: $line" }
                 line.substring(0, separator) to line.substring(separator + 1)
             }
-        val currentPackVersion = "deal-studio-dealui-pack-v15"
-        require(toolchainProperties["COMPONENT_PACK_VERSION"] == currentPackVersion) {
-            "toolchain.lock component pack must be $currentPackVersion"
+        val currentPackVersion = requireNotNull(toolchainProperties["COMPONENT_PACK_VERSION"]) {
+            "toolchain.lock must declare COMPONENT_PACK_VERSION"
         }
-        val releaseLedger = JsonSlurper().parse(releaseGateFile.get().asFile) as Map<*, *>
+        val currentPackNumber = requireNotNull(Regex("^deal-studio-dealui-pack-v(\\d+)$").matchEntire(currentPackVersion)) {
+            "Invalid component pack version in toolchain.lock: $currentPackVersion"
+        }.groupValues[1]
+        val releaseGateFile = requireNotNull(
+            releaseGateFiles.files.singleOrNull { it.parentFile.name == "v$currentPackNumber" }
+        ) {
+            "Exactly one release gate is required for active pack $currentPackVersion"
+        }
+        val releaseLedger = JsonSlurper().parse(releaseGateFile) as Map<*, *>
         require(releaseLedger["schemaVersion"] == "deal-studio-pack-release-gates-v1") {
-            "Invalid Pack v15 release-gate schema"
+            "Invalid $currentPackVersion release-gate schema"
         }
         require(releaseLedger["packVersion"] == currentPackVersion) { "Release-gate packVersion mismatch" }
         val promotionStatus = releaseLedger["promotionStatus"]?.toString()
@@ -269,7 +310,7 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
         }
         require(promotionStatus in setOf("PASS", "FAIL", "PENDING")) { "Invalid promotionStatus" }
         require(promotionStatus != "PASS" || gateStatuses.all { it == "PASS" }) {
-            "Pack v15 cannot be promoted while any required gate is not PASS"
+            "$currentPackVersion cannot be promoted while any required gate is not PASS"
         }
         packFiles.files.sortedBy { it.name }.forEach { sourceFile ->
             val packSource = sourceFile.readText()
@@ -279,13 +320,15 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(sourceFile.readBytes())
                 .joinToString("") { byte -> "%02x".format(byte) }
-            if (version == "15") {
+            if (version == currentPackNumber) {
                 require(toolchainProperties["COMPONENT_PACK_SHA256"] == digest) {
                     "toolchain.lock component pack digest is stale: expected $digest"
                 }
             }
             val manifestFile = manifestFiles.files.singleOrNull { it.name == "deal-studio-v$version.agent.json" }
             val manifest = manifestFile?.let { JsonSlurper().parse(it) as Map<*, *> }
+            val semanticsFile = semanticsFiles.files.singleOrNull { it.name == "deal-studio-v$version.semantics.json" }
+            val semantics = semanticsFile?.let { JsonSlurper().parse(it) as Map<*, *> }
             val destination = outputDirectory.get().file(
                 "com/offlineassistant/app/generatedapp/GeneratedCanonicalDealUiPackV$version.kt"
             ).asFile
@@ -295,8 +338,17 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 MessageDigest.getInstance("SHA-256").digest(it.readBytes())
                     .joinToString("") { byte -> "%02x".format(byte) }
             }.orEmpty()
+            val semanticsDigest = semanticsFile?.let {
+                MessageDigest.getInstance("SHA-256").digest(it.readBytes())
+                    .joinToString("") { byte -> "%02x".format(byte) }
+            }.orEmpty()
+            val bundleMaterial = if (semanticsFile == null) {
+                "$digest:$manifestDigest"
+            } else {
+                "$digest:$manifestDigest:$semanticsDigest"
+            }
             val bundleDigest = MessageDigest.getInstance("SHA-256")
-                .digest("$digest:$manifestDigest".encodeToByteArray())
+                .digest(bundleMaterial.encodeToByteArray())
                 .joinToString("") { byte -> "%02x".format(byte) }
             val semanticHints = (manifest?.get("components") as? Map<*, *>)?.map { (name, entry) ->
                 val values = entry as? Map<*, *> ?: error("Manifest component $name must be an object")
@@ -313,9 +365,13 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 }.joinToString(" ")
             }?.toMap().orEmpty()
             val globalRules = (manifest?.get("globalRules") as? List<*>)?.map { it.toString() }.orEmpty()
-            if (version == "15") {
-                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") { "Invalid v15 agent manifest version" }
-                require(manifest["packVersion"] == currentPackVersion) { "Agent manifest packVersion mismatch" }
+            if (version.toInt() >= 15) {
+                require(manifest?.get("version") == "deal-studio-agent-semantics-v1") {
+                    "Invalid v$version agent manifest version"
+                }
+                require(manifest["packVersion"] == "deal-studio-dealui-pack-v$version") {
+                    "Agent manifest packVersion mismatch for v$version"
+                }
                 require(semanticHints.keys == contractMetadata.componentContracts.keys) {
                     "Agent manifest component coverage differs from pack: missing=${contractMetadata.componentContracts.keys - semanticHints.keys}, extra=${semanticHints.keys - contractMetadata.componentContracts.keys}"
                 }
@@ -359,8 +415,76 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                     "Agent manifest globalRules must be non-empty strings"
                 }
             }
+            if (version == "20") {
+                require(semantics != null) { "v20 component semantics descriptor is required" }
+                require(semantics.keys == setOf("version", "packVersion", "components")) {
+                    "v20 component semantics descriptor has unsupported or missing fields"
+                }
+                require(semantics["version"] == "deal-studio-component-semantics-v20") {
+                    "Invalid v20 component semantics version"
+                }
+                require(semantics["packVersion"] == "deal-studio-dealui-pack-v20") {
+                    "v20 component semantics packVersion mismatch"
+                }
+                require(contractMetadata.componentContracts.size == 100) {
+                    "v20 component pack must contain exactly 100 components"
+                }
+                val componentSemantics = semantics["components"] as? Map<*, *>
+                    ?: error("v20 component semantics components must be an object")
+                val semanticsComponentNames = componentSemantics.keys.map(Any?::toString).toSet()
+                require(semanticsComponentNames == contractMetadata.componentContracts.keys) {
+                    "v20 component semantics coverage differs from pack: missing=${contractMetadata.componentContracts.keys - semanticsComponentNames}, extra=${semanticsComponentNames - contractMetadata.componentContracts.keys}"
+                }
+                val scalarTypes = setOf("string", "int", "number", "boolean")
+                componentSemantics.forEach { (rawName, rawEntry) ->
+                    val name = rawName.toString()
+                    val entry = rawEntry as? Map<*, *>
+                        ?: error("v20 component semantics $name must be an object")
+                    require(entry.keys == setOf("copyProperties", "assignPayload", "eventKinds")) {
+                        "v20 component semantics $name has unsupported or missing fields"
+                    }
+                    val propType = contractMetadata.componentPropTypes.getValue(name)
+                    val props = contractMetadata.typeFields.getValue(propType)
+                    val copyProperties = (entry["copyProperties"] as? List<*>)
+                        ?.map { it as? String ?: error("v20 component semantics $name.copyProperties must contain strings") }
+                        ?: error("v20 component semantics $name.copyProperties must be an array")
+                    require(copyProperties.size == copyProperties.toSet().size) {
+                        "v20 component semantics $name.copyProperties contains duplicates"
+                    }
+                    copyProperties.forEach { property ->
+                        require(props[property] == "string") {
+                            "v20 component semantics $name copy property $property must reference a string prop"
+                        }
+                    }
+                    val assignments = entry["assignPayload"] as? Map<*, *>
+                        ?: error("v20 component semantics $name.assignPayload must be an object")
+                    assignments.forEach { (rawEvent, rawProperty) ->
+                        val event = rawEvent as? String
+                            ?: error("v20 component semantics $name.assignPayload event names must be strings")
+                        val property = rawProperty as? String
+                            ?: error("v20 component semantics $name.assignPayload targets must be strings")
+                        val payloadType = contractMetadata.componentEvents.getValue(name)[event]
+                            ?: error("v20 component semantics $name assigns unknown or untyped event $event")
+                        val propertyType = props[property]
+                            ?: error("v20 component semantics $name assigns unknown prop $property")
+                        require(payloadType in scalarTypes && propertyType == payloadType) {
+                            "v20 component semantics $name.$event payload $payloadType does not match scalar prop $property:$propertyType"
+                        }
+                    }
+                    val eventKinds = entry["eventKinds"] as? Map<*, *>
+                        ?: error("v20 component semantics $name.eventKinds must be an object")
+                    require(eventKinds.keys == contractMetadata.componentEvents.getValue(name).keys) {
+                        "v20 component semantics $name.eventKinds must cover every event"
+                    }
+                    eventKinds.values.forEach { kind ->
+                        require(kind in setOf("update", "ingress", "host_result")) {
+                            "v20 component semantics $name has an unsupported event kind"
+                        }
+                    }
+                }
+            }
             val missingCoreComponents = mobileCoreComponents - contractMetadata.componentContracts.keys
-            if (version == "15") {
+            if (version.toInt() >= 15 && version == currentPackNumber) {
                 require(missingCoreComponents.isEmpty()) {
                     "Mobile core components missing from ${sourceFile.name}: ${missingCoreComponents.joinToString()}"
                 }
@@ -374,6 +498,9 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                 "        \"$escaped\""
             }
             val encodedManifestLines = manifestFile?.readText()?.lines()?.joinToString(",\n") { line ->
+                "        ${line.kotlinString()}"
+            }.orEmpty().ifEmpty { "        \"\"" }
+            val encodedSemanticsLines = semanticsFile?.readText()?.lines()?.joinToString(",\n") { line ->
                 "        ${line.kotlinString()}"
             }.orEmpty().ifEmpty { "        \"\"" }
             val generationContract = buildGenerationContract(
@@ -406,9 +533,13 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
                     internal object GeneratedCanonicalDealUiPackV$version {
                         const val SHA256: String = "$digest"
                         const val MANIFEST_SHA256: String = "$manifestDigest"
+                        const val SEMANTICS_SHA256: String = "$semanticsDigest"
                         const val BUNDLE_SHA256: String = "$bundleDigest"
                         val AGENT_MANIFEST_SOURCE: String = listOf(
                     $encodedManifestLines
+                        ).joinToString("\n")
+                        val SEMANTICS_SOURCE: String = listOf(
+                    $encodedSemanticsLines
                         ).joinToString("\n")
                         val SOURCE: String = listOf(
                     $encodedLines
@@ -457,12 +588,11 @@ abstract class GenerateDealUiPackSource : DefaultTask() {
 }
 
 val generateDealUiPackSource = tasks.register<GenerateDealUiPackSource>("generateDealUiPackSource") {
-    packFiles.from(
-        rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v15.dealui-pack")
-    )
-    manifestFiles.from(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/deal-studio-v15.agent.json"))
+    packFiles.from(rootProject.fileTree("tooling/deal-ui-pack") { include("deal-studio-v*.dealui-pack") })
+    manifestFiles.from(rootProject.fileTree("tooling/deal-ui-pack") { include("deal-studio-v*.agent.json") })
+    semanticsFiles.from(rootProject.fileTree("tooling/deal-ui-pack") { include("deal-studio-v*.semantics.json") })
     toolchainLockFile.set(rootProject.layout.projectDirectory.file("tooling/deal-android-bridge/toolchain.lock"))
-    releaseGateFile.set(rootProject.layout.projectDirectory.file("tooling/deal-ui-pack/benchmarks/v15/gate-status.json"))
+    releaseGateFiles.from(rootProject.fileTree("tooling/deal-ui-pack/benchmarks") { include("v*/gate-status.json") })
     outputDirectory.set(layout.buildDirectory.dir("generated/source/dealUiPack/kotlin"))
 }
 
@@ -507,6 +637,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             buildConfigField(
+                "boolean",
+                "JEV_COHERENT_V20_ENABLED",
+                providers.gradleProperty("jevCoherentV20").orNull?.toBooleanStrictOrNull()?.toString() ?: "false"
+            )
+            buildConfigField(
                 "String",
                 "EMBEDDED_DEEPSEEK_API_KEY",
                 embeddedDeepSeekApiKey.asBuildConfigString()
@@ -526,12 +661,23 @@ android {
                 "EMBEDDED_CEREBRAS_API_KEY_REVISION",
                 embeddedCerebrasApiKeyRevision.asBuildConfigString()
             )
+            // Debug-only provisioning for local device evidence. The key is copied into the
+            // encrypted Settings store on first launch and is never written to source or traces.
+            buildConfigField("String", "EMBEDDED_JEV_API_KEY", embeddedJevApiKey.asBuildConfigString())
+            buildConfigField(
+                "String",
+                "EMBEDDED_JEV_API_KEY_REVISION",
+                embeddedJevApiKeyRevision.asBuildConfigString()
+            )
         }
         release {
+            buildConfigField("boolean", "JEV_COHERENT_V20_ENABLED", "false")
             buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY", "\"\"")
             buildConfigField("String", "EMBEDDED_DEEPSEEK_API_KEY_REVISION", "\"\"")
             buildConfigField("String", "EMBEDDED_CEREBRAS_API_KEY", "\"\"")
             buildConfigField("String", "EMBEDDED_CEREBRAS_API_KEY_REVISION", "\"\"")
+            buildConfigField("String", "EMBEDDED_JEV_API_KEY", "\"\"")
+            buildConfigField("String", "EMBEDDED_JEV_API_KEY_REVISION", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

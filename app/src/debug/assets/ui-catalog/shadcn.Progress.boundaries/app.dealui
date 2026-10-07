@@ -1,0 +1,13 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Determinate progress", supporting: "Normal, overflow, and invalid-maximum boundaries")
+      ui.NumberProgressBar(value: 65.0, maximum: 100.0, label: "Upload 65 percent")
+      ui.NumberProgressBar(value: 140.0, maximum: 100.0, label: "Overflow clamps to complete", tone: ui.tonePositive)
+      ui.NumberProgressBar(value: 10.0, maximum: 0.0, label: "Invalid maximum renders zero", tone: ui.toneWarning)
+    }
+  }
+}

@@ -96,7 +96,7 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `v15 structural diagnostics reject nested cards hero misuse and duplicate route heroes`() {
+    fun `structural diagnostics reject nested cards hero misuse and duplicate route heroes`() {
         val nestedCard = call("Card", call("Card"))
         val heroInCard = call("Card", call("Hero"))
         val duplicateHeroes = call("Hero") + "," + call("Hero")
@@ -122,9 +122,9 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `widget projection accepts semantic v15 content and rejects unsupported input controls`() {
+    fun `widget projection accepts semantic content and rejects unsupported input controls`() {
         CanonicalDealUiParser.parse(
-            structureIr(call("Widget", call("MetricGroup", call("IntStat"))))
+            structureIr(call("Widget", call("Heading") + "," + call("MetricGroup", call("IntStat"))))
         )
         assertEquals(
             "TextField is unavailable on the Android home-screen Widget surface",
@@ -135,11 +135,30 @@ class GeneratedAppThemeTest {
     }
 
     @Test
-    fun `v15 closed values and structural collections fail deterministically`() {
+    fun `closed values and structural collections fail deterministically`() {
         val wrongWidth = callWithArguments("Section", "\"contentWidth\":${literal("tablet")}")
         assertEquals(
             "Section.contentWidth has unsupported value 'tablet'",
             assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongWidth)) }.message
+        )
+        val wrongTextInputKeyboard = callWithArguments("TextField", "\"keyboardType\":${literal("date")}")
+        assertEquals(
+            "TextField.keyboardType has unsupported value 'date'",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongTextInputKeyboard)) }.message
+        )
+        val wrongSelectChild = call("Select", call("Text"))
+        assertEquals(
+            "Select accepts only SelectOption children",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(wrongSelectChild)) }.message
+        )
+        val duplicateSelectValues = call(
+            "Select",
+            callWithArguments("SelectOption", "\"value\":${literal("same")}", "select-option-one") + "," +
+                callWithArguments("SelectOption", "\"value\":${literal("same")}", "select-option-two")
+        )
+        assertEquals(
+            "Select requires unique static option values",
+            assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(duplicateSelectValues)) }.message
         )
         val mixedGrid = call("Grid", call("GridItem", call("Text")) + "," + call("Text"))
         assertEquals(
@@ -159,6 +178,139 @@ class GeneratedAppThemeTest {
         assertEquals(
             "SegmentedControl requires exactly one statically selected SegmentItem",
             assertThrows(IllegalArgumentException::class.java) { CanonicalDealUiParser.parse(structureIr(noSelection)) }.message
+        )
+        val dynamicSegments = call(
+            "SegmentedControl",
+            """{"kind":"foreach","identity":"segments","source":{"kind":"path","parts":["state","options"]},"item":"option","key":{"kind":"path","parts":["option","id"]},"children":[{"kind":"call","name":"ui.SegmentItem","identity":"segment","arguments":{"label":{"kind":"path","parts":["option","label"]},"selected":{"kind":"path","parts":["option","selected"]}},"children":[]}]}"""
+        )
+        CanonicalDealUiParser.parse(structureIr(dynamicSegments))
+        val invalidToggleButtonVariant = callWithArguments("ToggleButton", "\"variant\":${literal("quiet")}")
+        assertEquals(
+            "ToggleButton.variant has unsupported value 'quiet'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidToggleButtonVariant))
+            }.message
+        )
+        val invalidDividerDirection = callWithArguments("Divider", "\"direction\":${literal("diagonal")}")
+        assertEquals(
+            "Divider.direction has unsupported value 'diagonal'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidDividerDirection))
+            }.message
+        )
+        val invalidHeadingLevel = callWithArguments("Heading", "\"level\":${literal("h5")}")
+        assertEquals(
+            "Heading.level has unsupported value 'h5'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidHeadingLevel))
+            }.message
+        )
+        val invalidHeadingAlignment = callWithArguments("Heading", "\"align\":${literal("justify")}")
+        assertEquals(
+            "Heading.align has unsupported value 'justify'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidHeadingAlignment))
+            }.message
+        )
+        val invalidTextStyle = callWithArguments("Text", "\"style\":${literal("display-small")}")
+        assertEquals(
+            "Text.style has unsupported value 'display-small'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTextStyle))
+            }.message
+        )
+        val invalidTextAlignment = callWithArguments("Text", "\"align\":${literal("justify")}")
+        assertEquals(
+            "Text.align has unsupported value 'justify'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTextAlignment))
+            }.message
+        )
+        val invalidBadgeVariant = callWithArguments("Badge", "\"variant\":${literal("critical")}")
+        assertEquals(
+            "Badge.variant has unsupported value 'critical'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidBadgeVariant))
+            }.message
+        )
+        val invalidAvatarSize = callWithArguments("Avatar", "\"size\":${literal("xxl")}")
+        assertEquals(
+            "Avatar.size has unsupported value 'xxl'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidAvatarSize))
+            }.message
+        )
+        val invalidFlexDirection = callWithArguments("Flex", "\"direction\":${literal("diagonal")}")
+        assertEquals(
+            "Flex.direction has unsupported value 'diagonal'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidFlexDirection))
+            }.message
+        )
+        val invalidFlexAlignment = callWithArguments("Flex", "\"align\":${literal("baseline")}")
+        assertEquals(
+            "Flex.align has unsupported value 'baseline'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidFlexAlignment))
+            }.message
+        )
+        val invalidFlexJustification = callWithArguments("Flex", "\"justify\":${literal("evenly")}")
+        assertEquals(
+            "Flex.justify has unsupported value 'evenly'",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidFlexJustification))
+            }.message
+        )
+    }
+
+    @Test
+    fun `checked IR rejects malformed static text area validation`() {
+        val invalidTrigger = callWithArguments("TextArea", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "TextArea.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTrigger))
+            }.message
+        )
+
+        val negativeMinimum = callWithArguments("TextArea", "\"minLength\":{\"kind\":\"literal\",\"value\":-1}")
+        assertEquals(
+            "TextArea.minLength must be non-negative",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(negativeMinimum))
+            }.message
+        )
+
+        val malformedPattern = callWithArguments("TextArea", "\"pattern\":${literal("[")}")
+        assertEquals(
+            "TextArea.pattern is not a valid regular expression",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(malformedPattern))
+            }.message
+        )
+
+        val invalidTextFieldTrigger = callWithArguments("TextField", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "TextField.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidTextFieldTrigger))
+            }.message
+        )
+
+        val invalidSelectTrigger = callWithArguments("Select", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "Select.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidSelectTrigger))
+            }.message
+        )
+
+        val invalidCheckboxTrigger = callWithArguments("Checkbox", "\"validateOn\":${literal("focus")}")
+        assertEquals(
+            "Checkbox.validateOn must be change, blur, or submit",
+            assertThrows(IllegalArgumentException::class.java) {
+                CanonicalDealUiParser.parse(structureIr(invalidCheckboxTrigger))
+            }.message
         )
     }
 

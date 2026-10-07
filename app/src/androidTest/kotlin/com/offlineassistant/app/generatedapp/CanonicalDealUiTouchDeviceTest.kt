@@ -122,6 +122,44 @@ class CanonicalDealUiTouchDeviceTest {
     }
 
     @Test
+    fun headersRenderArbitraryPackCheckedChildren() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = """
+            export class AppState { title: string = "Workspace"; }
+            export function initialState(): AppState { return {title: "Workspace"}; }
+        """.trimIndent()
+        val ui = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+                ui.Root() {
+                    ui.Header(title: state.title) {
+                        ui.Text(value: "Header detail")
+                        ui.Badge(label: "Active")
+                    }
+                    ui.SectionHeader(title: "Records") {
+                        ui.Text(value: "Section detail")
+                    }
+                }
+            }
+        """.trimIndent()
+        val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source))
+        val state = toolchain.createRuntime(deal).snapshot()
+
+        composeRule.setContent {
+            MaterialTheme {
+                CanonicalDealUiRenderer(program, state, onAction = {})
+            }
+        }
+
+        composeRule.onNodeWithText("Header detail").assertExists()
+        composeRule.onNodeWithText("Active").assertExists()
+        composeRule.onNodeWithText("Section detail").assertExists()
+    }
+
+    @Test
     fun pointerSurfaceDispatchesDownAndUpForAnOrdinaryTap() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val toolchain = CanonicalDealToolchain(context)
@@ -216,6 +254,55 @@ class CanonicalDealUiTouchDeviceTest {
         composeRule.waitUntil(timeoutMillis = 5_000) { tapped == listOf(1) }
 
         assertEquals(listOf(1), tapped)
+    }
+
+    @Test
+    fun dynamicAdaptiveChildInsideHorizontalStretchDoesNotCrash() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val toolchain = CanonicalDealToolchain(context)
+        val deal = """
+            export class AppState { count: int = 0; }
+            export class Add { amount: int = 0; }
+            export function initialState(): AppState { return {count: 0}; }
+            // @ui-update
+            export function add(state: AppState, action: Add): AppState {
+                return {count: state.count + action.amount};
+            }
+        """.trimIndent()
+        val ui = """
+            import * as app from "./app";
+            import * as ui from "./platform-ui.dealui-pack";
+            // @ui-root
+            export view App(state: app.AppState): View {
+                ui.Root() { ui.Column() {
+                    ui.Button(text: "Add", onClick: action app.Add { amount: 1 })
+                    ui.Flex(direction: "horizontal", align: "stretch") {
+                        ui.Text(value: "Always visible")
+                        When(state.count > 0) {
+                            ui.Grid(columns: 2) { ui.Text(value: "Visible after add") }
+                        }
+                    }
+                } }
+            }
+        """.trimIndent()
+        val program = CanonicalDealUiParser.parse(toolchain.compilePortable(deal, ui, CanonicalDealUiPack.source))
+        val runtime = toolchain.createRuntime(deal)
+        val state = mutableStateOf(runtime.snapshot())
+        composeRule.setContent {
+            MaterialTheme {
+                CanonicalDealUiRenderer(program, state.value, onAction = { action ->
+                    state.value = runtime.dispatch(
+                        handler = requireNotNull(program.updates[action.type]),
+                        actionType = action.type,
+                        fields = action.fields
+                    )
+                })
+            }
+        }
+
+        composeRule.onNodeWithText("Add").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { state.value.getValue("count").toString() == "1" }
+        composeRule.onNodeWithText("Visible after add").assertExists()
     }
 
     @Test

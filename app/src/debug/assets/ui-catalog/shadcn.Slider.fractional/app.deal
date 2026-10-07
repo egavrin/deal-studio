@@ -1,0 +1,8 @@
+export class AppState { value: number = 2.5; }
+export class ChangeValue { value: number; }
+export function initialState(): AppState { return { value: 2.5 }; }
+// @ui-update
+export function changeValue(state: AppState, action: ChangeValue): AppState {
+  return { value: action.value };
+}
+export function main(): null { return null; }

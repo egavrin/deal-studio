@@ -1,0 +1,12 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Text(value: "Extra-small label", style: ui.textLabelXs, tone: ui.toneMuted)
+      ui.Text(value: "Small label", style: ui.textLabelSm)
+      ui.Text(value: "Medium bold label", style: ui.textLabelMd, emphasis: ui.emphasisHigh, tone: ui.toneAccent)
+    }
+  }
+}

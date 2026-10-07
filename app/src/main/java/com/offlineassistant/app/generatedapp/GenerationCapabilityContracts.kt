@@ -113,7 +113,56 @@ internal object GenerationCapabilityContracts {
         """.trimIndent()
     )
 
-    val all: List<GenerationCapabilityContract> = listOf(minuteClock, pointer, realtimeCanvas, hostCompletion)
+    private val platformActions = GenerationCapabilityContract(
+        id = "platform-actions",
+        capabilities = setOf("navigation.open", "calendar.open", "calendar.write"),
+        requiredComponents = setOf(
+            "HostNavigationButton",
+            "HostCalendarOpenButton",
+            "HostCalendarCreateButton",
+            "HostCalendarClearOwnedButton"
+        ),
+        prompt = """
+            REAL PLATFORM ACTIONS. These are the only checked Android actions that can launch another app or write
+            to the device calendar: navigation.open, calendar.open, calendar.write. Declare each only when the
+            request explicitly requires that platform operation, using `// generated-capability: <name>`, and bind
+            the matching frozen Host*Button `onComplete(payload: string)` to an AppState status field.
+
+            HostNavigationButton accepts checked state-owned latitude/longitude values and may only report launched,
+            unavailable, invalid_request or failed. HostCalendarOpenButton can only report a calendar handoff result.
+            HostCalendarCreateButton creates a real provider event after Android permission; it returns created,
+            permission_denied, unavailable, failed or partial_failure. HostCalendarClearOwnedButton deletes only
+            provider event IDs previously stored for this generated app, never arbitrary user calendar events; it
+            returns cleared, no_owned_events, permission_denied, failed or partial_failure. Do not invent an external
+            function, calendar API, navigation API, permission result or successful outcome. The renderer supplies
+            every completion outcome itself. A checked preview disables these controls because it has no executor.
+        """.trimIndent()
+    )
+
+    val all: List<GenerationCapabilityContract> = listOf(
+        minuteClock,
+        pointer,
+        realtimeCanvas,
+        hostCompletion,
+        platformActions
+    )
+
+    /**
+     * The natural UI-first planner receives the compiler-owned capabilities
+     * that the checked Android renderer can execute. A frozen business result
+     * may use only explicitly declared capabilities and their checked bindings.
+     */
+    val naturalUiFirstLegalCapabilities: List<String> = emptyList()
+
+    /** Executable Android ingress and permission-bound host operations for coherent v20. */
+    val coherentUiFirstLegalCapabilities: List<String> = listOf(
+        "clock.frame",
+        "clock.minute",
+        "pointer",
+        "navigation.open",
+        "calendar.open",
+        "calendar.write"
+    )
 
     val prompt: String = all.joinToString("\n\n") { it.prompt }
 
@@ -146,7 +195,50 @@ internal object GenerationCapabilityContracts {
             actionsFor("PointerSurface", "onPointer").forEach { requireAction(it.name, setOf("x", "y", "phase")) }
             require(actionsFor("PointerSurface", "onPointer").isNotEmpty()) { "PointerSurface requires an onPointer action" }
         }
-        val declaredHostCapabilities = capabilities - setOf("clock.frame", "clock.minute", "pointer")
+        fun requireHostCompletion(component: String) {
+            val completions = actionsFor(component, "onComplete")
+            require(completions.isNotEmpty()) { "$component requires an onComplete action" }
+            completions.forEach { requireAction(it.name, setOf("status")) }
+        }
+
+        fun requireDeclaredActionCapability(capability: String, vararg supportedComponents: String) {
+            val componentsDescription = supportedComponents.joinToString(
+                prefix = "ui.",
+                separator = " or ui."
+            )
+            require(supportedComponents.any { it in components }) {
+                "$capability requires $componentsDescription"
+            }
+        }
+
+        val hostActionCapabilities = setOf("navigation.open", "calendar.open", "calendar.write")
+        if ("navigation.open" in capabilities) {
+            requireDeclaredActionCapability("navigation.open", "HostNavigationButton")
+        }
+        if ("calendar.open" in capabilities) {
+            requireDeclaredActionCapability("calendar.open", "HostCalendarOpenButton")
+        }
+        if ("calendar.write" in capabilities) {
+            requireDeclaredActionCapability("calendar.write", "HostCalendarCreateButton", "HostCalendarClearOwnedButton")
+        }
+        if ("HostNavigationButton" in components) {
+            require("navigation.open" in capabilities) { "ui.HostNavigationButton requires navigation.open" }
+            requireHostCompletion("HostNavigationButton")
+        }
+        if ("HostCalendarOpenButton" in components) {
+            require("calendar.open" in capabilities) { "ui.HostCalendarOpenButton requires calendar.open" }
+            requireHostCompletion("HostCalendarOpenButton")
+        }
+        if ("HostCalendarCreateButton" in components) {
+            require("calendar.write" in capabilities) { "ui.HostCalendarCreateButton requires calendar.write" }
+            requireHostCompletion("HostCalendarCreateButton")
+        }
+        if ("HostCalendarClearOwnedButton" in components) {
+            require("calendar.write" in capabilities) { "ui.HostCalendarClearOwnedButton requires calendar.write" }
+            requireHostCompletion("HostCalendarClearOwnedButton")
+        }
+
+        val declaredHostCapabilities = capabilities - setOf("clock.frame", "clock.minute", "pointer") - hostActionCapabilities
         if (declaredHostCapabilities.isNotEmpty()) {
             require("CapabilityNotice" in components) {
                 "Declared host capabilities require a truthful ui.CapabilityNotice surface"

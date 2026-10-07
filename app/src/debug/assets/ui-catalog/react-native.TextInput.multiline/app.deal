@@ -1,0 +1,8 @@
+export class AppState { notes: string = ""; }
+export class ChangeNotes { value: string; }
+export function initialState(): AppState { return { notes: "" }; }
+// @ui-update
+export function changeNotes(state: AppState, action: ChangeNotes): AppState {
+  return { notes: action.value };
+}
+export function main(): null { return null; }

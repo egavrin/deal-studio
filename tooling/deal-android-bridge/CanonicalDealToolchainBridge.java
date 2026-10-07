@@ -25,6 +25,13 @@ import deal.ui.UiParser;
 import deal.ui.UiCompilerWorkspace;
 import deal.semantic.ir.CanonicalJson;
 import streaming.compiler.CanonicalRefinementSession;
+import streaming.compiler.DirectRawGenerationExecutor;
+import streaming.compiler.SurprisePromptGenerator;
+import streaming.compiler.UiFirstLiveBridge;
+
+import java.util.function.Consumer;
+import streaming.compiler.UiFirstGenerationExecutor;
+import streaming.compiler.UiFirstReplayFixture;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -42,6 +49,8 @@ public final class CanonicalDealToolchainBridge {
     private static final Path UI_FILE = Path.of("/generated/app.dealui");
     private static final Path PACK_FILE = Path.of("/generated/platform-ui.dealui-pack");
     private static final String PACK_SPECIFIER = "./platform-ui.dealui-pack";
+    private static volatile DirectRawGenerationExecutor activeDirectGeneration;
+    private static volatile SurprisePromptGenerator activeSurprisePrompt;
     /**
      * Compiler-visible declarations for the small, deterministic host surface implemented by
      * {@link CanonicalDealRuntime}. They are appended so diagnostics keep the generated source's
@@ -59,6 +68,39 @@ public final class CanonicalDealToolchainBridge {
             """;
 
     private CanonicalDealToolchainBridge() {}
+
+    /** Direct one-file DeepSeek generation; only a compiler-accepted canonical pair is returned. */
+    public static String runDirectRawGeneration(
+            String packSource, String originalUserRequest, String legalCapabilitiesJson, String deepSeekApiKey) {
+        DirectRawGenerationExecutor executor = new DirectRawGenerationExecutor();
+        activeDirectGeneration = executor;
+        try {
+            return executor.run(packSource, originalUserRequest, legalCapabilitiesJson, deepSeekApiKey);
+        } finally {
+            if (activeDirectGeneration == executor) activeDirectGeneration = null;
+        }
+    }
+
+    public static void cancelDirectRawGeneration() {
+        DirectRawGenerationExecutor executor = activeDirectGeneration;
+        if (executor != null) executor.cancel();
+    }
+
+    /** DeepSeek-authored plain request for the product's Surprise Me entrypoint. */
+    public static String runSurprisePromptGeneration(String localeLanguageTag, String deepSeekApiKey) {
+        SurprisePromptGenerator generator = new SurprisePromptGenerator();
+        activeSurprisePrompt = generator;
+        try {
+            return generator.run(localeLanguageTag, deepSeekApiKey);
+        } finally {
+            if (activeSurprisePrompt == generator) activeSurprisePrompt = null;
+        }
+    }
+
+    public static void cancelSurprisePromptGeneration() {
+        SurprisePromptGenerator generator = activeSurprisePrompt;
+        if (generator != null) generator.cancel();
+    }
 
     /** Stateless canonical graph inspection for streaming-compiler clients. */
     public static String inspectCanonicalApp(
@@ -221,6 +263,248 @@ public final class CanonicalDealToolchainBridge {
         } catch (UiDiagnostic diagnostic) {
             throw new IllegalArgumentException(diagnostic.format(), diagnostic);
         }
+    }
+
+    /**
+     * Runs the portable debug/test replay of the smallest complete UI-first transaction against
+     * this bridge's caller-supplied pinned component pack. It deliberately has no provider,
+     * credential, persistence, or publication surface; production generation does not call it.
+     */
+    public static String runUiFirstReplayFixture(String packSource) {
+        requireText(packSource, "platform-ui.dealui-pack");
+        var replay = UiFirstReplayFixture.run(packSource, PACK_SPECIFIER);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("version", replay.version());
+        result.put("dealSource", replay.dealSource());
+        result.put("dealUiSource", replay.dealUiSource());
+        result.put("structuralDigest", replay.structuralDigest());
+        result.put("bindingDigest", replay.bindingDigest());
+        result.put("plannerEvaluations", replay.plannerEvaluations());
+        return CompilerProtocolJson.encode(result);
+    }
+
+    /**
+     * Starts the portable UI-first transaction used by Studio's Jev UI + DEAL mode.
+     *
+     * <p>The opaque handle stays inside this reflection-loaded compiler bundle. The Android host
+     * may transport a provider response, but it cannot construct a draft, lower a recipe plan,
+     * synthesize binding requirements, or link a source pair itself.
+     */
+    public static Object createUiFirstLiveSession(
+            String packSource,
+            String requestDigest,
+            String scenario) {
+        return UiFirstLiveBridge.createStudioSession(packSource, PACK_SPECIFIER, requestDigest, scenario);
+    }
+
+    public static String uiFirstLiveCurrentEvent(Object session) {
+        return UiFirstLiveBridge.studioCurrentEvent(session);
+    }
+
+    public static String uiFirstLiveAdvancePlanner(Object session, String responseJson) {
+        return UiFirstLiveBridge.studioAdvancePlanner(session, responseJson);
+    }
+
+    public static String uiFirstLiveBusinessRequest(
+            Object session,
+            String originalUserRequest,
+            String repairCodesJson) {
+        return UiFirstLiveBridge.studioBusinessRequest(session, originalUserRequest, repairCodesJson);
+    }
+
+    public static String uiFirstLiveCompleteBusiness(Object session, String completionJson) {
+        return UiFirstLiveBridge.studioCompleteBusiness(session, completionJson);
+    }
+
+    /**
+     * Starts the bounded natural-request S0 → S1 → S2 UI-first transaction.
+     *
+     * <p>As with the prepared live session, this bridge deliberately exposes only an opaque
+     * compiler-owned handle. Android can transport finite Jev replies and a constrained business
+     * completion, but it cannot shape a tree, interpret request spans, issue ports, or link a
+     * source pair.
+     */
+    public static Object createNaturalUiFirstLiveSession(
+            String packSource,
+            String requestDigest,
+            String originalUserRequest,
+            String viewportClass,
+            String locale,
+            String legalCapabilitiesJson) {
+        return UiFirstLiveBridge.createNaturalStudioSession(
+                packSource,
+                PACK_SPECIFIER,
+                requestDigest,
+                originalUserRequest,
+                viewportClass,
+                locale,
+                legalCapabilitiesJson);
+    }
+
+    public static String naturalUiFirstLiveCurrentEvent(Object session) {
+        return UiFirstLiveBridge.studioNaturalCurrentEvent(session);
+    }
+
+    public static String naturalUiFirstLiveAdvancePlanner(Object session, String responseJson) {
+        return UiFirstLiveBridge.studioNaturalAdvancePlanner(session, responseJson);
+    }
+
+    public static String naturalUiFirstLiveBusinessRequest(Object session, String repairCodesJson) {
+        return UiFirstLiveBridge.studioNaturalBusinessRequest(session, repairCodesJson);
+    }
+
+    public static String naturalUiFirstLiveCompleteBusiness(Object session, String completionJson) {
+        return UiFirstLiveBridge.studioNaturalCompleteBusiness(session, completionJson);
+    }
+
+    /**
+     * Opens the sole source-free S3 write surface after the natural UI draft has frozen.
+     * Android receives a strict compiler tool schema only; canonical source strings never cross
+     * this boundary until the compiler has linked and accepted the complete pair.
+     */
+    public static String naturalUiFirstBusinessConstructionRequest(Object session) {
+        return UiFirstLiveBridge.studioNaturalBusinessConstructionRequest(session);
+    }
+
+    /** Applies one {@code construct_complete_frozen_business} tool call atomically. */
+    public static String naturalUiFirstAdvanceBusinessConstruction(Object session, String toolCallJson) {
+        return UiFirstLiveBridge.studioNaturalAdvanceBusinessConstruction(session, toolCallJson);
+    }
+
+    /**
+     * Executes Jev planning and raw DEAL Flash generation through the versioned frozen ABI.
+     * The compiler permits one replacement repair and atomically admits the source pair.
+     * Credentials are a transient in-memory JSON bundle and are never echoed in the result.
+     */
+    public static String runNaturalUiFirstGeneration(
+            String packSource,
+            String originalUserRequest,
+            String viewportClass,
+            String locale,
+            String legalCapabilitiesJson,
+            String jevModel,
+            String deepSeekModel,
+            String credentialBundleJson) {
+        return UiFirstGenerationExecutor.run(
+                packSource,
+                PACK_SPECIFIER,
+                originalUserRequest,
+                viewportClass,
+                locale,
+                legalCapabilitiesJson,
+                jevModel,
+                deepSeekModel,
+                credentialBundleJson);
+    }
+
+    /** Same compiler-owned transaction with a one-way, source-free frozen-preview callback. */
+    public static String runNaturalUiFirstGenerationWithPreview(
+            String packSource,
+            String originalUserRequest,
+            String viewportClass,
+            String locale,
+            String legalCapabilitiesJson,
+            String jevModel,
+            String deepSeekModel,
+            String credentialBundleJson,
+            Consumer<String> previewConsumer) {
+        return UiFirstGenerationExecutor.run(
+                packSource,
+                PACK_SPECIFIER,
+                originalUserRequest,
+                viewportClass,
+                locale,
+                legalCapabilitiesJson,
+                jevModel,
+                deepSeekModel,
+                credentialBundleJson,
+                previewConsumer);
+    }
+
+    public static String runManifestUiFirstGenerationWithPreview(
+            String packSource, String originalUserRequest, String viewportClass, String locale,
+            String legalCapabilitiesJson, String jevModel, String deepSeekModel, String credentialBundleJson,
+            Consumer<String> previewConsumer, String rendererComponentsJson, String rendererQualityEvidenceJson) {
+        if (!((deal.semantic.ir.CanonicalJson.Arr) deal.semantic.ir.CanonicalJson.parse(legalCapabilitiesJson)).items().isEmpty())
+            throw new IllegalArgumentException("UI-first portable capabilities must be empty");
+        return UiFirstGenerationExecutor.runManifest(packSource, PACK_SPECIFIER, originalUserRequest,
+                viewportClass, locale, legalCapabilitiesJson, jevModel, deepSeekModel, credentialBundleJson,
+                previewConsumer, rendererComponentsJson, rendererQualityEvidenceJson);
+    }
+
+    public static String runManifestUiFirstGenerationWithPreview(
+            String packSource, String originalUserRequest, String viewportClass, String locale,
+            String legalCapabilitiesJson, String jevModel, String deepSeekModel, String credentialBundleJson,
+            Consumer<String> previewConsumer, String rendererComponentsJson, String rendererQualityEvidenceJson,
+            String componentSemanticsJson) {
+        if (!((deal.semantic.ir.CanonicalJson.Arr) deal.semantic.ir.CanonicalJson.parse(legalCapabilitiesJson)).items().isEmpty())
+            throw new IllegalArgumentException("UI-first portable capabilities must be empty");
+        return UiFirstGenerationExecutor.runManifest(packSource, PACK_SPECIFIER, originalUserRequest,
+                viewportClass, locale, legalCapabilitiesJson, jevModel, deepSeekModel, credentialBundleJson,
+                previewConsumer, rendererComponentsJson, rendererQualityEvidenceJson, componentSemanticsJson);
+    }
+
+    public static String runManifestCoherentUiFirstGenerationWithPreview(
+            String packSource, String request, String viewport, String locale, String capabilities,
+            String jevModel, String deepSeekModel, String credentials, Consumer<String> preview,
+            String renderers, String quality, String semantics, Consumer<String> trace) {
+        return UiFirstGenerationExecutor.runManifestCoherent(packSource, PACK_SPECIFIER, request,
+                viewport, locale, capabilities, jevModel, deepSeekModel, credentials,
+                preview, renderers, quality, semantics, trace);
+    }
+
+    public static String runManifestUiFirstGenerationWithTrace(
+            String packSource, String request, String viewport, String locale, String capabilities,
+            String jevModel, String deepSeekModel, String credentials, Consumer<String> preview,
+            String renderers, String quality, String semantics, Consumer<String> trace) {
+        return UiFirstGenerationExecutor.runManifest(packSource, PACK_SPECIFIER, request,
+                viewport, locale, capabilities, jevModel, deepSeekModel, credentials,
+                preview, renderers, quality, semantics, trace);
+    }
+
+    public static String appInterfaceFingerprint(String dealSource) {
+        validateDealForUi(dealSource);
+        var snapshot = CanonicalCompiler.extractAppInterface(embedded(dealSource).dealSource());
+        if (snapshot == null) throw new IllegalArgumentException("app.deal has no AppInterface");
+        return snapshot.fingerprint();
+    }
+
+    public static Object createManifestUiSession(String packSource, String request, String rendererComponentsJson, String rendererQualityEvidenceJson) {
+        List<String> names = ((deal.semantic.ir.CanonicalJson.Arr) deal.semantic.ir.CanonicalJson.parse(rendererComponentsJson)).items().stream()
+                .map(value -> ((deal.semantic.ir.CanonicalJson.Str) value).value()).toList();
+        return new streaming.compiler.ManifestUiRefinementSession(packSource, PACK_SPECIFIER, request,
+                "compact-phone", "en", List.of(), new java.util.HashSet<>(names), rendererQualityEvidenceJson);
+    }
+
+    public static Object createManifestUiSession(String packSource, String request, String rendererComponentsJson,
+            String rendererQualityEvidenceJson, String componentSemanticsJson) {
+        List<String> names = ((deal.semantic.ir.CanonicalJson.Arr) deal.semantic.ir.CanonicalJson.parse(rendererComponentsJson)).items().stream()
+                .map(value -> ((deal.semantic.ir.CanonicalJson.Str) value).value()).toList();
+        return new streaming.compiler.ManifestUiRefinementSession(packSource, PACK_SPECIFIER, request,
+                "compact-phone", "en", List.of(), new java.util.HashSet<>(names),
+                rendererQualityEvidenceJson, componentSemanticsJson);
+    }
+
+    public static String manifestUiCurrentEvent(Object session) {
+        return deal.compiler.CompilerProtocolJson.encode(((streaming.compiler.ManifestUiRefinementSession) session).event());
+    }
+
+    public static String manifestUiAdvance(Object session, String response) {
+        var manifest = (streaming.compiler.ManifestUiRefinementSession) session;
+        manifest.advance(response);
+        return deal.compiler.CompilerProtocolJson.encode(manifest.event());
+    }
+
+    /** Applies the sole compiler-determined preview patch without fabricating a provider answer. */
+    public static String manifestUiApplyForcedPatch(Object session) {
+        var manifest = (streaming.compiler.ManifestUiRefinementSession) session;
+        manifest.applyForcedPatch();
+        return deal.compiler.CompilerProtocolJson.encode(manifest.event());
+    }
+
+    /** Cancels the active compiler-owned UI-first provider transport, if there is one. */
+    public static void cancelNaturalUiFirstGeneration() {
+        UiFirstGenerationExecutor.cancelActive();
     }
 
     /**

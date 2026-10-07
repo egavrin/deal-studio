@@ -1,0 +1,8 @@
+export class AppState { priority: string = ""; validationVisible: boolean = true; }
+export class ChangePriority { value: string; }
+export function initialState(): AppState { return { priority: "", validationVisible: true }; }
+// @ui-update
+export function changePriority(state: AppState, action: ChangePriority): AppState {
+  return { priority: action.value, validationVisible: state.validationVisible };
+}
+export function main(): null { return null; }

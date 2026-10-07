@@ -1,0 +1,8 @@
+export class AppState { password: string = "hunter2"; }
+export class ChangePassword { value: string; }
+export function initialState(): AppState { return { password: "hunter2" }; }
+// @ui-update
+export function changePassword(state: AppState, action: ChangePassword): AppState {
+  return { password: action.value };
+}
+export function main(): null { return null; }

@@ -193,6 +193,23 @@ class DeepSeekGenerationClientTest {
             listOf("system", "user"),
             body["messages"]!!.jsonArray.map { it.jsonObject["role"]!!.jsonPrimitive.content }
         )
+        assertTrue(body["response_format"] == null)
+    }
+
+    @Test
+    fun `deepseek chat request can require a JSON object without changing the default path`() {
+        val client = DeepSeekGenerationClient(apiKeyProvider = { "test" })
+        val body = client.requestBody(
+            DeepSeekGenerationRequest(
+                model = DeepSeekGenerationModel.FLASH,
+                instructions = "Return a compiler completion.",
+                input = "Frozen binding requirements.",
+                maxOutputTokens = 1024,
+                jsonObjectResponse = true
+            )
+        )
+
+        assertEquals("json_object", body["response_format"]!!.jsonObject["type"]!!.jsonPrimitive.content)
     }
 
     @Test

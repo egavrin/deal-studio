@@ -1,0 +1,12 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Text(value: "Start-aligned paragraph", style: ui.textBody)
+      ui.Text(value: "Centered paragraph keeps its fractional native size and stays within two lines.", style: ui.textBody, align: "center", fontSize: 19.5, maxLines: 2, tone: ui.toneAccent)
+      ui.Text(value: "End-aligned single-line paragraph", style: ui.textBody, align: "end", maxLines: 1, tone: ui.toneMuted)
+    }
+  }
+}

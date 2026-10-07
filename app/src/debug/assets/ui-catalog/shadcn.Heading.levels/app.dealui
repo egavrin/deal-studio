@@ -1,0 +1,14 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceMd, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Text(value: "shadcn heading hierarchy", style: ui.textCaption, tone: ui.toneMuted)
+      ui.Heading(text: "Heading level one", level: "h1")
+      ui.Heading(text: "Heading level two", level: "h2")
+      ui.Heading(text: "Heading level three", level: "h3")
+      ui.Heading(text: "Heading level four", level: "h4")
+    }
+  }
+}

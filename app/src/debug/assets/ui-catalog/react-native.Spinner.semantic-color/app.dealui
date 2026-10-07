@@ -1,0 +1,11 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Native loading indicator", supporting: "Source color is adapted to an accessible semantic tone")
+      ui.Spinner(size: ui.spinnerLarge, label: "Synchronizing records", tone: ui.tonePositive)
+    }
+  }
+}

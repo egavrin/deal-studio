@@ -19,6 +19,9 @@ class GenerationMetricsTest {
         assertEquals(3, metrics.modelCalls)
         assertEquals(0, metrics.compilerRepairCalls)
         assertEquals(5_100L, metrics.firstInteractivePreviewMs)
+        assertEquals(1_200L, metrics.firstCheckedUiPreviewMs)
+        assertEquals("batch", metrics.uiPlanningRoute)
+        assertEquals(2, metrics.uiPlanningHttpAttempts)
         assertEquals(100.0, metrics.outputTokensPerSecond!!, 0.01)
     }
 
@@ -60,6 +63,9 @@ class GenerationMetricsTest {
         dealUiCachedInputTokens = 400,
         dealUiOutputTokens = 350,
         dealUiAcceptedPatches = 4,
-        firstInteractivePreviewMs = 5_100
+        firstCheckedUiPreviewMs = 1_200,
+        firstInteractivePreviewMs = 5_100,
+        uiPlanningRoute = "batch",
+        uiPlanningHttpAttempts = 2
     )
 }

@@ -53,7 +53,15 @@ internal data class CanonicalGeneratedAppBundle(
     val dealUiCachedInputTokens: Int = 0,
     val dealUiOutputTokens: Int = 0,
     val dealUiAcceptedPatches: Int = 0,
+    val firstCheckedUiPreviewMs: Long? = null,
     val firstInteractivePreviewMs: Long? = null,
+    val uiPlanningRoute: String? = null,
+    val uiPlanningFallbackReason: String? = null,
+    val uiSelectLatencyMs: Long? = null,
+    val uiLayoutLatencyMs: Long? = null,
+    val uiRepairLatencyMs: Long? = null,
+    val uiLocalCompilerLatencyMs: Long? = null,
+    val uiPlanningHttpAttempts: Int? = null,
     val dealModelId: String = "deepseek-chat",
     val dealUiModelId: String = "deepseek-chat",
     val promptDigest: String = "",
@@ -162,8 +170,12 @@ internal data class CanonicalGenerationAttemptTelemetry(
 )
 
 internal enum class CanonicalGenerationPhase {
+    JEV_SELECT,
+    JEV_LAYOUT,
+    UI_PREVIEW,
     DEAL,
     DEAL_UI,
+    LINKING,
     VALIDATING,
     REPAIRING,
     RETRYING
@@ -554,6 +566,12 @@ internal data class AppInterfaceType(val name: String, val fields: List<AppInter
 internal data class AppInterfaceField(val name: String, val type: String)
 
 internal object AppInterfaceCompiler {
+    // Android admission budget shared by both schemas and checked interface parsing.
+    // Map-backed runtime fields allow wide presentation models; retain a finite local budget
+    // in addition to the upstream compiler's language resource limits.
+    const val MAX_FIELDS_PER_TYPE = 256
+    const val FIELD_LIMIT_ERROR = "APP_INTERFACE_FIELD_LIMIT"
+
     val declarationsSchema: JsonObject = Json.parseToJsonElement(
         """
         {
@@ -563,11 +581,11 @@ internal object AppInterfaceCompiler {
             "root_state":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},
             "types":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
-            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
+            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control","navigation.open","calendar.open","calendar.write"]},"uniqueItems":true}
           },
           "${'$'}defs":{
             "field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},
-            "type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":48,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}
+            "type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":$MAX_FIELDS_PER_TYPE,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}
           }
         }
         """.trimIndent()
@@ -583,9 +601,9 @@ internal object AppInterfaceCompiler {
             "root_state":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},
             "types":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
             "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"${'$'}ref":"#/${'$'}defs/type"}},
-            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control"]},"uniqueItems":true}
+            "capabilities":{"type":"array","maxItems":12,"items":{"type":"string","enum":["clock.minute","clock.frame","pointer","keyboard","storage.private","notifications","camera.capture","vision.ocr","health.read","focus.control","navigation.open","calendar.open","calendar.write"]},"uniqueItems":true}
           },
-            "${'$'}defs":{"field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},"type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":48,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}}
+            "${'$'}defs":{"field":{"type":"object","additionalProperties":false,"required":["name","type"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9]{0,47}$"},"type":{"type":"string","pattern":"^(boolean|int|number|string|[A-Z][A-Za-z0-9]{0,47})(\\[\\])?$"}}},"type":{"type":"object","additionalProperties":false,"required":["name","fields"],"properties":{"name":{"type":"string","pattern":"^[A-Z][A-Za-z0-9]{0,47}$"},"fields":{"type":"array","maxItems":$MAX_FIELDS_PER_TYPE,"items":{"${'$'}ref":"#/${'$'}defs/field"}}}}}
         }
         """.trimIndent()
     ).jsonObject
@@ -649,7 +667,9 @@ internal object AppInterfaceCompiler {
         require(value.keys == setOf("name", "fields")) {
             "AppInterface type must contain exactly name and fields"
         }
-        val fields = value.getValue("fields").jsonArray.map { fieldElement ->
+        val fieldValues = value.getValue("fields").jsonArray
+        require(fieldValues.size <= MAX_FIELDS_PER_TYPE) { FIELD_LIMIT_ERROR }
+        val fields = fieldValues.map { fieldElement ->
             val field = fieldElement.jsonObject
             require(field.keys == setOf("name", "type")) {
                 "AppInterface field must contain exactly name and type"
@@ -659,7 +679,6 @@ internal object AppInterfaceCompiler {
                 field.getValue("type").jsonPrimitive.content
             )
         }
-        require(fields.size <= 48) { "AppInterfaceV1 class has too many fields" }
         require(fields.map(AppInterfaceField::name).distinct().size == fields.size) {
             "AppInterface field names must be unique in ${value.getValue("name").jsonPrimitive.content}"
         }
@@ -680,7 +699,10 @@ internal object AppInterfaceCompiler {
         "camera.capture",
         "vision.ocr",
         "health.read",
-        "focus.control"
+        "focus.control",
+        "navigation.open",
+        "calendar.open",
+        "calendar.write"
     )
 }
 

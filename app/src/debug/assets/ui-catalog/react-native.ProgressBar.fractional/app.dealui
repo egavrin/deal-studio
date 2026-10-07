@@ -1,0 +1,18 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Fractional progress", supporting: "React Native 0..1 range with semantic foreground and track colors")
+      ui.NumberProgressBar(
+        value: 0.65,
+        maximum: 1.0,
+        label: "Synchronizing 65 percent",
+        heightDp: 8,
+        tone: ui.tonePositive,
+        trackTone: ui.toneMuted
+      )
+    }
+  }
+}

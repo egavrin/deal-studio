@@ -1,0 +1,30 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Email input", supporting: "IME submit, focus, blur, and checked validation")
+      ui.TextField(
+        name: "email",
+        value: state.email,
+        label: "Email",
+        placeholder: "you@example.com",
+        inputType: ui.textInputEmail,
+        keyboardType: ui.keyboardEmailAddress,
+        required: true,
+        requiredMessage: "Email is required",
+        email: true,
+        emailMessage: "Enter a valid email address",
+        validateOn: ui.validationOnSubmit,
+        validationVisible: state.validationVisible,
+        onChange: action app.ChangeEmail { value: payload },
+        onSubmit: action app.SubmitEmail { value: payload },
+        onFocus: action app.FocusEmail {},
+        onBlur: action app.BlurEmail {},
+        accessibilityLabel: "Email input"
+      )
+      ui.Text(value: state.submitted)
+    }
+  }
+}

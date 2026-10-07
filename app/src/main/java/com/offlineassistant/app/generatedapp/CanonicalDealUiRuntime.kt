@@ -7,12 +7,19 @@
 package com.offlineassistant.app.generatedapp
 
 import android.graphics.Paint
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
@@ -26,6 +33,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,9 +42,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -110,6 +121,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
@@ -118,7 +131,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
@@ -127,7 +139,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -135,6 +149,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -150,11 +165,15 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -163,19 +182,33 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.toColorInt
 import coil3.compose.AsyncImage
 import com.offlineassistant.app.ui.theme.DealStudioSpacing
+import java.util.Calendar
+import java.util.Locale
+import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -301,7 +334,8 @@ internal object CanonicalDealUiParser {
             tokens = root.getValue("tokens").jsonObject.mapValues { expression(it.value) }
         ).also(CanonicalDealUiProgram::validateAppTheme)
             .also(CanonicalDealUiProgram::validateWidgetSurface)
-            .also(CanonicalDealUiProgram::validateV15Structure)
+            .also(CanonicalDealUiProgram::validateStructure)
+            .also(CanonicalDealUiProgram::validateFieldValidation)
     }
 
     private fun metadata(value: JsonObject) = CanonicalDealUiCheckedMetadata(
@@ -459,7 +493,7 @@ private fun CanonicalUiNode.Call.themeLiteralOrDefault(name: String, tokens: Map
     } ?: throw IllegalArgumentException("AppTheme $name must be a static string literal or exported typed token")
 }
 
-private fun CanonicalDealUiProgram.validateV15Structure() {
+private fun CanonicalDealUiProgram.validateStructure() {
     val contentWidths = setOf("compact", "standard", "wide", "full")
     val itemSizes = setOf("compact", "standard", "prominent")
     val balances = setOf("content-first", "balanced", "metric-first")
@@ -480,7 +514,21 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
         "ListGroup.density" to setOf("compact", "comfortable"),
         "Hero.height" to setOf("compact", "standard", "expanded"),
         "Card.orientation" to setOf("vertical", "horizontal"),
-        "ActionBar.collapseBehavior" to setOf("wrap", "stack")
+        "ActionBar.collapseBehavior" to setOf("wrap", "stack"),
+        "Text.style" to setOf("caption", "body", "title", "headline", "metric", "display", "muted", "lead", "code", "label-xs", "label-sm", "label-md"),
+        "Text.align" to setOf("start", "center", "end"),
+        "Text.emphasis" to setOf("low", "medium", "high"),
+        "Badge.variant" to setOf("default", "secondary", "destructive", "outline", "info", "success", "warning", "error"),
+        "Flex.direction" to setOf("horizontal", "vertical"),
+        "Flex.align" to setOf("start", "center", "end", "stretch"),
+        "Flex.justify" to setOf("start", "center", "end", "between", "around"),
+        "Heading.level" to setOf("h1", "h2", "h3", "h4"),
+        "Heading.align" to setOf("start", "center", "end"),
+        "Avatar.size" to setOf("sm", "md", "lg", "xl"),
+        "Divider.direction" to setOf("horizontal", "vertical"),
+        "ToggleButton.variant" to setOf("default", "outline"),
+        "TextField.inputType" to setOf("text", "email", "password", "number"),
+        "TextField.keyboardType" to setOf("default", "email-address", "numeric", "phone-pad", "url")
     )
     fun staticString(expression: CanonicalUiExpr): String? = runCatching {
         evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null).let { value ->
@@ -491,6 +539,18 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
             }
         }
     }.getOrNull()
+    fun containsOnlyOptionChildren(nodes: List<CanonicalUiNode>, optionComponent: String): Boolean = nodes.all { node ->
+        when (node) {
+            is CanonicalUiNode.Call -> node.name.substringAfterLast('.') == optionComponent
+
+            is CanonicalUiNode.When -> containsOnlyOptionChildren(node.thenNodes, optionComponent) &&
+                containsOnlyOptionChildren(node.elseNodes, optionComponent)
+
+            is CanonicalUiNode.ForEach -> containsOnlyOptionChildren(node.children, optionComponent)
+
+            is CanonicalUiNode.Scope -> containsOnlyOptionChildren(node.children, optionComponent)
+        }
+    }
     fun countHeroes(nodes: List<CanonicalUiNode>): Int = nodes.sumOf { node ->
         when (node) {
             is CanonicalUiNode.Call -> {
@@ -521,15 +581,11 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
                     }
                 }
             }
-            if (component == "Header" || component == "SectionHeader") {
-                require(
-                    node.children.size <= 1 && node.children.all {
-                        it is CanonicalUiNode.Call && it.name.substringAfterLast('.') in setOf("Button", "IconButton")
-                    }
-                ) { "$component accepts at most one Button or IconButton child" }
-            }
             if (component == "SegmentedControl") {
-                require(node.children.size in 2..4) { "SegmentedControl requires two to four SegmentItem children" }
+                // ForEach and When are checked by the compiler but expand only with runtime state.
+                if (node.children.all { it is CanonicalUiNode.Call }) {
+                    require(node.children.size in 2..4) { "SegmentedControl requires two to four SegmentItem children" }
+                }
                 val staticSelections = node.children.mapNotNull { child ->
                     (child as? CanonicalUiNode.Call)?.arguments?.get("selected")?.let {
                         staticString(it) ?: runCatching {
@@ -549,6 +605,22 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
                 val wrapped = node.children.count { it is CanonicalUiNode.Call && it.name.substringAfterLast('.') == "GridItem" }
                 require(wrapped == 0 || wrapped == node.children.size) { "Grid cannot mix direct children with GridItem children" }
             }
+            val optionComponent = when (component) {
+                "Select" -> "SelectOption"
+                "RadioGroup" -> "RadioOption"
+                else -> null
+            }
+            optionComponent?.let { expected ->
+                require(containsOnlyOptionChildren(node.children, expected)) { "$component accepts only $expected children" }
+                val directOptionValues = node.children.filterIsInstance<CanonicalUiNode.Call>().mapNotNull { child ->
+                    child.arguments["value"]?.let(::staticString)
+                }
+                if (directOptionValues.size == node.children.size) {
+                    require(directOptionValues.size == directOptionValues.toSet().size) {
+                        "$component requires unique static option values"
+                    }
+                }
+            }
             node.children.forEach { walk(it, insideCard || component == "Card", component) }
         }
 
@@ -559,6 +631,56 @@ private fun CanonicalDealUiProgram.validateV15Structure() {
         is CanonicalUiNode.Scope -> node.children.forEach { walk(it, insideCard, parent) }
     }
     nodes.forEach { walk(it, false) }
+}
+
+private fun CanonicalDealUiProgram.validateFieldValidation() {
+    fun staticValue(expression: CanonicalUiExpr, message: String): JsonElement = runCatching { evaluate(expression, JsonObject(emptyMap()), emptyMap(), tokens, null) }
+        .getOrElse { throw IllegalArgumentException(message) }
+
+    fun validateCall(call: CanonicalUiNode.Call) {
+        val componentName = call.name.substringAfterLast('.')
+        if (componentName !in setOf("TextArea", "TextField", "Select", "RadioGroup", "Checkbox", "Toggle")) return
+        call.arguments["validateOn"]?.let { expression ->
+            val value = staticValue(expression, "$componentName.validateOn must be a static validation trigger")
+            canonicalValidationTrigger(
+                value = value,
+                componentName = componentName,
+                defaultTrigger = if (componentName in setOf("Select", "RadioGroup", "Checkbox", "Toggle")) {
+                    CanonicalValidationTrigger.CHANGE
+                } else {
+                    CanonicalValidationTrigger.BLUR
+                }
+            )
+        }
+        call.arguments["pattern"]?.let { expression ->
+            val value = staticValue(expression, "$componentName.pattern must be a static string")
+            val pattern = value.asString()
+            if (pattern.isNotBlank()) {
+                runCatching { Regex(pattern) }.getOrElse {
+                    throw IllegalArgumentException("$componentName.pattern is not a valid regular expression")
+                }
+            }
+        }
+        listOf("minLength", "maxLength").forEach { property ->
+            call.arguments[property]?.let { expression ->
+                val value = staticValue(expression, "$componentName.$property must be a static non-negative integer")
+                require(value.asInt() >= 0) { "$componentName.$property must be non-negative" }
+            }
+        }
+    }
+    fun walk(node: CanonicalUiNode): Unit = when (node) {
+        is CanonicalUiNode.Call -> {
+            validateCall(node)
+            node.children.forEach(::walk)
+        }
+
+        is CanonicalUiNode.When -> (node.thenNodes + node.elseNodes).forEach(::walk)
+
+        is CanonicalUiNode.ForEach -> node.children.forEach(::walk)
+
+        is CanonicalUiNode.Scope -> node.children.forEach(::walk)
+    }
+    nodes.forEach(::walk)
 }
 
 private fun CanonicalDealUiProgram.validateWidgetSurface() {
@@ -599,7 +721,7 @@ private fun CanonicalUiNode.validateWidgetNode() {
 }
 
 private val WIDGET_COMPONENTS = setOf(
-    "Column", "Row", "Stack", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "IntText", "NumberText", "Icon",
+    "Column", "Row", "Stack", "Flex", "Grid", "Card", "Section", "Hero", "MetricGroup", "ActionBar", "Text", "Heading", "IntText", "NumberText", "Icon",
     "IconButton", "Button", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Spacer", "Badge", "Stat",
     "IntStat", "NumberStat", "IntListItem", "ListItem", "Checkbox", "Toggle", "Divider"
 )
@@ -607,12 +729,13 @@ private val WIDGET_COMPONENTS = setOf(
 internal val canonicalRendererComponents = setOf(
     "ActionBar", "AnimatedVisibility", "AppTheme", "Avatar", "Badge", "BarChart", "BottomSheet", "Button", "Header", "SectionHeader",
     "Canvas", "CanvasText", "CapabilityNotice", "Card", "Checkbox", "Choice", "ChoiceItem", "Circle",
-    "Column", "Dialog", "Divider", "EmptyState", "Frame", "FrameClock", "Grid", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
+    "Column", "Dialog", "Divider", "EmptyState", "Flex", "Frame", "FrameClock", "Grid", "Heading", "Hero", "Icon", "IconButton", "Image", "IntField", "IntStat",
     "IntText", "NumberText", "IntListItem", "Line", "ListItem", "Menu", "MenuItem", "MinuteClock", "Modal", "NavigationBar", "NavigationItem",
-    "MetricGroup", "PointerSurface", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "Row",
-    "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
-    "Scroll", "Section", "Slider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
-    "Tabs", "Text", "TextField", "NumberField", "NumberStat", "Tile", "TimeField", "Toggle", "TopBar", "Widget"
+    "MetricGroup", "PointerSurface", "Pressable", "Spinner", "Skeleton", "ProgressBar", "ProgressRing", "NumberProgressBar", "NumberProgressRing", "Rectangle", "Root", "RoundRectangle", "Route", "BackHandler", "Row",
+    "HostNavigationButton", "HostCalendarOpenButton", "HostCalendarCreateButton", "HostCalendarClearOwnedButton",
+    "RadioGroup", "RadioOption", "Select", "SelectOption", "SegmentedControl", "SegmentItem", "Timeline", "TimelineItem", "KeyValueGroup", "KeyValueItem", "InsetBanner", "ListGroup", "GridItem",
+    "Scroll", "Section", "Slider", "NumberSlider", "Snackbar", "Spacer", "Sparkline", "Stack", "Stat", "Stepper", "TabItem",
+    "Tabs", "Text", "TextField", "TextArea", "NumberField", "NumberStat", "Tile", "TimeField", "DateTimeField", "Toggle", "ToggleButton", "TopBar", "Widget"
 )
 
 internal fun adaptiveColumnCount(availableWidthDp: Float, maximumColumns: Int, minimumCellWidthDp: Int): Int {
@@ -642,12 +765,61 @@ internal fun CanonicalDealUiRenderer(
     state: JsonObject,
     modifier: Modifier = Modifier,
     onAction: (CanonicalUiAction) -> Unit,
-    hostScrolling: Boolean = false
+    hostScrolling: Boolean = false,
+    hostActionExecutor: CanonicalHostActionExecutor? = null,
+    inertPreview: Boolean = false,
+    skeletonBindingTypes: JsonObject? = null
 ) {
+    val previewNodes = remember(program, inertPreview, skeletonBindingTypes) {
+        if (inertPreview && skeletonBindingTypes != null) canonicalSkeletonNodes(program.nodes, program.tokens) else program.nodes
+    }
     GeneratedAppTheme(program.themeSpec()) {
         Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            CompositionLocalProvider(LocalCanonicalHostScrolling provides hostScrolling) {
-                CanonicalNodes(program, state, emptyMap(), program.nodes, onAction, Modifier.fillMaxSize())
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (inertPreview) {
+                            Modifier
+                                .focusProperties { canFocus = false }
+                                .clearAndSetSemantics {
+                                    disabled()
+                                    contentDescription = "App preview. Loading"
+                                }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                CompositionLocalProvider(
+                    LocalCanonicalInertPreview provides inertPreview,
+                    LocalCanonicalFocusRegistry provides remember(program) { CanonicalFocusRegistry() },
+                    LocalCanonicalHostScrolling provides (hostScrolling && !inertPreview),
+                    LocalCanonicalHostActionExecutor provides hostActionExecutor.takeUnless { inertPreview }
+                ) {
+                    CanonicalNodes(
+                        program,
+                        state,
+                        emptyMap(),
+                        previewNodes,
+                        if (inertPreview) ({ _ -> }) else onAction,
+                        Modifier.fillMaxSize()
+                    )
+                }
+                if (inertPreview) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        awaitPointerEvent().changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                            .clearAndSetSemantics { disabled() }
+                    )
+                }
             }
         }
     }
@@ -662,6 +834,11 @@ private fun CanonicalNodes(
     onAction: (CanonicalUiAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // A system-back listener is an event ingress, not a layout node. Compose must still
+    // install it before the visible tree is rendered, including when it is the only node
+    // selected by a conditional branch.
+    nodes.filterNot { it.producesLayout(program, state, scope) }
+        .forEach { node -> CanonicalNode(program, state, scope, node, onAction) }
     val renderedNodes = nodes.filter { it.producesLayout(program, state, scope) }
     if (renderedNodes.isEmpty()) return
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DealStudioSpacing.Md)) {
@@ -689,7 +866,7 @@ private fun CanonicalUiNode.producesLayout(
         children.any { it.producesLayout(program, state, nested) }
     }
 
-    is CanonicalUiNode.Call -> true
+    is CanonicalUiNode.Call -> name.substringAfterLast('.') != "BackHandler"
 }
 
 @Composable
@@ -717,7 +894,13 @@ private fun CanonicalNode(
         is CanonicalUiNode.ForEach -> {
             val items = evaluate(node.source, null) as? JsonArray ?: JsonArray(emptyList())
             items.forEach { item ->
-                CanonicalNodes(program, state, scope + (node.item to item), node.children, onAction, modifier)
+                val itemScope = scope + (node.item to item)
+                val itemKey = canonicalForEachKey(
+                    evaluate(node.key, state, itemScope, program.tokens, null)
+                )
+                key(node.identity, itemKey) {
+                    CanonicalNodes(program, state, itemScope, node.children, onAction, modifier)
+                }
             }
         }
 
@@ -740,11 +923,18 @@ private fun RenderCall(
     modifier: Modifier
 ) {
     val name = call.name.substringAfterLast('.')
-    val value = { key: String -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) } }
+    val inert = LocalCanonicalInertPreview.current
+    val value = { key: String ->
+        when {
+            inert && key == "disabled" -> JsonPrimitive(true)
+            inert && key == "enabled" -> JsonPrimitive(false)
+            else -> call.arguments[key]?.let { evaluate(it, state, scope, program.tokens, null) }
+        }
+    }
     val visuals = LocalGeneratedAppVisuals.current
     val spacing = (value("spacing").tokenInt() * visuals.densityScale).dp
     val padding = (value("padding").tokenInt() * visuals.densityScale).dp
-    val action = { key: String -> call.arguments[key] as? CanonicalUiExpr.Action }
+    val action = { key: String -> (call.arguments[key] as? CanonicalUiExpr.Action).takeUnless { inert } }
     val emit = { key: String, payload: JsonElement? ->
         action(key)?.let { onAction(it.resolve(state, scope, program.tokens, payload)) }
         Unit
@@ -781,11 +971,13 @@ private fun RenderCall(
 
         "Root" -> BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             val maximumContentWidth = contentWidthLimit(value("contentWidth").typedTokenString())
-            CompositionLocalProvider(LocalCanonicalViewportHeight provides maxHeight) {
+            val viewportHeight = maxHeight.takeIf { it.value.isFinite() && it.value > 0f }
+                ?: with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.coerceAtLeast(1).toDp() }
+            CompositionLocalProvider(LocalCanonicalViewportHeight provides viewportHeight) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
                         .widthIn(max = maximumContentWidth)
+                        .fillMaxWidth()
                         .then(
                             if (visuals.atmosphericBackground) {
                                 Modifier.background(
@@ -797,7 +989,7 @@ private fun RenderCall(
                         )
                         .then(
                             if (LocalCanonicalHostScrolling.current && program.needsHostScrolling()) {
-                                Modifier.verticalScroll(rememberScrollState())
+                                Modifier.heightIn(max = viewportHeight).verticalScroll(rememberScrollState())
                             } else {
                                 Modifier
                             }
@@ -870,6 +1062,34 @@ private fun RenderCall(
 
         "Stack" -> Box(modifier.fillMaxWidth().padding(padding)) {
             children(Modifier.fillMaxWidth())
+        }
+
+        "Flex" -> {
+            val direction = canonicalFlexDirection(value("direction").asString())
+            val alignment = canonicalFlexAlign(value("align").asString())
+            val justification = canonicalFlexJustify(value("justify").asString())
+            val gap = (value("gap").tokenInt().coerceAtLeast(0) * visuals.densityScale).dp
+            if (direction == "vertical") {
+                Column(
+                    modifier = modifier,
+                    verticalArrangement = flexVerticalArrangement(justification, gap),
+                    horizontalAlignment = flexVerticalAlignment(alignment)
+                ) {
+                    children(if (alignment == "stretch") Modifier.fillMaxWidth() else Modifier)
+                }
+            } else {
+                Row(
+                    // Intrinsic height asks every descendant for a size before layout. Adaptive
+                    // children (including BoxWithConstraints and scroll containers) cannot answer
+                    // that query and crash as soon as a dynamic collection inserts one. Let Row
+                    // measure natural child heights; stretch retains ordinary cross-axis alignment.
+                    modifier = modifier,
+                    horizontalArrangement = flexHorizontalArrangement(justification, gap),
+                    verticalAlignment = flexHorizontalAlignment(alignment)
+                ) {
+                    children(Modifier)
+                }
+            }
         }
 
         "Frame" -> BoxWithConstraints(
@@ -1138,7 +1358,7 @@ private fun RenderCall(
 
         "SegmentedControl" -> FlowRow(modifier.fillMaxWidth().semantics { contentDescription = value("accessibilityLabel").asString() }) {
             val directItems = call.children.filterIsInstance<CanonicalUiNode.Call>()
-            if (directItems.size == call.children.size) {
+            if (!inert && directItems.size == call.children.size) {
                 require(
                     directItems.count { item ->
                         item.arguments["selected"]?.let { evaluate(it, state, scope, program.tokens, null).asBoolean() } == true
@@ -1199,7 +1419,13 @@ private fun RenderCall(
                     Text(value("title").asString(), style = MaterialTheme.typography.titleMedium)
                     Text(value("message").asString(), style = MaterialTheme.typography.bodyMedium)
                 }
-                value("actionText").asString().takeIf(String::isNotBlank)?.let { TextButton(onClick = { emit("onAction", null) }, modifier = Modifier.defaultMinSize(minHeight = 48.dp)) { Text(it) } }
+                value("actionText").asString().takeIf(String::isNotBlank)?.let { label ->
+                    TextButton(
+                        onClick = { emit("onAction", null) },
+                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .semantics { contentDescription = value("accessibilityLabel").asString().ifBlank { label } }
+                    ) { Text(label) }
+                }
             }
         }
 
@@ -1229,10 +1455,30 @@ private fun RenderCall(
 
         "GridItem" -> children(Modifier.fillMaxWidth())
 
-        "Text" -> Text(
-            text = value("value").displayString(),
+        "Text" -> {
+            val styleName = value("style").tokenString()
+            val alignment = value("align").asString().ifBlank { "start" }
+            val baseStyle = textStyle(styleName)
+            val resolvedTextStyle = canonicalTextFontSize(value("fontSize").asNumber())?.let { fontSize ->
+                baseStyle.copy(fontSize = fontSize.sp)
+            } ?: baseStyle
+            Text(
+                text = value("value").displayString(),
+                modifier = if (alignment == "start") modifier else modifier.fillMaxWidth(),
+                color = textTone(textToneForStyle(styleName, value("tone").typedTokenString())),
+                style = resolvedTextStyle,
+                fontWeight = value("emphasis").typedTokenString().takeIf(String::isNotBlank)?.let(::emphasisWeight),
+                textAlign = canonicalTextAlign(alignment),
+                maxLines = canonicalTextMaxLines(value("maxLines").asInt())
+            )
+        }
+
+        "Heading" -> Text(
+            text = value("text").asString(),
+            modifier = modifier.fillMaxWidth().semantics { heading() },
             color = textTone(value("tone").typedTokenString()),
-            style = textStyle(value("style").tokenString())
+            style = headingStyle(value("level").asString()),
+            textAlign = canonicalTextAlign(value("align").asString())
         )
 
         "IntText" -> Text(
@@ -1243,13 +1489,18 @@ private fun RenderCall(
             style = textStyle(value("style").tokenString())
         )
 
-        "NumberText" -> Text(
-            text = value("prefix").asString() +
-                formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
-                value("suffix").asString(),
-            color = textTone(value("tone").typedTokenString()),
-            style = textStyle(value("style").tokenString())
-        )
+        "NumberText" -> {
+            val fractionDigits = call.arguments["fractionDigits"]?.let {
+                value("fractionDigits").asInt()
+            } ?: 1
+            Text(
+                text = value("prefix").asString() +
+                    formatCanonicalNumber(value("value").asNumber(), fractionDigits) +
+                    value("suffix").asString(),
+                color = textTone(value("tone").typedTokenString()),
+                style = textStyle(value("style").tokenString())
+            )
+        }
 
         "Icon" -> Icon(
             imageVector = icon(value("name").asString()),
@@ -1259,30 +1510,51 @@ private fun RenderCall(
         )
 
         "IconButton" -> {
+            val isLoading = value("loading").asBoolean()
+            val isDisabled = value("disabled").asBoolean()
+            val enabled = !isLoading && !isDisabled
             val click = {
                 emit("onClick", null)
                 Unit
             }
-            val buttonModifier = modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                .semantics { contentDescription = value("accessibilityLabel").asString() }
-            val content: @Composable () -> Unit = { Icon(icon(value("icon").asString()), contentDescription = null) }
+            val buttonSize = canonicalButtonSize(value("size").typedTokenString())
+            val buttonModifier = Modifier.size(buttonSize).then(modifier)
+                .semantics {
+                    contentDescription = if (isLoading) {
+                        value("loadingLabel").asString()
+                    } else {
+                        value("accessibilityLabel").asString()
+                    }
+                    if (!enabled) disabled()
+                }
+            val content: @Composable () -> Unit = {
+                if (isLoading) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(icon(value("icon").asString()), contentDescription = null)
+                }
+            }
             when (normalizedButtonHierarchy(value("hierarchy").typedTokenString())) {
-                "secondary" -> OutlinedIconButton(onClick = click, modifier = buttonModifier, content = content)
+                "secondary" -> OutlinedIconButton(onClick = click, enabled = enabled, modifier = buttonModifier, content = content)
 
-                "quiet" -> IconButton(onClick = click, modifier = buttonModifier, content = content)
+                "quiet" -> IconButton(onClick = click, enabled = enabled, modifier = buttonModifier, content = content)
 
                 "destructive" -> FilledIconButton(
                     onClick = click,
+                    enabled = enabled,
                     modifier = buttonModifier,
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
                     content = content
                 )
 
-                else -> FilledIconButton(onClick = click, modifier = buttonModifier, content = content)
+                else -> FilledIconButton(onClick = click, enabled = enabled, modifier = buttonModifier, content = content)
             }
         }
 
         "Button" -> {
+            val isLoading = value("loading").asBoolean()
+            val isDisabled = value("disabled").asBoolean()
+            val enabled = !isLoading && !isDisabled
             val click = {
                 emit("onClick", null)
                 Unit
@@ -1290,23 +1562,41 @@ private fun RenderCall(
             val label = value("text").asString()
             val iconName = value("icon").asString()
             val content: @Composable RowScope.() -> Unit = {
-                if (iconName.isNotBlank()) {
+                if (isLoading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                    Text(value("loadingLabel").asString())
+                } else if (iconName.isNotBlank()) {
                     Icon(icon(iconName), contentDescription = null, Modifier.size(18.dp))
                     Spacer(Modifier.size(8.dp))
+                    Text(label)
+                } else {
+                    Text(label)
                 }
-                Text(label)
             }
+            val buttonModifier = modifier
+                .defaultMinSize(minHeight = canonicalButtonSize(value("size").typedTokenString()))
+                .semantics {
+                    contentDescription = if (isLoading) {
+                        value("loadingLabel").asString()
+                    } else {
+                        value("accessibilityLabel").asString().ifBlank { label }
+                    }
+                    if (!enabled) disabled()
+                }
             when (normalizedButtonHierarchy(value("hierarchy").typedTokenString())) {
                 "secondary" -> OutlinedButton(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
 
                 "destructive" -> Button(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
@@ -1317,18 +1607,102 @@ private fun RenderCall(
 
                 "quiet" -> TextButton(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
 
                 else -> Button(
                     onClick = click,
-                    modifier = modifier.defaultMinSize(minHeight = 48.dp),
+                    enabled = enabled,
+                    modifier = buttonModifier,
                     shape = MaterialTheme.shapes.small,
                     content = content
                 )
             }
+        }
+
+        "Pressable" -> {
+            val clickAction = action("onClick")
+            val longClickAction = action("onLongClick")
+            val enabled = !value("disabled").asBoolean() && (clickAction != null || longClickAction != null)
+            Box(
+                modifier = modifier
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = value("accessibilityLabel").asString()
+                        if (!enabled) disabled()
+                    }
+                    .combinedClickable(
+                        enabled = enabled,
+                        onClickLabel = value("accessibilityLabel").asString(),
+                        onLongClickLabel = value("accessibilityLabel").asString(),
+                        onClick = { if (clickAction != null) emit("onClick", null) },
+                        onLongClick = longClickAction?.let { { emit("onLongClick", null) } }
+                    )
+            ) {
+                children(Modifier.fillMaxWidth())
+            }
+        }
+
+        "Spinner" -> {
+            val label = value("label").asString().ifBlank { "Loading" }
+            val size = canonicalSpinnerSize(value("size").typedTokenString())
+            val color = textTone(value("tone").typedTokenString())
+            Row(
+                modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (visuals.motionEnabled) {
+                    CircularProgressIndicator(modifier = Modifier.size(size), color = color, strokeWidth = 3.dp)
+                } else {
+                    Canvas(Modifier.size(size)) {
+                        drawArc(
+                            color = color,
+                            startAngle = 35f,
+                            sweepAngle = 270f,
+                            useCenter = false,
+                            style = Stroke(width = 3.dp.toPx())
+                        )
+                    }
+                }
+                value("label").asString().takeIf(String::isNotBlank)?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+
+        "Skeleton" -> {
+            val width = canonicalSkeletonDimension(value("widthDp").asInt(), 160).dp
+            val height = canonicalSkeletonDimension(value("heightDp").asInt(), 20).dp
+            val label = value("accessibilityLabel").asString()
+            val pulse = if (visuals.motionEnabled) {
+                rememberInfiniteTransition(label = "skeleton-pulse").animateFloat(
+                    initialValue = 0.45f,
+                    targetValue = 0.75f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(visuals.motionDurationMillis.coerceAtLeast(1)),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "skeleton-alpha"
+                ).value
+            } else {
+                0.6f
+            }
+            val semantics = if (label.isBlank()) {
+                Modifier.clearAndSetSemantics { }
+            } else {
+                Modifier.semantics { contentDescription = label }
+            }
+            Box(
+                Modifier.size(width, height)
+                    .then(modifier)
+                    .then(semantics)
+                    .clip(if (value("rounded").asBoolean()) MaterialTheme.shapes.small else RoundedCornerShape(0.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = pulse))
+            )
         }
 
         "Tile" -> {
@@ -1418,8 +1792,44 @@ private fun RenderCall(
             } else {
                 progress(value("value").asInt(), value("maximum").asInt())
             }
-            value("label").asString().takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
-            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            val label = value("label").asString()
+            label.takeIf(String::isNotBlank)?.let {
+                Text(
+                    it,
+                    modifier = Modifier.clearAndSetSemantics {},
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+            val tone = value("tone").typedTokenString()
+            val trackTone = value("trackTone").typedTokenString()
+            val progressColor = progressColor(tone)
+            val trackColor = progressTrackColor(trackTone)
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(canonicalProgressHeight(value("heightDp").asInt()).dp)
+                    .progressSemantics(progress)
+                    .then(
+                        if (label.isNotBlank()) {
+                            Modifier.semantics { contentDescription = label }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                val radius = size.height / 2f
+                drawRoundRect(
+                    color = trackColor,
+                    cornerRadius = CornerRadius(radius, radius)
+                )
+                if (progress > 0f) {
+                    drawRoundRect(
+                        color = progressColor,
+                        size = Size(size.width * progress, size.height),
+                        cornerRadius = CornerRadius(radius, radius)
+                    )
+                }
+            }
         }
 
         "ProgressRing", "NumberProgressRing" -> Box(modifier.size(112.dp), contentAlignment = Alignment.Center) {
@@ -1442,53 +1852,194 @@ private fun RenderCall(
         }
 
         "TextField" -> {
-            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val changeAction = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val submitAction = call.arguments["onSubmit"] as? CanonicalUiExpr.Action
+            val focusAction = call.arguments["onFocus"] as? CanonicalUiExpr.Action
+            val blurAction = call.arguments["onBlur"] as? CanonicalUiExpr.Action
+            val text = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val inputType = value("inputType").typedTokenString()
+            val keyboardType = canonicalTextInputKeyboardType(inputType, value("keyboardType").typedTokenString())
+            val lineCount = canonicalTextInputLines(value("numberOfLines").asInt())
+            val isMultiline = value("multiline").asBoolean() || lineCount > 1
+            val trigger = canonicalValidationTrigger(value("validateOn"), "TextField")
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString(),
+                componentName = "TextField"
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            var wasBlurred by remember(call.identity) { mutableStateOf(false) }
+            var wasFocused by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(text, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = wasBlurred
+                )
+            }
             OutlinedTextField(
-                value = value("value").asString(),
-                onValueChange = { text ->
-                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(text))) }
+                value = text,
+                enabled = !inert,
+                onValueChange = { updatedText ->
+                    wasEdited = true
+                    changeAction?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedText))) }
                 },
-                label = { Text(value("label").asString()) },
+                label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
-                modifier = modifier.fillMaxWidth(),
-                singleLine = false
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = keyboardType,
+                    imeAction = if (submitAction != null && !isMultiline) ImeAction.Done else ImeAction.Default
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        submitAction?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(text))) }
+                    }
+                ),
+                visualTransformation = if (canonicalTextInputIsSecure(inputType, value("secureTextEntry").asBoolean())) {
+                    PasswordVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                },
+                modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .fillMaxWidth()
+                    .semantics { contentDescription = accessibilityLabel }
+                    .onFocusChanged { focusState ->
+                        when (canonicalTextInputFocusEvent(wasFocused, focusState.isFocused)) {
+                            CanonicalTextInputFocusEvent.FOCUS -> focusAction?.let { onAction(it.resolve(state, scope, program.tokens)) }
+
+                            CanonicalTextInputFocusEvent.BLUR -> {
+                                wasBlurred = true
+                                blurAction?.let { onAction(it.resolve(state, scope, program.tokens)) }
+                            }
+
+                            null -> Unit
+                        }
+                        wasFocused = focusState.isFocused
+                    },
+                minLines = if (isMultiline) lineCount else 1,
+                maxLines = if (isMultiline) maxOf(lineCount, 12) else 1,
+                singleLine = !isMultiline,
+                isError = error != null,
+                supportingText = error?.let { message -> { Text(message) } }
+            )
+        }
+
+        "TextArea" -> {
+            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val rows = canonicalTextAreaRows(value("rows").asInt())
+            val text = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val trigger = canonicalValidationTrigger(value("validateOn"))
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString()
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            var hadFocus by remember(call.identity) { mutableStateOf(false) }
+            var wasBlurred by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(text, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = wasBlurred
+                )
+            }
+            OutlinedTextField(
+                value = text,
+                enabled = !inert,
+                onValueChange = { updatedText ->
+                    wasEdited = true
+                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedText))) }
+                },
+                label = { Text(label) },
+                placeholder = { Text(value("placeholder").asString()) },
+                modifier = modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = accessibilityLabel }
+                    .onFocusChanged { focusState ->
+                        if (hadFocus && !focusState.isFocused) wasBlurred = true
+                        hadFocus = focusState.isFocused
+                    },
+                minLines = rows,
+                maxLines = maxOf(rows, 12),
+                singleLine = false,
+                isError = error != null,
+                supportingText = error?.let { message -> { Text(message) } }
             )
         }
 
         "IntField" -> {
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
             OutlinedTextField(
                 value = value("value").asInt().toString(),
+                enabled = !inert,
                 onValueChange = { text ->
                     text.toIntOrNull()?.let { number ->
                         action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
                     }
                 },
-                label = { Text(value("label").asString()) },
+                label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                    .semantics { contentDescription = accessibilityLabel },
                 singleLine = true
             )
         }
 
         "NumberField" -> {
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            // A missing optional argument must preserve the checked pack's NumberFieldProps
+            // default (1), rather than flowing through JsonElement.asInt() as a visual 0.
+            val fractionDigits = call.arguments["fractionDigits"]?.let {
+                value("fractionDigits").asInt()
+            } ?: 1
             OutlinedTextField(
-                value = formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()),
+                value = formatCanonicalNumber(value("value").asNumber(), fractionDigits),
+                enabled = !inert,
                 onValueChange = { text ->
                     text.replace(',', '.').toDoubleOrNull()?.let { number ->
                         action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(number))) }
                     }
                 },
-                label = { Text(value("label").asString()) },
+                label = { Text(label) },
                 placeholder = { Text(value("placeholder").asString()) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                     .fillMaxWidth()
-                    .semantics { contentDescription = value("accessibilityLabel").asString() },
+                    .semantics { contentDescription = accessibilityLabel },
                 singleLine = true
             )
         }
@@ -1505,9 +2056,11 @@ private fun RenderCall(
             }
             OutlinedButton(
                 onClick = { dialogVisible = true },
-                modifier = modifier.semantics {
-                    contentDescription = value("accessibilityLabel").asString()
-                }
+                modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                        contentDescription = value("accessibilityLabel").asString()
+                    }
             ) {
                 Column(horizontalAlignment = Alignment.Start) {
                     value("label").asString().takeIf(String::isNotBlank)?.let {
@@ -1538,13 +2091,178 @@ private fun RenderCall(
             }
         }
 
-        "Toggle" -> Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(value("label").asString(), Modifier.weight(1f))
+        "DateTimeField" -> {
+            val epochMinute = value("valueEpochMinute").asInt()
+            // `0` is the pack-default int value.  It means that a date/time input is unset, not
+            // that the user scheduled something at the Unix epoch.  Keep that distinction in the
+            // renderer: displaying 1970 as an actual value invents a date the checked state never
+            // supplied, while the picker can still start from a useful current local instant.
+            val hasSelectedInstant = epochMinute > 0
+            val pickerEpochMillis = if (hasSelectedInstant) {
+                epochMinute.toLong() * 60_000L
+            } else {
+                System.currentTimeMillis()
+            }
+            val instant = Calendar.getInstance().apply { timeInMillis = pickerEpochMillis }
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            var dateVisible by remember(call.identity) { mutableStateOf(false) }
+            var timeVisible by remember(call.identity) { mutableStateOf(false) }
+            var selectedDateMillis by remember(call.identity) { mutableStateOf<Long?>(null) }
+            val datePickerState = key(epochMinute) {
+                rememberDatePickerState(initialSelectedDateMillis = if (hasSelectedInstant) pickerEpochMillis else null)
+            }
+            val timePickerState = key(epochMinute, selectedDateMillis) {
+                rememberTimePickerState(
+                    initialHour = instant.get(Calendar.HOUR_OF_DAY),
+                    initialMinute = instant.get(Calendar.MINUTE),
+                    is24Hour = true
+                )
+            }
+            OutlinedButton(
+                onClick = {
+                    selectedDateMillis = null
+                    dateVisible = true
+                },
+                modifier = modifier
+                    .canonicalInputFocusModifier(value("focusOwner").asString(), value("focusOrder").asInt())
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = accessibilityLabel }
+            ) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    label.takeIf(String::isNotBlank)?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Text(
+                        if (hasSelectedInstant) {
+                            String.format(
+                                Locale.ROOT,
+                                "%04d-%02d-%02d %02d:%02d",
+                                instant.get(Calendar.YEAR),
+                                instant.get(Calendar.MONTH) + 1,
+                                instant.get(Calendar.DAY_OF_MONTH),
+                                instant.get(Calendar.HOUR_OF_DAY),
+                                instant.get(Calendar.MINUTE)
+                            )
+                        } else {
+                            "Not set"
+                        }
+                    )
+                }
+            }
+            if (dateVisible) {
+                DatePickerDialog(
+                    onDismissRequest = { dateVisible = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                selectedDateMillis = datePickerState.selectedDateMillis ?: pickerEpochMillis
+                                dateVisible = false
+                                timeVisible = true
+                            }
+                        ) { Text("Next") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dateVisible = false }) { Text("Cancel") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
+            if (timeVisible) {
+                AlertDialog(
+                    onDismissRequest = { timeVisible = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val chosen = Calendar.getInstance().apply {
+                                    timeInMillis = selectedDateMillis ?: pickerEpochMillis
+                                    set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                                    set(Calendar.MINUTE, timePickerState.minute)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }
+                                val emitted = (chosen.timeInMillis / 60_000L)
+                                    .coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong())
+                                    .toInt()
+                                emit("onChange", JsonPrimitive(emitted))
+                                timeVisible = false
+                            }
+                        ) { Text("Set") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { timeVisible = false }) { Text("Cancel") }
+                    },
+                    text = { TimePicker(state = timePickerState) }
+                )
+            }
+        }
+
+        "Toggle" -> {
+            val checked = value("checked").asBoolean()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val disabled = value("disabled").asBoolean()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
             val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
-            Switch(
-                checked = value("checked").asBoolean(),
-                onCheckedChange = { checked ->
-                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(checked))) }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "Toggle",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalBooleanValidationMessage(
+                checked = checked,
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString()
+            ).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(label, Modifier.weight(1f))
+                    Switch(
+                        checked = checked,
+                        onCheckedChange = { updatedChecked ->
+                            wasEdited = true
+                            action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(updatedChecked))) }
+                        },
+                        enabled = !disabled,
+                        modifier = Modifier.semantics { contentDescription = accessibilityLabel }
+                    )
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+
+        "ToggleButton" -> {
+            val label = value("label").asString()
+            val pressed = value("pressed").asBoolean()
+            val variant = value("variant").asString().ifBlank { "default" }
+            val action = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            FilterChip(
+                selected = pressed,
+                onClick = {
+                    action?.let { onAction(it.resolve(state, scope, program.tokens, JsonPrimitive(!pressed))) }
+                },
+                label = { Text(label) },
+                modifier = modifier.defaultMinSize(minHeight = 48.dp).semantics {
+                    contentDescription = value("accessibilityLabel").asString().ifBlank { label }
+                },
+                colors = if (variant == "default") {
+                    androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    androidx.compose.material3.FilterChipDefaults.filterChipColors()
                 }
             )
         }
@@ -1567,41 +2285,245 @@ private fun RenderCall(
 
         "ChoiceItem" -> Unit
 
-        "Slider" -> Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val minimum = value("minimum").asInt()
-            val maximum = value("maximum").asInt().coerceAtLeast(minimum + 1)
-            value("label").asString().takeIf(String::isNotBlank)?.let {
-                Text(it, style = MaterialTheme.typography.labelMedium)
+        "Select" -> {
+            val changeAction = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val selectedValue = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val items = collectTypedItems(call.children, "SelectOption", state, scope, program)
+            fun itemValue(item: CanonicalUiNode.Call, itemScope: Map<String, JsonElement>, name: String) = item.arguments[name]?.let {
+                evaluate(it, state, itemScope, program.tokens, null)
             }
+            val selectedLabel = items.firstOrNull { (item, itemScope) ->
+                itemValue(item, itemScope, "value").asString() == selectedValue
+            }?.let { (item, itemScope) -> itemValue(item, itemScope, "label").asString() }
+            val triggerText = selectedLabel.orEmpty().ifBlank {
+                value("placeholder").asString().ifBlank { selectedValue.ifBlank { label } }
+            }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "Select",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString(),
+                componentName = "Select"
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            var expanded by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(selectedValue, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                label.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+                Box {
+                    OutlinedButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
+                            .semantics { contentDescription = accessibilityLabel },
+                        colors = if (error == null) {
+                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                        } else {
+                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        }
+                    ) {
+                        Text(triggerText, modifier = Modifier.weight(1f))
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        items.forEach { (item, itemScope) ->
+                            val optionValue = itemValue(item, itemScope, "value").asString()
+                            val optionLabel = itemValue(item, itemScope, "label").asString()
+                            val optionAccessibilityLabel = itemValue(item, itemScope, "accessibilityLabel").asString()
+                                .ifBlank { optionLabel }
+                            DropdownMenuItem(
+                                text = { Text(optionLabel) },
+                                onClick = {
+                                    wasEdited = true
+                                    changeAction?.let { action ->
+                                        onAction(action.resolve(state, itemScope, program.tokens, JsonPrimitive(optionValue)))
+                                    }
+                                    expanded = false
+                                },
+                                modifier = Modifier
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .semantics { contentDescription = optionAccessibilityLabel }
+                            )
+                        }
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+
+        "SelectOption" -> Unit
+
+        "RadioGroup" -> {
+            val changeAction = call.arguments["onChange"] as? CanonicalUiExpr.Action
+            val selectedValue = value("value").asString()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val items = collectTypedItems(call.children, "RadioOption", state, scope, program)
+            fun itemValue(item: CanonicalUiNode.Call, itemScope: Map<String, JsonElement>, name: String) = item.arguments[name]?.let {
+                evaluate(it, state, itemScope, program.tokens, null)
+            }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "RadioGroup",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
+            )
+            val rules = canonicalTextValidationRules(
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString(),
+                minLength = value("minLength").asInt(),
+                minLengthMessage = value("minLengthMessage").asString(),
+                maxLength = value("maxLength").asInt(),
+                maxLengthMessage = value("maxLengthMessage").asString(),
+                email = value("email").asBoolean(),
+                emailMessage = value("emailMessage").asString(),
+                pattern = value("pattern").asString(),
+                patternMessage = value("patternMessage").asString(),
+                componentName = "RadioGroup"
+            )
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalValidationMessage(selectedValue, rules).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(
+                modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel },
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                label.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+                items.forEach { (item, itemScope) ->
+                    val optionValue = itemValue(item, itemScope, "value").asString()
+                    val optionLabel = itemValue(item, itemScope, "label").asString()
+                    val optionAccessibilityLabel = itemValue(item, itemScope, "accessibilityLabel").asString()
+                        .ifBlank { optionLabel }
+                    val selected = optionValue == selectedValue
+                    val selectOption: () -> Unit = {
+                        wasEdited = true
+                        changeAction?.let { action ->
+                            onAction(action.resolve(state, itemScope, program.tokens, JsonPrimitive(optionValue)))
+                        }
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
+                            .selectable(selected = selected, onClick = selectOption, role = Role.RadioButton)
+                            .semantics { contentDescription = optionAccessibilityLabel },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selected, onClick = null)
+                        Text(optionLabel)
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+
+        "RadioOption" -> Unit
+
+        "Slider", "NumberSlider" -> Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val isNumber = name == "NumberSlider"
+            val range = canonicalSliderRange(
+                minimum = if (isNumber) value("minimum").asNumber() else value("minimum").asInt().toDouble(),
+                maximum = if (isNumber) value("maximum").asNumber() else value("maximum").asInt().toDouble()
+            )
+            val step = canonicalSliderStep(
+                if (isNumber) value("step").asNumber() else 0.0,
+                range
+            )
+            val sliderValue = canonicalSliderValue(
+                if (isNumber) value("value").asNumber() else value("value").asInt().toDouble(),
+                range,
+                step
+            )
+            val label = value("label").asString()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label }
+            label.takeIf(String::isNotBlank)?.let {
+                Text(it, modifier = Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelMedium)
+            }
+            val tone = if (isNumber) value("tone").typedTokenString() else ""
+            val sliderColor = progressColor(tone)
             Slider(
-                value = value("value").asInt().coerceIn(minimum, maximum).toFloat(),
-                onValueChange = { emit("onChange", JsonPrimitive(it.toInt())) },
-                valueRange = minimum.toFloat()..maximum.toFloat(),
-                modifier = Modifier.fillMaxWidth()
+                value = sliderValue.toFloat(),
+                onValueChange = {
+                    val payload = if (isNumber) {
+                        JsonPrimitive(canonicalSliderValue(it.toDouble(), range, step))
+                    } else {
+                        JsonPrimitive(it.toInt())
+                    }
+                    emit("onChange", payload)
+                },
+                valueRange = range.start.toFloat()..range.endInclusive.toFloat(),
+                modifier = Modifier.fillMaxWidth().then(
+                    if (accessibilityLabel.isNotBlank()) {
+                        Modifier.semantics { contentDescription = accessibilityLabel }
+                    } else {
+                        Modifier
+                    }
+                ),
+                colors = SliderDefaults.colors(
+                    thumbColor = sliderColor,
+                    activeTrackColor = sliderColor
+                )
             )
         }
 
         "Spacer" -> Spacer(modifier.height(value("size").tokenInt().coerceAtLeast(8).dp))
 
-        "Badge" -> Surface(
-            shape = RoundedCornerShape(50),
-            color = toneColor(value("tone").typedTokenString()),
-            contentColor = textTone(value("tone").typedTokenString())
-        ) {
-            Row(
-                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+        "Badge" -> {
+            val variant = value("variant").asString().ifBlank { "default" }
+            val tone = canonicalBadgeTone(variant)
+            val palette = generatedTonePalette(tone)
+            val outlined = variant == "outline"
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = if (outlined) MaterialTheme.colorScheme.surface else palette.container,
+                contentColor = palette.content,
+                border = if (outlined) BorderStroke(1.dp, palette.border) else null
             ) {
-                value("icon").asString().takeIf(String::isNotBlank)?.let {
-                    Icon(icon(it), contentDescription = null, Modifier.size(14.dp))
-                }
-                Text(value("text").asString(), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    value("label").asString(),
+                    Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
         }
 
         "Stat", "IntStat", "NumberStat" -> {
             val palette = generatedTonePalette(value("tone").typedTokenString())
+            // NumberStatProps declares fractionDigits = 1 in the pack. The parsed UI call omits
+            // defaulted arguments, so materialize that contract here rather than rounding to 0.
+            val numberStatFractionDigits = call.arguments["fractionDigits"]?.let {
+                value("fractionDigits").asInt()
+            } ?: 1
             Surface(
                 modifier = modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
@@ -1630,7 +2552,7 @@ private fun RenderCall(
                             value("suffix").asString()
 
                         "NumberStat" -> value("prefix").asString() +
-                            formatCanonicalNumber(value("value").asNumber(), value("fractionDigits").asInt()) +
+                            formatCanonicalNumber(value("value").asNumber(), numberStatFractionDigits) +
                             value("suffix").asString()
 
                         else -> value("value").asString()
@@ -1750,18 +2672,33 @@ private fun RenderCall(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             value("actionText").asString().takeIf(String::isNotBlank)?.let { label ->
-                Button(onClick = { emit("onAction", null) }) { Text(label) }
+                Button(
+                    onClick = { emit("onAction", null) },
+                    modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .semantics { contentDescription = value("accessibilityLabel").asString().ifBlank { label } }
+                ) { Text(label) }
             }
         }
 
         "Snackbar" -> if (value("visible").asBoolean()) {
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { value("message").asString() }
             Snackbar(
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel },
                 action = value("actionText").asString().takeIf(String::isNotBlank)?.let { label ->
-                    { TextButton(onClick = { emit("onAction", null) }) { Text(label) } }
+                    {
+                        TextButton(
+                            onClick = { emit("onAction", null) },
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                .semantics { contentDescription = accessibilityLabel }
+                        ) { Text(label) }
+                    }
                 },
                 dismissAction = {
-                    IconButton(onClick = { emit("onDismiss", null) }) {
+                    IconButton(
+                        onClick = { emit("onDismiss", null) },
+                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .semantics { contentDescription = accessibilityLabel }
+                    ) {
                         Icon(Icons.Default.Close, contentDescription = "Dismiss")
                     }
                 }
@@ -1790,21 +2727,52 @@ private fun RenderCall(
             }
         }
 
-        "Checkbox" -> Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = value("accessibilityLabel").asString() },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = value("checked").asBoolean(),
-                onCheckedChange = { emit("onChange", JsonPrimitive(it)) }
+        "Checkbox" -> {
+            val checked = value("checked").asBoolean()
+            val label = value("label").asString()
+            val fieldName = value("name").asString()
+            val disabled = value("disabled").asBoolean()
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { label.ifBlank { fieldName } }
+            val trigger = canonicalValidationTrigger(
+                value("validateOn"),
+                componentName = "Checkbox",
+                defaultTrigger = CanonicalValidationTrigger.CHANGE
             )
-            Column(Modifier.weight(1f)) {
-                Text(value("label").asString(), style = MaterialTheme.typography.bodyLarge)
-                value("supporting").asString().takeIf(String::isNotBlank)?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            var wasEdited by remember(call.identity) { mutableStateOf(false) }
+            val error = canonicalBooleanValidationMessage(
+                checked = checked,
+                required = value("required").asBoolean(),
+                requiredMessage = value("requiredMessage").asString()
+            ).takeIf {
+                canonicalValidationVisible(
+                    trigger = trigger,
+                    validationVisible = value("validationVisible").asBoolean(),
+                    wasEdited = wasEdited,
+                    wasBlurred = false
+                )
+            }
+            Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { updatedChecked ->
+                            wasEdited = true
+                            emit("onChange", JsonPrimitive(updatedChecked))
+                        },
+                        enabled = !disabled,
+                        modifier = Modifier.semantics { contentDescription = accessibilityLabel }
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                        value("supporting").asString().takeIf(String::isNotBlank)?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
             }
         }
 
@@ -1817,7 +2785,9 @@ private fun RenderCall(
             val boundedMaximum = maximum.coerceAtLeast(minimum)
             val current = value("value").asInt().coerceIn(minimum, boundedMaximum)
             Row(
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).semantics {
+                    contentDescription = value("accessibilityLabel").asString().ifBlank { value("label").asString() }
+                },
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1960,23 +2930,31 @@ private fun RenderCall(
         }
 
         "Avatar" -> {
-            val avatarSize = value("size").asInt().coerceIn(32, 96).dp
-            val url = value("url").asString()
-            if (url.startsWith("https://")) {
+            val source = value("src").asString()
+            val name = value("name").asString()
+            val initials = canonicalAvatarInitials(value("initials").asString(), name)
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { name.ifBlank { initials } }
+            val avatarSize = canonicalAvatarSize(value("size").asString())
+            val tone = value("tone").typedTokenString().ifBlank { "accent" }
+            var imageFailed by remember(source) { mutableStateOf(false) }
+            if (canonicalAvatarUsesRemoteSource(source) && !imageFailed) {
                 AsyncImage(
-                    model = url,
-                    contentDescription = value("description").asString(),
+                    model = source,
+                    contentDescription = accessibilityLabel,
                     contentScale = ContentScale.Crop,
-                    modifier = modifier.size(avatarSize).clip(CircleShape)
+                    modifier = Modifier.size(avatarSize).clip(CircleShape),
+                    onError = { imageFailed = true }
                 )
             } else {
+                val palette = generatedTonePalette(tone)
                 Surface(
-                    modifier = modifier.size(avatarSize),
+                    modifier = Modifier.size(avatarSize),
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = palette.container,
+                    contentColor = palette.content
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(value("initials").asString(), fontWeight = FontWeight.SemiBold)
+                        Text(initials, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -1992,12 +2970,29 @@ private fun RenderCall(
             }
         }
 
-        "Divider" -> androidx.compose.material3.HorizontalDivider(
-            modifier,
-            color = MaterialTheme.colorScheme.outlineVariant
-        )
+        "Divider" -> {
+            val direction = value("direction").asString().ifBlank { "horizontal" }
+            val thickness = canonicalDividerThickness(value("thickness").asNumber()).dp
+            val margin = canonicalDividerMargin(value("margin").asNumber()).dp
+            val color = cardBorder(value("tone").typedTokenString())
+            if (direction == "vertical") {
+                Box(
+                    modifier
+                        .padding(vertical = margin)
+                        .width(thickness)
+                        .height(48.dp)
+                        .background(color)
+                )
+            } else {
+                HorizontalDivider(
+                    modifier = modifier.padding(horizontal = margin),
+                    thickness = thickness,
+                    color = color
+                )
+            }
+        }
 
-        "FrameClock", "MinuteClock" -> RuntimeClock(call, name, state, scope, program.tokens, onAction)
+        "FrameClock", "MinuteClock" -> if (!inert) RuntimeClock(call, name, state, scope, program.tokens, onAction)
 
         "PointerSurface" -> PointerSurface(
             call = call,
@@ -2014,13 +3009,84 @@ private fun RenderCall(
         "Rectangle", "RoundRectangle", "Circle", "Line", "CanvasText" -> Unit
 
         "Route" -> if (value("route").asString() == value("activeRoute").asString()) {
-            Column(modifier.fillMaxWidth()) { children(Modifier.fillMaxWidth()) }
+            BackHandler(enabled = action("onBack") != null) { emit("onBack", null) }
+            Column(modifier.fillMaxWidth()) {
+                if (action("onBack") != null) {
+                    TextButton(onClick = { emit("onBack", null) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)) {
+                        Text(value("accessibilityLabel").asString())
+                    }
+                }
+                children(Modifier.fillMaxWidth())
+            }
         }
+
+        "BackHandler" -> BackHandler(enabled = !inert && value("enabled").asBoolean()) {
+            emit("onBack", null)
+        }
+
+        "HostNavigationButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.LocationOn,
+            request = CanonicalHostActionRequest(
+                operation = CanonicalHostActionOperation.NAVIGATION_OPEN,
+                destinationLatitude = value("destinationLatitude").asNumber(),
+                destinationLongitude = value("destinationLongitude").asNumber(),
+                originLatitude = value("originLatitude").asNumber(),
+                originLongitude = value("originLongitude").asNumber(),
+                useOrigin = value("useOrigin").asBoolean()
+            ),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
+
+        "HostCalendarOpenButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.CalendarMonth,
+            request = CanonicalHostActionRequest(CanonicalHostActionOperation.CALENDAR_OPEN),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
+
+        "HostCalendarCreateButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.CalendarMonth,
+            request = CanonicalHostActionRequest(
+                operation = CanonicalHostActionOperation.CALENDAR_CREATE,
+                ownerKey = value("ownerKey").asString(),
+                title = value("title").asString(),
+                startEpochMinute = value("startEpochMinute").asInt(),
+                durationMinutes = value("durationMinutes").asInt(),
+                reminderMinutes = value("reminderMinutes").asInt()
+            ),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
+
+        "HostCalendarClearOwnedButton" -> CanonicalHostActionButton(
+            label = value("label").asString(),
+            accessibilityLabel = value("accessibilityLabel").asString(),
+            disabled = value("disabled").asBoolean(),
+            icon = Icons.Default.Delete,
+            request = CanonicalHostActionRequest(CanonicalHostActionOperation.CALENDAR_CLEAR_OWNED),
+            modifier = modifier,
+            onComplete = { outcome -> emit("onComplete", JsonPrimitive(outcome)) }
+        )
 
         "Modal", "Dialog" -> if (value("visible").asBoolean()) {
             Dialog(onDismissRequest = { emit("onDismiss", null) }) {
                 Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 8.dp) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp)) { children(Modifier.fillMaxWidth()) }
+                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                        TextButton(onClick = { emit("onDismiss", null) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)) {
+                            Text(value("accessibilityLabel").asString().ifBlank { "Close" })
+                        }
+                        children(Modifier.fillMaxWidth())
+                    }
                 }
             }
         }
@@ -2028,6 +3094,9 @@ private fun RenderCall(
         "BottomSheet" -> if (value("visible").asBoolean()) {
             ModalBottomSheet(onDismissRequest = { emit("onDismiss", null) }) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+                    TextButton(onClick = { emit("onDismiss", null) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)) {
+                        Text(value("accessibilityLabel").asString().ifBlank { "Close" })
+                    }
                     children(Modifier.fillMaxWidth())
                 }
             }
@@ -2068,18 +3137,59 @@ private fun RenderCall(
         "MenuItem" -> Unit
 
         "CapabilityNotice" -> if (!value("available").asBoolean()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2D8))) {
+            val accessibilityLabel = value("accessibilityLabel").asString().ifBlank { value("name").asString() }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2D8)),
+                modifier = modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel }
+            ) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF8B5A00))
                     Column(Modifier.weight(1f)) {
                         Text(value("name").asString(), fontWeight = FontWeight.SemiBold)
                         Text(value("explanation").asString(), style = MaterialTheme.typography.bodySmall)
+                        TextButton(
+                            onClick = { emit("onRequest", null) },
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                .semantics { contentDescription = accessibilityLabel }
+                        ) { Text("Unavailable in this build") }
                     }
                 }
             }
         }
 
         else -> error("Unsupported canonical Deal UI component: $name")
+    }
+}
+
+@Composable
+private fun CanonicalHostActionButton(
+    label: String,
+    accessibilityLabel: String,
+    disabled: Boolean,
+    icon: ImageVector,
+    request: CanonicalHostActionRequest,
+    modifier: Modifier,
+    onComplete: (String) -> Unit
+) {
+    // Preview/gallery calls deliberately have no executor.  The component remains visible so the
+    // checked shape can be reviewed, but never initiates an intent, permission request or fake
+    // completion before a saved app is opened in its real host activity.
+    val executor = LocalCanonicalHostActionExecutor.current
+    val enabled = !disabled && executor != null
+    Button(
+        onClick = { executor?.execute(request, onComplete) },
+        enabled = enabled,
+        modifier = modifier
+            .defaultMinSize(minHeight = 48.dp)
+            .semantics {
+                contentDescription = accessibilityLabel.ifBlank { label }
+                if (!enabled) disabled()
+            },
+        shape = MaterialTheme.shapes.small
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(8.dp))
+        Text(label)
     }
 }
 
@@ -2250,6 +3360,13 @@ private fun collectCanvasShapes(
             }
         }
     }
+}
+
+internal fun canonicalForEachKey(value: JsonElement): String {
+    require(value is JsonPrimitive && value !== JsonNull) {
+        "ForEach key must evaluate to a non-null scalar"
+    }
+    return value.toString()
 }
 
 private fun collectTypedItems(
@@ -2514,9 +3631,186 @@ private fun JsonElement.toPlatformValue(): Any? = when (this) {
     else -> toString()
 }
 
-private fun progress(value: Int, maximum: Int): Float = if (maximum <= 0) 0f else value.toFloat().div(maximum).coerceIn(0f, 1f)
+internal fun progress(value: Int, maximum: Int): Float = if (maximum <= 0) 0f else value.toFloat().div(maximum).coerceIn(0f, 1f)
 
-private fun progress(value: Double, maximum: Double): Float = if (maximum <= 0.0) 0f else value.div(maximum).coerceIn(0.0, 1.0).toFloat()
+internal fun progress(value: Double, maximum: Double): Float = when {
+    !value.isFinite() || !maximum.isFinite() || maximum <= 0.0 -> 0f
+    else -> value.div(maximum).coerceIn(0.0, 1.0).toFloat()
+}
+
+internal fun canonicalProgressHeight(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(24) ?: 4
+
+internal fun canonicalTextAreaRows(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(12) ?: 4
+
+internal fun canonicalTextInputLines(value: Int): Int = value.takeIf { it > 0 }?.coerceAtMost(12) ?: 1
+
+internal enum class CanonicalTextInputFocusEvent {
+    FOCUS,
+    BLUR
+}
+
+internal fun canonicalTextInputFocusEvent(
+    wasFocused: Boolean,
+    isFocused: Boolean
+): CanonicalTextInputFocusEvent? = when {
+    !wasFocused && isFocused -> CanonicalTextInputFocusEvent.FOCUS
+    wasFocused && !isFocused -> CanonicalTextInputFocusEvent.BLUR
+    else -> null
+}
+
+internal fun canonicalTextInputKeyboardType(
+    inputType: String,
+    keyboardType: String
+): KeyboardType = when (keyboardType.takeUnless { it.isBlank() || it == "default" } ?: inputType) {
+    "email", "email-address" -> KeyboardType.Email
+    "number", "numeric" -> KeyboardType.Number
+    "phone-pad" -> KeyboardType.Phone
+    "url" -> KeyboardType.Uri
+    "password" -> KeyboardType.Password
+    else -> KeyboardType.Text
+}
+
+internal fun canonicalTextInputIsSecure(inputType: String, secureTextEntry: Boolean): Boolean = secureTextEntry || inputType == "password"
+
+internal enum class CanonicalValidationTrigger {
+    CHANGE,
+    BLUR,
+    SUBMIT
+}
+
+internal data class CanonicalTextValidationRule(
+    val type: String,
+    val message: String,
+    val minimumLength: Int? = null,
+    val maximumLength: Int? = null,
+    val pattern: String? = null
+)
+
+private val CANONICAL_EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+
+internal fun canonicalValidationTrigger(
+    value: JsonElement?,
+    componentName: String = "TextArea",
+    defaultTrigger: CanonicalValidationTrigger = CanonicalValidationTrigger.BLUR
+): CanonicalValidationTrigger = when (
+    value.typedTokenString().ifBlank {
+        when (defaultTrigger) {
+            CanonicalValidationTrigger.CHANGE -> "change"
+            CanonicalValidationTrigger.BLUR -> "blur"
+            CanonicalValidationTrigger.SUBMIT -> "submit"
+        }
+    }
+) {
+    "change" -> CanonicalValidationTrigger.CHANGE
+    "blur" -> CanonicalValidationTrigger.BLUR
+    "submit" -> CanonicalValidationTrigger.SUBMIT
+    else -> throw IllegalArgumentException("$componentName.validateOn must be change, blur, or submit")
+}
+
+internal fun canonicalTextValidationRules(
+    required: Boolean,
+    requiredMessage: String,
+    minLength: Int,
+    minLengthMessage: String,
+    maxLength: Int,
+    maxLengthMessage: String,
+    email: Boolean,
+    emailMessage: String,
+    pattern: String,
+    patternMessage: String,
+    componentName: String = "TextArea"
+): List<CanonicalTextValidationRule> {
+    require(minLength >= 0) { "$componentName.minLength must be non-negative" }
+    require(maxLength >= 0) { "$componentName.maxLength must be non-negative" }
+    if (pattern.isNotBlank()) {
+        runCatching { Regex(pattern) }.getOrElse {
+            throw IllegalArgumentException("$componentName.pattern is not a valid regular expression")
+        }
+    }
+    return buildList {
+        if (required) add(CanonicalTextValidationRule("required", requiredMessage))
+        if (minLength > 0) add(CanonicalTextValidationRule("minLength", minLengthMessage, minimumLength = minLength))
+        if (maxLength > 0) add(CanonicalTextValidationRule("maxLength", maxLengthMessage, maximumLength = maxLength))
+        if (email) add(CanonicalTextValidationRule("email", emailMessage))
+        if (pattern.isNotBlank()) add(CanonicalTextValidationRule("pattern", patternMessage, pattern = pattern))
+    }
+}
+
+internal fun canonicalValidationVisible(
+    trigger: CanonicalValidationTrigger,
+    validationVisible: Boolean,
+    wasEdited: Boolean,
+    wasBlurred: Boolean
+): Boolean = validationVisible || when (trigger) {
+    CanonicalValidationTrigger.CHANGE -> wasEdited
+    CanonicalValidationTrigger.BLUR -> wasBlurred
+    CanonicalValidationTrigger.SUBMIT -> false
+}
+
+internal fun canonicalValidationMessage(value: String, rules: List<CanonicalTextValidationRule>): String? = rules.firstOrNull { rule ->
+    when (rule.type) {
+        "required" -> value.isBlank()
+        "minLength" -> value.codePointCount(0, value.length) < requireNotNull(rule.minimumLength)
+        "maxLength" -> value.codePointCount(0, value.length) > requireNotNull(rule.maximumLength)
+        "email" -> value.isNotBlank() && !CANONICAL_EMAIL_PATTERN.matches(value)
+        "pattern" -> !Regex(requireNotNull(rule.pattern)).matches(value)
+        else -> error("Validated rules may contain only supported types")
+    }
+}?.let { rule ->
+    rule.message.ifBlank {
+        when (rule.type) {
+            "required" -> "This field is required"
+            "minLength" -> "Enter at least ${rule.minimumLength} characters"
+            "maxLength" -> "Enter at most ${rule.maximumLength} characters"
+            "email" -> "Enter a valid email address"
+            "pattern" -> "Enter a valid value"
+            else -> "Enter a valid value"
+        }
+    }
+}
+
+internal fun canonicalBooleanValidationMessage(
+    checked: Boolean,
+    required: Boolean,
+    requiredMessage: String
+): String? = if (required && !checked) {
+    requiredMessage.ifBlank { "This option is required" }
+} else {
+    null
+}
+
+internal fun canonicalSliderRange(minimum: Double, maximum: Double): ClosedFloatingPointRange<Double> {
+    val start = minimum.takeIf(Double::isFinite) ?: 0.0
+    val end = maximum.takeIf { it.isFinite() && it > start } ?: start + 1.0
+    return start..end
+}
+
+internal fun canonicalSliderStep(step: Double, range: ClosedFloatingPointRange<Double>): Double = step.takeIf { it.isFinite() && it > 0.0 && it <= range.endInclusive - range.start } ?: 0.0
+
+internal fun canonicalSliderValue(
+    value: Double,
+    range: ClosedFloatingPointRange<Double>,
+    step: Double
+): Double {
+    val bounded = value.takeIf(Double::isFinite)?.coerceIn(range.start, range.endInclusive) ?: range.start
+    if (step <= 0.0) return bounded
+    val snapped = range.start + round((bounded - range.start) / step) * step
+    return snapped.coerceIn(range.start, range.endInclusive)
+}
+
+@Composable
+private fun progressColor(tone: String): Color = if (tone.isBlank() || tone == "default") {
+    MaterialTheme.colorScheme.primary
+} else {
+    generatedTonePalette(tone).border
+}
+
+@Composable
+private fun progressTrackColor(tone: String): Color = if (tone.isBlank() || tone == "default") {
+    MaterialTheme.colorScheme.primaryContainer
+} else {
+    generatedTonePalette(tone).container
+}
 
 private fun horizontalAlignment(value: String): Alignment.Horizontal = when (value) {
     "center" -> Alignment.CenterHorizontally
@@ -2539,14 +3833,117 @@ private fun horizontalArrangement(value: String, spacing: androidx.compose.ui.un
     else -> Arrangement.spacedBy(spacing)
 }
 
+internal fun canonicalFlexDirection(value: String): String = when (value) {
+    "horizontal" -> "horizontal"
+    else -> "vertical"
+}
+
+internal fun canonicalFlexAlign(value: String): String = when (value) {
+    "center", "end", "stretch" -> value
+    else -> "start"
+}
+
+internal fun canonicalFlexJustify(value: String): String = when (value) {
+    "center", "end", "between", "around" -> value
+    else -> "start"
+}
+
+internal fun canonicalFlexPositions(
+    totalSize: Int,
+    sizes: IntArray,
+    gap: Int,
+    justify: String
+): IntArray {
+    if (sizes.isEmpty()) return IntArray(0)
+
+    val normalizedGap = gap.coerceAtLeast(0)
+    val contentSize = sizes.sum() + normalizedGap * (sizes.size - 1)
+    val remaining = (totalSize - contentSize).coerceAtLeast(0)
+    val normalizedJustify = canonicalFlexJustify(justify)
+    val leading = when (normalizedJustify) {
+        "center" -> remaining / 2
+        "end" -> remaining
+        "around" -> remaining / sizes.size / 2
+        else -> 0
+    }
+    val additionalGap = when (normalizedJustify) {
+        "between" -> if (sizes.size > 1) remaining / (sizes.size - 1) else 0
+        "around" -> remaining / sizes.size
+        else -> 0
+    }
+    var current = leading
+    return IntArray(sizes.size) { index ->
+        val position = current
+        current += sizes[index]
+        if (index < sizes.lastIndex) current += normalizedGap + additionalGap
+        position
+    }
+}
+
+private fun flexVerticalArrangement(justify: String, gap: Dp): Arrangement.Vertical = object : Arrangement.Vertical {
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
+        canonicalFlexPositions(totalSize, sizes, gap.roundToPx(), justify).copyInto(outPositions)
+    }
+}
+
+private fun flexHorizontalArrangement(justify: String, gap: Dp): Arrangement.Horizontal = object : Arrangement.Horizontal {
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, layoutDirection: LayoutDirection, outPositions: IntArray) {
+        val ltrPositions = canonicalFlexPositions(totalSize, sizes, gap.roundToPx(), justify)
+        if (layoutDirection == LayoutDirection.Ltr) {
+            ltrPositions.copyInto(outPositions)
+        } else {
+            ltrPositions.indices.forEach { index ->
+                outPositions[index] = totalSize - ltrPositions[index] - sizes[index]
+            }
+        }
+    }
+}
+
+private fun flexVerticalAlignment(value: String): Alignment.Horizontal = when (value) {
+    "center" -> Alignment.CenterHorizontally
+    "end" -> Alignment.End
+    else -> Alignment.Start
+}
+
+private fun flexHorizontalAlignment(value: String): Alignment.Vertical = when (value) {
+    "start" -> Alignment.Top
+    "end" -> Alignment.Bottom
+    else -> Alignment.CenterVertically
+}
+
 @Composable
 private fun textStyle(value: String) = when (value) {
     "display" -> MaterialTheme.typography.displaySmall
     "metric" -> MaterialTheme.typography.headlineLarge
     "headline" -> MaterialTheme.typography.headlineSmall
     "title" -> MaterialTheme.typography.titleLarge
-    "caption" -> MaterialTheme.typography.labelMedium
+    "caption", "label-sm" -> MaterialTheme.typography.labelMedium
+    "label-xs" -> MaterialTheme.typography.labelSmall
+    "label-md" -> MaterialTheme.typography.bodyMedium
+    "lead" -> MaterialTheme.typography.titleMedium
+    "code" -> MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+    "muted" -> MaterialTheme.typography.bodyMedium
     else -> MaterialTheme.typography.bodyLarge
+}
+
+@Composable
+private fun headingStyle(level: String) = when (level) {
+    "h1" -> MaterialTheme.typography.displaySmall
+    "h3" -> MaterialTheme.typography.headlineMedium
+    "h4" -> MaterialTheme.typography.headlineSmall
+    else -> MaterialTheme.typography.headlineLarge
+}
+
+private fun canonicalTextAlign(value: String): TextAlign = when (value) {
+    "center" -> TextAlign.Center
+    "end" -> TextAlign.End
+    else -> TextAlign.Start
+}
+
+private fun textToneForStyle(style: String, tone: String): String = if (tone.isBlank() && style in setOf("muted", "lead")) {
+    "muted"
+} else {
+    tone
 }
 
 internal data class GeneratedTonePalette(val container: Color, val content: Color, val border: Color)
@@ -2592,6 +3989,67 @@ internal fun emphasisWeight(emphasis: String): FontWeight = when (emphasis) {
 internal fun normalizedSurfaceTreatment(treatment: String): String = treatment.takeIf { it in setOf("plain", "tonal", "outlined", "elevated") } ?: "plain"
 
 internal fun normalizedButtonHierarchy(hierarchy: String): String = hierarchy.takeIf { it in setOf("primary", "secondary", "quiet", "destructive") } ?: "primary"
+
+internal fun canonicalButtonSize(size: String): Dp = when (size) {
+    "large" -> 56.dp
+    "small", "medium" -> 48.dp
+    else -> 48.dp
+}
+
+internal fun canonicalSpinnerSize(size: String): Dp = when (size) {
+    "small" -> 20.dp
+    "large" -> 40.dp
+    else -> 28.dp
+}
+
+internal fun canonicalSkeletonDimension(value: Int, defaultValue: Int): Int = value.takeIf { it > 0 }
+    ?.coerceAtMost(840) ?: defaultValue
+
+internal fun canonicalTextMaxLines(value: Int): Int = value.takeIf { it > 0 }
+    ?.coerceAtMost(100) ?: Int.MAX_VALUE
+
+internal fun canonicalTextFontSize(value: Double): Float? = value
+    .takeIf { it.isFinite() && it > 0.0 }
+    ?.toFloat()
+    ?.coerceIn(8f, 96f)
+
+internal fun canonicalBadgeTone(variant: String): String = when (variant) {
+    "default", "info" -> "accent"
+    "secondary" -> "muted"
+    "destructive", "error" -> "danger"
+    "success" -> "positive"
+    "warning" -> "warning"
+    else -> "default"
+}
+
+internal fun canonicalAvatarSize(size: String): Dp = when (size) {
+    "sm" -> 32.dp
+    "lg" -> 64.dp
+    "xl" -> 80.dp
+    else -> 48.dp
+}
+
+internal fun canonicalAvatarInitials(initials: String, name: String): String = initials.trim().ifBlank {
+    name.trim()
+        .split(Regex("\\s+"))
+        .filter(String::isNotBlank)
+        .take(2)
+        .joinToString(separator = "") { it.first().uppercaseChar().toString() }
+}.take(2).ifBlank { "?" }
+
+internal fun canonicalAvatarUsesRemoteSource(source: String): Boolean = source.startsWith("https://")
+
+internal fun canonicalDividerThickness(value: Double): Float = value
+    .takeIf { it.isFinite() && it > 0.0 }
+    ?.toFloat()
+    ?.coerceAtMost(8f)
+    ?: 1f
+
+internal fun canonicalDividerMargin(value: Double): Float = value
+    .takeIf { it.isFinite() && it >= 0.0 }
+    ?.toFloat()
+    ?.coerceAtMost(840f)
+    ?: 0f
 
 @Composable
 private fun textTone(tone: String): Color = generatedTonePalette(tone).content
@@ -2705,10 +4163,12 @@ private val ROW_EXPANDING_COMPONENTS = setOf(
     "NumberStat",
     "ListItem",
     "TextField",
+    "TextArea",
     "IntField",
     "NumberField",
     "Toggle",
     "Slider",
+    "NumberSlider",
     "ProgressBar",
     "ProgressRing",
     "NumberProgressBar",

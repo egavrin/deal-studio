@@ -1,0 +1,21 @@
+import * as app from "./app";
+import * as ui from "./platform-ui.dealui-pack";
+// @ui-root
+export view App(state: app.AppState): View {
+  ui.AppTheme(style: ui.__STYLE__) {
+    ui.Root(spacing: ui.spaceLg, padding: ui.spaceMd, contentWidth: ui.contentCompact) {
+      ui.Header(title: "Secure entry", supporting: "React Native secureTextEntry maps to an obscured Android field")
+      ui.TextField(
+        name: "password",
+        value: state.password,
+        label: "Password",
+        placeholder: "Enter password",
+        inputType: ui.textInputPassword,
+        keyboardType: ui.keyboardDefault,
+        secureTextEntry: true,
+        onChange: action app.ChangePassword { value: payload },
+        accessibilityLabel: "Password input"
+      )
+    }
+  }
+}

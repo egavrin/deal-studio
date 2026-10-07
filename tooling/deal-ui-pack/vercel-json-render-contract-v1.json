@@ -1,0 +1,2221 @@
+{
+  "schemaVersion": "deal-studio-json-render-contract-extraction-v1",
+  "source": {
+    "repository": "vercel-labs/json-render",
+    "revision": "3ad381881194e7011ad3ccd6d668033495a06c29",
+    "extraction": "executed-zod-schemas-for-catalogs; concrete-candidate-observation-for-playground",
+    "files": {
+      "apps/web/lib/jev/grammar.ts": "8a880b0db48d476029e5f55ad9ace0b02f6b370aa1675864c8c259d9c198be29",
+      "packages/react-native/src/catalog.ts": "f24e665ea687bd800b120d04f80265944f047b968348afaf661066ebd950bdbc",
+      "packages/shadcn/src/catalog.ts": "e8d1387428b5317a672bc599d026751bd9a1a32b0d77538f5da6cea967513c07"
+    }
+  },
+  "requiredRows": 64,
+  "origins": {
+    "shadcn": 36,
+    "react-native": 26,
+    "jev-playground": 2
+  },
+  "components": {
+    "shadcn": {
+      "Accordion": {
+        "props": {
+          "items": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "content": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "title": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "type": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "multiple",
+              "single"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Alert": {
+        "props": {
+          "message": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "type": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "error",
+              "info",
+              "success",
+              "warning"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Avatar": {
+        "props": {
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "lg",
+              "md",
+              "sm"
+            ]
+          },
+          "src": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Badge": {
+        "props": {
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "variant": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "default",
+              "destructive",
+              "outline",
+              "secondary"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Button": {
+        "props": {
+          "disabled": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "variant": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "danger",
+              "primary",
+              "secondary"
+            ]
+          }
+        },
+        "events": [
+          "press"
+        ],
+        "slots": []
+      },
+      "ButtonGroup": {
+        "props": {
+          "buttons": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "label": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "value": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "selected": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Card": {
+        "props": {
+          "centered": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "className": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "description": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "maxWidth": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "full",
+              "lg",
+              "md",
+              "sm"
+            ]
+          },
+          "title": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Carousel": {
+        "props": {
+          "items": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "description": {
+                  "required": true,
+                  "nullable": true,
+                  "type": "string"
+                },
+                "title": {
+                  "required": true,
+                  "nullable": true,
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Checkbox": {
+        "props": {
+          "checked": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "checks": {
+            "required": true,
+            "nullable": true,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "args": {
+                  "required": false,
+                  "nullable": false,
+                  "type": "record",
+                  "key": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "value": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "unknown"
+                  }
+                },
+                "message": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "type": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "validateOn": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "blur",
+              "change",
+              "submit"
+            ]
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Collapsible": {
+        "props": {
+          "defaultOpen": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "title": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Dialog": {
+        "props": {
+          "description": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "openPath": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "title": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Drawer": {
+        "props": {
+          "description": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "openPath": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "title": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "DropdownMenu": {
+        "props": {
+          "items": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "label": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "value": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "select"
+        ],
+        "slots": []
+      },
+      "Grid": {
+        "props": {
+          "className": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "columns": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "gap": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "lg",
+              "md",
+              "sm",
+              "xl"
+            ]
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Heading": {
+        "props": {
+          "level": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "h1",
+              "h2",
+              "h3",
+              "h4"
+            ]
+          },
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Image": {
+        "props": {
+          "alt": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "height": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "src": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "width": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Input": {
+        "props": {
+          "checks": {
+            "required": true,
+            "nullable": true,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "args": {
+                  "required": false,
+                  "nullable": false,
+                  "type": "record",
+                  "key": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "value": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "unknown"
+                  }
+                },
+                "message": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "type": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "placeholder": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "type": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "email",
+              "number",
+              "password",
+              "text"
+            ]
+          },
+          "validateOn": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "blur",
+              "change",
+              "submit"
+            ]
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "blur",
+          "focus",
+          "submit"
+        ],
+        "slots": []
+      },
+      "Link": {
+        "props": {
+          "href": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [
+          "press"
+        ],
+        "slots": []
+      },
+      "Pagination": {
+        "props": {
+          "page": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "totalPages": {
+            "required": true,
+            "nullable": false,
+            "type": "number"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Popover": {
+        "props": {
+          "content": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "trigger": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Progress": {
+        "props": {
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "max": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "value": {
+            "required": true,
+            "nullable": false,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Radio": {
+        "props": {
+          "checks": {
+            "required": true,
+            "nullable": true,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "args": {
+                  "required": false,
+                  "nullable": false,
+                  "type": "record",
+                  "key": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "value": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "unknown"
+                  }
+                },
+                "message": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "type": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "options": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "string"
+            }
+          },
+          "validateOn": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "blur",
+              "change",
+              "submit"
+            ]
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Select": {
+        "props": {
+          "checks": {
+            "required": true,
+            "nullable": true,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "args": {
+                  "required": false,
+                  "nullable": false,
+                  "type": "record",
+                  "key": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "value": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "unknown"
+                  }
+                },
+                "message": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "type": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "options": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "string"
+            }
+          },
+          "placeholder": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "validateOn": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "blur",
+              "change",
+              "submit"
+            ]
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Separator": {
+        "props": {
+          "orientation": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "horizontal",
+              "vertical"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Skeleton": {
+        "props": {
+          "height": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "rounded": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "width": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Slider": {
+        "props": {
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "max": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "min": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "step": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Spinner": {
+        "props": {
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "lg",
+              "md",
+              "sm"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Stack": {
+        "props": {
+          "align": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "center",
+              "end",
+              "start",
+              "stretch"
+            ]
+          },
+          "className": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "direction": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "horizontal",
+              "vertical"
+            ]
+          },
+          "gap": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "lg",
+              "md",
+              "none",
+              "sm",
+              "xl"
+            ]
+          },
+          "justify": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "around",
+              "between",
+              "center",
+              "end",
+              "start"
+            ]
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Switch": {
+        "props": {
+          "checked": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "checks": {
+            "required": true,
+            "nullable": true,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "args": {
+                  "required": false,
+                  "nullable": false,
+                  "type": "record",
+                  "key": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "value": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "unknown"
+                  }
+                },
+                "message": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "type": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "validateOn": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "blur",
+              "change",
+              "submit"
+            ]
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Table": {
+        "props": {
+          "caption": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "columns": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "string"
+            }
+          },
+          "rows": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "array",
+              "element": {
+                "required": true,
+                "nullable": false,
+                "type": "string"
+              }
+            }
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Tabs": {
+        "props": {
+          "defaultValue": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "tabs": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "label": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "value": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": [
+          "default"
+        ]
+      },
+      "Text": {
+        "props": {
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "variant": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "body",
+              "caption",
+              "code",
+              "lead",
+              "muted"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Textarea": {
+        "props": {
+          "checks": {
+            "required": true,
+            "nullable": true,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "args": {
+                  "required": false,
+                  "nullable": false,
+                  "type": "record",
+                  "key": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "value": {
+                    "required": true,
+                    "nullable": false,
+                    "type": "unknown"
+                  }
+                },
+                "message": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "type": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "placeholder": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "rows": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "validateOn": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "blur",
+              "change",
+              "submit"
+            ]
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Toggle": {
+        "props": {
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "pressed": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "variant": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "default",
+              "outline"
+            ]
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "ToggleGroup": {
+        "props": {
+          "items": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "label": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "value": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "type": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "multiple",
+              "single"
+            ]
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Tooltip": {
+        "props": {
+          "content": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      }
+    },
+    "react-native": {
+      "Avatar": {
+        "props": {
+          "backgroundColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "initials": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "lg",
+              "md",
+              "sm",
+              "xl"
+            ]
+          },
+          "src": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Badge": {
+        "props": {
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "variant": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "default",
+              "error",
+              "info",
+              "success",
+              "warning"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Button": {
+        "props": {
+          "disabled": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "loading": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "lg",
+              "md",
+              "sm"
+            ]
+          },
+          "variant": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "danger",
+              "ghost",
+              "outline",
+              "primary",
+              "secondary"
+            ]
+          }
+        },
+        "events": [
+          "press"
+        ],
+        "slots": []
+      },
+      "Card": {
+        "props": {
+          "backgroundColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "borderRadius": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "elevated": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "padding": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "subtitle": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Checkbox": {
+        "props": {
+          "checked": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "disabled": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "Chip": {
+        "props": {
+          "backgroundColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "selected": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          }
+        },
+        "events": [
+          "press",
+          "remove"
+        ],
+        "slots": []
+      },
+      "Column": {
+        "props": {
+          "alignItems": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "baseline",
+              "center",
+              "flex-end",
+              "flex-start",
+              "stretch"
+            ]
+          },
+          "flex": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "gap": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "justifyContent": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "center",
+              "flex-end",
+              "flex-start",
+              "space-around",
+              "space-between",
+              "space-evenly"
+            ]
+          },
+          "padding": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Container": {
+        "props": {
+          "backgroundColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "borderRadius": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "flex": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "margin": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "padding": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "paddingHorizontal": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "paddingVertical": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Divider": {
+        "props": {
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "direction": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "horizontal",
+              "vertical"
+            ]
+          },
+          "margin": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "thickness": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Heading": {
+        "props": {
+          "align": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "center",
+              "left",
+              "right"
+            ]
+          },
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "level": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "h1",
+              "h2",
+              "h3",
+              "h4"
+            ]
+          },
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Image": {
+        "props": {
+          "alt": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "borderRadius": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "height": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "resizeMode": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "center",
+              "contain",
+              "cover",
+              "stretch"
+            ]
+          },
+          "src": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "width": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Label": {
+        "props": {
+          "bold": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "md",
+              "sm",
+              "xs"
+            ]
+          },
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "ListItem": {
+        "props": {
+          "leading": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "showChevron": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "subtitle": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "trailing": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "press"
+        ],
+        "slots": []
+      },
+      "Modal": {
+        "props": {
+          "animationType": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "fade",
+              "none",
+              "slide"
+            ]
+          },
+          "title": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "visible": {
+            "required": true,
+            "nullable": false,
+            "type": "boolean"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "Paragraph": {
+        "props": {
+          "align": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "center",
+              "left",
+              "right"
+            ]
+          },
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "fontSize": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "numberOfLines": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "text": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Pressable": {
+        "props": {},
+        "events": [
+          "longPress",
+          "press"
+        ],
+        "slots": [
+          "default"
+        ]
+      },
+      "ProgressBar": {
+        "props": {
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "height": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "progress": {
+            "required": true,
+            "nullable": false,
+            "type": "number"
+          },
+          "trackColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Row": {
+        "props": {
+          "alignItems": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "baseline",
+              "center",
+              "flex-end",
+              "flex-start",
+              "stretch"
+            ]
+          },
+          "flex": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "flexWrap": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "nowrap",
+              "wrap"
+            ]
+          },
+          "gap": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "justifyContent": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "center",
+              "flex-end",
+              "flex-start",
+              "space-around",
+              "space-between",
+              "space-evenly"
+            ]
+          },
+          "padding": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "SafeArea": {
+        "props": {
+          "backgroundColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "ScrollContainer": {
+        "props": {
+          "backgroundColor": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "horizontal": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "padding": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "showsScrollIndicator": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          }
+        },
+        "events": [],
+        "slots": [
+          "default"
+        ]
+      },
+      "SearchBar": {
+        "props": {
+          "placeholder": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "submit"
+        ],
+        "slots": []
+      },
+      "Slider": {
+        "props": {
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "max": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "min": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "step": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Spacer": {
+        "props": {
+          "flex": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Spinner": {
+        "props": {
+          "color": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "size": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "large",
+              "small"
+            ]
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "Switch": {
+        "props": {
+          "checked": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "disabled": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "change"
+        ],
+        "slots": []
+      },
+      "TextInput": {
+        "props": {
+          "flex": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "keyboardType": {
+            "required": true,
+            "nullable": true,
+            "type": "enum",
+            "values": [
+              "default",
+              "email-address",
+              "numeric",
+              "phone-pad",
+              "url"
+            ]
+          },
+          "label": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "multiline": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "numberOfLines": {
+            "required": true,
+            "nullable": true,
+            "type": "number"
+          },
+          "placeholder": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "secureTextEntry": {
+            "required": true,
+            "nullable": true,
+            "type": "boolean"
+          },
+          "value": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "events": [
+          "blur",
+          "focus",
+          "submit"
+        ],
+        "slots": []
+      }
+    },
+    "jev-playground": {
+      "Metric": {
+        "sourceKind": "concrete-candidate-observation",
+        "props": {
+          "change": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "changeType": {
+            "required": true,
+            "nullable": false,
+            "type": "enum",
+            "values": [
+              "negative",
+              "positive"
+            ]
+          },
+          "label": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          },
+          "prefix": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "suffix": {
+            "required": true,
+            "nullable": true,
+            "type": "string"
+          },
+          "value": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      },
+      "BarGraph": {
+        "sourceKind": "concrete-candidate-observation",
+        "props": {
+          "data": {
+            "required": true,
+            "nullable": false,
+            "type": "array",
+            "element": {
+              "required": true,
+              "nullable": false,
+              "type": "object",
+              "fields": {
+                "label": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "string"
+                },
+                "value": {
+                  "required": true,
+                  "nullable": false,
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "title": {
+            "required": true,
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "events": [],
+        "slots": []
+      }
+    }
+  }
+}
